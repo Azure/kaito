@@ -51,6 +51,8 @@ type PresetModelSpec struct {
 	Name PresetModelName `json:"name,omitempty"`
 	// The custom volume that will be mounted to the pod running preset models.
 	// Later, we may limit to AzureFile and configmap in API.
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
 	Volume []v1.Volume `json:"volume,omitempty"`
 }
 
@@ -59,6 +61,8 @@ type InferenceSpec struct {
 	Preset PresetModelSpec `json:"preset,omitempty"`
 	// The Pod template used by the Deployment. Users can use custom image and Pod spec.
 	// Leave this filed unset if preset model is used.
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
 	Template v1.PodTemplateSpec `json:"template,omitempty"`
 }
 
