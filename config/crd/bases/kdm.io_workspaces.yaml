@@ -137,7 +137,7 @@ spec:
                       format: date-time
                       type: string
                     message:
-                      description: message is a human-readable message indicating
+                      description: message is a human readable message indicating
                         details about the transition. This may be an empty string.
                       maxLength: 32768
                       type: string
@@ -174,8 +174,8 @@ spec:
                         like Available, but because arbitrary conditions can be useful
                         (see .node.status.conditions), the ability to deconflict is
                         important. The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
-                      enum:
-                      - "True"
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string
                   required:
                   - lastTransitionTime
