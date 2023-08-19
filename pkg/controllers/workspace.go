@@ -43,8 +43,8 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 }
 
 func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, resource kdmv1alpha1.ResourceSpec) error {
-	// Check PreExistingNodes, if the count, instance type
-	err := c.validatePreExistingNodes(ctx, resource.PreExistingNodes)
+	// Check CandidateNodes, if the count, instance type
+	err := c.validateCandidateNodes(ctx, resource.CandidateNodes)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, resour
 	return nil
 }
 
-func (c *WorkspaceReconciler) validatePreExistingNodes(ctx context.Context, nodeList []string) error {
+func (c *WorkspaceReconciler) validateCandidateNodes(ctx context.Context, nodeList []string) error {
 	return nil
 }
 

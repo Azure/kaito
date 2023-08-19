@@ -95,8 +95,8 @@ func (in *ResourceSpec) DeepCopyInto(out *ResourceSpec) {
 		*out = new(v1.LabelSelector)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.PreExistingNodes != nil {
-		in, out := &in.PreExistingNodes, &out.PreExistingNodes
+	if in.CandidateNodes != nil {
+		in, out := &in.CandidateNodes, &out.CandidateNodes
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
