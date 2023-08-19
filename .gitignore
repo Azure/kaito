@@ -24,3 +24,5 @@ Dockerfile.cross
 *.swp
 *.swo
 *~
+vendor/*
+hack/tools/bin/*

@@ -21,6 +21,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	PresetSetModelllama2A            PresetModelName = "llama2-7b"
+	PresetSetModelllama2B            PresetModelName = "llama2-13b"
+	PresetSetModelllama2C            PresetModelName = "llama2-70b"
+	PresetSetModelStableDiffusionXXX PresetModelName = "stablediffusion-xxx"
+)
+
 type ResourceSpec struct {
 	// The number of required GPU nodes.
 	Count *int `json:"count,omitempty"`
@@ -31,20 +38,13 @@ type ResourceSpec struct {
 	// The required label for the GPU node.
 	LabelSelector *metav1.LabelSelector `json:"labelSelector,omitempty"`
 
-	// The existing GPU nodes with the required labels and the required instancetype.
+	// The existing GPU nodes with the required labels and the required instanceType.
 	// This field is used when the number of qualified existing nodes is larger than the required count.
 	// Users need to ensure supported VHD images are installed in the VMs.
-	Nodes []string `json:"nodes,omitempty"`
+	CandidateNodes []string `json:"candidateNodes,omitempty"`
 }
 
 type PresetModelName string
-
-const (
-	PresetSetModelllama2A            PresetModelName = "llama2-7b"
-	PresetSetModelllama2B            PresetModelName = "llama2-13b"
-	PresetSetModelllama2C            PresetModelName = "llama2-70b"
-	PresetSetModelStableDiffusionXXX PresetModelName = "stablediffusion-xxx"
-)
 
 type PresetModelSpec struct {
 	// Name of a supported preset model, e.g., llama2-7b.
@@ -72,10 +72,13 @@ type TrainingSpec struct {
 
 // WorkspaceStatus defines the observed state of Workspace
 type WorkspaceStatus struct {
-	WorkerNodes    []string `json:"workernodes,omitempty"`
-	ResourceStatus string   `json:"resourceStatus,omitempty"`
-	// Determined by the status of the created deployment1
-	WorkloadStatus string `json:"workloadStatus,omitempty"`
+	// The list of nodes names for the current workload.
+	// +optional
+	WorkerNodes []string `json:"workerNodes,omitempty"`
+
+	// Phase defines current condition of the Workspace.
+	// +optional
+	Conditions []Condition `json:"condition,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -86,11 +89,10 @@ type Workspace struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Resource  ResourceSpec  `json:"resource,omitempty"`
-	Inference InferenceSpec `json:"inference,omitempty"`
-	Training  TrainingSpec  `json:"training,omitempty"`
-
-	Status WorkspaceStatus `json:"status,omitempty"`
+	Resource  ResourceSpec    `json:"resource,omitempty"`
+	Inference InferenceSpec   `json:"inference,omitempty"`
+	Training  TrainingSpec    `json:"training,omitempty"`
+	Status    WorkspaceStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true

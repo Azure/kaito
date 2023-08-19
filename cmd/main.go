@@ -20,9 +20,13 @@ import (
 	"flag"
 	"os"
 
+	"github.com/kdm/pkg/controllers"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -66,9 +70,11 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
+		Scheme:             scheme,
+		MetricsBindAddress: metricsAddr,
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Port: 9443,
+		}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "ef60f9b0.io",
@@ -111,5 +117,15 @@ func main() {
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
+	}
+
+	exporterReconciler := &controllers.WorkspaceReconciler{
+		Client:   mgr.GetClient(),
+		Log:      log.Log.WithName("controllers").WithName("Workspace"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("KDM-Workspace-controller"),
+	}
+	if err := exporterReconciler.SetupWithManager(mgr); err != nil {
+		// TODO Handle error
 	}
 }
