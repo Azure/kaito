@@ -8,5 +8,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: kdm
   name: workspace-sample
-spec:
-  # TODO(user): Add fields here
+resource:
+  count: 1
+  instanceType: "Standard"
+

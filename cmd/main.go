@@ -21,6 +21,7 @@ import (
 	"os"
 
 	"github.com/kdm/pkg/controllers"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -36,13 +37,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
-	"github.com/kdm/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	scheme = runtime.NewScheme()
+
+	exitWithErrorFunc = func() {
+		klog.Flush()
+		os.Exit(1)
+	}
 )
 
 func init() {
@@ -50,6 +54,7 @@ func init() {
 
 	utilruntime.Must(kdmv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
+	klog.InitFlags(nil)
 }
 
 func main() {
@@ -91,41 +96,41 @@ func main() {
 		// LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
-		os.Exit(1)
+		klog.ErrorS(err, "unable to start manager")
+		exitWithErrorFunc()
 	}
 
-	if err = (&controller.WorkspaceReconciler{
+	if err = (&controllers.WorkspaceReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Workspace")
-		os.Exit(1)
+		klog.ErrorS(err, "unable to create controller", "controller", "Workspace")
+		exitWithErrorFunc()
 	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
-		os.Exit(1)
+		klog.ErrorS(err, "unable to set up health check")
+		exitWithErrorFunc()
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
+		klog.ErrorS(err, "unable to set up ready check")
+		exitWithErrorFunc()
 	}
 
-	setupLog.Info("starting manager")
+	klog.InfoS("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
+		klog.ErrorS(err, "problem running manager")
+		exitWithErrorFunc()
 	}
 
-	exporterReconciler := &controllers.WorkspaceReconciler{
+	workspaceController := &controllers.WorkspaceReconciler{
 		Client:   mgr.GetClient(),
 		Log:      log.Log.WithName("controllers").WithName("Workspace"),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("KDM-Workspace-controller"),
 	}
-	if err := exporterReconciler.SetupWithManager(mgr); err != nil {
+	if err := workspaceController.SetupWithManager(mgr); err != nil {
 		// TODO Handle error
 	}
 }

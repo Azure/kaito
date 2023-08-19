@@ -78,7 +78,7 @@ type WorkspaceStatus struct {
 
 	// Phase defines current condition of the Workspace.
 	// +optional
-	Conditions []Condition `json:"condition,omitempty"`
+	Conditions []metav1.Condition `json:"condition,omitempty"`
 }
 
 //+kubebuilder:object:root=true
