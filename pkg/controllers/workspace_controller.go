@@ -13,7 +13,9 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -23,10 +25,6 @@ type WorkspaceReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 }
-
-//+kubebuilder:rbac:groups=kdm.io,resources=workspaces,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=kdm.io,resources=workspaces/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=kdm.io,resources=workspaces/finalizers,verbs=update
 
 func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	klog.InfoS("Reconciling", "workspace", req.NamespacedName)
@@ -42,22 +40,15 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		return c.garbageCollectWorkspace(ctx, workspaceObj)
 	}
 
-	wObj := workspaceObj.DeepCopy()
-	// Add the finalizer to the workspace
-	if err := c.addFinalizer(ctx, wObj); err != nil {
-		klog.ErrorS(err, "failed to add the finalizer to workspace", "workspace", klog.KObj(wObj))
-		return ctrl.Result{}, err
-	}
-
 	// Read ResourceSpec
-	err := c.applyWorkspaceResource(ctx, wObj)
+	err := c.applyWorkspaceResource(ctx, workspaceObj)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 	// TODO apply InferenceSpec
 	// TODO apply TrainingSpec
 	// TODO Update workspace status
-	c.updateWorkspaceCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionTrue, "Done", "Done")
+	c.updateWorkspaceCondition(ctx, workspaceObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionTrue, "Done", "Done")
 
 	return reconcile.Result{}, nil
 }
@@ -77,6 +68,7 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 			candidateNodeCount, lo.FromPtr(wObj.Resource.Count))
 		return nil
 	}
+	klog.InfoS("need to create more nodes", "remainingNodeCount", remainingNodeCount)
 	klog.InfoS("Will start building a machine")
 
 	// Create machine CR
@@ -95,14 +87,16 @@ func (c *WorkspaceReconciler) validateCandidateNodes(ctx context.Context, wObj *
 		klog.InfoS("CandidateNodes is empty")
 		return validNodesCount, nil
 	}
-	var foundNode, foundInstanceType, foundLabels, foundVHD, foundDADI bool
+	klog.InfoS("found candidate node list", "length", len(nodeList))
+
+	var foundInstanceType, foundLabels, foundVHD, foundDADI bool
+NodeListLoop:
 	for index := range nodeList {
 		nodeObj, err := node.GetNode(ctx, nodeList[index], c.Client)
 		if err != nil {
-			klog.ErrorS(err, "cannot get node with name %s", nodeList[index])
-			continue
+			klog.ErrorS(err, "cannot get node", "name", nodeList[index])
+			continue NodeListLoop
 		}
-		foundNode = true
 		// check if node has the required instanceType
 		nodeLabels := nodeObj.Labels
 		if instanceTypeLabel, found := nodeLabels[corev1.LabelInstanceTypeStable]; found {
@@ -110,19 +104,26 @@ func (c *WorkspaceReconciler) validateCandidateNodes(ctx context.Context, wObj *
 				klog.InfoS("node %s has instance type %s which does not match the workspace instance type (%s)",
 					nodeObj.Name, instanceTypeLabel, wObj.Resource.InstanceType)
 				foundInstanceType = false
-				continue
+				continue NodeListLoop
 			}
 			foundInstanceType = true
 		}
+
 		// check if node has the required label selectors
-		for k, v := range wObj.Resource.LabelSelector.MatchLabels {
-			if nodeLabels[k] != v {
-				klog.InfoS("workspace %s has label selector ,%s=%s, which does not match or exist on node %s ",
-					wObj.Name, k, v, nodeObj.Name)
-				foundLabels = false
-				continue
+		if wObj.Resource.LabelSelector != nil {
+			foundAllLabels := false
+			for k, v := range wObj.Resource.LabelSelector.MatchLabels {
+				if nodeLabels[k] != v {
+					klog.InfoS("workspace %s has label selector ,%s=%s, which does not match or exist on node %s ",
+						wObj.Name, k, v, nodeObj.Name)
+					foundAllLabels = false
+					continue NodeListLoop
+				}
+				foundAllLabels = true
 			}
-			foundLabels = true
+			if foundAllLabels {
+				foundLabels = true
+			}
 		}
 
 		// TODO
@@ -131,16 +132,18 @@ func (c *WorkspaceReconciler) validateCandidateNodes(ctx context.Context, wObj *
 		// TODO
 		//does node have the custom label for DADI
 		foundDADI = true
-		if foundNode && foundInstanceType && foundLabels && foundVHD && foundDADI {
+		if foundInstanceType && foundLabels && foundVHD && foundDADI {
+			klog.InfoS("found a candidate node", "name", nodeObj.Name)
 			validNodesCount++
 		}
 	}
-
+	klog.InfoS("found valid nodes", "count", validNodesCount)
 	return validNodesCount, nil
 }
 
 func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	c.Recorder = mgr.GetEventRecorderFor("Workspace")
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kdmv1alpha1.Workspace{}).
+		For(&kdmv1alpha1.Workspace{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(c)
 }
