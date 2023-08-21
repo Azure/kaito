@@ -25,16 +25,5 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 	klog.InfoS("successfully removed the workspace finalizers",
 		"workspace", klog.KObj(wObj))
 	controllerutil.RemoveFinalizer(wObj, utils.WorkspaceFinalizer)
-	return ctrl.Result{}, c.Update(ctx, wObj, &client.UpdateOptions{})
-}
-
-// addFinalizer check if the workspace finalizer has been added to the object.
-func (c *WorkspaceReconciler) addFinalizer(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
-	if controllerutil.ContainsFinalizer(wObj, utils.WorkspaceFinalizer) {
-		return nil
-	}
-
-	klog.InfoS("add the workspace finalizer", "workspace", klog.KObj(wObj))
-	controllerutil.AddFinalizer(wObj, utils.WorkspaceFinalizer)
-	return c.Update(ctx, wObj, client.FieldOwner(utils.WorkspaceFinalizer))
+	return ctrl.Result{}, nil
 }

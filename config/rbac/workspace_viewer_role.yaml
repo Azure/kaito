@@ -25,3 +25,14 @@ rules:
   - workspaces/status
   verbs:
   - get
+- apiGroups:
+    - ""
+  resources:
+    - nodes
+  verbs:
+    - get
+    - list
+    - patch
+    - update
+    - watch
+

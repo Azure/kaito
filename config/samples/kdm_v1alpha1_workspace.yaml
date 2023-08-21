@@ -11,4 +11,7 @@ metadata:
 resource:
   count: 1
   instanceType: "Standard"
+  candidateNodes:
+  - "node1"
+  - "kdm-workspace-control-plane"
 
