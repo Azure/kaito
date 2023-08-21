@@ -19,6 +19,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+const (
+	NvidiaLabelKey            = "accelerator"
+	NvidiaLabelValue          = "nvidia"
+	CapacityNvidiaGPU         = "nvidia.com/gpu"
+	GPUProvisionerCustomLabel = "gpu-provisioner.sh/machine-type"
+)
+
 type WorkspaceReconciler struct {
 	client.Client
 	Log      logr.Logger
@@ -64,16 +71,16 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 	remainingNodeCount := lo.FromPtr(wObj.Resource.Count) - candidateNodeCount
 	// if current node Count == workspace count, then all good and return
 	if remainingNodeCount <= 0 {
-		klog.InfoS("number of candidate nodes, %d, is equal or greater than required workspace count, %d ",
-			candidateNodeCount, lo.FromPtr(wObj.Resource.Count))
+		klog.InfoS("number of candidate nodes, is equal or greater than required workspace count", "workspace.Count", lo.FromPtr(wObj.Resource.Count))
 		return nil
+	} else {
+		klog.InfoS("need to create more nodes", "remainingNodeCount", remainingNodeCount)
+		klog.InfoS("Will start building a machine")
+		// TODO Create machine CR
+
 	}
-	klog.InfoS("need to create more nodes", "remainingNodeCount", remainingNodeCount)
-	klog.InfoS("Will start building a machine")
 
-	// Create machine CR
-
-	// Add nodes names to the WorkspaceStatus.WorkerNodes[]
+	// TODO Add nodes names to the WorkspaceStatus.WorkerNodes[]
 
 	return nil
 }
@@ -98,40 +105,48 @@ NodeListLoop:
 			continue NodeListLoop
 		}
 		// check if node has the required instanceType
-		nodeLabels := nodeObj.Labels
-		if instanceTypeLabel, found := nodeLabels[corev1.LabelInstanceTypeStable]; found {
+		if instanceTypeLabel, found := nodeObj.Labels[corev1.LabelInstanceTypeStable]; found {
 			if instanceTypeLabel != wObj.Resource.InstanceType {
-				klog.InfoS("node %s has instance type %s which does not match the workspace instance type (%s)",
-					nodeObj.Name, instanceTypeLabel, wObj.Resource.InstanceType)
+				klog.InfoS("node has instance type which does not match the workspace instance type", "node",
+					nodeObj.Name, "InstanceType", wObj.Resource.InstanceType)
 				foundInstanceType = false
 				continue NodeListLoop
 			}
+			klog.InfoS("node instance type matches the workspace one", "node",
+				nodeObj.Name, "InstanceType", wObj.Resource.InstanceType)
 			foundInstanceType = true
 		}
 
 		// check if node has the required label selectors
-		if wObj.Resource.LabelSelector != nil {
+		if wObj.Resource.LabelSelector != nil && len(wObj.Resource.LabelSelector.MatchLabels) != 0 {
 			foundAllLabels := false
 			for k, v := range wObj.Resource.LabelSelector.MatchLabels {
-				if nodeLabels[k] != v {
-					klog.InfoS("workspace %s has label selector ,%s=%s, which does not match or exist on node %s ",
-						wObj.Name, k, v, nodeObj.Name)
+				if nodeObj.Labels[k] != v {
+					klog.InfoS("workspace has label selector which does not match or exist on node", "workspace",
+						wObj.Name, "node", nodeObj.Name)
 					foundAllLabels = false
 					continue NodeListLoop
 				}
+				klog.InfoS("node Label Selector matches the workspace one", "node", nodeObj.Name)
 				foundAllLabels = true
 			}
 			if foundAllLabels {
 				foundLabels = true
 			}
+		} else {
+			klog.InfoS("no Label Selector sets for the workspace", "workspace", wObj.Name)
+			foundLabels = true
 		}
 
-		// TODO
 		//does node have vhd installed
-		foundVHD = true
-		// TODO
+		foundVHD = c.isVHDInstalled(ctx, nodeObj)
+
 		//does node have the custom label for DADI
-		foundDADI = true
+		foundDADI, err = c.checkAndInstallDADI(ctx, nodeObj)
+		if err != nil {
+			continue NodeListLoop
+		}
+
 		if foundInstanceType && foundLabels && foundVHD && foundDADI {
 			klog.InfoS("found a candidate node", "name", nodeObj.Name)
 			validNodesCount++
@@ -139,6 +154,48 @@ NodeListLoop:
 	}
 	klog.InfoS("found valid nodes", "count", validNodesCount)
 	return validNodesCount, nil
+}
+
+func (c *WorkspaceReconciler) isVHDInstalled(ctx context.Context, nodeObj *corev1.Node) bool {
+	// check if label accelerator=nvidia exists in the node
+	var foundLabel, foundCapacity bool
+	if nvidiaLabelVal, found := nodeObj.Labels[NvidiaLabelKey]; found {
+		if nvidiaLabelVal == NvidiaLabelValue {
+			klog.InfoS("nvidia accelerator label has been found", "node", nodeObj.Name)
+			foundLabel = true
+		}
+	}
+
+	// check Status.Capacity.nvidia.com/gpu has value
+	capacity := nodeObj.Status.Capacity
+	if capacity != nil && !capacity.Name(CapacityNvidiaGPU, "").IsZero() {
+		klog.InfoS("nvidia GPU capacity value found greater than 0", "node", nodeObj.Name, CapacityNvidiaGPU, capacity.Name(CapacityNvidiaGPU, "").Value())
+		foundCapacity = true
+	}
+
+	if foundLabel && foundCapacity {
+		return true
+	}
+	return false
+}
+
+func (c *WorkspaceReconciler) checkAndInstallDADI(ctx context.Context, nodeObj *corev1.Node) (bool, error) {
+	var installed bool
+	if customLabel, found := nodeObj.Labels[GPUProvisionerCustomLabel]; found {
+		if customLabel == "gpu" {
+			klog.InfoS("the custom gpu-provisioner label has been found", "node", nodeObj.Name, GPUProvisionerCustomLabel, "gpu")
+			installed = true
+		}
+	} else {
+		nodeObj.Labels = lo.Assign(nodeObj.Labels, map[string]string{GPUProvisionerCustomLabel: "gpu"})
+		err := c.Client.Update(ctx, nodeObj, &client.UpdateOptions{})
+		if err != nil {
+			klog.ErrorS(err, "cannot update node with custom label to enable DADI plugin", "node", nodeObj.Name, GPUProvisionerCustomLabel, "gpu")
+			return false, err
+		}
+		installed = true
+	}
+	return installed, nil
 }
 
 func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
