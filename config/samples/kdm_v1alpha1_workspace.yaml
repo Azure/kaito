@@ -9,10 +9,10 @@ metadata:
     app.kubernetes.io/created-by: kdm
   name: workspace-sample-aks
 resource:
-  count: 1
+  count: 2
   instanceType: "Standard_NC12s_v3"
   candidateNodes:
   - "node1"
-  - "aks-gpuonly1-37479184-vmss000000"
+  - "aks-gpuonly1-27964478-vmss000000"
   - "aks-nodepool1-88161285-vmss000000"
 

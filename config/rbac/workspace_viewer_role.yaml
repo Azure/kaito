@@ -26,13 +26,28 @@ rules:
   verbs:
   - get
 - apiGroups:
-    - ""
+  - ""
   resources:
-    - nodes
+  - nodes
+  - namespaces
   verbs:
-    - get
-    - list
-    - patch
-    - update
-    - watch
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - "apps"
+  resources:
+  - daemonsets
+  verbs:
+  - get
+  - list
+  - watch
 

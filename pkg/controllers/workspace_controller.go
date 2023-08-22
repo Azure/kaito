@@ -2,14 +2,13 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-logr/logr"
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
 	"github.com/kdm/pkg/node"
 	"github.com/samber/lo"
-	apps "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -19,15 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-)
-
-const (
-	NvidiaLabelKey            = "accelerator"
-	NvidiaLabelValue          = "nvidia"
-	CapacityNvidiaGPU         = "nvidia.com/gpu"
-	GPUProvisionerCustomLabel = "gpu-provisioner.sh/machine-type"
-	DADIDaemonSetName         = "teleportinstall"
-	DADIDaemonSetNamespace    = "gpu-provisioner"
 )
 
 type WorkspaceReconciler struct {
@@ -41,7 +31,9 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	klog.InfoS("Reconciling", "workspace", req.NamespacedName)
 	workspaceObj := &kdmv1alpha1.Workspace{}
 	if err := c.Client.Get(ctx, req.NamespacedName, workspaceObj); err != nil {
-		klog.ErrorS(err, "failed to get workspace", "workspace", req.Name)
+		if !errors.IsNotFound(err) {
+			klog.ErrorS(err, "failed to get workspace", "workspace", req.Name)
+		}
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -67,12 +59,14 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
 	klog.InfoS("applyWorkspaceResource", "workspace", klog.KObj(wObj))
 	// Check CandidateNodes, if the count, instance type
-	candidateNodeCount, err := c.validateCandidateNodes(ctx, wObj)
+	validNodeList, err := c.validateCandidateNodes(ctx, wObj)
 	if err != nil {
 		return err
 	}
 
+	candidateNodeCount := len(validNodeList)
 	remainingNodeCount := lo.FromPtr(wObj.Resource.Count) - candidateNodeCount
+
 	// if current node Count == workspace count, then all good and return
 	if remainingNodeCount <= 0 {
 		klog.InfoS("number of candidate nodes, is equal or greater than required workspace count", "workspace.Count", lo.FromPtr(wObj.Resource.Count))
@@ -84,23 +78,34 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 
 	}
 
-	// TODO Add nodes names to the WorkspaceStatus.WorkerNodes[]
+	// Ensure all node plugins are running successfully
+	for i := range validNodeList {
+		err = node.EnsureNodePlugins(ctx, validNodeList[i], c.Client)
+		if err != nil {
+			return err
+		}
+	}
+	// Add the valid nodes names to the WorkspaceStatus.WorkerNodes
+	err = c.updateWorkspaceStatusWithNodeList(ctx, wObj, validNodeList)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
-func (c *WorkspaceReconciler) validateCandidateNodes(ctx context.Context, wObj *kdmv1alpha1.Workspace) (int, error) {
+func (c *WorkspaceReconciler) validateCandidateNodes(ctx context.Context, wObj *kdmv1alpha1.Workspace) ([]*corev1.Node, error) {
 	klog.InfoS("validateCandidateNodes", "workspace", klog.KObj(wObj))
-	validNodesCount := 0
+	var validNodeList []*corev1.Node
 	nodeList := wObj.Resource.CandidateNodes
-
 	if nodeList == nil {
 		klog.InfoS("CandidateNodes is empty")
-		return validNodesCount, nil
+		return nil, nil
 	}
+
 	klog.InfoS("found candidate node list", "length", len(nodeList))
 
-	var foundInstanceType, foundLabels, foundVHD, foundDADI bool
+	var foundInstanceType, foundLabels bool
 NodeListLoop:
 	for index := range nodeList {
 		nodeObj, err := node.GetNode(ctx, nodeList[index], c.Client)
@@ -142,83 +147,24 @@ NodeListLoop:
 			foundLabels = true
 		}
 
-		//does node have vhd installed
-		foundVHD = c.IsNvidiaDriverInstalled(ctx, nodeObj)
-
-		//does node have the custom label for DADI
-		foundDADI, err = c.checkAndInstallDADI(ctx, nodeObj)
-		if err != nil {
-			continue NodeListLoop
-		}
-
-		if foundInstanceType && foundLabels && foundVHD && foundDADI {
+		if foundInstanceType && foundLabels {
 			klog.InfoS("found a candidate node", "name", nodeObj.Name)
-			validNodesCount++
-		}
-	}
-	klog.InfoS("found valid nodes", "count", validNodesCount)
-	return validNodesCount, nil
-}
-
-func (c *WorkspaceReconciler) IsNvidiaDriverInstalled(ctx context.Context, nodeObj *corev1.Node) bool {
-	// check if label accelerator=nvidia exists in the node
-	var foundLabel, foundCapacity bool
-	if nvidiaLabelVal, found := nodeObj.Labels[NvidiaLabelKey]; found {
-		if nvidiaLabelVal == NvidiaLabelValue {
-			//klog.InfoS("nvidia accelerator label has been found", "node", nodeObj.Name)
-			foundLabel = true
+			validNodeList = append(validNodeList, nodeObj)
 		}
 	}
 
-	// check Status.Capacity.nvidia.com/gpu has value
-	capacity := nodeObj.Status.Capacity
-	if capacity != nil && !capacity.Name(CapacityNvidiaGPU, "").IsZero() {
-		//klog.InfoS("nvidia GPU capacity value found greater than 0", "node", nodeObj.Name, CapacityNvidiaGPU, capacity.Name(CapacityNvidiaGPU, "").Value())
-		foundCapacity = true
-	}
-
-	if foundLabel && foundCapacity {
-		return true
-	}
-	klog.ErrorS(fmt.Errorf("nvidia plugin is not installed"), "node", nodeObj.Name, CapacityNvidiaGPU)
-
-	return false
-}
-
-func (c *WorkspaceReconciler) checkAndInstallDADI(ctx context.Context, nodeObj *corev1.Node) (bool, error) {
-	var installed bool
-	ds := &apps.DaemonSet{}
-
-	err := c.Client.Get(ctx, client.ObjectKey{Name: DADIDaemonSetName, Namespace: DADIDaemonSetNamespace}, ds, &client.GetOptions{})
-	if err != nil {
-		klog.ErrorS(err, "cannot get DADI daemonset plugin", "daemonset-name", DADIDaemonSetName, "daemonset-namespace", DADIDaemonSetNamespace)
-		return false, err
-	}
-
-	if ds.Status.NumberAvailable < 0 {
-		klog.ErrorS(err, "DADI daemonset plugin is not running", "daemonset-name", DADIDaemonSetName, "daemonset-namespace", DADIDaemonSetNamespace)
-		return false, err
-	}
-
-	if customLabel, found := nodeObj.Labels[GPUProvisionerCustomLabel]; found {
-		if customLabel == "gpu" {
-			klog.InfoS("the custom gpu-provisioner label has been found", "node", nodeObj.Name, GPUProvisionerCustomLabel, "gpu")
-			installed = true
-		}
-	} else {
-		nodeObj.Labels = lo.Assign(nodeObj.Labels, map[string]string{GPUProvisionerCustomLabel: "gpu"})
-		err := c.Client.Update(ctx, nodeObj, &client.UpdateOptions{})
-		if err != nil {
-			klog.ErrorS(err, "cannot update node with custom label to enable DADI plugin", "node", nodeObj.Name, GPUProvisionerCustomLabel, "gpu")
-			return false, err
-		}
-		installed = true
-	}
-	return installed, nil
+	klog.InfoS("found valid nodes", "count", len(validNodeList))
+	return validNodeList, nil
 }
 
 func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	c.Recorder = mgr.GetEventRecorderFor("Workspace")
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Pod{}, "spec.nodeName", func(rawObj client.Object) []string {
+		pod := rawObj.(*corev1.Pod)
+		return []string{pod.Spec.NodeName}
+	}); err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&kdmv1alpha1.Workspace{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(c)

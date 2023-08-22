@@ -28,4 +28,30 @@ rules:
   resources:
   - workspaces/status
   verbs:
-  - get
+  - create
+  - delete
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - namespaces
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - patch
+  - update
+- apiGroups:
+  - "apps"
+  resources:
+  - daemonsets
+  verbs:
+  - patch
+  - update
