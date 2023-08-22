@@ -2,11 +2,13 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
 	"github.com/kdm/pkg/node"
 	"github.com/samber/lo"
+	apps "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,6 +26,8 @@ const (
 	NvidiaLabelValue          = "nvidia"
 	CapacityNvidiaGPU         = "nvidia.com/gpu"
 	GPUProvisionerCustomLabel = "gpu-provisioner.sh/machine-type"
+	DADIDaemonSetName         = "teleportinstall"
+	DADIDaemonSetNamespace    = "gpu-provisioner"
 )
 
 type WorkspaceReconciler struct {
@@ -139,7 +143,7 @@ NodeListLoop:
 		}
 
 		//does node have vhd installed
-		foundVHD = c.isVHDInstalled(ctx, nodeObj)
+		foundVHD = c.IsNvidiaDriverInstalled(ctx, nodeObj)
 
 		//does node have the custom label for DADI
 		foundDADI, err = c.checkAndInstallDADI(ctx, nodeObj)
@@ -156,12 +160,12 @@ NodeListLoop:
 	return validNodesCount, nil
 }
 
-func (c *WorkspaceReconciler) isVHDInstalled(ctx context.Context, nodeObj *corev1.Node) bool {
+func (c *WorkspaceReconciler) IsNvidiaDriverInstalled(ctx context.Context, nodeObj *corev1.Node) bool {
 	// check if label accelerator=nvidia exists in the node
 	var foundLabel, foundCapacity bool
 	if nvidiaLabelVal, found := nodeObj.Labels[NvidiaLabelKey]; found {
 		if nvidiaLabelVal == NvidiaLabelValue {
-			klog.InfoS("nvidia accelerator label has been found", "node", nodeObj.Name)
+			//klog.InfoS("nvidia accelerator label has been found", "node", nodeObj.Name)
 			foundLabel = true
 		}
 	}
@@ -169,18 +173,33 @@ func (c *WorkspaceReconciler) isVHDInstalled(ctx context.Context, nodeObj *corev
 	// check Status.Capacity.nvidia.com/gpu has value
 	capacity := nodeObj.Status.Capacity
 	if capacity != nil && !capacity.Name(CapacityNvidiaGPU, "").IsZero() {
-		klog.InfoS("nvidia GPU capacity value found greater than 0", "node", nodeObj.Name, CapacityNvidiaGPU, capacity.Name(CapacityNvidiaGPU, "").Value())
+		//klog.InfoS("nvidia GPU capacity value found greater than 0", "node", nodeObj.Name, CapacityNvidiaGPU, capacity.Name(CapacityNvidiaGPU, "").Value())
 		foundCapacity = true
 	}
 
 	if foundLabel && foundCapacity {
 		return true
 	}
+	klog.ErrorS(fmt.Errorf("nvidia plugin is not installed"), "node", nodeObj.Name, CapacityNvidiaGPU)
+
 	return false
 }
 
 func (c *WorkspaceReconciler) checkAndInstallDADI(ctx context.Context, nodeObj *corev1.Node) (bool, error) {
 	var installed bool
+	ds := &apps.DaemonSet{}
+
+	err := c.Client.Get(ctx, client.ObjectKey{Name: DADIDaemonSetName, Namespace: DADIDaemonSetNamespace}, ds, &client.GetOptions{})
+	if err != nil {
+		klog.ErrorS(err, "cannot get DADI daemonset plugin", "daemonset-name", DADIDaemonSetName, "daemonset-namespace", DADIDaemonSetNamespace)
+		return false, err
+	}
+
+	if ds.Status.NumberAvailable < 0 {
+		klog.ErrorS(err, "DADI daemonset plugin is not running", "daemonset-name", DADIDaemonSetName, "daemonset-namespace", DADIDaemonSetNamespace)
+		return false, err
+	}
+
 	if customLabel, found := nodeObj.Labels[GPUProvisionerCustomLabel]; found {
 		if customLabel == "gpu" {
 			klog.InfoS("the custom gpu-provisioner label has been found", "node", nodeObj.Name, GPUProvisionerCustomLabel, "gpu")
