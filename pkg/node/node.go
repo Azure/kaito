@@ -86,24 +86,17 @@ func checkAndInstallNvidiaPlugin(ctx context.Context, nodeObj *corev1.Node, kube
 		}
 	}
 
-	podFound, err := checkDaemonSetPodForNode(ctx, NvidiaDaemonSetName, nodeObj.Name, kubeClient)
-	if err != nil {
-		return false, err
-	}
-
-	if podFound {
-		// check Status.Capacity.nvidia.com/gpu has value
-		capacity := nodeObj.Status.Capacity
-		if capacity != nil && !capacity.Name(CapacityNvidiaGPU, "").IsZero() {
-			foundCapacity = true
-		}
+	// check Status.Capacity.nvidia.com/gpu has value
+	capacity := nodeObj.Status.Capacity
+	if capacity != nil && !capacity.Name(CapacityNvidiaGPU, "").IsZero() {
+		foundCapacity = true
 	}
 
 	if foundLabel && foundCapacity {
 		return true, nil
 	}
 
-	klog.ErrorS(fmt.Errorf("nvidia plugin cannot be installed"), "node", nodeObj.Name, CapacityNvidiaGPU)
+	klog.ErrorS(fmt.Errorf("nvidia plugin cannot be installed"), "node", nodeObj.Name)
 	return false, nil
 }
 

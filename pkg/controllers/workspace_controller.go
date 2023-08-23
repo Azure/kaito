@@ -58,14 +58,7 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 
 func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
 	klog.InfoS("applyWorkspaceResource", "workspace", klog.KObj(wObj))
-	// Check CandidateNodes
-	var validNodeList []*corev1.Node
-
-	validCandidateNodeList, err := c.validateCandidateNodes(ctx, wObj)
-	if err != nil {
-		return err
-	}
-	validNodeList = append(validNodeList, validCandidateNodeList...)
+	validNodeList := []*corev1.Node{}
 
 	// Check the current cluster nodes if they match the labelSelector and instanceType
 	validCurrentClusterNodeList, err := c.validateCurrentClusterNodes(ctx, wObj)
@@ -73,19 +66,43 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 		return err
 	}
 
-	validNodeList = append(validNodeList, validCurrentClusterNodeList...)
+	// Check preferredNodes
+	preferredList := wObj.Resource.PreferredNodes
+	if preferredList == nil {
+		klog.InfoS("PreferredNodes list is empty")
+	} else {
+		for n := range preferredList {
+			lo.Find(validNodeList, func(nodeItem *corev1.Node) bool {
+				if nodeItem.Name == preferredList[n] {
+					validNodeList = append(validNodeList, nodeItem)
+					return true
+				}
+				// else do nothing for now
+				return false
+			})
+		}
+	}
+	// TODO check nodes in the WorkspaceStatus.WorkerNodes.
 
-	// remove duplicate nodes
-	validNodeList = lo.FindUniques(validNodeList)
+	for n := range validCurrentClusterNodeList {
+		if len(validNodeList) == lo.FromPtr(wObj.Resource.Count) {
+			break
+		}
+		_, found := lo.Find(validNodeList, func(nodeItem *corev1.Node) bool {
+			return nodeItem.Name == validCurrentClusterNodeList[n].Name
+		})
+		if !found {
+			validNodeList = append(validNodeList, validCurrentClusterNodeList[n])
+		}
+	}
 
 	validNodeCount := len(validNodeList)
 	// subtract all valid nodes from the desired count
 	remainingNodeCount := lo.FromPtr(wObj.Resource.Count) - validNodeCount
 
-	// if current node Count == workspace count, then all good and return
-	if remainingNodeCount <= 0 {
-		klog.InfoS("number of candidate nodes, is equal or greater than required workspace count", "workspace.Count", lo.FromPtr(wObj.Resource.Count))
-		return nil
+	// if current valid nodes Count == workspace count, then all good and return
+	if remainingNodeCount == 0 {
+		klog.InfoS("number of existing nodes are equal to the required workspace count", "workspace.Count", lo.FromPtr(wObj.Resource.Count))
 	} else {
 		klog.InfoS("need to create more nodes", "remainingNodeCount", remainingNodeCount)
 		klog.InfoS("Will start building a machine")
@@ -109,40 +126,9 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 	return nil
 }
 
-func (c *WorkspaceReconciler) validateCandidateNodes(ctx context.Context, wObj *kdmv1alpha1.Workspace) ([]*corev1.Node, error) {
-	klog.InfoS("validateCandidateNodes", "workspace", klog.KObj(wObj))
-	var validNodeList []*corev1.Node
-	nodeList := wObj.Resource.CandidateNodes
-	if nodeList == nil {
-		klog.InfoS("CandidateNodes is empty")
-		return nil, nil
-	}
-
-	klog.InfoS("found candidate node list", "length", len(nodeList))
-
-	var foundInstanceType, foundLabel bool
-	for index := range nodeList {
-		nodeObj, err := node.GetNode(ctx, nodeList[index], c.Client)
-		if err != nil {
-			klog.ErrorS(err, "cannot get node", "name", nodeList[index])
-			continue
-		}
-		foundLabel = c.validateNodeLabelSelector(ctx, wObj, nodeObj)
-		foundInstanceType = c.validateNodeInstanceType(ctx, wObj, nodeObj)
-
-		if foundInstanceType && foundLabel {
-			klog.InfoS("found a candidate node", "name", nodeObj.Name)
-			validNodeList = append(validNodeList, nodeObj)
-		}
-	}
-
-	klog.InfoS("found valid nodes", "count", len(validNodeList))
-	return validNodeList, nil
-}
-
 func (c *WorkspaceReconciler) validateCurrentClusterNodes(ctx context.Context, wObj *kdmv1alpha1.Workspace) ([]*corev1.Node, error) {
 	klog.InfoS("validateCurrentClusterNodes", "workspace", klog.KObj(wObj))
-	var validNodeList []*corev1.Node
+	var validCurrentNodeList []*corev1.Node
 	opt := &client.ListOptions{}
 	if wObj.Resource.LabelSelector != nil && len(wObj.Resource.LabelSelector.MatchLabels) != 0 {
 		opt.LabelSelector = labels.SelectorFromSet(wObj.Resource.LabelSelector.MatchLabels)
@@ -157,48 +143,22 @@ func (c *WorkspaceReconciler) validateCurrentClusterNodes(ctx context.Context, w
 		return nil, err
 	}
 	if nodeList == nil {
-		klog.InfoS("CandidateNodes is empty")
+		klog.InfoS("no current nodes match the workspace resource spec", "workspace", wObj.Name)
 		return nil, nil
 	}
-
-	klog.InfoS("found candidate node list", "length", len(nodeList.Items))
 
 	var foundInstanceType bool
 	for index := range nodeList.Items {
 		nodeObj := nodeList.Items[index]
-		// Check if current node exists in the candidateNodes list
-		if _, found := lo.Find(wObj.Resource.CandidateNodes, func(item string) bool {
-			return item == nodeObj.Name
-		}); found {
-			continue
-		}
 		foundInstanceType = c.validateNodeInstanceType(ctx, wObj, lo.ToPtr(nodeObj))
-
 		if foundInstanceType {
 			klog.InfoS("found a current valid node", "name", nodeObj.Name)
-			validNodeList = append(validNodeList, lo.ToPtr(nodeObj))
+			validCurrentNodeList = append(validCurrentNodeList, lo.ToPtr(nodeObj))
 		}
 	}
 
-	klog.InfoS("found current valid nodes", "count", len(validNodeList))
-	return validNodeList, nil
-}
-
-// check if node has the required label selectors
-func (c *WorkspaceReconciler) validateNodeLabelSelector(ctx context.Context, wObj *kdmv1alpha1.Workspace, nodeObj *corev1.Node) bool {
-	if wObj.Resource.LabelSelector != nil && len(wObj.Resource.LabelSelector.MatchLabels) != 0 {
-		for k, v := range wObj.Resource.LabelSelector.MatchLabels {
-			if nodeObj.Labels[k] != v {
-				klog.InfoS("workspace has label selector which does not match or exist on node", "workspace",
-					wObj.Name, "node", nodeObj.Name)
-				return false
-			}
-		}
-	} else {
-		klog.InfoS("no Label Selector sets for the workspace", "workspace", wObj.Name)
-		return true
-	}
-	return true
+	klog.InfoS("found current valid nodes", "count", len(validCurrentNodeList))
+	return validCurrentNodeList, nil
 }
 
 // check if node has the required instanceType
