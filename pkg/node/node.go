@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/samber/lo"
-	apps "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -73,22 +72,6 @@ func checkAndInstallNvidiaPlugin(ctx context.Context, nodeObj *corev1.Node, kube
 		}
 	}
 
-	ds := &apps.DaemonSet{}
-	err := retry.OnError(retry.DefaultBackoff, func(err error) bool {
-		return true
-	}, func() error {
-		return kubeClient.Get(ctx, client.ObjectKey{Name: NvidiaDaemonSetName, Namespace: GPUProvisionerNamespace}, ds, &client.GetOptions{})
-	})
-
-	if err != nil {
-		klog.ErrorS(err, "cannot get Nvidia daemonset plugin", "daemonset-name", NvidiaDaemonSetName, "daemonset-namespace", GPUProvisionerNamespace)
-		return false, err
-	}
-
-	if ds.Status.NumberAvailable < 0 {
-		klog.ErrorS(err, "Nvidia daemonset plugin is not running", "daemonset-name", NvidiaDaemonSetName, "daemonset-namespace", GPUProvisionerNamespace)
-		return false, err
-	}
 	podFound, err := checkDaemonSetPodForNode(ctx, NvidiaDaemonSetName, nodeObj.Name, kubeClient)
 	if err != nil {
 		return false, err
@@ -123,22 +106,6 @@ func checkAndInstallDADI(ctx context.Context, nodeObj *corev1.Node, kubeClient c
 		}
 	}
 
-	ds := &apps.DaemonSet{}
-	err := retry.OnError(retry.DefaultBackoff, func(err error) bool {
-		return true
-	}, func() error {
-		return kubeClient.Get(ctx, client.ObjectKey{Name: DADIDaemonSetName, Namespace: GPUProvisionerNamespace}, ds, &client.GetOptions{})
-	})
-
-	if err != nil {
-		klog.ErrorS(err, "cannot get DADI daemonset plugin", "daemonset-name", DADIDaemonSetName, "daemonset-namespace", GPUProvisionerNamespace)
-		return false, err
-	}
-
-	if ds.Status.NumberAvailable < 0 {
-		klog.ErrorS(err, "DADI daemonset plugin is not running", "daemonset-name", DADIDaemonSetName, "daemonset-namespace", GPUProvisionerNamespace)
-		return false, err
-	}
 	return checkDaemonSetPodForNode(ctx, DADIDaemonSetName, nodeObj.Name, kubeClient)
 }
 

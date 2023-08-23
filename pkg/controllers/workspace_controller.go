@@ -105,13 +105,13 @@ func (c *WorkspaceReconciler) validateCandidateNodes(ctx context.Context, wObj *
 
 	klog.InfoS("found candidate node list", "length", len(nodeList))
 
-	var foundInstanceType, foundLabels bool
+	var foundInstanceType, foundAllLabels bool
 NodeListLoop:
 	for index := range nodeList {
 		nodeObj, err := node.GetNode(ctx, nodeList[index], c.Client)
 		if err != nil {
 			klog.ErrorS(err, "cannot get node", "name", nodeList[index])
-			continue NodeListLoop
+			continue
 		}
 		// check if node has the required instanceType
 		if instanceTypeLabel, found := nodeObj.Labels[corev1.LabelInstanceTypeStable]; found {
@@ -128,7 +128,6 @@ NodeListLoop:
 
 		// check if node has the required label selectors
 		if wObj.Resource.LabelSelector != nil && len(wObj.Resource.LabelSelector.MatchLabels) != 0 {
-			foundAllLabels := false
 			for k, v := range wObj.Resource.LabelSelector.MatchLabels {
 				if nodeObj.Labels[k] != v {
 					klog.InfoS("workspace has label selector which does not match or exist on node", "workspace",
@@ -139,15 +138,13 @@ NodeListLoop:
 				klog.InfoS("node Label Selector matches the workspace one", "node", nodeObj.Name)
 				foundAllLabels = true
 			}
-			if foundAllLabels {
-				foundLabels = true
-			}
+
 		} else {
 			klog.InfoS("no Label Selector sets for the workspace", "workspace", wObj.Name)
-			foundLabels = true
+			foundAllLabels = true
 		}
 
-		if foundInstanceType && foundLabels {
+		if foundInstanceType && foundAllLabels {
 			klog.InfoS("found a candidate node", "name", nodeObj.Name)
 			validNodeList = append(validNodeList, nodeObj)
 		}
