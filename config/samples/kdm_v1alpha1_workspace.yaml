@@ -11,8 +11,11 @@ metadata:
 resource:
   count: 2
   instanceType: "Standard_NC12s_v3"
+  labelSelector:
+    matchLabels:
+      gpu-provisioner.sh/machine-type: gpu
   candidateNodes:
   - "node1"
-  - "aks-gpuonly1-27964478-vmss000000"
+  - "aks-machine1-33538733-vmss000000"
   - "aks-nodepool1-88161285-vmss000000"
 

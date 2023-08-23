@@ -38,6 +38,20 @@ func GetNode(ctx context.Context, nodeName string, kubeClient client.Client) (*c
 	return node, nil
 }
 
+// ListNodes get list of kubernetes nodes
+func ListNodes(ctx context.Context, kubeClient client.Client, options *client.ListOptions) (*corev1.NodeList, error) {
+	nodeList := &corev1.NodeList{}
+
+	err := kubeClient.List(ctx, nodeList, options)
+	if err != nil {
+		return nil, err
+	}
+	if nodeList == nil {
+		return nil, fmt.Errorf("no nodes have been found")
+	}
+	return nodeList, nil
+}
+
 func EnsureNodePlugins(ctx context.Context, nodeObj *corev1.Node, kubeClient client.Client) error {
 	var foundNvidiaPlugin, foundDADIPlugin bool
 	//does node have vhd installed
