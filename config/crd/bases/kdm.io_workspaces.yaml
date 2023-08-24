@@ -53,14 +53,6 @@ spec:
             type: object
           resource:
             properties:
-              candidateNodes:
-                description: The existing GPU nodes with the required labels and the
-                  required instanceType. This field is used when the number of qualified
-                  existing nodes is larger than the required count. Users need to
-                  ensure supported VHD images are installed in the VMs.
-                items:
-                  type: string
-                type: array
               count:
                 description: The number of required GPU nodes.
                 type: integer
@@ -112,6 +104,14 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-map-type: atomic
+              preferredNodes:
+                description: The existing GPU nodes with the required labels and the
+                  required instanceType. This field is used when the number of qualified
+                  existing nodes is larger than the required count. Users need to
+                  ensure supported VHD images are installed in the VMs.
+                items:
+                  type: string
+                type: array
             type: object
           status:
             description: WorkspaceStatus defines the observed state of Workspace

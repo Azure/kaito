@@ -7,11 +7,15 @@ metadata:
     app.kubernetes.io/part-of: kdm
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: kdm
-  name: workspace-sample
+  name: workspace-sample-aks
 resource:
-  count: 1
-  instanceType: "Standard"
-  candidateNodes:
+  count: 2
+  instanceType: "Standard_NC12s_v3"
+  labelSelector:
+    matchLabels:
+      gpu-provisioner.sh/machine-type: gpu
+  preferredNodes:
   - "node1"
-  - "kdm-workspace-control-plane"
+  - "aks-machine1-33538733-vmss000000"
+  - "aks-nodepool1-88161285-vmss000000"
 

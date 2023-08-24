@@ -4,6 +4,8 @@ import (
 	"context"
 
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
+	"github.com/samber/lo"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,7 +26,7 @@ func (c *WorkspaceReconciler) setWorkspaceStatus(ctx context.Context, wObj *kdmv
 		})
 }
 
-func (c *WorkspaceReconciler) updateWorkspaceCondition(ctx context.Context, wObj *kdmv1alpha1.Workspace, cType kdmv1alpha1.ConditionType, cStatus metav1.ConditionStatus, cReason, cMessage string) {
+func (c *WorkspaceReconciler) updateWorkspaceCondition(ctx context.Context, wObj *kdmv1alpha1.Workspace, cType kdmv1alpha1.ConditionType, cStatus metav1.ConditionStatus, cReason, cMessage string) error {
 	klog.InfoS("setWorkspaceCondition", "workspace", klog.KObj(wObj), "conditionType", cType, "status", cStatus)
 	cObj := metav1.Condition{
 		Type:               string(cType),
@@ -34,5 +36,14 @@ func (c *WorkspaceReconciler) updateWorkspaceCondition(ctx context.Context, wObj
 		Message:            cMessage,
 	}
 	meta.SetStatusCondition(&wObj.Status.Conditions, cObj)
-	c.setWorkspaceStatus(ctx, wObj)
+	return c.setWorkspaceStatus(ctx, wObj)
+}
+
+func (c *WorkspaceReconciler) updateWorkspaceStatusWithNodeList(ctx context.Context, wObj *kdmv1alpha1.Workspace, validNodeList []*corev1.Node) error {
+	klog.InfoS("updateWorkspaceStatusWithNodeList", "workspace", klog.KObj(wObj))
+	nodeNameList := lo.Map(validNodeList, func(v *corev1.Node, _ int) string {
+		return v.Name
+	})
+	wObj.Status.WorkerNodes = nodeNameList
+	return c.setWorkspaceStatus(ctx, wObj)
 }

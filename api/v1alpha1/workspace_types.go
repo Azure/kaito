@@ -41,7 +41,7 @@ type ResourceSpec struct {
 	// The existing GPU nodes with the required labels and the required instanceType.
 	// This field is used when the number of qualified existing nodes is larger than the required count.
 	// Users need to ensure supported VHD images are installed in the VMs.
-	CandidateNodes []string `json:"candidateNodes,omitempty"`
+	PreferredNodes []string `json:"preferredNodes,omitempty"`
 }
 
 type PresetModelName string
