@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-logr/logr"
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
+	"github.com/kdm/pkg/machine"
 	"github.com/kdm/pkg/node"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
@@ -51,7 +52,10 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	// TODO apply InferenceSpec
 	// TODO apply TrainingSpec
 	// TODO Update workspace status
-	c.updateWorkspaceCondition(ctx, workspaceObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionTrue, "Done", "Done")
+	err = c.setWorkspaceStatusCondition(ctx, workspaceObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionTrue, "Done", "Done")
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 
 	return reconcile.Result{}, nil
 }
@@ -104,19 +108,24 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 	if remainingNodeCount == 0 {
 		klog.InfoS("number of existing nodes are equal to the required workspace count", "workspace.Count", lo.FromPtr(wObj.Resource.Count))
 	} else {
-		klog.InfoS("need to create more nodes", "remainingNodeCount", remainingNodeCount)
-		klog.InfoS("Will start building a machine")
-		// TODO Create machine CR
-
+		klog.InfoS("need to create more nodes", "NodeCount", remainingNodeCount)
+		for i := 0; i < remainingNodeCount; i++ {
+			newNode, err := c.createAndValidateNode(ctx, wObj)
+			if err != nil {
+				return err
+			}
+			validNodeList = append(validNodeList, newNode)
+		}
 	}
 
-	// Ensure all node plugins are running successfully
+	// Ensure all nodes plugins are running successfully
 	for i := range validNodeList {
 		err = node.EnsureNodePlugins(ctx, validNodeList[i], c.Client)
 		if err != nil {
 			return err
 		}
 	}
+
 	// Add the valid nodes names to the WorkspaceStatus.WorkerNodes
 	err = c.updateWorkspaceStatusWithNodeList(ctx, wObj, validNodeList)
 	if err != nil {
@@ -142,7 +151,7 @@ func (c *WorkspaceReconciler) validateCurrentClusterNodes(ctx context.Context, w
 	if err != nil {
 		return nil, err
 	}
-	if nodeList == nil {
+	if len(nodeList.Items) == 0 {
 		klog.InfoS("no current nodes match the workspace resource spec", "workspace", wObj.Name)
 		return nil, nil
 	}
@@ -163,6 +172,8 @@ func (c *WorkspaceReconciler) validateCurrentClusterNodes(ctx context.Context, w
 
 // check if node has the required instanceType
 func (c *WorkspaceReconciler) validateNodeInstanceType(ctx context.Context, wObj *kdmv1alpha1.Workspace, nodeObj *corev1.Node) bool {
+	klog.InfoS("validateNodeInstanceType", "workspace", klog.KObj(wObj))
+
 	if instanceTypeLabel, found := nodeObj.Labels[corev1.LabelInstanceTypeStable]; found {
 		if instanceTypeLabel != wObj.Resource.InstanceType {
 			klog.InfoS("node has instance type which does not match the workspace instance type", "node",
@@ -173,6 +184,32 @@ func (c *WorkspaceReconciler) validateNodeInstanceType(ctx context.Context, wObj
 	klog.InfoS("node instance type matches the workspace one", "node",
 		nodeObj.Name, "InstanceType", wObj.Resource.InstanceType)
 	return true
+}
+
+func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *kdmv1alpha1.Workspace) (*corev1.Node, error) {
+	newMachine := machine.GenerateMachineManifest(ctx, wObj)
+	err := machine.CreateMachine(ctx, newMachine, c.Client)
+	if err != nil {
+		klog.ErrorS(err, "failed to create machine", "machine", newMachine.Name)
+		return nil, err
+	}
+	klog.InfoS("a new machine has been created", "machine", newMachine.Name)
+
+	// check machine status until it's ready
+	err = machine.CheckMachineStatus(ctx, newMachine, c.Client)
+	if err != nil {
+		return nil, err
+	}
+
+	nodeName := newMachine.Status.NodeName
+	if nodeName == "" {
+		// TODO retry get machine
+	}
+	nodeObj, err := node.GetNode(ctx, nodeName, c.Client)
+	if err != nil {
+		return nil, err
+	}
+	return nodeObj, nil
 }
 
 func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {

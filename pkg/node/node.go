@@ -7,7 +7,6 @@ import (
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -26,6 +25,7 @@ const (
 
 // GetNode get kubernetes node object with a provided name
 func GetNode(ctx context.Context, nodeName string, kubeClient client.Client) (*corev1.Node, error) {
+	klog.InfoS("GetNode", "nodeName", nodeName)
 	node := &corev1.Node{}
 
 	err := kubeClient.Get(ctx, client.ObjectKey{Name: nodeName}, node, &client.GetOptions{})
@@ -40,19 +40,19 @@ func GetNode(ctx context.Context, nodeName string, kubeClient client.Client) (*c
 
 // ListNodes get list of kubernetes nodes
 func ListNodes(ctx context.Context, kubeClient client.Client, options *client.ListOptions) (*corev1.NodeList, error) {
+	klog.InfoS("ListNodes")
 	nodeList := &corev1.NodeList{}
 
 	err := kubeClient.List(ctx, nodeList, options)
 	if err != nil {
 		return nil, err
 	}
-	if nodeList == nil {
-		return nil, fmt.Errorf("no nodes have been found")
-	}
+
 	return nodeList, nil
 }
 
 func EnsureNodePlugins(ctx context.Context, nodeObj *corev1.Node, kubeClient client.Client) error {
+	klog.InfoS("EnsureNodePlugins", "node", klog.KObj(nodeObj))
 	var foundNvidiaPlugin, foundDADIPlugin bool
 	//does node have vhd installed
 	foundNvidiaPlugin, err := checkAndInstallNvidiaPlugin(ctx, nodeObj, kubeClient)
@@ -71,6 +71,7 @@ func EnsureNodePlugins(ctx context.Context, nodeObj *corev1.Node, kubeClient cli
 }
 
 func checkAndInstallNvidiaPlugin(ctx context.Context, nodeObj *corev1.Node, kubeClient client.Client) (bool, error) {
+	klog.InfoS("checkAndInstallNvidiaPlugin", "node", klog.KObj(nodeObj))
 	// check if label accelerator=nvidia exists in the node
 	var foundLabel, foundCapacity bool
 	if nvidiaLabelVal, found := nodeObj.Labels[LabelKeyNvidia]; found {
@@ -78,7 +79,7 @@ func checkAndInstallNvidiaPlugin(ctx context.Context, nodeObj *corev1.Node, kube
 			foundLabel = true
 		} else {
 			nodeObj.Labels = lo.Assign(nodeObj.Labels, map[string]string{LabelKeyCustomGPUProvisioner: GPUString})
-			err := kubeClient.Update(ctx, nodeObj, &client.UpdateOptions{})
+			err := kubeClient.Patch(ctx, nodeObj, client.MergeFrom(nodeObj))
 			if err != nil {
 				klog.ErrorS(err, "cannot update node with custom label to enable Nvidia plugin", "node", nodeObj.Name, LabelKeyCustomGPUProvisioner, GPUString)
 				return false, err
@@ -101,11 +102,11 @@ func checkAndInstallNvidiaPlugin(ctx context.Context, nodeObj *corev1.Node, kube
 }
 
 func checkAndInstallDADI(ctx context.Context, nodeObj *corev1.Node, kubeClient client.Client) (bool, error) {
-
+	klog.InfoS("checkAndInstallDADI", "node", klog.KObj(nodeObj))
 	if customLabel, found := nodeObj.Labels[LabelKeyCustomGPUProvisioner]; found {
 		if customLabel != GPUString {
 			nodeObj.Labels = lo.Assign(nodeObj.Labels, map[string]string{LabelKeyCustomGPUProvisioner: GPUString})
-			err := kubeClient.Update(ctx, nodeObj, &client.UpdateOptions{})
+			err := kubeClient.Patch(ctx, nodeObj, client.MergeFrom(nodeObj))
 			if err != nil {
 				klog.ErrorS(err, "cannot update node with custom label to enable DADI plugin", "node", nodeObj.Name, LabelKeyCustomGPUProvisioner, GPUString)
 				return false, err
@@ -117,17 +118,16 @@ func checkAndInstallDADI(ctx context.Context, nodeObj *corev1.Node, kubeClient c
 }
 
 func checkDaemonSetPodForNode(ctx context.Context, daemonSetName, nodeName string, kubeClient client.Client) (bool, error) {
-	// get pods
+	klog.InfoS("checkDaemonSetPodForNode", "daemonSetName", daemonSetName, "nodeName", nodeName)
 	podList := &corev1.PodList{}
 
 	listOpt := &client.ListOptions{
-		LabelSelector: labels.NewSelector().Add(),
-		Namespace:     GPUProvisionerNamespace,
+		Namespace: GPUProvisionerNamespace,
 		FieldSelector: fields.SelectorFromSet(fields.Set{
 			"spec.nodeName": nodeName,
 		}),
 	}
-	err := retry.OnError(retry.DefaultBackoff, func(err error) bool {
+	err := retry.OnError(retry.DefaultRetry, func(err error) bool {
 		return true
 	}, func() error {
 		return kubeClient.List(ctx, podList, listOpt)

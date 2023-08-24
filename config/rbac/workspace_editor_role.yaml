@@ -11,47 +11,51 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: workspace-editor-role
 rules:
-- apiGroups:
-  - kdm.io
-  resources:
-  - workspaces
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - kdm.io
-  resources:
-  - workspaces/status
-  verbs:
-  - create
-  - delete
-  - patch
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  - namespaces
-  verbs:
-  - patch
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - create
-  - patch
-  - update
-- apiGroups:
-  - "apps"
-  resources:
-  - daemonsets
-  verbs:
-  - patch
-  - update
+  - apiGroups:
+      - kdm.io
+    resources:
+      - workspaces
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - kdm.io
+    resources:
+      - workspaces/status
+    verbs:
+      - create
+      - delete
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+      - namespaces
+    verbs:
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - create
+      - patch
+      - update
+  - apiGroups:
+      - "apps"
+    resources:
+      - daemonsets
+    verbs:
+      - patch
+      - update
+      - get
+  - apiGroups: ["karpenter.sh"]
+    resources: ["machines", "machines/status"]
+    verbs: ["create", "delete", "update", "patch"]

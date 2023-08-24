@@ -50,4 +50,7 @@ rules:
   - get
   - list
   - watch
+- apiGroups: ["karpenter.sh"]
+  resources: ["machines", "machines/status"]
+  verbs: ["get", "list", "watch"]
 

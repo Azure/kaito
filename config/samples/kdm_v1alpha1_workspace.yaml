@@ -15,7 +15,6 @@ resource:
     matchLabels:
       gpu-provisioner.sh/machine-type: gpu
   preferredNodes:
-  - "node1"
-  - "aks-machine1-33538733-vmss000000"
-  - "aks-nodepool1-88161285-vmss000000"
-
+    - "node1"
+    - "aks-machine1-33538733-vmss000000"
+    - "aks-nodepool1-88161285-vmss000000"

@@ -14,7 +14,7 @@ import (
 )
 
 // updateWorkspaceStatus updates workspace status.
-func (c *WorkspaceReconciler) setWorkspaceStatus(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
+func (c *WorkspaceReconciler) updateWorkspaceStatus(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
 	klog.InfoS("updateWorkspaceStatus", "workspace", klog.KObj(wObj))
 
 	return retry.OnError(retry.DefaultRetry,
@@ -26,8 +26,9 @@ func (c *WorkspaceReconciler) setWorkspaceStatus(ctx context.Context, wObj *kdmv
 		})
 }
 
-func (c *WorkspaceReconciler) updateWorkspaceCondition(ctx context.Context, wObj *kdmv1alpha1.Workspace, cType kdmv1alpha1.ConditionType, cStatus metav1.ConditionStatus, cReason, cMessage string) error {
-	klog.InfoS("setWorkspaceCondition", "workspace", klog.KObj(wObj), "conditionType", cType, "status", cStatus)
+func (c *WorkspaceReconciler) setWorkspaceStatusCondition(ctx context.Context, wObj *kdmv1alpha1.Workspace, cType kdmv1alpha1.ConditionType,
+	cStatus metav1.ConditionStatus, cReason, cMessage string) error {
+	klog.InfoS("setWorkspaceStatusCondition", "workspace", klog.KObj(wObj), "conditionType", cType, "status", cStatus)
 	cObj := metav1.Condition{
 		Type:               string(cType),
 		Status:             cStatus,
@@ -36,7 +37,7 @@ func (c *WorkspaceReconciler) updateWorkspaceCondition(ctx context.Context, wObj
 		Message:            cMessage,
 	}
 	meta.SetStatusCondition(&wObj.Status.Conditions, cObj)
-	return c.setWorkspaceStatus(ctx, wObj)
+	return c.updateWorkspaceStatus(ctx, wObj)
 }
 
 func (c *WorkspaceReconciler) updateWorkspaceStatusWithNodeList(ctx context.Context, wObj *kdmv1alpha1.Workspace, validNodeList []*corev1.Node) error {
@@ -45,5 +46,5 @@ func (c *WorkspaceReconciler) updateWorkspaceStatusWithNodeList(ctx context.Cont
 		return v.Name
 	})
 	wObj.Status.WorkerNodes = nodeNameList
-	return c.setWorkspaceStatus(ctx, wObj)
+	return c.updateWorkspaceStatus(ctx, wObj)
 }

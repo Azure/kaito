@@ -20,6 +20,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/kdm/pkg/controllers"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -53,6 +54,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(kdmv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(v1alpha5.SchemeBuilder.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 	klog.InitFlags(nil)
 }
