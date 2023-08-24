@@ -53,21 +53,20 @@ func ListNodes(ctx context.Context, kubeClient client.Client, options *client.Li
 
 func EnsureNodePlugins(ctx context.Context, nodeObj *corev1.Node, kubeClient client.Client) error {
 	klog.InfoS("EnsureNodePlugins", "node", klog.KObj(nodeObj))
-	var foundNvidiaPlugin, foundDADIPlugin bool
 	//does node have vhd installed
 	foundNvidiaPlugin, err := checkAndInstallNvidiaPlugin(ctx, nodeObj, kubeClient)
 	if err != nil {
 		return err
 	}
 	//does node have the custom label for DADI
-	foundDADIPlugin, err = checkAndInstallDADI(ctx, nodeObj, kubeClient)
+	foundDADIPlugin, err := checkAndInstallDADI(ctx, nodeObj, kubeClient)
 	if err != nil {
 		return err
 	}
 	if foundNvidiaPlugin && foundDADIPlugin {
-		// TODO
+		return nil
 	}
-	return nil
+	return fmt.Errorf("one or more plugin is not ready, Nvidia=%t, DADI=%t", foundNvidiaPlugin, foundDADIPlugin)
 }
 
 func checkAndInstallNvidiaPlugin(ctx context.Context, nodeObj *corev1.Node, kubeClient client.Client) (bool, error) {

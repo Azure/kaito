@@ -10,6 +10,7 @@ import (
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,27 +38,48 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		}
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
+
 	klog.InfoS("Reconciling", "workspace", req.NamespacedName)
+
 	// Handle deleting workspace, garbage collect all the resources.
 	if !workspaceObj.DeletionTimestamp.IsZero() {
-		klog.InfoS("the workspace is in the process of being deleted", "workspace", klog.KObj(workspaceObj))
-		return c.garbageCollectWorkspace(ctx, workspaceObj)
+		return c.deleteWorkspace(ctx, workspaceObj)
 	}
 
+	return c.addOrUpdateWorkspace(ctx, workspaceObj)
+}
+
+func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *kdmv1alpha1.Workspace) (reconcile.Result, error) {
 	// Read ResourceSpec
-	err := c.applyWorkspaceResource(ctx, workspaceObj)
+	err := c.applyWorkspaceResource(ctx, wObj)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 	// TODO apply InferenceSpec
 	// TODO apply TrainingSpec
-	// TODO Update workspace status
-	err = c.setWorkspaceStatusCondition(ctx, workspaceObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionTrue, "Done", "Done")
-	if err != nil {
-		return reconcile.Result{}, err
+	if !apimeta.IsStatusConditionTrue(wObj.Status.Conditions, string(kdmv1alpha1.WorkspaceConditionTypeReady)) {
+		err := c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionTrue,
+			"workspaceReady", "workspace is ready")
+		if err != nil {
+			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+			return reconcile.Result{}, err
+		}
 	}
-
 	return reconcile.Result{}, nil
+}
+
+func (c *WorkspaceReconciler) deleteWorkspace(ctx context.Context, wObj *kdmv1alpha1.Workspace) (reconcile.Result, error) {
+	klog.InfoS("deleteWorkspace", "workspace", klog.KObj(wObj))
+	// TODO delete workspace, machine(s), training and infer obj ( ok to delete machines which will delete nodes??)
+	if !apimeta.IsStatusConditionTrue(wObj.Status.Conditions, string(kdmv1alpha1.WorkspaceConditionTypeDeleting)) {
+		err := c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeDeleting, metav1.ConditionTrue,
+			"workspaceDeleted", "workspace is being deleted")
+		if err != nil {
+			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+			return reconcile.Result{}, err
+		}
+	}
+	return c.garbageCollectWorkspace(ctx, wObj)
 }
 
 func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
@@ -132,6 +154,14 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 		return err
 	}
 
+	if !apimeta.IsStatusConditionTrue(wObj.Status.Conditions, string(kdmv1alpha1.WorkspaceConditionTypeResourceProvisioned)) {
+		err = c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeResourceProvisioned, metav1.ConditionTrue,
+			"workspaceResourceDeployed", "workspace resource has been provisioned")
+		if err != nil {
+			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+			return err
+		}
+	}
 	return nil
 }
 
@@ -188,6 +218,7 @@ func (c *WorkspaceReconciler) validateNodeInstanceType(ctx context.Context, wObj
 
 func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *kdmv1alpha1.Workspace) (*corev1.Node, error) {
 	newMachine := machine.GenerateMachineManifest(ctx, wObj)
+
 	err := machine.CreateMachine(ctx, newMachine, c.Client)
 	if err != nil {
 		klog.ErrorS(err, "failed to create machine", "machine", newMachine.Name)
@@ -208,6 +239,15 @@ func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *k
 	nodeObj, err := node.GetNode(ctx, nodeName, c.Client)
 	if err != nil {
 		return nil, err
+	}
+
+	if !apimeta.IsStatusConditionTrue(wObj.Status.Conditions, string(kdmv1alpha1.WorkspaceConditionTypeMachineProvisioned)) {
+		err = c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineProvisioned, metav1.ConditionTrue,
+			"machineProvisioned", "machines have been created")
+		if err != nil {
+			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+			return nil, err
+		}
 	}
 	return nodeObj, nil
 }
