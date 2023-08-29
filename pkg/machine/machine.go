@@ -31,8 +31,7 @@ func GenerateMachineManifest(ctx context.Context, workspaceObj *v1alpha1.Workspa
 	machineName := fmt.Sprint("machine", rand.Intn(100_000))
 
 	machineLabels := map[string]string{
-		LabelProvisionerName:      ProvisionerName,
-		LabelGPUProvisionerCustom: GPUString,
+		LabelProvisionerName: ProvisionerName,
 	}
 	if workspaceObj.Resource.LabelSelector != nil &&
 		len(workspaceObj.Resource.LabelSelector.MatchLabels) != 0 {

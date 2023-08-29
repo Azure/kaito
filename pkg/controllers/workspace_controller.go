@@ -244,8 +244,15 @@ func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *k
 	}
 	klog.InfoS("a new machine has been created", "machine", newMachine.Name)
 
+	err = c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineProvisioned, metav1.ConditionTrue,
+		"machineProvisionSuccess", "machine has been provisioned successfully")
+	if err != nil {
+		klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+		return nil, err
+	}
+
 	if err := c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionFalse,
-		"checkMachineStatus", "checking machine status"); err != nil {
+		"checkMachineStatus", fmt.Sprintf("checking machine %s status", newMachine.Name)); err != nil {
 		klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
 		return nil, err
 	}
@@ -271,15 +278,15 @@ func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *k
 	}
 	nodeObj, err := node.GetNode(ctx, nodeName, c.Client)
 	if err != nil {
-		if err := c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineProvisioned, metav1.ConditionFalse,
-			"machineFailedProvision", err.Error()); err != nil {
+		if err := c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionFalse,
+			"checkMachineStatusFailed", err.Error()); err != nil {
 			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
 			return nil, err
 		}
 		return nil, err
 	}
 
-	err = c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineProvisioned, metav1.ConditionTrue,
+	err = c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionTrue,
 		"installNodePluginsSuccess", "machines plugins have been installed successfully")
 	if err != nil {
 		klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
@@ -308,7 +315,7 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kdmv1
 				err := node.UpdateNodeWithLabel(ctx, nodeObj.Name, node.LabelKeyNvidia, node.LabelValueNvidia, c.Client)
 				if err != nil {
 					if errors.IsNotFound(err) {
-						klog.ErrorS(fmt.Errorf("nvidia plugin cannot be installed, node not found"), "node", nodeObj.Name)
+						klog.ErrorS(err, "nvidia plugin cannot be installed, node not found", "node", nodeObj.Name)
 						return err
 					}
 					if err := c.setConditionInstallNodePluginsToUnknown(ctx, wObj, nodeObj); err != nil {
@@ -325,7 +332,7 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kdmv1
 				err = node.UpdateNodeWithLabel(ctx, nodeObj.Name, node.LabelKeyCustomGPUProvisioner, node.GPUString, c.Client)
 				if err != nil {
 					if errors.IsNotFound(err) {
-						klog.ErrorS(fmt.Errorf("DADI plugin cannot be installed, node not found"), "node", nodeObj.Name)
+						klog.ErrorS(err, "DADI plugin cannot be installed, node not found", "node", nodeObj.Name)
 						return err
 					}
 					if err := c.setConditionInstallNodePluginsToUnknown(ctx, wObj, nodeObj); err != nil {
