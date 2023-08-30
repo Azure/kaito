@@ -3,12 +3,13 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/go-logr/logr"
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
+	"github.com/kdm/pkg/k8sresources"
 	"github.com/kdm/pkg/machine"
-	"github.com/kdm/pkg/node"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -49,6 +50,7 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	}
 
 	return c.addOrUpdateWorkspace(ctx, workspaceObj)
+
 }
 
 func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *kdmv1alpha1.Workspace) (reconcile.Result, error) {
@@ -59,6 +61,14 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *kd
 	}
 	// TODO apply InferenceSpec
 	// TODO apply TrainingSpec
+
+	if wObj.GetAnnotations() != nil {
+		err := c.applyAnnotations(ctx, wObj)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
 	err = c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionTrue, "workspaceReady", "workspace is ready")
 	if err != nil {
 		klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
@@ -184,7 +194,7 @@ func (c *WorkspaceReconciler) validateCurrentClusterNodes(ctx context.Context, w
 		return nil, nil
 	}
 
-	nodeList, err := node.ListNodes(ctx, c.Client, opt)
+	nodeList, err := k8sresources.ListNodes(ctx, c.Client, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +286,7 @@ func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *k
 	if nodeName == "" {
 		// TODO retry get machine
 	}
-	nodeObj, err := node.GetNode(ctx, nodeName, c.Client)
+	nodeObj, err := k8sresources.GetNode(ctx, nodeName, c.Client)
 	if err != nil {
 		if err := c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionFalse,
 			"checkMachineStatusFailed", err.Error()); err != nil {
@@ -310,9 +320,9 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kdmv1
 			}
 
 			//Nvidia Plugin
-			foundNvidiaPlugin = node.CheckNvidiaPlugin(ctx, nodeObj)
+			foundNvidiaPlugin = k8sresources.CheckNvidiaPlugin(ctx, nodeObj)
 			if !foundNvidiaPlugin {
-				err := node.UpdateNodeWithLabel(ctx, nodeObj.Name, node.LabelKeyNvidia, node.LabelValueNvidia, c.Client)
+				err := k8sresources.UpdateNodeWithLabel(ctx, nodeObj.Name, k8sresources.LabelKeyNvidia, k8sresources.LabelValueNvidia, c.Client)
 				if err != nil {
 					if errors.IsNotFound(err) {
 						klog.ErrorS(err, "nvidia plugin cannot be installed, node not found", "node", nodeObj.Name)
@@ -327,9 +337,9 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kdmv1
 			}
 
 			//DADI plugin
-			err := node.CheckDADIPlugin(ctx, nodeObj, c.Client)
+			err := k8sresources.CheckDADIPlugin(ctx, nodeObj, c.Client)
 			if err != nil {
-				err = node.UpdateNodeWithLabel(ctx, nodeObj.Name, node.LabelKeyCustomGPUProvisioner, node.GPUString, c.Client)
+				err = k8sresources.UpdateNodeWithLabel(ctx, nodeObj.Name, k8sresources.LabelKeyCustomGPUProvisioner, k8sresources.GPUString, c.Client)
 				if err != nil {
 					if errors.IsNotFound(err) {
 						klog.ErrorS(err, "DADI plugin cannot be installed, node not found", "node", nodeObj.Name)
@@ -362,6 +372,30 @@ func (c *WorkspaceReconciler) setConditionInstallNodePluginsToUnknown(ctx contex
 		klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
 		return err
 	}
+	return nil
+}
+
+func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
+	klog.InfoS("applyAnnotations", "workspace", klog.KObj(wObj))
+	wAnnotation := wObj.GetAnnotations()
+
+	if wAnnotation == nil {
+		klog.InfoS("no annotations have been set for the workspace", "workspace", wObj.Name)
+		return nil
+	}
+
+	// Load-balancer
+	annotKey, found := lo.FindKey(wAnnotation, kdmv1alpha1.ServiceTypeLoadBalancer)
+	if !found {
+		return fmt.Errorf("service type annotation is not set correctly. key: %s, value: %s", annotKey, kdmv1alpha1.ServiceTypeLoadBalancer)
+	}
+	serviceObj := k8sresources.GenerateLoadBalancerService(ctx, fmt.Sprint("workspace", "-lb", rand.Intn(100)), wObj.Namespace, corev1.ServiceTypeLoadBalancer, wObj.Resource.LabelSelector.MatchLabels)
+
+	err := k8sresources.CreateLoadBalancerService(ctx, serviceObj, c.Client)
+	if err != nil {
+		return err
+	}
+	klog.InfoS("a load balancer has been created")
 	return nil
 }
 

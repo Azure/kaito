@@ -1,4 +1,4 @@
-package node
+package k8sresources
 
 import (
 	"context"

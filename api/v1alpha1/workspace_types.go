@@ -22,10 +22,22 @@ import (
 )
 
 const (
+
+	// Non-prefixed labels/annotations are reserved for end-use.
+
+	// KDMPrefix Kubernetes Data Mining prefix.
+	KDMPrefix = "kubernetes-kdm.io/"
+
 	PresetSetModelllama2A            PresetModelName = "llama2-7b"
 	PresetSetModelllama2B            PresetModelName = "llama2-13b"
 	PresetSetModelllama2C            PresetModelName = "llama2-70b"
 	PresetSetModelStableDiffusionXXX PresetModelName = "stablediffusion-xxx"
+
+	// AnnotationServiceType determines whether kdm creates ClusterIP or LoadBalancer type service.
+	AnnotationServiceType = KDMPrefix + "service-type"
+
+	ServiceTypeClusterIP    = "cluster-ip"
+	ServiceTypeLoadBalancer = "load-balancer"
 )
 
 type ResourceSpec struct {
