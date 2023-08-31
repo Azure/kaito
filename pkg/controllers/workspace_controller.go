@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-logr/logr"
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
+	"github.com/kdm/pkg/inference"
 	"github.com/kdm/pkg/k8sresources"
 	"github.com/kdm/pkg/machine"
 	"github.com/samber/lo"
@@ -25,6 +26,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
+
+var torchRunParams = map[string]string{
+	"max_seq_len": "128",
+}
 
 type WorkspaceReconciler struct {
 	client.Client
@@ -59,7 +64,6 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *kd
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	// TODO apply InferenceSpec
 	// TODO apply TrainingSpec
 
 	if wObj.GetAnnotations() != nil {
@@ -67,6 +71,11 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *kd
 		if err != nil {
 			return reconcile.Result{}, err
 		}
+	}
+
+	err = c.applyInference(ctx, wObj)
+	if err != nil {
+		return reconcile.Result{}, err
 	}
 
 	err = c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionTrue, "workspaceReady", "workspace is ready")
@@ -80,7 +89,7 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *kd
 
 func (c *WorkspaceReconciler) deleteWorkspace(ctx context.Context, wObj *kdmv1alpha1.Workspace) (reconcile.Result, error) {
 	klog.InfoS("deleteWorkspace", "workspace", klog.KObj(wObj))
-	// TODO delete workspace, machine(s), training and infer obj ( ok to delete machines which will delete nodes??)
+	// TODO delete workspace, machine(s), training and inference (deployment, service) obj ( ok to delete machines? which will delete nodes??)
 	err := c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeDeleting, metav1.ConditionTrue, "workspaceDeleted", "workspace is being deleted")
 	if err != nil {
 		klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
@@ -388,7 +397,7 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1a
 	}
 
 	//TODO generate more strong random service name
-	serviceObj := k8sresources.GenerateLoadBalancerService(ctx, fmt.Sprint("workspace", "-scv", rand.Intn(100)), wObj.Namespace, serviceType, wObj.Resource.LabelSelector.MatchLabels)
+	serviceObj := k8sresources.GenerateLoadBalancerService(ctx, fmt.Sprint(wObj.Name, "-scv-", rand.Intn(100_000)), wObj.Namespace, serviceType, wObj.Resource.LabelSelector.MatchLabels)
 	err := k8sresources.CreateLoadBalancerService(ctx, serviceObj, c.Client)
 	if err != nil {
 		return err
@@ -398,6 +407,33 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1a
 	return nil
 }
 
+func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
+	klog.InfoS("applyInference", "service", klog.KObj(wObj))
+
+	// TODO check if preset exists, template shouldn't.
+	volume := wObj.Inference.Preset.Volume
+	if volume == nil {
+		volume = []corev1.Volume{}
+	}
+
+	presetName := wObj.Inference.Preset.Name
+	var err error
+	switch presetName {
+	case kdmv1alpha1.PresetSetModelllama2A:
+		err = inference.CreateLLAMA2APresetModel(ctx, wObj.Name, wObj.Namespace, wObj.Resource.LabelSelector, volume, torchRunParams, c.Client)
+	case kdmv1alpha1.PresetSetModelllama2B:
+		err = inference.CreateLLAMA2BPresetModel(ctx, wObj.Name, wObj.Namespace, wObj.Resource.LabelSelector, volume, torchRunParams, c.Client)
+	case kdmv1alpha1.PresetSetModelllama2C:
+		err = inference.CreateLLAMA2CPresetModel(ctx, wObj.Name, wObj.Namespace, wObj.Resource.LabelSelector, volume, torchRunParams, c.Client)
+	default:
+		err = fmt.Errorf("preset model %s is not supported", presetName)
+		klog.ErrorS(err, "no inference has been created")
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}
 func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	c.Recorder = mgr.GetEventRecorderFor("Workspace")
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Pod{}, "spec.nodeName", func(rawObj client.Object) []string {

@@ -19,3 +19,10 @@ resource:
   preferredNodes:
     - "node1"
     - "aks-machine98722-26559722-vmss000001"
+inference:
+  preset:
+    name: "llama2-13b"
+    volume:
+    - name: dshm
+      emptyDir:
+        medium: Memory

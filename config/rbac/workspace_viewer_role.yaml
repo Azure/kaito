@@ -11,45 +11,21 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: workspace-viewer-role
 rules:
-- apiGroups:
-  - kdm.io
-  resources:
-  - workspaces
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - kdm.io
-  resources:
-  - workspaces/status
-  verbs:
-  - get
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  - namespaces
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - "apps"
-  resources:
-  - daemonsets
-  verbs:
-  - get
-  - list
-  - watch
+- apiGroups: ["kdm.io"]
+  resources: ["workspaces"]
+  verbs: ["get","list","watch"]
+- apiGroups: ["kdm.io"]
+  resources: ["workspaces/status"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["nodes", "namespaces"]
+  verbs: ["get","list","watch"]
+- apiGroups: [ "" ]
+  resources: [ "pods"]
+  verbs: ["get","list","watch"]
+- apiGroups: ["apps"]
+  resources: ["daemonsets", "deployments"]
+  verbs: ["get","list","watch"]
 - apiGroups: ["karpenter.sh"]
   resources: ["machines", "machines/status"]
   verbs: ["get", "list", "watch"]
