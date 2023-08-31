@@ -377,25 +377,24 @@ func (c *WorkspaceReconciler) setConditionInstallNodePluginsToUnknown(ctx contex
 
 func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
 	klog.InfoS("applyAnnotations", "workspace", klog.KObj(wObj))
+	serviceType := corev1.ServiceTypeClusterIP
 	wAnnotation := wObj.GetAnnotations()
 
-	if wAnnotation == nil {
-		klog.InfoS("no annotations have been set for the workspace", "workspace", wObj.Name)
-		return nil
+	if len(wAnnotation) != 0 {
+		_, found := lo.FindKey(wAnnotation, kdmv1alpha1.ServiceTypeLoadBalancer)
+		if found {
+			serviceType = corev1.ServiceTypeLoadBalancer
+		}
 	}
 
-	// Load-balancer
-	annotKey, found := lo.FindKey(wAnnotation, kdmv1alpha1.ServiceTypeLoadBalancer)
-	if !found {
-		return fmt.Errorf("service type annotation is not set correctly. key: %s, value: %s", annotKey, kdmv1alpha1.ServiceTypeLoadBalancer)
-	}
-	serviceObj := k8sresources.GenerateLoadBalancerService(ctx, fmt.Sprint("workspace", "-lb", rand.Intn(100)), wObj.Namespace, corev1.ServiceTypeLoadBalancer, wObj.Resource.LabelSelector.MatchLabels)
-
+	//TODO generate more strong random service name
+	serviceObj := k8sresources.GenerateLoadBalancerService(ctx, fmt.Sprint("workspace", "-scv", rand.Intn(100)), wObj.Namespace, serviceType, wObj.Resource.LabelSelector.MatchLabels)
 	err := k8sresources.CreateLoadBalancerService(ctx, serviceObj, c.Client)
 	if err != nil {
 		return err
 	}
-	klog.InfoS("a load balancer has been created")
+
+	klog.InfoS("a service has been created for workspace", "workspace", klog.KObj(wObj), "serviceType", serviceType)
 	return nil
 }
 
