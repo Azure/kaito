@@ -95,7 +95,8 @@ type WorkspaceStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-
+//+kubebuilder:printcolumn:name="MachineReady",type="string",JSONPath=".status.conditions[?(@.type==\"MachineReady\")].status",description=""
+//+kubebuilder:printcolumn:name="WorkspaceReady",type="string",JSONPath=".status.conditions[?(@.type==\"WorkspaceReady\")].status",description=""
 // Workspace is the Schema for the workspaces API
 type Workspace struct {
 	metav1.TypeMeta   `json:",inline"`
