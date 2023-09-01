@@ -3,14 +3,17 @@ package inference
 import (
 	"context"
 	"fmt"
+	"time"
 
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
 	"github.com/kdm/pkg/k8sresources"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/clock"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -29,6 +32,9 @@ const (
 )
 
 var (
+	deploymentStatusCheckInterval                  = 600 * time.Second
+	timeClock                     clock.WithTicker = clock.RealClock{}
+
 	containerPorts = []corev1.ContainerPort{{
 		ContainerPort: Port5000,
 	},
@@ -41,7 +47,7 @@ var (
 				Path: ProbePath,
 			},
 		},
-		InitialDelaySeconds: 60,
+		InitialDelaySeconds: 600, // 10 minutes
 		PeriodSeconds:       10,
 	}
 
@@ -90,11 +96,14 @@ func CreateLLAMA2APresetModel(ctx context.Context, workspaceName, namespace stri
 		})
 	}
 
-	depObj := k8sresources.GenerateDeploymentManifest(ctx, fmt.Sprint(workspaceName, string(kdmv1alpha1.PresetSetModelllama2A)), namespace,
+	depObj := k8sresources.GenerateDeploymentManifest(ctx, fmt.Sprint(workspaceName, "-", string(kdmv1alpha1.PresetSetModelllama2A)), namespace,
 		PresetSetModelllama2AChatImage, 1, labelSelector, commands, containerPorts, livenessProbe, readinessProbe,
 		resourceRequirements, volumeMount, tolerations, volume)
 	err := k8sresources.CreateDeployment(ctx, depObj, kubeClient)
 	if err != nil {
+		return err
+	}
+	if err := checkDeploymentStatus(ctx, depObj, kubeClient); err != nil {
 		return err
 	}
 	return nil
@@ -125,8 +134,12 @@ func CreateLLAMA2BPresetModel(ctx context.Context, workspaceName, namespace stri
 	depObj := k8sresources.GenerateDeploymentManifest(ctx, fmt.Sprint(workspaceName, string(kdmv1alpha1.PresetSetModelllama2B)), namespace,
 		PresetSetModelllama2BChatImage, 1, labelSelector, commands, containerPorts, livenessProbe, readinessProbe,
 		resourceRequirements, volumeMount, tolerations, volume)
-	err := k8sresources.CreateDeployment(ctx, depObj, kubeClient)
-	if err != nil {
+
+	if err := k8sresources.CreateDeployment(ctx, depObj, kubeClient); err != nil {
+		return err
+	}
+
+	if err := checkDeploymentStatus(ctx, depObj, kubeClient); err != nil {
 		return err
 	}
 	return nil
@@ -158,11 +171,46 @@ func CreateLLAMA2CPresetModel(ctx context.Context, workspaceName, namespace stri
 		PresetSetModelllama2CChatImage, 1, labelSelector, commands, containerPorts, livenessProbe, readinessProbe,
 		resourceRequirements, volumeMount, tolerations, volume)
 
-	err := k8sresources.CreateDeployment(ctx, depObj, kubeClient)
-	if err != nil {
+	if err := k8sresources.CreateDeployment(ctx, depObj, kubeClient); err != nil {
+		return err
+	}
+
+	if err := checkDeploymentStatus(ctx, depObj, kubeClient); err != nil {
 		return err
 	}
 	return nil
+}
+
+func checkDeploymentStatus(ctx context.Context, depObj *appsv1.Deployment, kubeClient client.Client) error {
+	klog.InfoS("checkDeploymentStatus", "deployment", depObj.Name)
+
+	tick := timeClock.NewTicker(deploymentStatusCheckInterval)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+
+		case <-tick.C():
+			return fmt.Errorf("check deployment status timed out. deployment %s is not ready", depObj.Name)
+		default:
+			time.Sleep(1 * time.Second)
+			err := kubeClient.Get(ctx, client.ObjectKey{
+				Name:      depObj.Name,
+				Namespace: depObj.Namespace,
+			}, depObj)
+			if err != nil {
+				return err
+			}
+			if depObj.Status.ReadyReplicas != 1 {
+				continue
+			}
+
+			klog.InfoS("inference deployment status is ready", "deployment", depObj.Name)
+			return nil
+		}
+	}
 }
 
 func buildCommand(baseCommand string, torchRunParams map[string]string) []string {
