@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: helayoty/kdm
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   tag: "0.1.0"
 
 imagePullSecrets: []

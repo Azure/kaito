@@ -104,9 +104,16 @@ func (c *WorkspaceReconciler) deleteWorkspace(ctx context.Context, wObj *kdmv1al
 	return c.garbageCollectWorkspace(ctx, wObj)
 }
 
+// applyAnnotations applies workspace resource spec.
 func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
 	klog.InfoS("applyWorkspaceResource", "workspace", klog.KObj(wObj))
 	validNodeList := []*corev1.Node{}
+
+	// Set resource count to 1 if it's not set
+	if lo.FromPtr(wObj.Resource.Count) == 0 {
+		klog.InfoS("resource count is not set, default (count = 1) will be used", "workspace", klog.KObj(wObj))
+		wObj.Resource.Count = lo.ToPtr(1)
+	}
 
 	// Check the current cluster nodes if they match the labelSelector and instanceType
 	validCurrentClusterNodeList, err := c.validateCurrentClusterNodes(ctx, wObj)

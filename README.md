@@ -5,7 +5,6 @@
 
 This project introduce `workspace` crd and its controller. The goal is to simplify the workflow of deploying inference services using OSS AI/ML models, and training workloads (to be added) against a standard AKS cluster.
 
-
 ## Quick Start
 
 ### Quick Install

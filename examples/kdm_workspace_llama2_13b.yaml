@@ -2,17 +2,13 @@ apiVersion: kdm.io/v1alpha1
 kind: Workspace
 metadata:
   annotations:
-    kubernetes-kdm.io/service-type : load-balancer
+    kubernetes-kdm.io/service-type: load-balancer
   name: workspace-llama-13b-aks
 resource:
-  count: 2
   instanceType: "Standard_NC12s_v3"
   labelSelector:
     matchLabels:
       apps: llama-13b
-  preferredNodes:
-    - "node1"
-    - "aks-machine98722-26559722-vmss000001"
 inference:
   preset:
     name: "llama2-13b"
