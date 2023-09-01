@@ -10,8 +10,6 @@ image:
   tag: "0.1.0"
 
 imagePullSecrets: []
-nameOverride: ""
-fullnameOverride: ""
 
 podAnnotations: {}
 
