@@ -47,7 +47,7 @@ func GenerateServiceManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Work
 			Namespace: workspaceObj.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: kdmv1alpha1.SchemeBuilder.GroupVersion.String(),
+					APIVersion: kdmv1alpha1.GroupVersion.String(),
 					Kind:       "Workspace",
 					UID:        workspaceObj.UID,
 					Name:       workspaceObj.Name,

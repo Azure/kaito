@@ -100,9 +100,11 @@ type WorkspaceStatus struct {
 // Workspace is the Schema for the workspaces API
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:path=workspaces,scope=Namespaced
-// +kubebuilder:printcolumn:name="MachineReady",type="string",JSONPath=".status.conditions[?(@.type==\"MachineReady\")].status",description=""
-// +kubebuilder:printcolumn:name="WorkspaceReady",type="string",JSONPath=".status.conditions[?(@.type==\"WorkspaceReady\")].status",description=""
+// +kubebuilder:resource:path=workspaces,scope=Namespaced,categories=workspace,shortName={wk,wks}
+// +kubebuilder:storageversion
+// +kubebuilder:printcolumn:name="WorkspaceStatus",type="string",JSONPath=".status.condition[?(@.type==\"WorkspaceReady\")].status",description=""
+// +kubebuilder:printcolumn:name="MachineStatus",type="string",JSONPath=".status.condition[?(@.type==\"MachineReady\")].status",description=""
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description=""
 type Workspace struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -113,9 +115,8 @@ type Workspace struct {
 	Status    WorkspaceStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-
 // WorkspaceList contains a list of Workspace
+// +kubebuilder:object:root=true
 type WorkspaceList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

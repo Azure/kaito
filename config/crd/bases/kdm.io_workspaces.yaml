@@ -8,19 +8,27 @@ metadata:
 spec:
   group: kdm.io
   names:
+    categories:
+    - workspace
     kind: Workspace
     listKind: WorkspaceList
     plural: workspaces
+    shortNames:
+    - wk
+    - wks
     singular: workspace
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.conditions[?(@.type=="MachineReady")].status
-      name: MachineReady
+    - jsonPath: .status.condition[?(@.type=="WorkspaceReady")].status
+      name: WorkspaceStatus
       type: string
-    - jsonPath: .status.conditions[?(@.type=="WorkspaceReady")].status
-      name: WorkspaceReady
+    - jsonPath: .status.condition[?(@.type=="MachineReady")].status
+      name: MachineStatus
       type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
     name: v1alpha1
     schema:
       openAPIV3Schema:

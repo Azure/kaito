@@ -51,7 +51,7 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kdmv1alpha1.W
 			Namespace: workspaceObj.Namespace,
 			OwnerReferences: []v1.OwnerReference{
 				{
-					APIVersion: kdmv1alpha1.SchemeBuilder.GroupVersion.String(),
+					APIVersion: kdmv1alpha1.GroupVersion.String(),
 					Kind:       "Workspace",
 					UID:        workspaceObj.UID,
 					Name:       workspaceObj.Name,

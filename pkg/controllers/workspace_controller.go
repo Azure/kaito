@@ -110,12 +110,6 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 	klog.InfoS("applyWorkspaceResource", "workspace", klog.KObj(wObj))
 	validNodeList := []*corev1.Node{}
 
-	//// Set resource count to 1 if it's not set
-	//if lo.FromPtr(wObj.Resource.Count) == 0 {
-	//	klog.InfoS("resource count is not set, default (count = 1) will be used", "workspace", klog.KObj(wObj))
-	//	wObj.Resource.Count = lo.ToPtr(1)
-	//}
-
 	machinesProvisioningCount, err := machine.CheckOngoingProvisioningMachines(ctx, wObj, c.Client)
 	if err != nil {
 		return err
