@@ -61,6 +61,7 @@ spec:
           resource:
             properties:
               count:
+                default: 1
                 description: The number of required GPU nodes.
                 type: integer
               instanceType:

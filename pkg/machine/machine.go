@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	"github.com/kdm/api/v1alpha1"
+	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,16 +27,15 @@ const (
 )
 
 var (
-	machineStatusCheckInterval                  = 60 * time.Second
-	timeClock                  clock.WithTicker = clock.RealClock{}
+	//	machineStatusCheckInterval is the interval to check the machine status.
+	machineStatusCheckInterval = 60 * time.Second
 )
 
 // GenerateMachineManifest generates a machine object from	the given workspace.
-func GenerateMachineManifest(ctx context.Context, workspaceObj *v1alpha1.Workspace) *v1alpha5.Machine {
+func GenerateMachineManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace) *v1alpha5.Machine {
 	klog.InfoS("GenerateMachineManifest", "workspace", klog.KObj(workspaceObj))
 
 	machineName := fmt.Sprint("machine", rand.Intn(100_000))
-
 	machineLabels := map[string]string{
 		LabelProvisionerName: ProvisionerName,
 	}
@@ -47,9 +46,8 @@ func GenerateMachineManifest(ctx context.Context, workspaceObj *v1alpha1.Workspa
 
 	return &v1alpha5.Machine{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      machineName,
-			Namespace: workspaceObj.Namespace,
-			Labels:    machineLabels,
+			Name:   machineName,
+			Labels: machineLabels,
 		},
 		Spec: v1alpha5.MachineSpec{
 			MachineTemplateRef: &v1alpha5.MachineTemplateRef{
@@ -121,12 +119,62 @@ func CreateMachine(ctx context.Context, machineObj *v1alpha5.Machine, kubeClient
 	})
 }
 
+// CheckOngoingProvisioningMachines Check if the there are any machines in provisioning condition. If so, then subtract them from the remaining nodes we need to create.
+func CheckOngoingProvisioningMachines(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, kubeClient client.Client) (int, error) {
+	klog.InfoS("CheckOngoingProvisioningMachines", "workspace", klog.KObj(workspaceObj))
+	machines, err := ListMachines(ctx, workspaceObj, kubeClient)
+	if err != nil {
+		return 0, err
+	}
+
+	machinesProvisioningCount := 0
+	for i := range machines.Items {
+		_, found := lo.Find(machines.Items[i].GetConditions(), func(condition apis.Condition) bool {
+			return condition.Type == v1alpha5.MachineInitialized && condition.Status == v1.ConditionFalse
+		})
+		if found || machines.Items[i].GetConditions() == nil { // checking conditions==nil is a workaround for conditions delaying to set on the machine object.
+			// check if the machine is being created has the requested workspace instance type.
+			_, machineInstanceType := lo.Find(machines.Items[i].Spec.Requirements, func(requirement v1.NodeSelectorRequirement) bool {
+				return requirement.Key == v1.LabelInstanceTypeStable &&
+					requirement.Operator == v1.NodeSelectorOpIn &&
+					lo.Contains(requirement.Values, workspaceObj.Resource.InstanceType)
+			})
+			if machineInstanceType {
+				//wait until	machine is initialized.
+				err := CheckMachineStatus(ctx, &machines.Items[i], kubeClient)
+				if err != nil {
+					return 0, err
+				}
+				machinesProvisioningCount++
+			}
+		}
+	}
+	return machinesProvisioningCount, nil
+}
+
+// ListMachines list all machine	objects in the cluster.
+func ListMachines(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, kubeClient client.Client) (*v1alpha5.MachineList, error) {
+	klog.InfoS("ListMachines", "workspace", klog.KObj(workspaceObj))
+	machineList := &v1alpha5.MachineList{}
+
+	err := retry.OnError(retry.DefaultBackoff, func(err error) bool {
+		return true
+	}, func() error {
+		return kubeClient.List(ctx, machineList, &client.ListOptions{})
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return machineList, nil
+}
+
 // CheckMachineStatus checks the status of the machine. If the machine is not ready, then it will wait for the machine to be ready.
 // If the machine is not ready after the timeout, then it will return an error.
 // if	the machine is ready, then it will return nil.
 func CheckMachineStatus(ctx context.Context, machineObj *v1alpha5.Machine, kubeClient client.Client) error {
 	klog.InfoS("CheckMachineStatus", "machine", klog.KObj(machineObj))
-
+	timeClock := clock.RealClock{}
 	tick := timeClock.NewTicker(machineStatusCheckInterval)
 	defer tick.Stop()
 

@@ -16,9 +16,6 @@ const (
 	// WorkspaceConditionTypeMachineStatus is the state when checking machine status.
 	WorkspaceConditionTypeMachineStatus = ConditionType("MachineReady")
 
-	// WorkspaceConditionTypeInstallNodePlugins is the state when installing node plugins.
-	WorkspaceConditionTypeInstallNodePlugins = ConditionType("NodePluginsInstalled")
-
 	// WorkspaceConditionTypeResourceDeleted is the state when Resources have been deleted.
 	WorkspaceConditionTypeResourceDeleted = ConditionType("ResourceDeleted")
 

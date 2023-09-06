@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	NvidiaDaemonSetName          = "nvidia-device-plugin-daemonset"
 	LabelKeyNvidia               = "accelerator"
 	LabelValueNvidia             = "nvidia"
 	CapacityNvidiaGPU            = "nvidia.com/gpu"
@@ -40,7 +39,7 @@ func GetNode(ctx context.Context, nodeName string, kubeClient client.Client) (*c
 
 // ListNodes get list of kubernetes nodes
 func ListNodes(ctx context.Context, kubeClient client.Client, options *client.ListOptions) (*corev1.NodeList, error) {
-	klog.InfoS("ListNodes")
+	klog.InfoS("ListNodes", "listOptions", options)
 	nodeList := &corev1.NodeList{}
 
 	err := kubeClient.List(ctx, nodeList, options)

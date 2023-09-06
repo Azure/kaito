@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
 	"github.com/samber/lo"
@@ -28,7 +29,7 @@ func (c *WorkspaceReconciler) updateWorkspaceStatus(ctx context.Context, wObj *k
 
 func (c *WorkspaceReconciler) setWorkspaceStatusCondition(ctx context.Context, wObj *kdmv1alpha1.Workspace, cType kdmv1alpha1.ConditionType,
 	cStatus metav1.ConditionStatus, cReason, cMessage string) error {
-	klog.InfoS("setWorkspaceStatusCondition", "workspace", klog.KObj(wObj), "conditionType", cType, "status", cStatus)
+	klog.InfoS("setWorkspaceStatusCondition", "workspace", klog.KObj(wObj), "conditionType", cType, "status", cStatus, "reason", cReason, "message", cMessage)
 	cObj := metav1.Condition{
 		Type:               string(cType),
 		Status:             cStatus,
@@ -38,6 +39,17 @@ func (c *WorkspaceReconciler) setWorkspaceStatusCondition(ctx context.Context, w
 	}
 	meta.SetStatusCondition(&wObj.Status.Conditions, cObj)
 	return c.updateWorkspaceStatus(ctx, wObj)
+}
+
+func (c *WorkspaceReconciler) setConditionMachineProvisionedToUnknown(ctx context.Context, wObj *kdmv1alpha1.Workspace, nodeObj *corev1.Node) error {
+	klog.InfoS("setConditionMachineProvisionedToUnknown", "workspace", klog.KObj(wObj), "node", klog.KObj(nodeObj))
+	err := c.setWorkspaceStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionUnknown, "InstallNodePluginsWaiting",
+		fmt.Sprintf("waiting for plugins to get installed on node %s", nodeObj.Name))
+	if err != nil {
+		klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+		return err
+	}
+	return nil
 }
 
 func (c *WorkspaceReconciler) updateWorkspaceStatusWithNodeList(ctx context.Context, wObj *kdmv1alpha1.Workspace, validNodeList []*corev1.Node) error {

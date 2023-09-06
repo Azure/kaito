@@ -10,7 +10,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
@@ -32,8 +31,7 @@ const (
 )
 
 var (
-	deploymentStatusCheckInterval                  = 600 * time.Second
-	timeClock                     clock.WithTicker = clock.RealClock{}
+	deploymentStatusCheckInterval = 600 * time.Second
 
 	containerPorts = []corev1.ContainerPort{{
 		ContainerPort: Port5000,
@@ -76,9 +74,9 @@ var (
 	}
 )
 
-func CreateLLAMA2APresetModel(ctx context.Context, workspaceName, namespace string, labelSelector *v1.LabelSelector,
-	volume []corev1.Volume, torchRunParams map[string]string, kubeClient client.Client) error {
-	klog.InfoS("CreateLLAMA2APresetModel")
+func CreateLLAMA2APresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, volume []corev1.Volume,
+	torchRunParams map[string]string, kubeClient client.Client) error {
+	klog.InfoS("CreateLLAMA2APresetModel", "workspace", klog.KObj(workspaceObj))
 	commands := buildCommand(BaseCommandPresetSetModelllama2A, torchRunParams)
 	resourceRequirements := corev1.ResourceRequirements{
 		Limits: corev1.ResourceList{
@@ -96,9 +94,8 @@ func CreateLLAMA2APresetModel(ctx context.Context, workspaceName, namespace stri
 		})
 	}
 
-	depObj := k8sresources.GenerateDeploymentManifest(ctx, fmt.Sprint(workspaceName, "-", string(kdmv1alpha1.PresetSetModelllama2A)), namespace,
-		PresetSetModelllama2AChatImage, 1, labelSelector, commands, containerPorts, livenessProbe, readinessProbe,
-		resourceRequirements, volumeMount, tolerations, volume)
+	depObj := k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, PresetSetModelllama2AChatImage,
+		1, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
 	err := k8sresources.CreateDeployment(ctx, depObj, kubeClient)
 	if err != nil {
 		return err
@@ -109,9 +106,9 @@ func CreateLLAMA2APresetModel(ctx context.Context, workspaceName, namespace stri
 	return nil
 }
 
-func CreateLLAMA2BPresetModel(ctx context.Context, workspaceName, namespace string, labelSelector *v1.LabelSelector,
-	volume []corev1.Volume, torchRunParams map[string]string, kubeClient client.Client) error {
-	klog.InfoS("CreateLLAMA2BPresetModel")
+func CreateLLAMA2BPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, volume []corev1.Volume,
+	torchRunParams map[string]string, kubeClient client.Client) error {
+	klog.InfoS("CreateLLAMA2BPresetModel", "workspace", klog.KObj(workspaceObj))
 
 	commands := buildCommand(BaseCommandPresetSetModelllama2B, torchRunParams)
 
@@ -131,9 +128,8 @@ func CreateLLAMA2BPresetModel(ctx context.Context, workspaceName, namespace stri
 		})
 	}
 
-	depObj := k8sresources.GenerateDeploymentManifest(ctx, fmt.Sprint(workspaceName, string(kdmv1alpha1.PresetSetModelllama2B)), namespace,
-		PresetSetModelllama2BChatImage, 1, labelSelector, commands, containerPorts, livenessProbe, readinessProbe,
-		resourceRequirements, volumeMount, tolerations, volume)
+	depObj := k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, PresetSetModelllama2BChatImage,
+		1, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
 
 	if err := k8sresources.CreateDeployment(ctx, depObj, kubeClient); err != nil {
 		return err
@@ -145,9 +141,9 @@ func CreateLLAMA2BPresetModel(ctx context.Context, workspaceName, namespace stri
 	return nil
 }
 
-func CreateLLAMA2CPresetModel(ctx context.Context, workspaceName, namespace string, labelSelector *v1.LabelSelector,
-	volume []corev1.Volume, torchRunParams map[string]string, kubeClient client.Client) error {
-	klog.InfoS("CreateLLAMA2CPresetModel")
+func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, volume []corev1.Volume,
+	torchRunParams map[string]string, kubeClient client.Client) error {
+	klog.InfoS("CreateLLAMA2CPresetModel", "workspace", klog.KObj(workspaceObj))
 	commands := buildCommand(BaseCommandPresetSetModelllama2C, torchRunParams)
 
 	resourceRequirements := corev1.ResourceRequirements{
@@ -167,9 +163,8 @@ func CreateLLAMA2CPresetModel(ctx context.Context, workspaceName, namespace stri
 		})
 	}
 
-	depObj := k8sresources.GenerateDeploymentManifest(ctx, fmt.Sprint(workspaceName, string(kdmv1alpha1.PresetSetModelllama2C)), namespace,
-		PresetSetModelllama2CChatImage, 1, labelSelector, commands, containerPorts, livenessProbe, readinessProbe,
-		resourceRequirements, volumeMount, tolerations, volume)
+	depObj := k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, PresetSetModelllama2CChatImage,
+		1, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
 
 	if err := k8sresources.CreateDeployment(ctx, depObj, kubeClient); err != nil {
 		return err
@@ -183,7 +178,7 @@ func CreateLLAMA2CPresetModel(ctx context.Context, workspaceName, namespace stri
 
 func checkDeploymentStatus(ctx context.Context, depObj *appsv1.Deployment, kubeClient client.Client) error {
 	klog.InfoS("checkDeploymentStatus", "deployment", depObj.Name)
-
+	timeClock := clock.RealClock{}
 	tick := timeClock.NewTicker(deploymentStatusCheckInterval)
 	defer tick.Stop()
 

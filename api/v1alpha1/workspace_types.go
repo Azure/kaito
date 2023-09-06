@@ -42,17 +42,21 @@ const (
 
 type ResourceSpec struct {
 	// The number of required GPU nodes.
+	//+optional
+	//+kubebuilder:default:=1
 	Count *int `json:"count,omitempty"`
 
 	// The required instance type of the GPU node.
 	InstanceType string `json:"instanceType,omitempty"`
 
 	// The required label for the GPU node.
+	//+optional
 	LabelSelector *metav1.LabelSelector `json:"labelSelector,omitempty"`
 
 	// The existing GPU nodes with the required labels and the required instanceType.
 	// This field is used when the number of qualified existing nodes is larger than the required count.
 	// Users need to ensure supported VHD images are installed in the VMs.
+	//+optional
 	PreferredNodes []string `json:"preferredNodes,omitempty"`
 }
 
@@ -93,11 +97,12 @@ type WorkspaceStatus struct {
 	Conditions []metav1.Condition `json:"condition,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="MachineReady",type="string",JSONPath=".status.conditions[?(@.type==\"MachineReady\")].status",description=""
-//+kubebuilder:printcolumn:name="WorkspaceReady",type="string",JSONPath=".status.conditions[?(@.type==\"WorkspaceReady\")].status",description=""
 // Workspace is the Schema for the workspaces API
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:path=workspaces,scope=Namespaced
+// +kubebuilder:printcolumn:name="MachineReady",type="string",JSONPath=".status.conditions[?(@.type==\"MachineReady\")].status",description=""
+// +kubebuilder:printcolumn:name="WorkspaceReady",type="string",JSONPath=".status.conditions[?(@.type==\"WorkspaceReady\")].status",description=""
 type Workspace struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
