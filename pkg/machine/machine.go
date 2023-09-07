@@ -28,7 +28,7 @@ const (
 
 var (
 	//	machineStatusCheckInterval is the interval to check the machine status.
-	machineStatusCheckInterval = 60 * time.Second
+	machineStatusCheckInterval = 180 * time.Second
 )
 
 // GenerateMachineManifest generates a machine object from	the given workspace.

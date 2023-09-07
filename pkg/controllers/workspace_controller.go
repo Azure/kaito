@@ -56,29 +56,18 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		return c.deleteWorkspace(ctx, workspaceObj)
 	}
 
-	result, err := c.addOrUpdateWorkspace(ctx, workspaceObj)
-	if err != nil {
-		if err := c.setStatusCondition(ctx, workspaceObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
-			"workspaceFailed", err.Error()); err != nil {
-			klog.ErrorS(err, "failed to update workspace status", "workspace", workspaceObj)
-			return result, err
-		}
-		return result, err
-	}
-
-	if err = c.setStatusCondition(ctx, workspaceObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionTrue,
-		"workspaceReady", "workspace is ready"); err != nil {
-		klog.ErrorS(err, "failed to update workspace status", "workspace", workspaceObj)
-		return reconcile.Result{}, err
-	}
-
-	return reconcile.Result{}, nil
+	return c.addOrUpdateWorkspace(ctx, workspaceObj)
 }
 
 func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *kdmv1alpha1.Workspace) (reconcile.Result, error) {
 	// Read ResourceSpec
 	err := c.applyWorkspaceResource(ctx, wObj)
 	if err != nil {
+		if err := c.setStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
+			"workspaceFailed", err.Error()); err != nil {
+			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+			return reconcile.Result{}, err
+		}
 		// if error is	due to machine instance types unavailability, stop reconcile.
 		if err.Error() == machine.ErrorInstanceTypesUnavailable {
 			return reconcile.Result{Requeue: false}, err
@@ -88,15 +77,30 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *kd
 
 	if wObj.GetAnnotations() != nil {
 		if err := c.applyAnnotations(ctx, wObj); err != nil {
+			if err := c.setStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
+				"workspaceFailed", err.Error()); err != nil {
+				klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+				return reconcile.Result{}, err
+			}
 			return reconcile.Result{}, err
 		}
 	}
 
 	if err = c.applyInference(ctx, wObj); err != nil {
+		if err := c.setStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
+			"workspaceFailed", err.Error()); err != nil {
+			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+			return reconcile.Result{}, err
+		}
 		return reconcile.Result{}, err
 	}
 
 	// TODO apply TrainingSpec
+	if err = c.setStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionTrue,
+		"workspaceReady", "workspace is ready"); err != nil {
+		klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+		return reconcile.Result{}, err
+	}
 
 	return reconcile.Result{}, nil
 }
