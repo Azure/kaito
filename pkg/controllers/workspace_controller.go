@@ -447,7 +447,16 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alp
 	case kdmv1alpha1.PresetSetModelllama2A:
 		err = inference.CreateLLAMA2APresetModel(ctx, wObj, volume, torchRunParams, c.Client)
 	case kdmv1alpha1.PresetSetModelllama2B:
-		err = inference.CreateLLAMA2BPresetModel(ctx, wObj, volume, torchRunParams, c.Client)
+		err = inference.CreateLLAMA2BPresetModel(ctx, wObj, []corev1.Volume{
+			{
+				Name: "dshm",
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{
+						Medium: "Memory",
+					},
+				},
+			},
+		}, torchRunParams, c.Client)
 	case kdmv1alpha1.PresetSetModelllama2C:
 		err = inference.CreateLLAMA2CPresetModel(ctx, wObj, volume, torchRunParams, c.Client)
 	default:
