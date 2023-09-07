@@ -30,7 +30,8 @@ import (
 )
 
 var torchRunParams = map[string]string{
-	"max_seq_len": "128",
+	"max_seq_len":    "512",
+	"max_batch_size": "8",
 }
 
 type WorkspaceReconciler struct {
