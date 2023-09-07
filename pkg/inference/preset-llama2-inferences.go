@@ -152,6 +152,7 @@ func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 		},
 		Requests: corev1.ResourceList{
 			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse("4"),
+			corev1.ResourceEphemeralStorage: resource.MustParse("300Gi"),
 		},
 	}
 
