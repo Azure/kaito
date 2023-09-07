@@ -91,7 +91,8 @@ type WorkspaceStatus struct {
 // +kubebuilder:resource:path=workspaces,scope=Namespaced,categories=workspace,shortName={wk,wks}
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Instance",type="string",JSONPath=".resource.instanceType",description=""
-// +kubebuilder:printcolumn:name="MachineReady",type="string",JSONPath=".status.condition[?(@.type==\"MachineReady\")].status",description=""
+// +kubebuilder:printcolumn:name="ResourceReady",type="string",JSONPath=".status.condition[?(@.type==\"ResourceStatus\")].status",description=""
+// +kubebuilder:printcolumn:name="InferenceReady",type="string",JSONPath=".status.condition[?(@.type==\"InferenceStatus\")].status",description=""
 // +kubebuilder:printcolumn:name="WorkspaceStatus",type="string",JSONPath=".status.condition[?(@.type==\"WorkspaceReady\")].status",description=""
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description=""
 type Workspace struct {

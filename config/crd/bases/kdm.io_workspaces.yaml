@@ -23,8 +23,11 @@ spec:
     - jsonPath: .resource.instanceType
       name: Instance
       type: string
-    - jsonPath: .status.condition[?(@.type=="MachineReady")].status
-      name: MachineReady
+    - jsonPath: .status.condition[?(@.type=="ResourceStatus")].status
+      name: ResourceReady
+      type: string
+    - jsonPath: .status.condition[?(@.type=="InferenceStatus")].status
+      name: InferenceReady
       type: string
     - jsonPath: .status.condition[?(@.type=="WorkspaceReady")].status
       name: WorkspaceStatus
