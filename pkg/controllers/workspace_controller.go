@@ -58,7 +58,7 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 
 	result, err := c.addOrUpdateWorkspace(ctx, workspaceObj)
 	if err != nil {
-		if err = c.setStatusCondition(ctx, workspaceObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
+		if err := c.setStatusCondition(ctx, workspaceObj, kdmv1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
 			"workspaceFailed", err.Error()); err != nil {
 			klog.ErrorS(err, "failed to update workspace status", "workspace", workspaceObj)
 			return result, err
