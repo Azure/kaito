@@ -15,7 +15,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
@@ -208,16 +207,8 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 func (c *WorkspaceReconciler) validateCurrentClusterNodes(ctx context.Context, wObj *kdmv1alpha1.Workspace) ([]*corev1.Node, error) {
 	klog.InfoS("validateCurrentClusterNodes", "workspace", klog.KObj(wObj))
 	var validCurrentNodeList []*corev1.Node
-	opt := &client.ListOptions{}
-	if wObj.Resource.LabelSelector != nil && len(wObj.Resource.LabelSelector.MatchLabels) != 0 {
-		opt.LabelSelector = labels.SelectorFromSet(wObj.Resource.LabelSelector.MatchLabels)
 
-	} else {
-		klog.InfoS("no Label Selector sets for the workspace", "workspace", wObj.Name)
-		return nil, nil
-	}
-
-	nodeList, err := k8sresources.ListNodes(ctx, c.Client, opt)
+	nodeList, err := k8sresources.ListNodes(ctx, c.Client, wObj.Resource.LabelSelector.MatchLabels)
 	if err != nil {
 		return nil, err
 	}

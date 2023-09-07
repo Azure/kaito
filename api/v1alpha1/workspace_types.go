@@ -22,22 +22,10 @@ import (
 )
 
 const (
-
-	// Non-prefixed labels/annotations are reserved for end-use.
-
-	// KDMPrefix Kubernetes Data Mining prefix.
-	KDMPrefix = "kubernetes-kdm.io/"
-
 	PresetSetModelllama2A            PresetModelName = "llama2-7b"
 	PresetSetModelllama2B            PresetModelName = "llama2-13b"
 	PresetSetModelllama2C            PresetModelName = "llama2-70b"
 	PresetSetModelStableDiffusionXXX PresetModelName = "stablediffusion-xxx"
-
-	// AnnotationServiceType determines whether kdm creates ClusterIP or LoadBalancer type service.
-	AnnotationServiceType = KDMPrefix + "service-type"
-
-	ServiceTypeClusterIP    = "cluster-ip"
-	ServiceTypeLoadBalancer = "load-balancer"
 )
 
 type ResourceSpec struct {
@@ -102,8 +90,9 @@ type WorkspaceStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=workspaces,scope=Namespaced,categories=workspace,shortName={wk,wks}
 // +kubebuilder:storageversion
+// +kubebuilder:printcolumn:name="Instance",type="string",JSONPath=".resource.instanceType",description=""
+// +kubebuilder:printcolumn:name="MachineReady",type="string",JSONPath=".status.condition[?(@.type==\"MachineReady\")].status",description=""
 // +kubebuilder:printcolumn:name="WorkspaceStatus",type="string",JSONPath=".status.condition[?(@.type==\"WorkspaceReady\")].status",description=""
-// +kubebuilder:printcolumn:name="MachineStatus",type="string",JSONPath=".status.condition[?(@.type==\"MachineReady\")].status",description=""
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description=""
 type Workspace struct {
 	metav1.TypeMeta   `json:",inline"`

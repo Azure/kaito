@@ -38,11 +38,11 @@ func GetNode(ctx context.Context, nodeName string, kubeClient client.Client) (*c
 }
 
 // ListNodes get list of kubernetes nodes
-func ListNodes(ctx context.Context, kubeClient client.Client, options *client.ListOptions) (*corev1.NodeList, error) {
-	klog.InfoS("ListNodes", "listOptions", options)
+func ListNodes(ctx context.Context, kubeClient client.Client, labelSelector client.MatchingLabels) (*corev1.NodeList, error) {
+	klog.InfoS("ListNodes", "labelSelector", labelSelector)
 	nodeList := &corev1.NodeList{}
 
-	err := kubeClient.List(ctx, nodeList, options)
+	err := kubeClient.List(ctx, nodeList, labelSelector)
 	if err != nil {
 		return nil, err
 	}

@@ -37,7 +37,8 @@ func GenerateMachineManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Work
 
 	machineName := fmt.Sprint("machine", rand.Intn(100_000))
 	machineLabels := map[string]string{
-		LabelProvisionerName: ProvisionerName,
+		LabelProvisionerName:           ProvisionerName,
+		kdmv1alpha1.LabelWorkspaceName: workspaceObj.Name,
 	}
 	if workspaceObj.Resource.LabelSelector != nil &&
 		len(workspaceObj.Resource.LabelSelector.MatchLabels) != 0 {
@@ -46,8 +47,17 @@ func GenerateMachineManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Work
 
 	return &v1alpha5.Machine{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   machineName,
-			Labels: machineLabels,
+			Name:      machineName,
+			Namespace: workspaceObj.Namespace,
+			Labels:    machineLabels,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: kdmv1alpha1.GroupVersion.String(),
+					Kind:       "Workspace",
+					UID:        workspaceObj.UID,
+					Name:       workspaceObj.Name,
+				},
+			},
 		},
 		Spec: v1alpha5.MachineSpec{
 			MachineTemplateRef: &v1alpha5.MachineTemplateRef{
@@ -129,23 +139,32 @@ func CheckOngoingProvisioningMachines(ctx context.Context, workspaceObj *kdmv1al
 
 	machinesProvisioningCount := 0
 	for i := range machines.Items {
-		_, found := lo.Find(machines.Items[i].GetConditions(), func(condition apis.Condition) bool {
-			return condition.Type == v1alpha5.MachineInitialized && condition.Status == v1.ConditionFalse
-		})
-		if found || machines.Items[i].GetConditions() == nil { // checking conditions==nil is a workaround for conditions delaying to set on the machine object.
-			// check if the machine is being created has the requested workspace instance type.
-			_, machineInstanceType := lo.Find(machines.Items[i].Spec.Requirements, func(requirement v1.NodeSelectorRequirement) bool {
-				return requirement.Key == v1.LabelInstanceTypeStable &&
-					requirement.Operator == v1.NodeSelectorOpIn &&
-					lo.Contains(requirement.Values, workspaceObj.Resource.InstanceType)
-			})
-			if machineInstanceType {
-				//wait until	machine is initialized.
-				err := CheckMachineStatus(ctx, &machines.Items[i], kubeClient)
-				if err != nil {
-					return 0, err
+		// check if the machine is being created for the requested workspace.
+		if machines.Items[i].ObjectMeta.Labels != nil {
+			labels := machines.Items[i].ObjectMeta.Labels
+			if val, exists := labels[kdmv1alpha1.LabelWorkspaceName]; exists && val == workspaceObj.Name {
+
+				// check if the machine is being created has the requested workspace instance type.
+				_, machineInstanceType := lo.Find(machines.Items[i].Spec.Requirements, func(requirement v1.NodeSelectorRequirement) bool {
+					return requirement.Key == v1.LabelInstanceTypeStable &&
+						requirement.Operator == v1.NodeSelectorOpIn &&
+						lo.Contains(requirement.Values, workspaceObj.Resource.InstanceType)
+				})
+				if machineInstanceType {
+					_, found := lo.Find(machines.Items[i].GetConditions(), func(condition apis.Condition) bool {
+						return condition.Type == v1alpha5.MachineInitialized && condition.Status == v1.ConditionFalse
+					})
+
+					if found || machines.Items[i].GetConditions() == nil { // checking conditions==nil is a workaround for conditions delaying to set on the machine object.
+						//wait until	machine is initialized.
+						err := CheckMachineStatus(ctx, &machines.Items[i], kubeClient)
+						if err != nil {
+							return 0, err
+						}
+						machinesProvisioningCount++
+					}
 				}
-				machinesProvisioningCount++
+
 			}
 		}
 	}

@@ -20,11 +20,14 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.condition[?(@.type=="WorkspaceReady")].status
-      name: WorkspaceStatus
+    - jsonPath: .resource.instanceType
+      name: Instance
       type: string
     - jsonPath: .status.condition[?(@.type=="MachineReady")].status
-      name: MachineStatus
+      name: MachineReady
+      type: string
+    - jsonPath: .status.condition[?(@.type=="WorkspaceReady")].status
+      name: WorkspaceStatus
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
