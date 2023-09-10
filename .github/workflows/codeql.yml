@@ -7,14 +7,13 @@ on:
   schedule:
     - cron: "0 7 * * 1" # Mondays at 7:00 AM
 
-permissions: read-all
-
 jobs:
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
     permissions:
       security-events: write
+      contents: read
 
     steps:
       - name: Checkout repository
