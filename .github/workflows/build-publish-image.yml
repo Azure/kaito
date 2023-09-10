@@ -40,7 +40,7 @@ jobs:
     steps:
       - id: get-tag
         name: Get tag
-        run: echo "REGISTRY=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_OUTPUT
+        run: echo "tag=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
         with:
           submodules: true
