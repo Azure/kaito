@@ -20,11 +20,11 @@ az group create --name kdm-rg --location eastus
 az aks create --name kdm-aks --resource-group kdm-rg --node-count 1  --generate-ssh-keys
 ```
 
-2. Install [gpu-provisioner](https://github.com/Fei-Guo/gpu-vmprovisioner) helm chart
+2. Install [gpu-provisioner](https://github.com/Azure/gpu-provisioner.git) helm chart
 
 ```bash
 
-git clone https://github.com/Fei-Guo/gpu-vmprovisioner.git
+git clone https://github.com/Azure/gpu-provisioner.git
 cd gpu-vmprovisioner
 
 AZURE_SUBSCRIPTION_ID=<your_subscription_id> AZURE_LOCATION=<Azure_region> \
