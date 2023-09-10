@@ -19,6 +19,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@cdcdbb579706841c47f7063dda365e292e5cad7a
