@@ -1,0 +1,83 @@
+name: Create, Scan and Publish KDM image
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+      - release-**
+    types: [ closed ]
+
+permissions:
+  contents: write
+  packages: write
+
+
+env:
+  REGISTRY: ghcr.io
+  GO_VERSION: '1.20'
+  IMAGE_NAME: 'kdm'
+
+jobs:
+  export-registry:
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'update manifest and helm charts')
+    runs-on: ubuntu-20.04
+    outputs:
+      registry: ${{ steps.export.outputs.registry }}
+    steps:
+      - id: export
+        run: |
+          # registry must be in lowercase
+          echo "registry=$(echo "${{ env.REGISTRY }}/${{ github.repository }}" | tr [:upper:] [:lower:])" >> $GITHUB_OUTPUT
+
+  publish-images:
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'update manifest and helm charts')
+    needs:
+      - export-registry
+    env:
+      REGISTRY: ${{ needs.export-registry.outputs.registry }}
+      INIT_IMG_TAG : 0.2.0
+    runs-on: ubuntu-20.04
+    steps:
+      - id: get-tag
+        name: Get tag
+        run: echo "REGISTRY=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+          fetch-depth: 0
+          ref: ${{ steps.get-tag.outputs.tag }}
+      - name: Login to ${{ env.REGISTRY }}
+        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set Image tag
+        run: |
+          ver=${{ steps.get-tag.outputs.tag }}
+          echo "IMG_TAG=${ver#"v"}" >> $GITHUB_ENV
+      - name: Build image
+        run: |
+          OUTPUT_TYPE=type=docker make docker-build-kdm
+        env:
+          VERSION: ${{ env.IMG_TAG }}
+
+      - name: Scan ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMG_TAG }}
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMG_TAG }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          timeout: '5m0s'
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image
+        run: |
+          OUTPUT_TYPE=type=registry make docker-build-kdm
+        env:
+          VERSION: ${{ env.IMG_TAG }}

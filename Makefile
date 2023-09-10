@@ -2,7 +2,8 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= helayoty
 IMG_NAME ?= kdm
-IMG_TAG ?= 0.1.0
+VERSION ?= v0.0.1
+IMG_TAG ?= $(subst v,,$(VERSION))
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.27.2
 
@@ -183,3 +184,13 @@ vet: ## Run go vet against code.
 .PHONY: lint
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run -v
+
+## --------------------------------------
+## Release
+## --------------------------------------
+.PHONY: release-manifest
+release-manifest:
+	@sed -i -e 's/^VERSION ?= .*/VERSION ?= ${VERSION}/' ./Makefile
+	@sed -i -e "s/version: .*/version: ${IMG_TAG}/" ./charts/kdm/Chart.yaml
+	@sed -i -e "s/tag: .*/tag: ${IMG_TAG}/" ./charts/kdm/values.yaml
+	@sed -i -e 's/RELEASE_TAG=.*/RELEASE_TAG=${IMG_TAG}/' ./charts/kdm/README.md

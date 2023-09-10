@@ -3,7 +3,10 @@
 ## Install
 
 ```bash
-helm install kdm ./charts/kdm  --set image.repository=${REGISTRY}/$(IMG_NAME)
+export REGISTRY=<your_docker_registry>
+export IMG_NAME=kdm
+export IMG_TAG=0.0.1
+helm install kdm ./charts/kdm  --set image.repository=${REGISTRY}/$(IMG_NAME) --set image.tag=$(IMG_TAG)
 ```
 
 ## Configuration 
@@ -15,7 +18,7 @@ The following table lists the configurable parameters of the KDM chart and their
 | `replicaCount`                             |             | `1`              |
 | `image.repository`                         |             | `"helayoty/kdm"` |
 | `image.pullPolicy`                         |             | `"IfNotPresent"` |
-| `image.tag`                                |             | `"0.1.0"`        |
+| `image.tag`                                |             | `latest`         |
 | `imagePullSecrets`                         |             | `[]`             |
 | `podAnnotations`                           |             | `{}`             |
 | `podSecurityContext.runAsNonRoot`          |             | `true`           |
