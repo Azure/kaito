@@ -32,6 +32,8 @@ jobs:
           fetch-depth: 0
           submodules: true
       - uses: ./.github/actions/download-artifact
+        with:
+          github-token: ${{ secrets.KDM_ACCESS_TOKEN_READ }}
       - name: Parse artifacts and assign GA environment variables
         run: |
           tag=$(tail -n 1 /tmp/artifacts/tag.txt)
