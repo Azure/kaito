@@ -32,9 +32,9 @@ jobs:
 
   create-tag:
     if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'update manifest and helm charts')
-    needs:
-      - export-registry
     runs-on: ubuntu-20.04
+    outputs:
+      tag: ${{ needs.create-tag.outputs.tag }}
     steps:
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v4
