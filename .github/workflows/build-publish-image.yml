@@ -41,6 +41,9 @@ jobs:
       - id: get-tag
         name: Get tag
         run: echo "tag=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_OUTPUT
+      - name: Create tag
+        run: |
+          git tag ${{ steps.get-tag.outputs.tag }}
       - uses: actions/checkout@v4
         with:
           submodules: true
