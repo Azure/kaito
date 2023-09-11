@@ -31,7 +31,6 @@ jobs:
         uses: dawidd6/action-download-artifact@v2
         with:
           name: image_tags
-          workflow: ci.yml
           run_id: ${{ github.event.workflow_run.id }}        
           path: ${{ github.workspace }}
       - name: Read Image Tags
