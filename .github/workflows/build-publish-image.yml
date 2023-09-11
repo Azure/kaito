@@ -75,7 +75,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Set Image tag
         run: |
-          ver=${{ steps.get-tag.outputs.tag }}
+          ver=${{ needs.create-tag.outputs.tag }}
           echo "IMG_TAG=${ver#"v"}" >> $GITHUB_ENV
       - name: Build image
         run: |
