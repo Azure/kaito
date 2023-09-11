@@ -2,7 +2,7 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= helayoty
 IMG_NAME ?= kdm
-VERSION ?= v0.1.0
+VERSION ?= v0.0.1
 IMG_TAG ?= $(subst v,,$(VERSION))
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.27.2
@@ -195,5 +195,6 @@ release-manifest:
 	@sed -i -e "s/version: .*/version: ${IMG_TAG}/" ./charts/kdm/Chart.yaml
 	@sed -i -e "s/tag: .*/tag: ${IMG_TAG}/" ./charts/kdm/values.yaml
 	@sed -i -e 's/IMG_TAG=.*/IMG_TAG=${IMG_TAG}/' ./charts/README.md
+	git checkout -b release-${VERSION}
 	git add ./Makefile ./charts/kdm/Chart.yaml ./charts/kdm/values.yaml ./charts/README.md
 	git commit -s -m "release: update manifest and helm charts for ${VERSION}"
