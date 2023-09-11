@@ -102,3 +102,9 @@ jobs:
           OUTPUT_TYPE=type=registry make docker-build-kdm
         env:
           VERSION: ${{ env.IMG_TAG }}
+      - name: Save registry and tag as an artifact for other workflows that run on workflow_run to download them
+        run: |
+          mkdir -p /tmp/artifacts
+          echo ${{ needs.create-tag.outputs.tag }} >> /tmp/artifacts/tag.txt
+          cat /tmp/artifacts/tag.txt
+      - uses: ./.github/actions/upload-artifact
