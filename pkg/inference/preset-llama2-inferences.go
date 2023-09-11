@@ -16,11 +16,9 @@ import (
 )
 
 const (
-	// Preset2ATimeout Preset2BTimeout Preset2CTimeout
-	// PresetTimeouts represent the maximum allowed duration for pulling different image presets.
-	// The durations are set based on the image size from PresetA, the smallest image, to PresetC the largest.
-	// These timeouts are set to account for scenarios with slower network speeds or other
-	// unexpected delays, ensuring the image pulling process has sufficient time to complete.
+	// Preset2ATimeout Preset2BTimeout Preset2CTimeout define maximum durations for pulling image presets.
+	// Durations increase from PresetA (smallest image) to PresetC (largest). These timeouts accommodate large image sizes,
+	// ensuring pull completion even under slower network conditions or unforeseen delays.
 	Preset2ATimeout = time.Duration(10) * time.Minute
 	Preset2BTimeout = time.Duration(20) * time.Minute
 	Preset2CTimeout = time.Duration(30) * time.Minute
