@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/clock"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -31,8 +30,6 @@ const (
 )
 
 var (
-	deploymentStatusCheckInterval = 600 * time.Second
-
 	containerPorts = []corev1.ContainerPort{{
 		ContainerPort: Port5000,
 	},
@@ -100,7 +97,11 @@ func CreateLLAMA2APresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 	if err != nil {
 		return err
 	}
-	if err := checkDeploymentStatus(ctx, depObj, kubeClient); err != nil {
+
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	if err := checkResourceStatus(ctxWithTimeout, depObj, kubeClient); err != nil {
 		return err
 	}
 	return nil
@@ -135,7 +136,10 @@ func CreateLLAMA2BPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 		return err
 	}
 
-	if err := checkDeploymentStatus(ctx, depObj, kubeClient); err != nil {
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	defer cancel()
+
+	if err := checkResourceStatus(ctxWithTimeout, depObj, kubeClient); err != nil {
 		return err
 	}
 	return nil
@@ -152,7 +156,7 @@ func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 		},
 		Requests: corev1.ResourceList{
 			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse("4"),
-			corev1.ResourceEphemeralStorage: resource.MustParse("300Gi"),
+			corev1.ResourceEphemeralStorage:                     resource.MustParse("300Gi"),
 		},
 	}
 
@@ -171,40 +175,52 @@ func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 		return err
 	}
 
-	if err := checkDeploymentStatus(ctx, depObj, kubeClient); err != nil {
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	if err := checkResourceStatus(ctxWithTimeout, depObj, kubeClient); err != nil {
 		return err
 	}
 	return nil
 }
 
-func checkDeploymentStatus(ctx context.Context, depObj *appsv1.Deployment, kubeClient client.Client) error {
-	klog.InfoS("checkDeploymentStatus", "deployment", depObj.Name)
-	timeClock := clock.RealClock{}
-	tick := timeClock.NewTicker(deploymentStatusCheckInterval)
-	defer tick.Stop()
+func checkResourceStatus(ctx context.Context, obj client.Object, kubeClient client.Client) error {
+	klog.InfoS("checkResourceStatus", "resource", obj.GetName())
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	// Use context for timeout
+	timeoutChan := ctx.Done()
 
 	for {
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-timeoutChan:
+			return fmt.Errorf("check resource status timed out. resource %s is not ready", obj.GetName())
 
-		case <-tick.C():
-			return fmt.Errorf("check deployment status timed out. deployment %s is not ready", depObj.Name)
-		default:
-			time.Sleep(1 * time.Second)
-			err := kubeClient.Get(ctx, client.ObjectKey{
-				Name:      depObj.Name,
-				Namespace: depObj.Namespace,
-			}, depObj)
+		case <-ticker.C:
+			key := client.ObjectKey{
+				Name:      obj.GetName(),
+				Namespace: obj.GetNamespace(),
+			}
+			err := kubeClient.Get(ctx, key, obj)
 			if err != nil {
 				return err
 			}
-			if depObj.Status.ReadyReplicas != 1 {
-				continue
-			}
 
-			klog.InfoS("inference deployment status is ready", "deployment", depObj.Name)
-			return nil
+			switch resource := obj.(type) {
+			case *appsv1.Deployment:
+				if resource.Status.ReadyReplicas == *resource.Spec.Replicas {
+					klog.InfoS("deployment status is ready", "deployment", resource.Name)
+					return nil
+				}
+			case *appsv1.StatefulSet:
+				if resource.Status.ReadyReplicas == *resource.Spec.Replicas {
+					klog.InfoS("statefulset status is ready", "statefulset", resource.Name)
+					return nil
+				}
+			default:
+				return fmt.Errorf("unsupported resource type")
+			}
 		}
 	}
 }
