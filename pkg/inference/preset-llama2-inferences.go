@@ -194,8 +194,8 @@ func checkResourceStatus(obj client.Object, kubeClient client.Client, timeoutDur
 
 	for {
 		select {
-		case <-timeoutChan:
-			return fmt.Errorf("check resource status timed out. resource %s is not ready", obj.GetName())
+		case <-ctx.Done():
+			return ctx.Err()
 
 		case <-ticker.C:
 			key := client.ObjectKey{
