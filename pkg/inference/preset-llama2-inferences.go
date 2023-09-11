@@ -16,9 +16,15 @@ import (
 )
 
 const (
-	Preset2ATimeout                = 10
-	Preset2BTimeout                = 20
-	Preset2CTimeout                = 30
+	// Preset2ATimeout Preset2BTimeout Preset2CTimeout
+	// PresetTimeouts represent the maximum allowed duration for pulling different image presets.
+	// The durations are set based on the image size from PresetA, the smallest image, to PresetC the largest.
+	// These timeouts are set to account for scenarios with slower network speeds or other
+	// unexpected delays, ensuring the image pulling process has sufficient time to complete.
+	Preset2ATimeout = time.Duration(10) * time.Minute
+	Preset2BTimeout = time.Duration(20) * time.Minute
+	Preset2CTimeout = time.Duration(30) * time.Minute
+
 	RegistryName                   = "aimodelsregistry.azurecr.io"
 	PresetSetModelllama2AChatImage = RegistryName + "/llama-2-7b-chat:latest"
 	PresetSetModelllama2BChatImage = RegistryName + "/llama-2-13b-chat:latest"
@@ -178,11 +184,11 @@ func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 	return nil
 }
 
-func checkResourceStatus(obj client.Object, kubeClient client.Client, timeoutDuration int) error {
+func checkResourceStatus(obj client.Object, kubeClient client.Client, timeoutDuration time.Duration) error {
 	klog.InfoS("checkResourceStatus", "resource", obj.GetName())
 
 	// Use Context for timeout
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutDuration)*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutDuration)
 	defer cancel()
 
 	ticker := time.NewTicker(1 * time.Second)
