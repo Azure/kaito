@@ -187,10 +187,13 @@ lint: $(GOLANGCI_LINT)
 
 ## --------------------------------------
 ## Release
+## To create a release, run `make release VERSION=x.y.z`
 ## --------------------------------------
 .PHONY: release-manifest
 release-manifest:
 	@sed -i -e 's/^VERSION ?= .*/VERSION ?= ${VERSION}/' ./Makefile
 	@sed -i -e "s/version: .*/version: ${IMG_TAG}/" ./charts/kdm/Chart.yaml
 	@sed -i -e "s/tag: .*/tag: ${IMG_TAG}/" ./charts/kdm/values.yaml
-	@sed -i -e 's/RELEASE_TAG=.*/RELEASE_TAG=${IMG_TAG}/' ./charts/README.md
+	@sed -i -e 's/IMG_TAG=.*/IMG_TAG=${IMG_TAG}/' ./charts/README.md
+	git add ./Makefile ./charts/kdm/Chart.yaml ./charts/kdm/values.yaml ./charts/README.md
+	git commit -s -m "release: update manifest and helm charts for ${VERSION}"
