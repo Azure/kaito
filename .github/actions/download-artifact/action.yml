@@ -6,7 +6,7 @@ runs:
   steps:
     - uses: actions/github-script@v6
       with:
-        github-token: ${{ secrets.KDM_ACCESS_TOKEN_READ }}
+        github-token: ${{ env.github-token }}
         script: |
           let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
              owner: context.repo.owner,
