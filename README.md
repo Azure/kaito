@@ -1,7 +1,7 @@
-# KDM (Kubernetes Data Mining)
+# KDM
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/Fei-Guo/kdm)](https://goreportcard.com/report/github.com/Fei-Guo/kdm)
-![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Fei-Guo/kdm)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Azure/kdm)](https://goreportcard.com/report/github.com/Azure/kdm)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Azure/kdm)
 
 This project introduce `workspace` crd and its controller. The goal is to simplify the workflow of deploying inference services using OSS AI/ML models, and training workloads (to be added) against a standard AKS cluster.
 
