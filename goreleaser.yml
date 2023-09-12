@@ -4,7 +4,7 @@ before:
     - go mod tidy
 builds:
   - id: kdm
-    main: cmd/
+    main: ./cmd
     binary: bin/kdm
     goos:
       - linux
