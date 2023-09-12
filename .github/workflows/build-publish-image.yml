@@ -11,6 +11,7 @@ permissions:
   contents: write
   packages: write
 
+
 env:
   REGISTRY: ghcr.io
   GO_VERSION: '1.20'

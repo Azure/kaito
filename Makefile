@@ -195,7 +195,6 @@ release-manifest:
 	@sed -i -e "s/version: .*/version: ${IMG_TAG}/" ./charts/kdm/Chart.yaml
 	@sed -i -e "s/tag: .*/tag: ${IMG_TAG}/" ./charts/kdm/values.yaml
 	@sed -i -e 's/IMG_TAG=.*/IMG_TAG=${IMG_TAG}/' ./charts/README.md
-	@sed -i -e 's/IMG_TAG=.*/IMG_TAG=${IMG_TAG}/' ./README.md
 	git checkout -b release-${VERSION}
-	git add ./Makefile ./charts/kdm/Chart.yaml ./charts/kdm/values.yaml ./charts/README.md ./README.md
+	git add ./Makefile ./charts/kdm/Chart.yaml ./charts/kdm/values.yaml ./charts/README.md
 	git commit -s -m "release: update manifest and helm charts for ${VERSION}"
