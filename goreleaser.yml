@@ -1,0 +1,64 @@
+# refer to https://goreleaser.com for more options
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - id: kdm
+    main: ./cmd
+    binary: bin/kdm
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    goarm:
+      - 5
+      - 6
+      - 7
+    goamd64:
+      - v2
+      - v3
+    flags:
+      - -mod=vendor
+    ldflags:
+      - -s
+      - -w
+      - -X {{.ModulePath}}/pkg/version.BuildTime={{.Date}}
+      - -X {{.ModulePath}}/pkg/version.BuildVersion={{.Tag}}
+      - -X {{.ModulePath}}/pkg/version.Vcs={{.ShortCommit}}
+    env:
+      - CGO_ENABLED=0
+      - GO111MODULE=on
+
+release:
+  prerelease: auto
+  header: |
+    ## {{.Tag}} - {{ time "2006-01-02" }}
+changelog:
+  skip: false
+  groups:
+    - title: Features 🌈
+      regexp: ^.*feat[(\\w)]*:+.*$
+
+    - title: Bug Fixes 🐞
+      regexp: ^.*fix[(\\w)]*:+.*$
+    - title: Build 🏭
+      regexp: ^.*build[(\\w)]*:+.*$
+    - title: Code Refactoring 💎
+      regexp: ^.*refactor[(\\w)]*:+.*$
+    - title: Code Style 🎶
+      regexp: ^.*style[(\\w)]*:+.*$
+    - title: Continuous Integration 💜
+      regexp: ^.*ci[(\\w)]*:+.*$
+    - title: Documentation 📘
+      regexp: ^.*docs[(\\w)]*:+.*$
+    - title: Maintenance 🔧
+      regexp: ^.*chore[(\\w)]*:+.*$
+    - title: Performance Improvements 🚀
+      regexp: ^.*perf[(\\w)]*:+.*$
+    - title: Revert Change ◀️
+      regexp: ^.*revert[(\\w)]*:+.*$
+    - title: Security Fix 🛡️
+      regexp: ^.*security[(\\w)]*:+.*$
+    - title: Testing 💚
+      regexp: ^.*test[(\\w)]*:+.*$
