@@ -36,7 +36,6 @@ AZURE_CLUSTER_NAME=<you_AKS_cluster_name> make az-perm az-patch-skaffold-kubenet
 ```bash
 export REGISTRY=<your_docker_registry>
 export IMG_NAME=kdm
-export IMG_TAG=0.0.1
 
 make docker-build-kdm
 ```
@@ -44,7 +43,7 @@ make docker-build-kdm
 
 ```bash
 helm install --namespace kdm --create-namespace \
- kdm-workspace --set image.repository=${REGISTRY}/$(IMG_NAME) --set image.tag=$(IMG_TAG) ./charts/kdm
+ kdm --set image.repository=${REGISTRY}/$(IMG_NAME) ./charts/kdm
 ```
 
 5. Run KDM workspace example
