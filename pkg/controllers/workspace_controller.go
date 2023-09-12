@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	appsv1 "k8s.io/api/apps/v1"
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -417,11 +418,20 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1a
 	return nil
 }
 
+func getResourceObject(presetName kdmv1alpha1.PresetModelName) client.Object {
+	if presetName == kdmv1alpha1.PresetSetModelllama2C {
+		return &appsv1.StatefulSet{}
+	}
+	return &appsv1.Deployment{}
+}
+
 // applyInference applies inference spec.
 func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
 	klog.InfoS("applyInference", "workspace", klog.KObj(wObj))
 
-	existingObj, err := k8sresources.GetDeployment(ctx, wObj.Name, wObj.Namespace, c.Client)
+	presetName := wObj.Inference.Preset.Name
+	existingObj := getResourceObject(presetName)
+	err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj)
 	if err != nil && !errors.IsNotFound(err) {
 		if err := c.setStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
 			"WorkspaceInferenceStatusFailed", err.Error()); err != nil {
@@ -431,8 +441,8 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alp
 		return err
 	}
 
-	if existingObj != nil {
-		klog.InfoS("a deployment already exists for workspace", "workspace", klog.KObj(wObj))
+	if existingObj.GetName() != "" && existingObj.GetNamespace() != "" {
+		klog.InfoS("a clientObject already exists for workspace", "workspace", klog.KObj(wObj))
 		return nil
 	}
 
@@ -442,7 +452,6 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alp
 		volume = []corev1.Volume{}
 	}
 
-	presetName := wObj.Inference.Preset.Name
 	switch presetName {
 	case kdmv1alpha1.PresetSetModelllama2A:
 		err = inference.CreateLLAMA2APresetModel(ctx, wObj, volume, torchRunParams, c.Client)

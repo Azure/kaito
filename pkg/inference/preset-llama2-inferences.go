@@ -100,7 +100,7 @@ func CreateLLAMA2APresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 
 	depObj := k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, PresetSetModelllama2AChatImage,
 		1, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
-	err := k8sresources.CreateDeployment(ctx, depObj, kubeClient)
+	err := k8sresources.CreateResource(ctx, depObj, kubeClient)
 	if err != nil {
 		return err
 	}
@@ -134,9 +134,9 @@ func CreateLLAMA2BPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 	}
 
 	depObj := k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, PresetSetModelllama2BChatImage,
-		1, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
+		1 /*TODO: PARAM TO BE SET BY USER*/, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
 
-	if err := k8sresources.CreateDeployment(ctx, depObj, kubeClient); err != nil {
+	if err := k8sresources.CreateResource(ctx, depObj, kubeClient); err != nil {
 		return err
 	}
 
@@ -169,10 +169,10 @@ func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 		})
 	}
 
-	depObj := k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, PresetSetModelllama2CChatImage,
+	depObj := k8sresources.GenerateStatefulSetManifest(ctx, workspaceObj, PresetSetModelllama2CChatImage,
 		1, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
 
-	if err := k8sresources.CreateDeployment(ctx, depObj, kubeClient); err != nil {
+	if err := k8sresources.CreateResource(ctx, depObj, kubeClient); err != nil {
 		return err
 	}
 
