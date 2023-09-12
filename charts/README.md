@@ -5,7 +5,7 @@
 ```bash
 export REGISTRY=<your_docker_registry>
 export IMG_NAME=kdm
-export IMG_TAG=0.0.1
+export IMG_TAG=0.1.0
 helm install kdm-workspace ./charts/kdm  --set image.repository=${REGISTRY}/$(IMG_NAME) --set image.tag=$(IMG_TAG)
 ```
 
