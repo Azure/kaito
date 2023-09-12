@@ -48,8 +48,15 @@ jobs:
         name: Get tag
         run: echo "tag=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_OUTPUT
       - name: Create tag
-        run: |
-          git tag ${{ steps.get-tag.outputs.tag }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'refs/tags/${{ steps.get-tag.outputs.tag }}',
+              sha: context.sha
+            })
 
   publish-images:
     if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'update manifest and helm charts')
@@ -106,4 +113,7 @@ jobs:
           mkdir -p /tmp/artifacts
           echo ${{ needs.create-tag.outputs.tag }} >> /tmp/artifacts/tag.txt
           cat /tmp/artifacts/tag.txt
-      - uses: ./.github/actions/upload-artifact
+      - uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          path: /tmp/artifacts
