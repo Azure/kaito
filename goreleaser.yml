@@ -19,7 +19,7 @@ builds:
       - v2
       - v3
     flags:
-      - -mod=vendor
+      - -mod=mod
     ldflags:
       - -s
       - -w
