@@ -2,6 +2,7 @@ package k8sresources
 
 import (
 	"context"
+	"fmt"
 
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
@@ -44,7 +45,8 @@ func GenerateServiceManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Work
 	selector := workspaceObj.Resource.LabelSelector.MatchLabels
 
 	if tieServiceToPodIndex {
-		selector["apps.kubernetes.io/pod-index"] = "0"
+		podNameForIndex0 := fmt.Sprintf("%s-0", workspaceObj.Name)
+		selector["statefulset.kubernetes.io/pod-name"] = podNameForIndex0
 	}
 
 	return &v1.Service{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	appsv1 "k8s.io/api/apps/v1"
+	"strconv"
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -474,7 +475,10 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alp
 	case kdmv1alpha1.PresetSetModelllama2C:
 		existingService, err := k8sresources.GetService(ctx, wObj.Name, wObj.Namespace, c.Client)
 		if err != nil {
-
+			nodes := *wObj.Resource.Count
+			torchRunParams["nnodes"] = strconv.Itoa(nodes)
+			torchRunParams["node_rank"] = "$(echo $HOSTNAME | grep -o '[^-]*$')"
+			torchRunParams["nproc_per_node"] = strconv.Itoa(8 / nodes)
 			torchRunParams["master_addr"] = existingService.Spec.ClusterIP
 			torchRunParams["master_port"] = "80"
 			err = inference.CreateLLAMA2CPresetModel(ctx, wObj, volume, torchRunParams, c.Client)
