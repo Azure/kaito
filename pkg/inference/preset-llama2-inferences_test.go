@@ -1,4 +1,3 @@
-// Assuming you're in /Users/ishaansehgal/Documents/kdm/pkg/inference package
 package inference
 
 import (
