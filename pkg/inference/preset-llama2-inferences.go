@@ -12,11 +12,23 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/clock"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
+	// Preset2ATimeout defines the maximum duration for pulling the PresetA image.
+	// This timeout accommodates the size of PresetA, ensuring pull completion
+	// even under slower network conditions or unforeseen delays.
+	Preset2ATimeout = time.Duration(10) * time.Minute
+
+	// Preset2BTimeout defines the maximum duration for pulling the PresetB image.
+	// This timeout accommodates the size of PresetB.
+	Preset2BTimeout = time.Duration(20) * time.Minute
+
+	// Preset2CTimeout defines the maximum duration for pulling the PresetC image.
+	// This timeout accommodates the size of PresetC (the largest image).
+	Preset2CTimeout = time.Duration(30) * time.Minute
+
 	RegistryName                   = "aimodelsregistry.azurecr.io"
 	PresetSetModelllama2AChatImage = RegistryName + "/llama-2-7b-chat:latest"
 	PresetSetModelllama2BChatImage = RegistryName + "/llama-2-13b-chat:latest"
@@ -31,8 +43,6 @@ const (
 )
 
 var (
-	deploymentStatusCheckInterval = 600 * time.Second
-
 	containerPorts = []corev1.ContainerPort{{
 		ContainerPort: Port5000,
 	},
@@ -100,7 +110,8 @@ func CreateLLAMA2APresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 	if err != nil {
 		return err
 	}
-	if err := checkDeploymentStatus(ctx, depObj, kubeClient); err != nil {
+
+	if err := checkResourceStatus(depObj, kubeClient, Preset2ATimeout); err != nil {
 		return err
 	}
 	return nil
@@ -135,7 +146,7 @@ func CreateLLAMA2BPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 		return err
 	}
 
-	if err := checkDeploymentStatus(ctx, depObj, kubeClient); err != nil {
+	if err := checkResourceStatus(depObj, kubeClient, Preset2BTimeout); err != nil {
 		return err
 	}
 	return nil
@@ -152,7 +163,7 @@ func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 		},
 		Requests: corev1.ResourceList{
 			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse("4"),
-			corev1.ResourceEphemeralStorage: resource.MustParse("300Gi"),
+			corev1.ResourceEphemeralStorage:                     resource.MustParse("300Gi"),
 		},
 	}
 
@@ -171,40 +182,51 @@ func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 		return err
 	}
 
-	if err := checkDeploymentStatus(ctx, depObj, kubeClient); err != nil {
+	if err := checkResourceStatus(depObj, kubeClient, Preset2CTimeout); err != nil {
 		return err
 	}
 	return nil
 }
 
-func checkDeploymentStatus(ctx context.Context, depObj *appsv1.Deployment, kubeClient client.Client) error {
-	klog.InfoS("checkDeploymentStatus", "deployment", depObj.Name)
-	timeClock := clock.RealClock{}
-	tick := timeClock.NewTicker(deploymentStatusCheckInterval)
-	defer tick.Stop()
+func checkResourceStatus(obj client.Object, kubeClient client.Client, timeoutDuration time.Duration) error {
+	klog.InfoS("checkResourceStatus", "resource", obj.GetName())
+
+	// Use Context for timeout
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutDuration)
+	defer cancel()
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 
-		case <-tick.C():
-			return fmt.Errorf("check deployment status timed out. deployment %s is not ready", depObj.Name)
-		default:
-			time.Sleep(1 * time.Second)
-			err := kubeClient.Get(ctx, client.ObjectKey{
-				Name:      depObj.Name,
-				Namespace: depObj.Namespace,
-			}, depObj)
+		case <-ticker.C:
+			key := client.ObjectKey{
+				Name:      obj.GetName(),
+				Namespace: obj.GetNamespace(),
+			}
+			err := kubeClient.Get(ctx, key, obj)
 			if err != nil {
 				return err
 			}
-			if depObj.Status.ReadyReplicas != 1 {
-				continue
-			}
 
-			klog.InfoS("inference deployment status is ready", "deployment", depObj.Name)
-			return nil
+			switch resource := obj.(type) {
+			case *appsv1.Deployment:
+				if resource.Status.ReadyReplicas == *resource.Spec.Replicas {
+					klog.InfoS("deployment status is ready", "deployment", resource.Name)
+					return nil
+				}
+			case *appsv1.StatefulSet:
+				if resource.Status.ReadyReplicas == *resource.Spec.Replicas {
+					klog.InfoS("statefulset status is ready", "statefulset", resource.Name)
+					return nil
+				}
+			default:
+				return fmt.Errorf("unsupported resource type")
+			}
 		}
 	}
 }
