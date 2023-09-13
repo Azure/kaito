@@ -34,7 +34,7 @@ jobs:
 
       - name: Run unit tests & Generate coverage
         run: |
-          make unit-tests
+          make unit-test
 
       - name: Upload Codecov report
         uses: codecov/codecov-action@v3
