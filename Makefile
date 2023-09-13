@@ -77,10 +77,18 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 fmt: ## Run go fmt against code.
 	go fmt ./...
 
+## --------------------------------------
+## Tests
+## --------------------------------------
+
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
 
+.PHONY: unit-test
+unit-test: ## Run unit tests.
+	go test -v $(shell go list ./... | grep -v /vendor) -race -coverprofile=coverage.txt -covermode=atomic fmt
+	go tool cover -func=coverage.txt
 ##@ Build
 
 .PHONY: build
