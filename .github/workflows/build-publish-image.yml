@@ -49,8 +49,15 @@ jobs:
         name: Get tag
         run: echo "tag=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_OUTPUT
       - name: Create tag
-        run: |
-          git tag ${{ steps.get-tag.outputs.tag }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'refs/tags/${{ steps.get-tag.outputs.tag }}',
+              sha: context.sha
+            })
 
   publish-images:
     if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'update manifest and helm charts')
@@ -102,3 +109,12 @@ jobs:
           OUTPUT_TYPE=type=registry make docker-build-kdm
         env:
           VERSION: ${{ env.IMG_TAG }}
+      - name: Save registry and tag as an artifact for other workflows that run on workflow_run to download them
+        run: |
+          mkdir -p /tmp/artifacts
+          echo ${{ needs.create-tag.outputs.tag }} >> /tmp/artifacts/tag.txt
+          cat /tmp/artifacts/tag.txt
+      - uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          path: /tmp/artifacts
