@@ -98,6 +98,7 @@ func CreateLLAMA2APresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 		})
 	}
 
+	// Replica is always 1, because LLAMA2APreset only runs on one GPU
 	depObj := k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, PresetSetModelllama2AChatImage,
 		1, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
 	err := k8sresources.CreateResource(ctx, depObj, kubeClient)
@@ -133,8 +134,9 @@ func CreateLLAMA2BPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 		})
 	}
 
+	// TODO: Handle when 13B *workspaceObj.Resource.Count > 1 - requires NCCL multinode comm
 	depObj := k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, PresetSetModelllama2BChatImage,
-		1 /*TODO: PARAM TO BE SET BY USER*/, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
+		*workspaceObj.Resource.Count, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
 
 	if err := k8sresources.CreateResource(ctx, depObj, kubeClient); err != nil {
 		return err
@@ -170,7 +172,7 @@ func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 	}
 
 	depObj := k8sresources.GenerateStatefulSetManifest(ctx, workspaceObj, PresetSetModelllama2CChatImage,
-		1, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
+		*workspaceObj.Resource.Count, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
 
 	if err := k8sresources.CreateResource(ctx, depObj, kubeClient); err != nil {
 		return err
