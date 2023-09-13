@@ -38,8 +38,14 @@ func GetService(ctx context.Context, name, namespace string, kubeClient client.C
 	return svc, nil
 }
 
-func GenerateServiceManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, serviceType v1.ServiceType) *v1.Service {
+func GenerateServiceManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, serviceType v1.ServiceType, tieServiceToPodIndex bool) *v1.Service {
 	klog.InfoS("GenerateServiceManifest", "workspace", klog.KObj(workspaceObj), "serviceType", serviceType)
+
+	selector := workspaceObj.Resource.LabelSelector.MatchLabels
+
+	if tieServiceToPodIndex {
+		selector["apps.kubernetes.io/pod-index"] = "0"
+	}
 
 	return &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -63,7 +69,7 @@ func GenerateServiceManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Work
 					TargetPort: intstr.FromInt(5000),
 				},
 			},
-			Selector: workspaceObj.Resource.LabelSelector.MatchLabels,
+			Selector: selector,
 		},
 	}
 }

@@ -241,3 +241,34 @@ func buildCommand(baseCommand string, torchRunParams map[string]string) []string
 
 	return commands
 }
+
+func buildCommand(baseCommand string, torchRunParams map[string]string, serviceName, namespace string, numReplicas int) []string {
+
+	// These commands compute required variables dynamically in the shell
+	cmdComputeVariables := `
+		podIndex=$(echo $HOSTNAME | grep -o '[^-]*$'); 
+		nprocPerNode=$((8 / %d)); 
+		masterAddr=$(nslookup %s-0.%s.%s.svc.cluster.local | grep 'Address: ' | awk '{print $2}')
+	`
+	// kubectl get pod raycluster-head-b9k8q -o=jsonpath='{.status.podIP}'
+	// Convert base command and torchRunParams to string
+	var updatedBaseCommand string
+	for key, value := range torchRunParams {
+		updatedBaseCommand += fmt.Sprintf(" --%s=%s", key, value)
+	}
+
+	// Construct the torchrun command using the computed variables
+	torchrunCmd := fmt.Sprintf("torchrun --nproc_per_node=$nprocPerNode --nnodes=%d --node_rank=$podIndex --master_addr=$masterAddr --master_port=80 %s",
+		numReplicas, baseCommand)
+
+	// Combine everything, and format with serviceName and namespace
+	fullCmd := fmt.Sprintf(cmdComputeVariables, numReplicas, serviceName, namespace) + "; " + torchrunCmd + updatedBaseCommand
+
+	commands := []string{
+		"/bin/sh",
+		"-c",
+		fullCmd,
+	}
+
+	return commands
+}

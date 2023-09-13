@@ -408,7 +408,12 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1a
 		return nil
 	}
 
-	serviceObj := k8sresources.GenerateServiceManifest(ctx, wObj, serviceType)
+	tieServiceToPodIndex := false
+	if *wObj.Resource.Count > 0 {
+		tieServiceToPodIndex = true
+	}
+
+	serviceObj := k8sresources.GenerateServiceManifest(ctx, wObj, serviceType, tieServiceToPodIndex)
 	err = k8sresources.CreateService(ctx, serviceObj, c.Client)
 	if err != nil {
 		return err
@@ -467,7 +472,13 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alp
 			},
 		}, torchRunParams, c.Client)
 	case kdmv1alpha1.PresetSetModelllama2C:
-		err = inference.CreateLLAMA2CPresetModel(ctx, wObj, volume, torchRunParams, c.Client)
+		existingService, err := k8sresources.GetService(ctx, wObj.Name, wObj.Namespace, c.Client)
+		if err != nil {
+
+			torchRunParams["master_addr"] = existingService.Spec.ClusterIP
+			torchRunParams["master_port"] = "80"
+			err = inference.CreateLLAMA2CPresetModel(ctx, wObj, volume, torchRunParams, c.Client)
+		}
 	default:
 		err = fmt.Errorf("preset model %s is not supported", presetName)
 		klog.ErrorS(err, "no inference has been created")
