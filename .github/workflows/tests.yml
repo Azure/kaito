@@ -14,6 +14,10 @@ on:
     branches: [main]
     paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
 
+permissions:
+  contents: read
+  packages: write
+      
 env:
   GO_VERSION: '1.20'
 
