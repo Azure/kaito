@@ -30,11 +30,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION  }}
 
-      - name: Check out code into the Go module directory
+      - name: Check out the code in the Go module directory
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          submodules: true
+          fetch-depth: 0
 
       - name: Run unit tests & Generate coverage
         run: |
