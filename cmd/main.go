@@ -21,9 +21,10 @@ import (
 	"os"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	"github.com/kdm/pkg/controllers"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	"github.com/kdm/pkg/controllers"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -108,6 +109,10 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "unable to create controller", "controller", "Workspace")
 		exitWithErrorFunc()
+	}
+	if err = (&kdmv1alpha1.Workspace{}).SetupWebhookWithManager(mgr); err != nil {
+		klog.Error(err, "unable to create webhook", "webhook", "Workspace")
+		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
 
