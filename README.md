@@ -42,8 +42,7 @@ make docker-build-kdm
 4. Install KDM helm chart
 
 ```bash
-helm install --namespace kdm --create-namespace \
- kdm --set image.repository=${REGISTRY}/$(IMG_NAME) ./charts/kdm
+helm install kdm --set image.repository=${REGISTRY}/$(IMG_NAME) ./charts/kdm
 ```
 
 5. Run KDM workspace example
