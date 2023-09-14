@@ -22,6 +22,9 @@ securityContext:
     drop:
       - "ALL"
 
+webhook:
+  port: 9443
+
 resources:
   limits:
     cpu: 500m

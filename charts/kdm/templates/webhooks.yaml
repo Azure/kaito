@@ -1,0 +1,26 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validation.webhook.kdm.io
+  labels:
+    {{- include "kdm.labels" . | nindent 4 }}
+webhooks:
+  - name: validation.webhook.kdm.io
+    admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: {{ include "kdm.fullname" . }}
+        namespace: {{ include "kdm.fullname" . }}
+        port: {{ .Values.webhook.port }}
+    failurePolicy: Fail
+    sideEffects: None
+    rules:
+      - apiGroups:
+          - kdm.io
+        apiVersions:
+          - v1alpha1
+        resources:
+          - workspaces
+        operations:
+          - CREATE
+          - UPDATE

@@ -19,11 +19,16 @@ package main
 import (
 	"flag"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/kdm/pkg/controllers"
+	"github.com/kdm/pkg/webhooks"
 	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"knative.dev/pkg/injection/sharedmain"
+	"knative.dev/pkg/signals"
+	"knative.dev/pkg/webhook"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -39,6 +44,11 @@ import (
 
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
+)
+
+const (
+	WebhookServiceName = "WEBHOOK_SERVICE"
+	WebhookServicePort = "WEBHOOK_PORT"
 )
 
 var (
@@ -62,12 +72,15 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
+	var enableWebhook bool
 	var probeAddr string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.BoolVar(&enableWebhook, "webhook", true,
+		"Enable webhook for controller manager. Default is true.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -77,11 +90,8 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: metricsAddr,
-		WebhookServer: webhook.NewServer(webhook.Options{
-			Port: 9443,
-		}),
+		Scheme:                 scheme,
+		MetricsBindAddress:     metricsAddr,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "ef60f9b0.io",
@@ -103,8 +113,10 @@ func main() {
 	}
 
 	if err = (&controllers.WorkspaceReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Log:      log.Log.WithName("controllers").WithName("Workspace"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("KDM-Workspace-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "unable to create controller", "controller", "Workspace")
 		exitWithErrorFunc()
@@ -120,19 +132,28 @@ func main() {
 		exitWithErrorFunc()
 	}
 
+	if enableWebhook {
+		klog.InfoS("starting webhook reconcilers")
+		go func() {
+			p, err := strconv.Atoi(os.Getenv(WebhookServicePort))
+			if err != nil {
+				klog.ErrorS(err, "unable to parse the webhook port number")
+				exitWithErrorFunc()
+			}
+			ctx := webhook.WithOptions(signals.NewContext(), webhook.Options{
+				ServiceName: os.Getenv(WebhookServiceName),
+				Port:        p,
+				SecretName:  "webhook-cert",
+			})
+			sharedmain.MainWithConfig(sharedmain.WithHealthProbesDisabled(ctx), "webhook", ctrl.GetConfigOrDie(), webhooks.NewWebhooks()...)
+		}()
+		// wait 2 seconds to allow reconciling webhookconfiguration and service endpoint.
+		time.Sleep(2 * time.Second)
+	}
+
 	klog.InfoS("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		klog.ErrorS(err, "problem running manager")
 		exitWithErrorFunc()
-	}
-
-	workspaceController := &controllers.WorkspaceReconciler{
-		Client:   mgr.GetClient(),
-		Log:      log.Log.WithName("controllers").WithName("Workspace"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("KDM-Workspace-controller"),
-	}
-	if err := workspaceController.SetupWithManager(mgr); err != nil {
-		// TODO Handle error
 	}
 }
