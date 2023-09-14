@@ -235,7 +235,6 @@ func buildCommand(baseCommand string, torchRunParams map[string]string) []string
 	updatedBaseCommand := baseCommand
 	for key, value := range torchRunParams {
 		updatedBaseCommand = fmt.Sprintf("%s --%s=%s", updatedBaseCommand, key, value)
-		fmt.Println(updatedBaseCommand)
 	}
 
 	commands := []string{
