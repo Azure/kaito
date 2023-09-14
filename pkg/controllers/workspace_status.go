@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	"reflect"
+	"sort"
 
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
 	"github.com/samber/lo"
@@ -13,10 +15,7 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// updateWorkspaceStatus updates workspace status.
 func (c *WorkspaceReconciler) updateWorkspaceStatus(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
-	klog.InfoS("updateWorkspaceStatus", "workspace", klog.KObj(wObj))
-
 	return retry.OnError(retry.DefaultRetry,
 		func(err error) bool {
 			return apierrors.IsServiceUnavailable(err) || apierrors.IsServerTimeout(err) || apierrors.IsTooManyRequests(err)
@@ -26,10 +25,15 @@ func (c *WorkspaceReconciler) updateWorkspaceStatus(ctx context.Context, wObj *k
 		})
 }
 
-// setStatusCondition add or update condition.
-func (c *WorkspaceReconciler) setStatusCondition(ctx context.Context, wObj *kdmv1alpha1.Workspace, cType kdmv1alpha1.ConditionType,
+func (c *WorkspaceReconciler) updateStatusConditionIfNotMatch(ctx context.Context, wObj *kdmv1alpha1.Workspace, cType kdmv1alpha1.ConditionType,
 	cStatus metav1.ConditionStatus, cReason, cMessage string) error {
-	klog.InfoS("setStatusCondition", "workspace", klog.KObj(wObj), "conditionType", cType, "status", cStatus, "reason", cReason, "message", cMessage)
+	if curCondition := meta.FindStatusCondition(wObj.Status.Conditions, string(cType)); curCondition != nil {
+		if curCondition.Status == cStatus && curCondition.Reason == cReason && curCondition.Message == cMessage {
+			// Nonthing to change
+			return nil
+		}
+	}
+	klog.InfoS("updateStatusCondition", "workspace", klog.KObj(wObj), "conditionType", cType, "status", cStatus, "reason", cReason, "message", cMessage)
 	cObj := metav1.Condition{
 		Type:               string(cType),
 		Status:             cStatus,
@@ -41,12 +45,16 @@ func (c *WorkspaceReconciler) setStatusCondition(ctx context.Context, wObj *kdmv
 	return c.updateWorkspaceStatus(ctx, wObj)
 }
 
-// updateWorkspaceStatusWithNodeList updates workspace status with final list of nodes that will be used to run the workload.
-func (c *WorkspaceReconciler) updateWorkspaceStatusWithNodeList(ctx context.Context, wObj *kdmv1alpha1.Workspace, validNodeList []*corev1.Node) error {
-	klog.InfoS("updateWorkspaceStatusWithNodeList", "workspace", klog.KObj(wObj))
+func (c *WorkspaceReconciler) updateStatusNodeListIfNotMatch(ctx context.Context, wObj *kdmv1alpha1.Workspace, validNodeList []*corev1.Node) error {
 	nodeNameList := lo.Map(validNodeList, func(v *corev1.Node, _ int) string {
 		return v.Name
 	})
+	sort.Strings(wObj.Status.WorkerNodes)
+	sort.Strings(nodeNameList)
+	if reflect.DeepEqual(wObj.Status.WorkerNodes, nodeNameList) {
+		return nil
+	}
+	klog.InfoS("updateStatusNodeList", "workspace", klog.KObj(wObj))
 	wObj.Status.WorkerNodes = nodeNameList
 	return c.updateWorkspaceStatus(ctx, wObj)
 }
