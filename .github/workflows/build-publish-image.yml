@@ -16,6 +16,7 @@ env:
   REGISTRY: ghcr.io
   GO_VERSION: '1.20'
   IMAGE_NAME: 'kdm'
+  IMG_TAG: 'latest'
 
 jobs:
   export-registry:
@@ -29,13 +30,11 @@ jobs:
           # registry must be in lowercase
           echo "registry=$(echo "${{ env.REGISTRY }}/${{ github.repository }}" | tr [:upper:] [:lower:])" >> $GITHUB_OUTPUT
 
-  publish-images:
+  create-tag:
     if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'update manifest and helm charts')
-    needs:
-      - export-registry
-    env:
-      REGISTRY: ${{ needs.export-registry.outputs.registry }}
     runs-on: ubuntu-20.04
+    outputs:
+      tag: ${{ steps.get-tag.outputs.tag }}
     steps:
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v4
@@ -50,8 +49,26 @@ jobs:
         name: Get tag
         run: echo "tag=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_OUTPUT
       - name: Create tag
-        run: |
-          git tag ${{ steps.get-tag.outputs.tag }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'refs/tags/${{ steps.get-tag.outputs.tag }}',
+              sha: context.sha
+            })
+
+  publish-images:
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'update manifest and helm charts')
+    needs:
+      - create-tag
+      - export-registry
+    env:
+      IMG_TAG: ${{ needs.create-tag.outputs.tag }}
+      REGISTRY: ${{ needs.export-registry.outputs.registry }}
+    runs-on: ubuntu-20.04
+    steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
@@ -65,7 +82,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Set Image tag
         run: |
-          ver=${{ steps.get-tag.outputs.tag }}
+          ver=${{ needs.create-tag.outputs.tag }}
           echo "IMG_TAG=${ver#"v"}" >> $GITHUB_ENV
       - name: Build image
         run: |
@@ -92,3 +109,12 @@ jobs:
           OUTPUT_TYPE=type=registry make docker-build-kdm
         env:
           VERSION: ${{ env.IMG_TAG }}
+      - name: Save registry and tag as an artifact for other workflows that run on workflow_run to download them
+        run: |
+          mkdir -p /tmp/artifacts
+          echo ${{ needs.create-tag.outputs.tag }} >> /tmp/artifacts/tag.txt
+          cat /tmp/artifacts/tag.txt
+      - uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          path: /tmp/artifacts

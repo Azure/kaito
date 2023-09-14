@@ -16,11 +16,17 @@ import (
 )
 
 const (
-	// Preset2ATimeout Preset2BTimeout Preset2CTimeout define maximum durations for pulling image presets.
-	// Durations increase from PresetA (smallest image) to PresetC (largest). These timeouts accommodate large image sizes,
-	// ensuring pull completion even under slower network conditions or unforeseen delays.
+	// Preset2ATimeout defines the maximum duration for pulling the PresetA image.
+	// This timeout accommodates the size of PresetA, ensuring pull completion
+	// even under slower network conditions or unforeseen delays.
 	Preset2ATimeout = time.Duration(10) * time.Minute
+
+	// Preset2BTimeout defines the maximum duration for pulling the PresetB image.
+	// This timeout accommodates the size of PresetB.
 	Preset2BTimeout = time.Duration(20) * time.Minute
+
+	// Preset2CTimeout defines the maximum duration for pulling the PresetC image.
+	// This timeout accommodates the size of PresetC (the largest image).
 	Preset2CTimeout = time.Duration(30) * time.Minute
 
 	RegistryName                   = "aimodelsregistry.azurecr.io"

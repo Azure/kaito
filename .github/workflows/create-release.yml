@@ -9,7 +9,6 @@ permissions:
   contents: write
   packages: write
 
-
 env:
   GO_VERSION: '1.20'
 
@@ -18,6 +17,10 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-20.04
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@8ca2b8b2ece13480cda6dacd3511b49857a23c09 # v2.5.1
+        with:
+          egress-policy: audit
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v4
         with:
@@ -27,12 +30,45 @@ jobs:
         with:
           fetch-depth: 0
           submodules: true
-      - id: get-tag
-        name: Get tag
-        run: echo "tag=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_OUTPUT
-      - name: Create tag
+      - name: Download tag artifact
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.KDM_ACCESS_TOKEN_READ }}
+          script: |
+            let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               run_id: context.payload.workflow_run.id,
+            });
+            let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
+              return artifact.name == "artifacts"
+            })[0];
+            let download = await github.rest.actions.downloadArtifact({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               artifact_id: matchArtifact.id,
+               archive_format: 'zip',
+            });
+            let fs = require('fs');
+            fs.writeFileSync(`/tmp/artifacts.zip`, Buffer.from(download.data));
+      - run: |
+          mkdir -p /tmp/artifacts
+          unzip /tmp/artifacts.zip -d /tmp/artifacts
+        shell: bash
+      - run: |
+          echo "Downloaded artifacts:"
+          ls -ablh /tmp/artifacts
+        shell: bash
+      - name: Parse artifacts and assign GA environment variables
         run: |
-          git tag ${{ steps.get-tag.outputs.tag }}
+          tag=$(tail -n 1 /tmp/artifacts/tag.txt)
+          echo "IMG_TAG=$tag" >> $GITHUB_ENV
+      - name: Checkout the repository at the given SHA from the artifact
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+          ref: ${{ env.IMG_TAG }}
       - name: Goreleaser
         uses: goreleaser/goreleaser-action@v4
         with:

@@ -2,7 +2,7 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= helayoty
 IMG_NAME ?= kdm
-VERSION ?= v0.0.1
+VERSION ?= v0.1.0
 IMG_TAG ?= $(subst v,,$(VERSION))
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.27.2
@@ -77,10 +77,18 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 fmt: ## Run go fmt against code.
 	go fmt ./...
 
+## --------------------------------------
+## Tests
+## --------------------------------------
+
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
 
+.PHONY: unit-test
+unit-test: ## Run unit tests.
+	go test -v $(shell go list ./... | grep -v /vendor) -race -coverprofile=coverage.txt -covermode=atomic fmt
+	go tool cover -func=coverage.txt
 ##@ Build
 
 .PHONY: build

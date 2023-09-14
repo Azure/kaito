@@ -27,3 +27,4 @@ Dockerfile.cross
 vendor/*
 hack/tools/bin/*
 .DS_Store
+/coverage.txt
