@@ -22,32 +22,15 @@ func CreateService(ctx context.Context, serviceObj *v1.Service, kubeClient clien
 	})
 }
 
-func GetService(ctx context.Context, name, namespace string, kubeClient client.Client) (*v1.Service, error) {
-	klog.InfoS("GetService", "serviceName", name, "serviceNamespace", namespace)
+func GenerateServiceManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace) *v1.Service {
+	klog.InfoS("GenerateServiceManifest", "workspace", klog.KObj(workspaceObj), "serviceType", v1.ServiceTypeLoadBalancer)
 
-	svc := &v1.Service{}
-	err := retry.OnError(retry.DefaultBackoff, func(err error) bool {
-		return true
-	}, func() error {
-		return kubeClient.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, svc, &client.GetOptions{})
-	})
-
-	if err != nil {
-		return nil, err
+	selector := make(map[string]string)
+	for k, v := range workspaceObj.Resource.LabelSelector.MatchLabels {
+		selector[k] = v
 	}
-
-	return svc, nil
-}
-
-func GenerateServiceManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, serviceType v1.ServiceType, tieServiceToPodIndex bool) *v1.Service {
-	klog.InfoS("GenerateServiceManifest", "workspace", klog.KObj(workspaceObj), "serviceType", serviceType)
-
-	selector := workspaceObj.Resource.LabelSelector.MatchLabels
-
-	if tieServiceToPodIndex {
-		podNameForIndex0 := fmt.Sprintf("%s-0", workspaceObj.Name)
-		selector["statefulset.kubernetes.io/pod-name"] = podNameForIndex0
-	}
+	podNameForIndex0 := fmt.Sprintf("%s-0", workspaceObj.Name)
+	selector["statefulset.kubernetes.io/pod-name"] = podNameForIndex0
 
 	return &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -63,7 +46,7 @@ func GenerateServiceManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Work
 			},
 		},
 		Spec: v1.ServiceSpec{
-			Type: serviceType,
+			Type: v1.ServiceTypeLoadBalancer,
 			Ports: []v1.ServicePort{
 				{
 					Protocol:   v1.ProtocolTCP,

@@ -400,27 +400,41 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1a
 		}
 	}
 
-	existingObj, err := k8sresources.GetService(ctx, wObj.Name, wObj.Namespace, c.Client)
+	existingSVC := &corev1.Service{}
+	err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingSVC)
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
-	if existingObj != nil {
+	if existingSVC != nil {
 		klog.InfoS("a service already exists for workspace", "workspace", klog.KObj(wObj), "serviceType", serviceType)
 		return nil
 	}
 
-	tieServiceToPodIndex := false
-	if *wObj.Resource.Count > 0 {
-		tieServiceToPodIndex = true
-	}
-
-	serviceObj := k8sresources.GenerateServiceManifest(ctx, wObj, serviceType, tieServiceToPodIndex)
+	serviceObj := k8sresources.GenerateServiceManifest(ctx, wObj)
 	err = k8sresources.CreateService(ctx, serviceObj, c.Client)
 	if err != nil {
 		return err
 	}
 
 	klog.InfoS("a service has been created for workspace", "workspace", klog.KObj(wObj), "serviceType", serviceType)
+	return nil
+}
+
+func (c *WorkspaceReconciler) setTorchParams(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
+	existingService := &corev1.Service{}
+	err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingService)
+	if err != nil {
+		return err
+	}
+
+	nodes := *wObj.Resource.Count
+	if nodes > 1 {
+		torchRunParams["nnodes"] = strconv.Itoa(nodes)
+		torchRunParams["node_rank"] = "$(echo $HOSTNAME | grep -o '[^-]*$')"
+		torchRunParams["nproc_per_node"] = strconv.Itoa(8 / nodes)
+		torchRunParams["master_addr"] = existingService.Spec.ClusterIP
+		torchRunParams["master_port"] = "80"
+	}
 	return nil
 }
 
@@ -445,22 +459,18 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alp
 		return nil
 	}
 
+	if err := c.setTorchParams(ctx, wObj); err != nil {
+		klog.ErrorS(err, "failed to update torch params", "workspace", wObj)
+		return err
+	}
+
 	switch presetName {
 	case kdmv1alpha1.PresetSetModelllama2A:
 		err = inference.CreateLLAMA2APresetModel(ctx, wObj, torchRunParams, c.Client)
 	case kdmv1alpha1.PresetSetModelllama2B:
 		err = inference.CreateLLAMA2BPresetModel(ctx, wObj, torchRunParams, c.Client)
 	case kdmv1alpha1.PresetSetModelllama2C:
-		existingService, err := k8sresources.GetService(ctx, wObj.Name, wObj.Namespace, c.Client)
-		if err != nil {
-			nodes := *wObj.Resource.Count
-			torchRunParams["nnodes"] = strconv.Itoa(nodes)
-			torchRunParams["node_rank"] = "$(echo $HOSTNAME | grep -o '[^-]*$')"
-			torchRunParams["nproc_per_node"] = strconv.Itoa(8 / nodes)
-			torchRunParams["master_addr"] = existingService.Spec.ClusterIP
-			torchRunParams["master_port"] = "80"
-			err = inference.CreateLLAMA2CPresetModel(ctx, wObj, torchRunParams, c.Client)
-		}
+		err = inference.CreateLLAMA2CPresetModel(ctx, wObj, torchRunParams, c.Client)
 	default:
 		err = fmt.Errorf("preset model %s is not supported", presetName)
 		klog.ErrorS(err, "no inference has been created")
