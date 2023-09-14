@@ -38,8 +38,8 @@ const (
 	Port5000  = int32(5000)
 
 	BaseCommandPresetSetModelllama2A = "cd /workspace/llama/llama-2-7b-chat && torchrun web_example_chat_completion.py"
-	BaseCommandPresetSetModelllama2B = "cd /workspace/llama/llama-2-13b-chat && torchrun --nproc_per_node=2 web_example_chat_completion.py"
-	BaseCommandPresetSetModelllama2C = "cd /workspace/llama/llama-2-70b-chat && torchrun --nproc_per_node=4 web_example_chat_completion.py"
+	BaseCommandPresetSetModelllama2B = "cd /workspace/llama/llama-2-13b-chat && torchrun web_example_chat_completion.py"
+	BaseCommandPresetSetModelllama2C = "cd /workspace/llama/llama-2-70b-chat && torchrun web_example_chat_completion.py"
 )
 
 var (
@@ -84,7 +84,7 @@ var (
 	}
 )
 
-func CreateLLAMA2APresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, volume []corev1.Volume,
+func CreateLLAMA2APresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace,
 	torchRunParams map[string]string, kubeClient client.Client) error {
 	klog.InfoS("CreateLLAMA2APresetModel", "workspace", klog.KObj(workspaceObj))
 	commands := buildCommand(BaseCommandPresetSetModelllama2A, torchRunParams)
@@ -96,17 +96,10 @@ func CreateLLAMA2APresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse("1"),
 		},
 	}
-	volumeMount := []corev1.VolumeMount{}
-	if len(volume) != 0 {
-		volumeMount = append(volumeMount, corev1.VolumeMount{
-			Name:      volume[0].Name,
-			MountPath: "/dev/shm",
-		})
-	}
 
 	// Replica is always 1, because LLAMA2APreset only runs on one GPU
-	depObj := k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, PresetSetModelllama2AChatImage,
-		1, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
+	depObj := k8sresources.GenerateStatefulSetManifest(ctx, workspaceObj, PresetSetModelllama2AChatImage,
+		1, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, tolerations)
 	err := k8sresources.CreateResource(ctx, depObj, kubeClient)
 	if err != nil {
 		return err
@@ -118,7 +111,7 @@ func CreateLLAMA2APresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 	return nil
 }
 
-func CreateLLAMA2BPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, volume []corev1.Volume,
+func CreateLLAMA2BPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace,
 	torchRunParams map[string]string, kubeClient client.Client) error {
 	klog.InfoS("CreateLLAMA2BPresetModel", "workspace", klog.KObj(workspaceObj))
 
@@ -132,17 +125,9 @@ func CreateLLAMA2BPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse("2"),
 		},
 	}
-	volumeMount := []corev1.VolumeMount{}
-	if len(volume) != 0 {
-		volumeMount = append(volumeMount, corev1.VolumeMount{
-			Name:      volume[0].Name,
-			MountPath: "/dev/shm",
-		})
-	}
 
-	// TODO: Handle when 13B *workspaceObj.Resource.Count > 1 - requires NCCL multinode comm
-	depObj := k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, PresetSetModelllama2BChatImage,
-		*workspaceObj.Resource.Count, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
+	depObj := k8sresources.GenerateStatefulSetManifest(ctx, workspaceObj, PresetSetModelllama2BChatImage,
+		*workspaceObj.Resource.Count, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, tolerations)
 
 	if err := k8sresources.CreateResource(ctx, depObj, kubeClient); err != nil {
 		return err
@@ -154,7 +139,7 @@ func CreateLLAMA2BPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 	return nil
 }
 
-func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, volume []corev1.Volume,
+func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace,
 	torchRunParams map[string]string, kubeClient client.Client) error {
 	klog.InfoS("CreateLLAMA2CPresetModel", "workspace", klog.KObj(workspaceObj))
 	commands := buildCommand(BaseCommandPresetSetModelllama2C, torchRunParams)
@@ -169,16 +154,8 @@ func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 		},
 	}
 
-	volumeMount := []corev1.VolumeMount{}
-	if len(volume) != 0 {
-		volumeMount = append(volumeMount, corev1.VolumeMount{
-			Name:      volume[0].Name,
-			MountPath: "/dev/shm",
-		})
-	}
-
 	depObj := k8sresources.GenerateStatefulSetManifest(ctx, workspaceObj, PresetSetModelllama2CChatImage,
-		*workspaceObj.Resource.Count, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
+		*workspaceObj.Resource.Count, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, tolerations)
 
 	if err := k8sresources.CreateResource(ctx, depObj, kubeClient); err != nil {
 		return err

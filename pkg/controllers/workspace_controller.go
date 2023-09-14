@@ -424,19 +424,12 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1a
 	return nil
 }
 
-func getResourceObject(presetName kdmv1alpha1.PresetModelName) client.Object {
-	if presetName == kdmv1alpha1.PresetSetModelllama2C {
-		return &appsv1.StatefulSet{}
-	}
-	return &appsv1.Deployment{}
-}
-
 // applyInference applies inference spec.
 func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
 	klog.InfoS("applyInference", "workspace", klog.KObj(wObj))
 
 	presetName := wObj.Inference.Preset.Name
-	existingObj := getResourceObject(presetName)
+	existingObj := &appsv1.StatefulSet{}
 	err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj)
 	if err != nil && !errors.IsNotFound(err) {
 		if err := c.setStatusCondition(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
@@ -452,26 +445,11 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alp
 		return nil
 	}
 
-	// TODO check if preset exists, template shouldn't.
-	volume := wObj.Inference.Preset.Volume
-	if volume == nil {
-		volume = []corev1.Volume{}
-	}
-
 	switch presetName {
 	case kdmv1alpha1.PresetSetModelllama2A:
-		err = inference.CreateLLAMA2APresetModel(ctx, wObj, volume, torchRunParams, c.Client)
+		err = inference.CreateLLAMA2APresetModel(ctx, wObj, torchRunParams, c.Client)
 	case kdmv1alpha1.PresetSetModelllama2B:
-		err = inference.CreateLLAMA2BPresetModel(ctx, wObj, []corev1.Volume{
-			{
-				Name: "dshm",
-				VolumeSource: corev1.VolumeSource{
-					EmptyDir: &corev1.EmptyDirVolumeSource{
-						Medium: "Memory",
-					},
-				},
-			},
-		}, torchRunParams, c.Client)
+		err = inference.CreateLLAMA2BPresetModel(ctx, wObj, torchRunParams, c.Client)
 	case kdmv1alpha1.PresetSetModelllama2C:
 		existingService, err := k8sresources.GetService(ctx, wObj.Name, wObj.Namespace, c.Client)
 		if err != nil {
@@ -481,7 +459,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alp
 			torchRunParams["nproc_per_node"] = strconv.Itoa(8 / nodes)
 			torchRunParams["master_addr"] = existingService.Spec.ClusterIP
 			torchRunParams["master_port"] = "80"
-			err = inference.CreateLLAMA2CPresetModel(ctx, wObj, volume, torchRunParams, c.Client)
+			err = inference.CreateLLAMA2CPresetModel(ctx, wObj, torchRunParams, c.Client)
 		}
 	default:
 		err = fmt.Errorf("preset model %s is not supported", presetName)
