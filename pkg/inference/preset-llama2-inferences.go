@@ -232,9 +232,9 @@ func checkResourceStatus(obj client.Object, kubeClient client.Client, timeoutDur
 }
 
 func buildCommand(baseCommand string, torchRunParams map[string]string) []string {
-	var updatedBaseCommand string
+	updatedBaseCommand := baseCommand
 	for key, value := range torchRunParams {
-		updatedBaseCommand = fmt.Sprintf("%s --%s=%s", baseCommand, key, value)
+		updatedBaseCommand = fmt.Sprintf("%s --%s=%s", updatedBaseCommand, key, value)
 	}
 
 	commands := []string{
