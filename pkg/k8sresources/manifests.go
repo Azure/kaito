@@ -2,6 +2,8 @@ package k8sresources
 
 import (
 	"context"
+	"fmt"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
 	"github.com/samber/lo"
@@ -10,6 +12,43 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 )
+
+func GenerateServiceManifest(workspaceObj *kdmv1alpha1.Workspace) *corev1.Service {
+	klog.InfoS("GenerateServiceManifest", "workspace", klog.KObj(workspaceObj), "serviceType", corev1.ServiceTypeLoadBalancer)
+
+	selector := make(map[string]string)
+	for k, v := range workspaceObj.Resource.LabelSelector.MatchLabels {
+		selector[k] = v
+	}
+	podNameForIndex0 := fmt.Sprintf("%s-0", workspaceObj.Name)
+	selector["statefulset.kubernetes.io/pod-name"] = podNameForIndex0
+
+	return &corev1.Service{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      workspaceObj.Name,
+			Namespace: workspaceObj.Namespace,
+			OwnerReferences: []v1.OwnerReference{
+				{
+					APIVersion: kdmv1alpha1.GroupVersion.String(),
+					Kind:       "Workspace",
+					UID:        workspaceObj.UID,
+					Name:       workspaceObj.Name,
+				},
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Type: corev1.ServiceTypeLoadBalancer,
+			Ports: []corev1.ServicePort{
+				{
+					Protocol:   corev1.ProtocolTCP,
+					Port:       80,
+					TargetPort: intstr.FromInt(5000),
+				},
+			},
+			Selector: selector,
+		},
+	}
+}
 
 func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, imageName string,
 	replicas int, commands []string, containerPorts []corev1.ContainerPort,
@@ -27,7 +66,7 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kdmv1alpha1.
 			Values:   []string{value},
 		})
 	}
-	volumes, volumeMount := configVolume(workspaceObj)
+	volumes, volumeMount := ConfigVolume(workspaceObj)
 
 	return &appsv1.StatefulSet{
 		ObjectMeta: v1.ObjectMeta{

@@ -410,8 +410,8 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1a
 		return nil
 	}
 
-	serviceObj := k8sresources.GenerateServiceManifest(ctx, wObj)
-	err = k8sresources.CreateService(ctx, serviceObj, c.Client)
+	serviceObj := k8sresources.GenerateServiceManifest(wObj)
+	err = k8sresources.CreateResource(ctx, serviceObj, c.Client)
 	if err != nil {
 		return err
 	}

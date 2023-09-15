@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func configVolume(wObj *kdmv1alpha1.Workspace) ([]corev1.Volume, []corev1.VolumeMount) {
+func ConfigVolume(wObj *kdmv1alpha1.Workspace) ([]corev1.Volume, []corev1.VolumeMount) {
 	// TODO check if preset exists, template shouldn't.
 	volume := wObj.Inference.Preset.Volume
 	if volume == nil {
@@ -44,9 +44,11 @@ func CreateResource(ctx context.Context, resource client.Object, kubeClient clie
 	// Log the creation attempt.
 	switch r := resource.(type) {
 	case *appsv1.Deployment:
-		klog.InfoS("CreateDeployment", "service", klog.KObj(r))
+		klog.InfoS("CreateDeployment", "deployment", klog.KObj(r))
 	case *appsv1.StatefulSet:
-		klog.InfoS("CreateStatefulSet", "service", klog.KObj(r))
+		klog.InfoS("CreateStatefulSet", "statefulset", klog.KObj(r))
+	case *corev1.Service:
+		klog.InfoS("CreateService", "service", klog.KObj(r))
 	}
 
 	// Create the resource.
