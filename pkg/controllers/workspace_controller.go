@@ -172,6 +172,12 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 		klog.InfoS("number of existing nodes are equal to the required workspace count", "workspace.Count", lo.FromPtr(wObj.Resource.Count))
 	} else {
 		klog.InfoS("need to create more nodes", "NodeCount", remainingNodeCount)
+		if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionUnknown,
+			"CreateMachinePending", fmt.Sprintf("creating %d machines", remainingNodeCount)); err != nil {
+			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+			return err
+		}
+
 		for i := 0; i < remainingNodeCount; i++ {
 			newNode, err := c.createAndValidateNode(ctx, wObj)
 			if err != nil {
@@ -276,16 +282,10 @@ func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *k
 	klog.InfoS("createAndValidateNode", "workspace", klog.KObj(wObj))
 	newMachine := machine.GenerateMachineManifest(ctx, wObj)
 
-	if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineProvisioned, metav1.ConditionUnknown,
-		"machineProvisioning", fmt.Sprintf("machine %s is getting provisioned", newMachine.Name)); err != nil {
-		klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
-		return nil, err
-	}
-
 	if err := machine.CreateMachine(ctx, newMachine, c.Client); err != nil {
 		klog.ErrorS(err, "failed to create machine", "machine", newMachine.Name)
-		if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineProvisioned, metav1.ConditionFalse,
-			"machineFailedProvision", err.Error()); err != nil {
+		if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionFalse,
+			"machineFailedCreation", err.Error()); err != nil {
 			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
 			return nil, err
 		}
@@ -293,21 +293,8 @@ func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *k
 	}
 	klog.InfoS("a new machine has been created", "machine", newMachine.Name)
 
-	err := c.updateStatusConditionIfNotMatch(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineProvisioned, metav1.ConditionTrue,
-		"machineProvisionSuccess", "machine has been provisioned successfully")
-	if err != nil {
-		klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
-		return nil, err
-	}
-
-	if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionUnknown,
-		"checkMachineStatusPending", fmt.Sprintf("checking machine %s status", newMachine.Name)); err != nil {
-		klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
-		return nil, err
-	}
-
 	// check machine status until it is ready
-	err = machine.CheckMachineStatus(ctx, newMachine, c.Client)
+	err := machine.CheckMachineStatus(ctx, newMachine, c.Client)
 	if err != nil {
 		if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionFalse,
 			"checkMachineStatusFailed", err.Error()); err != nil {
