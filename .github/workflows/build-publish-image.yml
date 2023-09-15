@@ -1,6 +1,5 @@
 name: Create, Scan and Publish KDM image
 on:
-  workflow_dispatch:
   pull_request:
     branches:
       - main
