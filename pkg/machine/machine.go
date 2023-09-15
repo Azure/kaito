@@ -27,8 +27,8 @@ const (
 )
 
 var (
-	//	machineStatusCheckInterval is the interval to check the machine status.
-	machineStatusCheckInterval = 180 * time.Second
+	//	machineStatusTimeoutInterval is the interval to check the machine status.
+	machineStatusTimeoutInterval = 240 * time.Second
 )
 
 // GenerateMachineManifest generates a machine object from	the given workspace.
@@ -194,7 +194,7 @@ func ListMachines(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, kube
 func CheckMachineStatus(ctx context.Context, machineObj *v1alpha5.Machine, kubeClient client.Client) error {
 	klog.InfoS("CheckMachineStatus", "machine", klog.KObj(machineObj))
 	timeClock := clock.RealClock{}
-	tick := timeClock.NewTicker(machineStatusCheckInterval)
+	tick := timeClock.NewTicker(machineStatusTimeoutInterval)
 	defer tick.Stop()
 
 	for {
