@@ -66,8 +66,8 @@ jobs:
       - name: 'Publish to ACR'
         id: publish
         run: |
-          az acr login -n ${{ vars.AZURE_MCR_REGISTRY }}
+          az acr login -n ${{ vars.AZURE_REGISTRY }}
           OUTPUT_TYPE=type=registry make docker-build-kdm
         env:
             VERSION: ${{ env.IMG_TAG }}
-            REGISTRY: ${{ secrets.AZURE_MCR_REGISTRY }}
+            REGISTRY: ${{ secrets.AZURE_REGISTRY }}
