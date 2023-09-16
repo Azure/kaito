@@ -1,4 +1,4 @@
-name: Push image to MCR
+name: Push image to ACR
 on:
   workflow_dispatch:
   workflow_run:
