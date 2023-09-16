@@ -27,10 +27,10 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		Add the following checks when creating a new workspace:
 		- For instancetype, check againt a hardcode list with existing GPU skus that we support. For these skus,
 		  validate if the total GPU count is sufficient to run the preset workload if any.
-		- For other instancetypes, do pattern matches and for N, D or E series, we let it pass. Otherwise, fail the check.
-		- For LabelSelector, we call metav1.LabelSelectorAsMap, if the method returns error, meaning unsupported expressions are found, fail the check.
-		- For Inference, either preset or template has to be set, not all.
-		- The preset name needs to supported enum.
+		- For other instancetypes, do pattern matches and for N, D series, we let it pass. Otherwise, fail the check.
+		- For labelSelector, call metav1.LabelSelectorAsMap. If the method returns error, meaning unsupported expressions are found, fail the check.
+		- For inference, either preset or template has to be set, not all.
+		- The preset name needs to be supported enum.
 		- API: change template to be a pointer field, change inference to be a pointer field.
 		*/
 	} else {
@@ -68,6 +68,6 @@ func (i *InferenceSpec) validateUpdate(old *InferenceSpec) (errs *apis.FieldErro
 	if i.Preset.Name != old.Preset.Name {
 		errs = errs.Also(apis.ErrGeneric("field is immutable", "name").ViaField("preset"))
 	}
-	//TODO: Inference.Template cam be changed but cannot be unset
+	//TODO: inference.template can be changed, but cannot be unset.
 	return errs
 }
