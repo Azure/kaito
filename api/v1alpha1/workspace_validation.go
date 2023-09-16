@@ -27,11 +27,11 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		Add the following checks when creating a new workspace:
 		- For instancetype, check againt a hardcode list with existing GPU skus that we support. For these skus,
 		  validate if the total GPU count is sufficient to run the preset workload if any.
-		- For other instancetypes, do pattern matches and for N, D or E series, we let it pass other fail.
-		- For LabelSelector, we call metav1.LabelSelectorAsMap, if the method returns error, means it contains expressions that                   we don't support, fail.
+		- For other instancetypes, do pattern matches and for N, D or E series, we let it pass. Otherwise, fail the check.
+		- For LabelSelector, we call metav1.LabelSelectorAsMap, if the method returns error, meaning unsupported expressions are found, fail the check.
 		- For Inference, either preset or template has to be set, not all.
 		- The preset name needs to supported enum.
-		- API: change template to be a pointer field
+		- API: change template to be a pointer field, change inference to be a pointer field.
 		*/
 	} else {
 		klog.InfoS("Validate update", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
