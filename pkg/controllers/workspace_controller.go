@@ -30,10 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-var torchRunParams = map[string]string{
-	"max_seq_len":    "512",
-	"max_batch_size": "8",
-}
+var torchRunParams = map[string]string{}
 
 type WorkspaceReconciler struct {
 	client.Client
@@ -392,7 +389,8 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1a
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
-	if existingSVC != nil {
+
+	if existingSVC.GetName() != "" && existingSVC.GetNamespace() != "" {
 		klog.InfoS("a service already exists for workspace", "workspace", klog.KObj(wObj), "serviceType", serviceType)
 		return nil
 	}
@@ -407,18 +405,31 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1a
 	return nil
 }
 
-func (c *WorkspaceReconciler) setTorchParams(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
+func (c *WorkspaceReconciler) setTorchParams(ctx context.Context, wObj *kdmv1alpha1.Workspace, presetName kdmv1alpha1.PresetModelName) error {
 	existingService := &corev1.Service{}
 	err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingService)
 	if err != nil {
 		return err
 	}
 
+	worldSize := 1
+	switch presetName {
+	case kdmv1alpha1.PresetSetModelllama2A:
+		worldSize = kdmv1alpha1.PresetModelllama2AWorldSize
+	case kdmv1alpha1.PresetSetModelllama2B:
+		worldSize = kdmv1alpha1.PresetModelllama2BWorldSize
+	case kdmv1alpha1.PresetSetModelllama2C:
+		worldSize = kdmv1alpha1.PresetModelllama2CWorldSize
+	default:
+		err = fmt.Errorf("preset model %s is not supported", presetName)
+		klog.ErrorS(err, "no inference has been created")
+	}
+
 	nodes := *wObj.Resource.Count
+	torchRunParams["nnodes"] = strconv.Itoa(nodes)
+	torchRunParams["nproc_per_node"] = strconv.Itoa(worldSize / nodes)
 	if nodes > 1 {
-		torchRunParams["nnodes"] = strconv.Itoa(nodes)
 		torchRunParams["node_rank"] = "$(echo $HOSTNAME | grep -o '[^-]*$')"
-		torchRunParams["nproc_per_node"] = strconv.Itoa(8 / nodes)
 		torchRunParams["master_addr"] = existingService.Spec.ClusterIP
 		torchRunParams["master_port"] = "80"
 	}
@@ -446,7 +457,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alp
 		return nil
 	}
 
-	if err := c.setTorchParams(ctx, wObj); err != nil {
+	if err := c.setTorchParams(ctx, wObj, presetName); err != nil {
 		klog.ErrorS(err, "failed to update torch params", "workspace", wObj)
 		return err
 	}
