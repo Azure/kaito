@@ -70,7 +70,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ env.IMG_TAG }}
       - name: Goreleaser
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
           args: release --rm-dist --timeout 60m --debug
