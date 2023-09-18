@@ -21,7 +21,7 @@ resource:
     - "aks-machine98722-26559722-vmss000001"
 inference:
   preset:
-    name: "llama2-13b"
+    name: "llama-2-13b-chat"
     volume:
     - name: dshm
       emptyDir:

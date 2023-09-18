@@ -48,31 +48,25 @@ helm install kdm --set image.repository=${REGISTRY}/$(IMG_NAME) ./charts/kdm
 5. Run KDM workspace example
 
 ```bash
-kubectl apply -f examples/kdm_workspace_llama2_7b.yaml
+kubectl apply -f examples/kdm_workspace_llama2_7b-chat.yaml
 ```
 
 6. Watch the KDM workspace CR status
 
 ```bash
-watch kubectl describe workspace workspace-llama-7b-aks 
+watch kubectl describe workspace workspace-llama-2-7b-chat 
 ```
 
 <details>
 <summary>Workspace status</summary>
 
 ```bash
-Name:         workspace-llama-7b-aks
-Namespace:    default
-Labels:       app.kubernetes.io/created-by=kdm
-              app.kubernetes.io/instance=workspace-sample
-              app.kubernetes.io/managed-by=kustomize
-              app.kubernetes.io/name=workspace
-              app.kubernetes.io/part-of=kdm
+Name:         workspace-llama-2-7b-aks
 Annotations:  kubernetes-kdm.io/service-type: load-balancer
 API Version:  kdm.io/v1alpha1
 Inference:
   Preset:
-    Name:  llama2-7b
+    Name:  llama-2-7b
     Volume:
       Empty Dir:
         Medium:  Memory
@@ -88,7 +82,7 @@ Resource:
   Instance Type:  Standard_NC12s_v3
   Label Selector:
     Match Labels:
-      apps:  llama2-7b
+      apps:  llama-2-7b
   Preferred Nodes:
     node1
     aks-machine98722-26559722-vmss000001
