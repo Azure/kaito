@@ -70,7 +70,7 @@ var (
 		kdmv1alpha1.PresetLlama2CChat: {
 			Image:                  presetLlama2CChatImage,
 			DiskStorageRequirement: "158Gi",
-			GPURequirement:         "4",
+			GPURequirement:         "8",
 			GPUMemoryRequirement:   "19Gi",
 			TorchRunParams:         torchRunParams,
 			DeploymentTimeout:      time.Duration(30) * time.Minute,
