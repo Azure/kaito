@@ -22,9 +22,12 @@ import (
 )
 
 const (
-	PresetSetModelllama2A            PresetModelName = "llama2-7b"
-	PresetSetModelllama2B            PresetModelName = "llama2-13b"
-	PresetSetModelllama2C            PresetModelName = "llama2-70b"
+	PresetLlama2AModel               PresetModelName = "llama-2-7b"
+	PresetLlama2BModel               PresetModelName = "llama-2-13b"
+	PresetLlama2CModel               PresetModelName = "llama-2-70b"
+	PresetLlama2AChat                                = PresetLlama2AModel + "-chat"
+	PresetLlama2BChat                                = PresetLlama2BModel + "-chat"
+	PresetLlama2CChat                                = PresetLlama2CModel + "-chat"
 	PresetSetModelStableDiffusionXXX PresetModelName = "stablediffusion-xxx"
 )
 
@@ -51,7 +54,7 @@ type ResourceSpec struct {
 type PresetModelName string
 
 type PresetModelSpec struct {
-	// Name of a supported preset model, e.g., llama2-7b.
+	// Name of a supported preset model, e.g., llama-2-7b-chat.
 	Name PresetModelName `json:"name,omitempty"`
 	// The custom volume that will be mounted to the pod running preset models.
 	// Later, we may limit to AzureFile and configmap in API.

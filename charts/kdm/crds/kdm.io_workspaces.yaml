@@ -23,14 +23,14 @@ spec:
     - jsonPath: .resource.instanceType
       name: Instance
       type: string
-    - jsonPath: .status.condition[?(@.type=="ResourceStatus")].status
+    - jsonPath: .status.condition[?(@.type=="ResourceReady")].status
       name: ResourceReady
       type: string
-    - jsonPath: .status.condition[?(@.type=="InferenceStatus")].status
+    - jsonPath: .status.condition[?(@.type=="InferenceReady")].status
       name: InferenceReady
       type: string
     - jsonPath: .status.condition[?(@.type=="WorkspaceReady")].status
-      name: WorkspaceStatus
+      name: WorkspaceReady
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
@@ -51,7 +51,7 @@ spec:
                 description: The preset model to be deployed.
                 properties:
                   name:
-                    description: Name of a supported preset model, e.g., llama2-7b.
+                    description: Name of a supported preset model, e.g., llama-2-7b-chat.
                     type: string
                   volume:
                     description: The custom volume that will be mounted to the pod

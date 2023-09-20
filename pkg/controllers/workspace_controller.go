@@ -28,11 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-var torchRunParams = map[string]string{
-	"max_seq_len":    "512",
-	"max_batch_size": "8",
-}
-
 type WorkspaceReconciler struct {
 	client.Client
 	Log      logr.Logger
@@ -280,7 +275,8 @@ func (c *WorkspaceReconciler) validateNodeInstanceType(ctx context.Context, wObj
 // createAndValidateNode creates a new machine and validates status.
 func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *kdmv1alpha1.Workspace) (*corev1.Node, error) {
 	klog.InfoS("createAndValidateNode", "workspace", klog.KObj(wObj))
-	newMachine := machine.GenerateMachineManifest(ctx, wObj)
+
+	newMachine := machine.GenerateMachineManifest(ctx, inference.Llama2PresetInferences[wObj.Inference.Preset.Name].DiskStorageRequirement, wObj)
 
 	if err := machine.CreateMachine(ctx, newMachine, c.Client); err != nil {
 		klog.ErrorS(err, "failed to create machine", "machine", newMachine.Name)
@@ -431,10 +427,10 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alp
 
 	presetName := wObj.Inference.Preset.Name
 	switch presetName {
-	case kdmv1alpha1.PresetSetModelllama2A:
-		err = inference.CreateLLAMA2APresetModel(ctx, wObj, volume, torchRunParams, c.Client)
-	case kdmv1alpha1.PresetSetModelllama2B:
-		err = inference.CreateLLAMA2BPresetModel(ctx, wObj, []corev1.Volume{
+	case kdmv1alpha1.PresetLlama2AChat:
+		err = inference.CreatePresetInference(ctx, wObj, volume, inference.Llama2PresetInferences[kdmv1alpha1.PresetLlama2AChat], c.Client)
+	case kdmv1alpha1.PresetLlama2BChat:
+		err = inference.CreatePresetInference(ctx, wObj, []corev1.Volume{
 			{
 				Name: "dshm",
 				VolumeSource: corev1.VolumeSource{
@@ -443,9 +439,9 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alp
 					},
 				},
 			},
-		}, torchRunParams, c.Client)
-	case kdmv1alpha1.PresetSetModelllama2C:
-		err = inference.CreateLLAMA2CPresetModel(ctx, wObj, volume, torchRunParams, c.Client)
+		}, inference.Llama2PresetInferences[kdmv1alpha1.PresetLlama2BChat], c.Client)
+	case kdmv1alpha1.PresetLlama2CChat:
+		err = inference.CreatePresetInference(ctx, wObj, volume, inference.Llama2PresetInferences[kdmv1alpha1.PresetLlama2CChat], c.Client)
 	default:
 		err = fmt.Errorf("preset model %s is not supported", presetName)
 		klog.ErrorS(err, "no inference has been created")

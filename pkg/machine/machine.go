@@ -10,6 +10,7 @@ import (
 	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -32,7 +33,7 @@ var (
 )
 
 // GenerateMachineManifest generates a machine object from	the given workspace.
-func GenerateMachineManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace) *v1alpha5.Machine {
+func GenerateMachineManifest(ctx context.Context, storageRequirement string, workspaceObj *kdmv1alpha1.Workspace) *v1alpha5.Machine {
 	klog.InfoS("GenerateMachineManifest", "workspace", klog.KObj(workspaceObj))
 
 	machineName := fmt.Sprint("machine", rand.Intn(100_000))
@@ -95,6 +96,11 @@ func GenerateMachineManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Work
 					Key:    "sku",
 					Value:  GPUString,
 					Effect: v1.TaintEffectNoSchedule,
+				},
+			},
+			Resources: v1alpha5.ResourceRequirements{
+				Requests: v1.ResourceList{
+					v1.ResourceStorage: resource.MustParse(storageRequirement),
 				},
 			},
 		},

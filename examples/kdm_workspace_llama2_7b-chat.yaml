@@ -3,12 +3,12 @@ kind: Workspace
 metadata:
   annotations:
     kubernetes-kdm.io/service-type: load-balancer
-  name: workspace-llama-13b-aks
+  name: workspace-llama-2-7b-chat
 resource:
   instanceType: "Standard_NC12s_v3"
   labelSelector:
     matchLabels:
-      apps: llama-13b
+      apps: llama-2-7b
 inference:
   preset:
-    name: "llama2-13b"
+    name: "llama-2-7b-chat"

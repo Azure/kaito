@@ -51,7 +51,7 @@ spec:
                 description: The preset model to be deployed.
                 properties:
                   name:
-                    description: Name of a supported preset model, e.g., llama2-7b.
+                    description: Name of a supported preset model, e.g., llama-2-7b-chat.
                     type: string
                   volume:
                     description: The custom volume that will be mounted to the pod

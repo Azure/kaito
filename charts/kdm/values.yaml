@@ -25,6 +25,8 @@ securityContext:
 webhook:
   port: 9443
 
+presetRegistryName: aimodelsregistry.azurecr.io
+
 resources:
   limits:
     cpu: 500m
