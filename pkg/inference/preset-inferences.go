@@ -131,7 +131,9 @@ func prepareInferenceParameters(torchRunParams map[string]string, volume []corev
 	resourceRequirements := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse(inferenceObj.GPURequirement),
-			corev1.ResourceStorage:                              resource.MustParse(inferenceObj.DiskStorageRequirement),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse(inferenceObj.GPURequirement),
 		},
 	}
 	volumeMount := []corev1.VolumeMount{}
