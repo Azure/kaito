@@ -33,7 +33,7 @@ var (
 )
 
 // GenerateMachineManifest generates a machine object from	the given workspace.
-func GenerateMachineManifest(ctx context.Context, gpuMemory, storageRequirement string, workspaceObj *kdmv1alpha1.Workspace) *v1alpha5.Machine {
+func GenerateMachineManifest(ctx context.Context, storageRequirement string, workspaceObj *kdmv1alpha1.Workspace) *v1alpha5.Machine {
 	klog.InfoS("GenerateMachineManifest", "workspace", klog.KObj(workspaceObj))
 
 	machineName := fmt.Sprint("machine", rand.Intn(100_000))
@@ -101,7 +101,6 @@ func GenerateMachineManifest(ctx context.Context, gpuMemory, storageRequirement 
 			Resources: v1alpha5.ResourceRequirements{
 				Requests: v1.ResourceList{
 					v1.ResourceStorage: resource.MustParse(storageRequirement),
-					v1.ResourceMemory:  resource.MustParse(gpuMemory),
 				},
 			},
 		},
