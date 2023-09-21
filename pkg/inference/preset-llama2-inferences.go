@@ -68,7 +68,7 @@ var (
 	readinessProbe = &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			Exec: &corev1.ExecAction{
-				Command: []string{"llama-readiness-check.sh"},
+				Command: []string{"./llama-readiness-check.sh"},
 			},
 		},
 		InitialDelaySeconds: 20,
