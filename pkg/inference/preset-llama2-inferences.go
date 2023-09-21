@@ -37,10 +37,16 @@ const (
 	ProbePath = "/healthz"
 	Port5000  = int32(5000)
 
-	BaseCommandPresetSetModelllama2A = "cd /workspace/llama/llama-2-7b-chat && torchrun web_example_chat_completion.py"
-	BaseCommandPresetSetModelllama2B = "cd /workspace/llama/llama-2-13b-chat && torchrun --nproc_per_node=2 web_example_chat_completion.py"
-	BaseCommandPresetSetModelllama2C = "cd /workspace/llama/llama-2-70b-chat && torchrun --nproc_per_node=4 web_example_chat_completion.py"
+	BaseCommandPresetSetModelllama2A = "cd /workspace/llama/llama-2-7b-chat && torchrun"
+	BaseCommandPresetSetModelllama2B = "cd /workspace/llama/llama-2-13b-chat && torchrun"
+	BaseCommandPresetSetModelllama2C = "cd /workspace/llama/llama-2-70b-chat && torchrun"
+	PythonModelInferenceServerFile   = "web_example_chat_completion.py"
 )
+
+var llamaRunParams = map[string]string{
+	"max_seq_len":    "512",
+	"max_batch_size": "8",
+}
 
 var (
 	containerPorts = []corev1.ContainerPort{{
@@ -61,12 +67,11 @@ var (
 
 	readinessProbe = &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
-			HTTPGet: &corev1.HTTPGetAction{
-				Port: intstr.FromInt(5000),
-				Path: ProbePath,
+			Exec: &corev1.ExecAction{
+				Command: []string{"./llama-readiness-check.sh"},
 			},
 		},
-		InitialDelaySeconds: 30,
+		InitialDelaySeconds: 20,
 		PeriodSeconds:       10,
 	}
 
@@ -84,10 +89,12 @@ var (
 	}
 )
 
-func CreateLLAMA2APresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, volume []corev1.Volume,
+func CreateLLAMA2APresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace,
 	torchRunParams map[string]string, kubeClient client.Client) error {
 	klog.InfoS("CreateLLAMA2APresetModel", "workspace", klog.KObj(workspaceObj))
-	commands := buildCommand(BaseCommandPresetSetModelllama2A, torchRunParams)
+	commands := buildCommandStr(BaseCommandPresetSetModelllama2A, torchRunParams)
+	commands += " " + PythonModelInferenceServerFile
+	shellCmd := shellCommand(buildCommandStr(commands, llamaRunParams))
 	resourceRequirements := corev1.ResourceRequirements{
 		Limits: corev1.ResourceList{
 			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse("1"),
@@ -96,17 +103,11 @@ func CreateLLAMA2APresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse("1"),
 		},
 	}
-	volumeMount := []corev1.VolumeMount{}
-	if len(volume) != 0 {
-		volumeMount = append(volumeMount, corev1.VolumeMount{
-			Name:      volume[0].Name,
-			MountPath: "/dev/shm",
-		})
-	}
 
-	depObj := k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, PresetSetModelllama2AChatImage,
-		1, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
-	err := k8sresources.CreateDeployment(ctx, depObj, kubeClient)
+	// Replica is always 1, because LLAMA2APreset only runs on one GPU
+	depObj := k8sresources.GenerateStatefulSetManifest(ctx, workspaceObj, PresetSetModelllama2AChatImage,
+		1, shellCmd, containerPorts, livenessProbe, readinessProbe, resourceRequirements, tolerations)
+	err := k8sresources.CreateResource(ctx, depObj, kubeClient)
 	if err != nil {
 		return err
 	}
@@ -117,32 +118,27 @@ func CreateLLAMA2APresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 	return nil
 }
 
-func CreateLLAMA2BPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, volume []corev1.Volume,
+func CreateLLAMA2BPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace,
 	torchRunParams map[string]string, kubeClient client.Client) error {
 	klog.InfoS("CreateLLAMA2BPresetModel", "workspace", klog.KObj(workspaceObj))
 
-	commands := buildCommand(BaseCommandPresetSetModelllama2B, torchRunParams)
+	commands := buildCommandStr(BaseCommandPresetSetModelllama2B, torchRunParams)
+	commands += " " + PythonModelInferenceServerFile
+	shellCmd := shellCommand(buildCommandStr(commands, llamaRunParams))
 
 	resourceRequirements := corev1.ResourceRequirements{
 		Limits: corev1.ResourceList{
-			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse("2"),
+			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse(torchRunParams["nproc_per_node"]),
 		},
 		Requests: corev1.ResourceList{
-			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse("2"),
+			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse(torchRunParams["nproc_per_node"]),
 		},
 	}
-	volumeMount := []corev1.VolumeMount{}
-	if len(volume) != 0 {
-		volumeMount = append(volumeMount, corev1.VolumeMount{
-			Name:      volume[0].Name,
-			MountPath: "/dev/shm",
-		})
-	}
 
-	depObj := k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, PresetSetModelllama2BChatImage,
-		1, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
+	depObj := k8sresources.GenerateStatefulSetManifest(ctx, workspaceObj, PresetSetModelllama2BChatImage,
+		*workspaceObj.Resource.Count, shellCmd, containerPorts, livenessProbe, readinessProbe, resourceRequirements, tolerations)
 
-	if err := k8sresources.CreateDeployment(ctx, depObj, kubeClient); err != nil {
+	if err := k8sresources.CreateResource(ctx, depObj, kubeClient); err != nil {
 		return err
 	}
 
@@ -152,33 +148,28 @@ func CreateLLAMA2BPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Wor
 	return nil
 }
 
-func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, volume []corev1.Volume,
+func CreateLLAMA2CPresetModel(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace,
 	torchRunParams map[string]string, kubeClient client.Client) error {
 	klog.InfoS("CreateLLAMA2CPresetModel", "workspace", klog.KObj(workspaceObj))
-	commands := buildCommand(BaseCommandPresetSetModelllama2C, torchRunParams)
+
+	commands := buildCommandStr(BaseCommandPresetSetModelllama2C, torchRunParams)
+	commands += " " + PythonModelInferenceServerFile
+	shellCmd := shellCommand(buildCommandStr(commands, llamaRunParams))
 
 	resourceRequirements := corev1.ResourceRequirements{
 		Limits: corev1.ResourceList{
-			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse("4"),
+			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse(torchRunParams["nproc_per_node"]),
 		},
 		Requests: corev1.ResourceList{
-			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse("4"),
+			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse(torchRunParams["nproc_per_node"]),
 			corev1.ResourceEphemeralStorage:                     resource.MustParse("300Gi"),
 		},
 	}
 
-	volumeMount := []corev1.VolumeMount{}
-	if len(volume) != 0 {
-		volumeMount = append(volumeMount, corev1.VolumeMount{
-			Name:      volume[0].Name,
-			MountPath: "/dev/shm",
-		})
-	}
+	depObj := k8sresources.GenerateStatefulSetManifest(ctx, workspaceObj, PresetSetModelllama2CChatImage,
+		*workspaceObj.Resource.Count, shellCmd, containerPorts, livenessProbe, readinessProbe, resourceRequirements, tolerations)
 
-	depObj := k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, PresetSetModelllama2CChatImage,
-		1, commands, containerPorts, livenessProbe, readinessProbe, resourceRequirements, volumeMount, tolerations, volume)
-
-	if err := k8sresources.CreateDeployment(ctx, depObj, kubeClient); err != nil {
+	if err := k8sresources.CreateResource(ctx, depObj, kubeClient); err != nil {
 		return err
 	}
 
@@ -231,17 +222,19 @@ func checkResourceStatus(obj client.Object, kubeClient client.Client, timeoutDur
 	}
 }
 
-func buildCommand(baseCommand string, torchRunParams map[string]string) []string {
-	var updatedBaseCommand string
-	for key, value := range torchRunParams {
-		updatedBaseCommand = fmt.Sprintf("%s --%s=%s", baseCommand, key, value)
-	}
-
-	commands := []string{
+func shellCommand(command string) []string {
+	return []string{
 		"/bin/sh",
 		"-c",
-		updatedBaseCommand,
+		command,
+	}
+}
+
+func buildCommandStr(baseCommand string, torchRunParams map[string]string) string {
+	updatedBaseCommand := baseCommand
+	for key, value := range torchRunParams {
+		updatedBaseCommand = fmt.Sprintf("%s --%s=%s", updatedBaseCommand, key, value)
 	}
 
-	return commands
+	return updatedBaseCommand
 }
