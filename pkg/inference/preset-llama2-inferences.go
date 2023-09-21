@@ -71,7 +71,7 @@ var (
 				Command: []string{"./llama-readiness-check.sh"},
 			},
 		},
-		InitialDelaySeconds: 20,
+		InitialDelaySeconds: 30,
 		PeriodSeconds:       10,
 	}
 
