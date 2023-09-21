@@ -431,7 +431,7 @@ func (c *WorkspaceReconciler) setTorchParams(ctx context.Context, wObj *kdmv1alp
 	if nodes > 1 {
 		torchRunParams["node_rank"] = "$(echo $HOSTNAME | grep -o '[^-]*$')"
 		torchRunParams["master_addr"] = existingService.Spec.ClusterIP
-		torchRunParams["master_port"] = "80"
+		torchRunParams["master_port"] = "29500"
 	}
 	return nil
 }

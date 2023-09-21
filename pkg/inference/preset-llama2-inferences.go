@@ -67,12 +67,11 @@ var (
 
 	readinessProbe = &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
-			HTTPGet: &corev1.HTTPGetAction{
-				Port: intstr.FromInt(5000),
-				Path: ProbePath,
+			Exec: &corev1.ExecAction{
+				Command: []string{"llama-readiness-check.sh"},
 			},
 		},
-		InitialDelaySeconds: 600, // 10 minutes
+		InitialDelaySeconds: 20,
 		PeriodSeconds:       10,
 	}
 

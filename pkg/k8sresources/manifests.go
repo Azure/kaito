@@ -39,13 +39,25 @@ func GenerateServiceManifest(workspaceObj *kdmv1alpha1.Workspace) *corev1.Servic
 		Spec: corev1.ServiceSpec{
 			Type: corev1.ServiceTypeLoadBalancer,
 			Ports: []corev1.ServicePort{
+				// HTTP API Port
 				{
+					Name:       "http",
 					Protocol:   corev1.ProtocolTCP,
 					Port:       80,
 					TargetPort: intstr.FromInt(5000),
 				},
+				// Torch NCCL Port
+				{
+					Name:       "torch",
+					Protocol:   corev1.ProtocolTCP,
+					Port:       29500,
+					TargetPort: intstr.FromInt(29500),
+				},
 			},
 			Selector: selector,
+			// Added this to allow pods to discover each other
+			// (DNS Resolution) During their initialization phase
+			PublishNotReadyAddresses: true,
 		},
 	}
 }
