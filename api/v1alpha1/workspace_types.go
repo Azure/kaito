@@ -26,9 +26,6 @@ const (
 	PresetSetModelllama2B PresetModelName = "llama2-13b"
 	PresetSetModelllama2C PresetModelName = "llama2-70b"
 
-	PresetModelllama2AWorldSize                      = 1
-	PresetModelllama2BWorldSize                      = 2
-	PresetModelllama2CWorldSize                      = 8
 	PresetSetModelStableDiffusionXXX PresetModelName = "stablediffusion-xxx"
 )
 

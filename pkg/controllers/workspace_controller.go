@@ -30,6 +30,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+const (
+	PresetModelllama2AWorldSize = 1
+	PresetModelllama2BWorldSize = 4
+	PresetModelllama2CWorldSize = 8
+)
+
 var torchRunParams = map[string]string{}
 
 type WorkspaceReconciler struct {
@@ -386,15 +392,13 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1a
 
 	existingSVC := &corev1.Service{}
 	err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingSVC)
-	if err != nil && !errors.IsNotFound(err) {
-		return err
+	// TODO: Add a check to ensure service found is of expected spec
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			klog.InfoS("a service already exists for workspace", "workspace", klog.KObj(wObj), "serviceType", serviceType)
+			return nil
+		}
 	}
-
-	if existingSVC.GetName() != "" && existingSVC.GetNamespace() != "" {
-		klog.InfoS("a service already exists for workspace", "workspace", klog.KObj(wObj), "serviceType", serviceType)
-		return nil
-	}
-
 	serviceObj := k8sresources.GenerateServiceManifest(wObj)
 	err = k8sresources.CreateResource(ctx, serviceObj, c.Client)
 	if err != nil {
@@ -415,11 +419,11 @@ func (c *WorkspaceReconciler) setTorchParams(ctx context.Context, wObj *kdmv1alp
 	worldSize := 1
 	switch presetName {
 	case kdmv1alpha1.PresetSetModelllama2A:
-		worldSize = kdmv1alpha1.PresetModelllama2AWorldSize
+		worldSize = PresetModelllama2AWorldSize
 	case kdmv1alpha1.PresetSetModelllama2B:
-		worldSize = kdmv1alpha1.PresetModelllama2BWorldSize
+		worldSize = PresetModelllama2BWorldSize
 	case kdmv1alpha1.PresetSetModelllama2C:
-		worldSize = kdmv1alpha1.PresetModelllama2CWorldSize
+		worldSize = PresetModelllama2CWorldSize
 	default:
 		err = fmt.Errorf("preset model %s is not supported", presetName)
 		klog.ErrorS(err, "no inference has been created")
@@ -443,18 +447,18 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alp
 	presetName := wObj.Inference.Preset.Name
 	existingObj := &appsv1.StatefulSet{}
 	err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj)
-	if err != nil && !errors.IsNotFound(err) {
+	// TODO: Add a check to ensure statefulset found is of expected spec
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			klog.InfoS("a clientObject already exists for workspace", "workspace", klog.KObj(wObj))
+			return nil
+		}
 		if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
 			"WorkspaceInferenceStatusFailed", err.Error()); err != nil {
 			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
 			return err
 		}
 		return err
-	}
-
-	if existingObj.GetName() != "" && existingObj.GetNamespace() != "" {
-		klog.InfoS("a clientObject already exists for workspace", "workspace", klog.KObj(wObj))
-		return nil
 	}
 
 	if err := c.setTorchParams(ctx, wObj, presetName); err != nil {
