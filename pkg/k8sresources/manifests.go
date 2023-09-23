@@ -70,7 +70,7 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kdmv1alpha1.
 	klog.InfoS("GenerateStatefulSetManifest", "workspace", klog.KObj(workspaceObj), "image", imageName)
 
 	// Gather label requirements from workspaceObj's label selector
-	var labelRequirements []v1.LabelSelectorRequirement
+	labelRequirements := make([]v1.LabelSelectorRequirement, 0, len(workspaceObj.Resource.LabelSelector.MatchLabels))
 	for key, value := range workspaceObj.Resource.LabelSelector.MatchLabels {
 		labelRequirements = append(labelRequirements, v1.LabelSelectorRequirement{
 			Key:      key,
