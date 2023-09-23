@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: aimodelsregistry.azurecr.io/kdm
+  repository: helayoty/kdm
   pullPolicy: Always
   tag: 0.1.0
 
