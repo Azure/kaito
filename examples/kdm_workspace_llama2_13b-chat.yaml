@@ -6,6 +6,7 @@ metadata:
   name: workspace-llama-2-13b-chat
 resource:
   instanceType: "Standard_NC12s_v3"
+  count: 2
   labelSelector:
     matchLabels:
       apps: llama-2-13b

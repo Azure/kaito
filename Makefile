@@ -1,6 +1,6 @@
 
 # Image URL to use all building/pushing image targets
-REGISTRY ?= helayoty
+REGISTRY ?= aimodelsregistry.azurecr.io
 IMG_NAME ?= kdm
 VERSION ?= v0.1.0
 IMG_TAG ?= $(subst v,,$(VERSION))

@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	appsv1 "k8s.io/api/apps/v1"
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -381,17 +382,19 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1a
 		}
 	}
 
-	existingObj, err := k8sresources.GetService(ctx, wObj.Name, wObj.Namespace, c.Client)
-	if err != nil && !errors.IsNotFound(err) {
-		return err
-	}
-	if existingObj != nil {
+	existingSVC := &corev1.Service{}
+	err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingSVC)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return err
+		}
+	} else {
 		klog.InfoS("a service already exists for workspace", "workspace", klog.KObj(wObj), "serviceType", serviceType)
 		return nil
 	}
 
 	serviceObj := k8sresources.GenerateServiceManifest(ctx, wObj, serviceType)
-	err = k8sresources.CreateService(ctx, serviceObj, c.Client)
+	err = k8sresources.CreateResource(ctx, serviceObj, c.Client)
 	if err != nil {
 		return err
 	}
@@ -404,44 +407,30 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kdmv1a
 func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
 	klog.InfoS("applyInference", "workspace", klog.KObj(wObj))
 
-	existingObj, err := k8sresources.GetDeployment(ctx, wObj.Name, wObj.Namespace, c.Client)
-	if err != nil && !errors.IsNotFound(err) {
-		if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
-			"WorkspaceInferenceStatusFailed", err.Error()); err != nil {
-			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+	existingObj := &appsv1.StatefulSet{}
+	err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kdmv1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
+				"WorkspaceInferenceStatusFailed", err.Error()); err != nil {
+				klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+				return err
+			}
 			return err
 		}
-		return err
-	}
-
-	if existingObj != nil {
-		klog.InfoS("a deployment already exists for workspace", "workspace", klog.KObj(wObj))
+	} else {
+		klog.InfoS("a statefulset already exists for workspace", "workspace", klog.KObj(wObj))
 		return nil
-	}
-
-	// TODO check if preset exists, template shouldn't.
-	volume := wObj.Inference.Preset.Volume
-	if volume == nil {
-		volume = []corev1.Volume{}
 	}
 
 	presetName := wObj.Inference.Preset.Name
 	switch presetName {
 	case kdmv1alpha1.PresetLlama2AChat:
-		err = inference.CreatePresetInference(ctx, wObj, volume, inference.Llama2PresetInferences[kdmv1alpha1.PresetLlama2AChat], c.Client)
+		err = inference.CreatePresetInference(ctx, wObj, inference.Llama2PresetInferences[kdmv1alpha1.PresetLlama2AChat], c.Client)
 	case kdmv1alpha1.PresetLlama2BChat:
-		err = inference.CreatePresetInference(ctx, wObj, []corev1.Volume{
-			{
-				Name: "dshm",
-				VolumeSource: corev1.VolumeSource{
-					EmptyDir: &corev1.EmptyDirVolumeSource{
-						Medium: "Memory",
-					},
-				},
-			},
-		}, inference.Llama2PresetInferences[kdmv1alpha1.PresetLlama2BChat], c.Client)
+		err = inference.CreatePresetInference(ctx, wObj, inference.Llama2PresetInferences[kdmv1alpha1.PresetLlama2BChat], c.Client)
 	case kdmv1alpha1.PresetLlama2CChat:
-		err = inference.CreatePresetInference(ctx, wObj, volume, inference.Llama2PresetInferences[kdmv1alpha1.PresetLlama2CChat], c.Client)
+		err = inference.CreatePresetInference(ctx, wObj, inference.Llama2PresetInferences[kdmv1alpha1.PresetLlama2CChat], c.Client)
 	default:
 		err = fmt.Errorf("preset model %s is not supported", presetName)
 		klog.ErrorS(err, "no inference has been created")
