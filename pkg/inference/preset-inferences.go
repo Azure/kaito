@@ -97,7 +97,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kdmv1alpha1.Worksp
 	volume, volumeMount := configVolume(workspaceObj, inferenceObj)
 	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj)
 
-	depObj := k8sresources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, 1, commands,
+	depObj := k8sresources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, *workspaceObj.Resource.Count, commands,
 		containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
 	err := k8sresources.CreateResource(ctx, depObj, kubeClient)
 	if err != nil {
