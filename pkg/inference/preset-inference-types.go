@@ -63,8 +63,8 @@ type PresetInferenceParam struct {
 
 var (
 
-	// Llama2PresetInferences	defines the preset inferences for LLaMa2.
-	Llama2PresetInferences = map[kdmv1alpha1.PresetModelName]PresetInferenceParam{
+	// Llama2PresetInferences defines the preset inferences for LLaMa2.
+	Llama2PresetInferences = map[kdmv1alpha1.ModelName]PresetInferenceParam{
 
 		kdmv1alpha1.PresetLlama2AChat: {
 			ModelName:              "LLaMa2",

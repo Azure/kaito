@@ -48,21 +48,43 @@ spec:
           inference:
             properties:
               preset:
-                description: The preset model to be deployed.
+                description: Preset describles the model that will be deployed with
+                  preset configurations.
                 properties:
-                  name:
-                    description: Name of a supported preset model, e.g., llama-2-7b-chat.
+                  accessMode:
+                    description: AccessMode specifies whether the containerized model
+                      image is accessible via public registry or private registry.
+                      This field defaults to "public" if not specified. If this field
+                      is "private", user needs to provide the private image information
+                      in PresetOptions.
+                    enum:
+                    - public
+                    - private
                     type: string
-                  volume:
-                    description: The custom volume that will be mounted to the pod
-                      running preset models. Later, we may limit to AzureFile and
-                      configmap in API.
-                    x-kubernetes-preserve-unknown-fields: true
+                  name:
+                    description: Name of the supported models with preset configurations.
+                    type: string
+                  presetOptions:
+                    properties:
+                      image:
+                        description: Image is the name of the containerized model
+                          image.
+                        type: string
+                      imagePullSecrets:
+                        description: ImagePullSecrets is a list of secret names in
+                          the same namespace used for pulling the image.
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                required:
+                - name
                 type: object
               template:
-                description: The Pod template used by the Deployment. Users can use
-                  custom image and Pod spec. Leave this filed unset if preset model
-                  is used.
+                description: Template specifies the Pod template used to run the inference
+                  service. Users can specify custom Pod settings if the preset configurations
+                  cannot meet the requirements. Note that if Preset is specified,
+                  Template should not be specified and vice versa.
                 x-kubernetes-preserve-unknown-fields: true
             type: object
           kind:
@@ -73,16 +95,24 @@ spec:
           metadata:
             type: object
           resource:
+            description: ResourceSpec desicribes the resource requirement of running
+              the workload. If the number of nodes in the cluster that meet the InstanceType
+              and LabelSelector requirements is small than the Count, controller will
+              provision new nodes before deploying the workload. The final list of
+              nodes used to run the workload is presented in workspace Status.
             properties:
               count:
                 default: 1
-                description: The number of required GPU nodes.
+                description: Count is the required number of GPU nodes.
                 type: integer
               instanceType:
-                description: The required instance type of the GPU node.
+                default: Standard_NC12s_v3
+                description: InstanceType specifies the GPU node SKU. This field defaults
+                  to "Standard_NC12s_v3" if not specified.
                 type: string
               labelSelector:
-                description: The required label for the GPU node.
+                description: LabelSelector specifies the required labels for the GPU
+                  nodes.
                 properties:
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.
@@ -127,19 +157,20 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
               preferredNodes:
-                description: The existing GPU nodes with the required labels and the
-                  required instanceType. This field is used when the number of qualified
-                  existing nodes is larger than the required count. Users need to
-                  ensure supported VHD images are installed in the VMs.
+                description: PreferredNodes is an optional node list specified by
+                  the user. If a node in the list does not have the required labels
+                  or the required instanceType, it will be ignored.
                 items:
                   type: string
                 type: array
+            required:
+            - labelSelector
             type: object
           status:
             description: WorkspaceStatus defines the observed state of Workspace
             properties:
-              condition:
-                description: Phase defines current condition of the Workspace.
+              conditions:
+                description: Conditions report the current conditions of the workspace.
                 items:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource. --- This struct is intended for direct
@@ -208,12 +239,11 @@ spec:
                   type: object
                 type: array
               workerNodes:
-                description: The list of nodes names for the current workload.
+                description: WorkerNodes is the list of nodes chosen to run the workload
+                  based on the workspace resource requirement.
                 items:
                   type: string
                 type: array
-            type: object
-          training:
             type: object
         type: object
     served: true
