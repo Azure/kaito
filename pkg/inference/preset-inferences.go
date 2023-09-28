@@ -171,11 +171,7 @@ func prepareInferenceParameters(ctx context.Context, inferenceObj PresetInferenc
 }
 
 func configVolume(wObj *kdmv1alpha1.Workspace, inferenceObj PresetInferenceParam) ([]corev1.Volume, []corev1.VolumeMount) {
-	// TODO check if preset exists, template shouldn't.
-	volume := wObj.Inference.Preset.Volume
-	if volume == nil {
-		volume = []corev1.Volume{}
-	}
+	volume := []corev1.Volume{}
 	volumeMount := []corev1.VolumeMount{}
 
 	// Signifies multinode inference requirement

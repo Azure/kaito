@@ -22,70 +22,98 @@ import (
 )
 
 const (
-	PresetLlama2AModel               PresetModelName = "llama-2-7b"
-	PresetLlama2BModel               PresetModelName = "llama-2-13b"
-	PresetLlama2CModel               PresetModelName = "llama-2-70b"
-	PresetLlama2AChat                                = PresetLlama2AModel + "-chat"
-	PresetLlama2BChat                                = PresetLlama2BModel + "-chat"
-	PresetLlama2CChat                                = PresetLlama2CModel + "-chat"
-	PresetSetModelStableDiffusionXXX PresetModelName = "stablediffusion-xxx"
+	PresetLlama2AModel ModelName = "llama-2-7b"
+	PresetLlama2BModel ModelName = "llama-2-13b"
+	PresetLlama2CModel ModelName = "llama-2-70b"
+	PresetLlama2AChat            = PresetLlama2AModel + "-chat"
+	PresetLlama2BChat            = PresetLlama2BModel + "-chat"
+	PresetLlama2CChat            = PresetLlama2CModel + "-chat"
+
+	ModelAccessModePublic  ModelAccessMode = "public"
+	ModelAccessModePrivate ModelAccessMode = "private"
 )
 
+// ResourceSpec desicribes the resource requirement of running the workload.
+// If the number of nodes in the cluster that meet the InstanceType and
+// LabelSelector requirements is small than the Count, controller
+// will provision new nodes before deploying the workload.
+// The final list of nodes used to run the workload is presented in workspace Status.
 type ResourceSpec struct {
-	// The number of required GPU nodes.
-	//+optional
-	//+kubebuilder:default:=1
+	// Count is the required number of GPU nodes.
+	// +optional
+	// +kubebuilder:default:=1
 	Count *int `json:"count,omitempty"`
 
-	// The required instance type of the GPU node.
+	// InstanceType specifies the GPU node SKU.
+	// This field defaults to "Standard_NC12s_v3" if not specified.
+	// +optional
+	// +kubebuilder:default:="Standard_NC12s_v3"
 	InstanceType string `json:"instanceType,omitempty"`
 
-	// The required label for the GPU node.
-	//+optional
-	LabelSelector *metav1.LabelSelector `json:"labelSelector,omitempty"`
+	// LabelSelector specifies the required labels for the GPU nodes.
+	LabelSelector *metav1.LabelSelector `json:"labelSelector"`
 
-	// The existing GPU nodes with the required labels and the required instanceType.
-	// This field is used when the number of qualified existing nodes is larger than the required count.
-	// Users need to ensure supported VHD images are installed in the VMs.
-	//+optional
+	// PreferredNodes is an optional node list specified by the user.
+	// If a node in the list does not have the required labels or
+	// the required instanceType, it will be ignored.
+	// +optional
 	PreferredNodes []string `json:"preferredNodes,omitempty"`
 }
 
-type PresetModelName string
+type ModelName string
 
-type PresetModelSpec struct {
-	// Name of a supported preset model, e.g., llama-2-7b-chat.
-	Name PresetModelName `json:"name,omitempty"`
-	// The custom volume that will be mounted to the pod running preset models.
-	// Later, we may limit to AzureFile and configmap in API.
-	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:validation:Schemaless
-	Volume []v1.Volume `json:"volume,omitempty"`
+// +kubebuilder:validation:Enum=public;private
+type ModelAccessMode string
+
+type PresetMeta struct {
+	// Name of the supported models with preset configurations.
+	Name ModelName `json:"name"`
+	// AccessMode specifies whether the containerized model image is accessible via public registry
+	// or private registry. This field defaults to "public" if not specified.
+	// If this field is "private", user needs to provide the private image information in PresetOptions.
+	// +bebuilder:default:="public"
+	// +optional
+	AccessMode ModelAccessMode `json:"accessMode,omitempty"`
+}
+
+type PresetOptions struct {
+	// Image is the name of the containerized model image.
+	// +optional
+	Image string `json:"image,omitempty"`
+	// ImagePullSecrets is a list of secret names in the same namespace used for pulling the image.
+	// +optional
+	ImagePullSecrets []string `json:"imagePullSecrets,omitempty"`
+}
+
+// PresetSpec provides the information for rendering preset configurations to run the model inference service.
+type PresetSpec struct {
+	PresetMeta `json:",inline"`
+	// +optional
+	PresetOptions `json:"presetOptions,omitempty"`
 }
 
 type InferenceSpec struct {
-	// The preset model to be deployed.
-	Preset PresetModelSpec `json:"preset,omitempty"`
-	// The Pod template used by the Deployment. Users can use custom image and Pod spec.
-	// Leave this filed unset if preset model is used.
+	// Preset describles the model that will be deployed with preset configurations.
+	// +optional
+	Preset PresetSpec `json:"preset,omitempty"`
+	// Template specifies the Pod template used to run the inference service. Users can specify custom Pod settings
+	// if the preset configurations cannot meet the requirements. Note that if Preset is specified, Template should not
+	// be specified and vice versa.
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
+	// +optional
 	Template v1.PodTemplateSpec `json:"template,omitempty"`
-}
-
-type TrainingSpec struct {
-	// Job pytorchJob `json:"job,omitempty"`
 }
 
 // WorkspaceStatus defines the observed state of Workspace
 type WorkspaceStatus struct {
-	// The list of nodes names for the current workload.
+	// WorkerNodes is the list of nodes chosen to run the workload based on the workspace resource requirement.
 	// +optional
 	WorkerNodes []string `json:"workerNodes,omitempty"`
 
-	// Phase defines current condition of the Workspace.
+	// Conditions report the current conditions of the workspace.
 	// +optional
-	Conditions []metav1.Condition `json:"condition,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // Workspace is the Schema for the workspaces API
@@ -104,7 +132,6 @@ type Workspace struct {
 
 	Resource  ResourceSpec    `json:"resource,omitempty"`
 	Inference InferenceSpec   `json:"inference,omitempty"`
-	Training  TrainingSpec    `json:"training,omitempty"`
 	Status    WorkspaceStatus `json:"status,omitempty"`
 }
 
