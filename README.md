@@ -19,8 +19,9 @@ Please refer to Helm chart [README](charts/README.md) for more details.
 az group create --name kdm-rg --location eastus
 az aks create --name kdm-aks --resource-group kdm-rg --node-count 1  --generate-ssh-keys
 ```
-
+<!-- markdown-link-check-disable -->
 2. Install [gpu-provisioner](https://github.com/Azure/gpu-provisioner.git) helm chart
+<!-- markdown-link-check-enable -->
 
 ```bash
 
