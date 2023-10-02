@@ -1,0 +1,8 @@
+# Dependencies for Falcon
+transformers
+torch
+accelerate
+fastapi
+pydantic
+'uvicorn[standard]'
+bitsandbytes
