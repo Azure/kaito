@@ -21,8 +21,10 @@ Ensure your `accelerate` configuration aligns with the values provided during be
 1. Creating a GPU Node:
    - Before you can run the benchmarking on a GPU, ensure you have a GPU node set up in your AKS cluster.
    - If you haven't already, you can use the Azure CLI or the Azure Portal to create and configure a GPU node pool in your AKS cluster.
+<!-- markdown-link-check-disable -->
 2. Building and Pushing the Docker Image:
     - First, you need to build a Docker image from the provided [Dockerfile](https://github.com/Azure/kdm/blob/main/docker/presets/falcon/Dockerfile) and push it to a container registry accessible by your AKS cluster
+<!-- markdown-link-check-enable -->
     - Example:
     ```
     cd /path/to/directory_with_dockerfile
@@ -30,7 +32,7 @@ Ensure your `accelerate` configuration aligns with the values provided during be
     docker build -t your_username/falcon-gpu:latest .
     docker push your_username/falcon-gpu:latest
     ```
-3. Deploying a Pod with the Docker Image:
+4. Deploying a Pod with the Docker Image:
     - Deploy a pod in your AKS cluster using the image you just pushed.
     - Create a YAML file for the pod (e.g., falcon-gpu-pod.yaml). Here is an example YAML:
 
@@ -52,7 +54,7 @@ Ensure your `accelerate` configuration aligns with the values provided during be
     ```bash
     kubectl apply -f falcon-gpu-pod.yaml
     ```
-4. Accessing the Pod:
+5. Accessing the Pod:
     - Once the pod is up and running, you can use kubectl to SSH into it:
     ```bash
     kubectl exec -it falcon-gpu-pod -- /bin/bash
