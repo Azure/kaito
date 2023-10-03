@@ -28,3 +28,8 @@ vendor/*
 hack/tools/bin/*
 .DS_Store
 /coverage.txt
+
+# presets
+
+pkg/presets/llama-2/weights
+pkg/presets/llama-2-chat/weights
