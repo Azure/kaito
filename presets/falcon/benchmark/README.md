@@ -31,7 +31,7 @@ Open the `plot.ipynb` notebook in Jupyter. Ensure you have the necessary librari
 
 Note: The notebook supports the visualization of results from multiple experiments, as shown in the provided snippets. Make sure to update the data source if you have benchmark results from other experiments or configurations.
 
-### 📊 Output
+### Output
 - The benchmarking script (inference-benchmark.py) will produce a results.csv file containing the performance statistics of each inference request.
 - The visualization notebook (plot.ipynb) provides plots that offer insights into the inference performance across various configurations and parameters.
 
