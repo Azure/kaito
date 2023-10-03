@@ -4,5 +4,5 @@ torch==2.1.0a0+4136153
 accelerate==0.23.0
 fastapi==0.103.2
 pydantic==1.10.9
-'uvicorn[standard]'==0.23.2
+uvicorn[standard]==0.23.2
 bitsandbytes==0.41.1
