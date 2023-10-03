@@ -2,7 +2,7 @@
 FROM nvcr.io/nvidia/pytorch:23.06-py3
 
 # Set the working directory
-WORKDIR /workspace/huggingface
+WORKDIR /workspace/falcon
 
 # First, copy just the requirements.txt file and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and
