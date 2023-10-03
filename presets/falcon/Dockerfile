@@ -1,0 +1,14 @@
+# Use the NVIDIA PyTorch image as a base
+FROM nvcr.io/nvidia/pytorch:23.06-py3
+
+# Set the working directory
+WORKDIR /workspace/huggingface
+
+# First, copy just the requirements.txt file and install dependencies
+# This is done before copying the code to utilize Docker's layer caching and
+# avoid reinstalling dependencies unless the requirements file changes.
+COPY code/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the entire 'code' folder to the working directory
+COPY code .
