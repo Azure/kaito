@@ -22,4 +22,3 @@ spec:
       limits:
         cpu: "1"
         ephemeral-storage: "500Gi"
-

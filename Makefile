@@ -116,7 +116,7 @@ docker-buildx: test ## Build and push docker image for the manager for cross-pla
 .PHONY: docker-build-kdm
 docker-build-kdm: docker-buildx
 	docker buildx build \
-		--file ./Dockerfile \
+		--file ./docker/kdm/Dockerfile \
 		--output=$(OUTPUT_TYPE) \
 		--platform="linux/$(ARCH)" \
 		--pull \
