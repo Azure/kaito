@@ -9,6 +9,10 @@ Benchmark and analyze the performance of Falcon's model inference with our utili
 
 ## 🚀 Getting Started
 
+### Assumptions
+1. Starting Point: This guide assumes you are starting with a fresh AKS (Azure Kubernetes Service) cluster.
+2. Model Download: If the required model is not already present, it will be downloaded automatically when the benchmarking script is executed.
+
 ### Prerequisites
 
 Ensure your `accelerate` configuration aligns with the values provided during benchmarking. To check or set up your configuration, you can run the command: `accelerate config`.
