@@ -74,17 +74,18 @@ class GenerationParams(BaseModel):
     length_penalty: float = 1
     no_repeat_ngram_size: int = 0
     encoder_no_repeat_ngram_size: int = 0
-    bad_words_ids: List[int] = []
+    bad_words_ids: List[int] = None
     num_return_sequences: int = 1
     output_scores: bool = False
     return_dict_in_generate: bool = False
+    pad_token_id: Optional[int] = tokenizer.pad_token_id
     eos_token_id: Optional[int] = tokenizer.eos_token_id
     forced_bos_token_id: Optional[int] = None
     forced_eos_token_id: Optional[int] = None
     remove_invalid_values: Optional[bool] = None
 
 
-@app.post("/generate")
+@app.post("/chat")
 def generate_text(params: GenerationParams):
     sequences = pipeline(
         params.prompt,
