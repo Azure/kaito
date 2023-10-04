@@ -1,47 +1,102 @@
 name: Build and Push Preset Models
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches:
+      - main
     paths:
       - 'pkg/presets/falcon/**'
       - 'pkg/presets/llama-2/**'
       - 'pkg/presets/llama-2-chat/**'
 
 jobs:
-  build-and-push:
+  setup:
     runs-on: ubuntu-20.04
+    outputs:
+      image_tag: ${{ steps.set_tag.outputs.image_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
       - name: Install Azure CLI latest
         run: |
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: 'Az CLI login'
+        uses: azure/login@v1.4.7
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Set Image Tag
-        run: echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+        id: set_tag
+        run: echo "::set-output name=image_tag::$(git rev-parse --short HEAD)"
 
-      # Build and push falcon model if required
+      - name: 'Login to ACR'
+        run: az acr login --name aimodelsregistry
+
+  falcon:
+    needs: setup
+    runs-on: ubuntu-20.04
+    if: contains(github.event.commits[0].modified, 'pkg/presets/falcon/')
+    steps:
       - name: Build and push Falcon model
-        if: contains(github.event.pull_request.labels.*.name, 'pkg/presets/falcon')
         run: |
           cd docker/presets/falcon
-          az acr build -t aimodelsregistry.azurecr.io/falcon:${{ env.IMAGE_TAG }} -r aimodelsregistry .
+          az acr build -t aimodelsregistry.azurecr.io/falcon:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry .
 
-      # Build and push llama models if required
-      - name: Build and push Llama models
-        if: contains(github.event.pull_request.labels.*.name, 'pkg/presets/llama-2') || contains(github.event.pull_request.labels.*.name, 'pkg/presets/llama-2-chat')
+  llama-2-7b:
+    needs: setup
+    runs-on: ubuntu-20.04
+    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2/')
+    steps:
+      - name: Build and push Llama model
         run: |
-          for model in llama-2-7b llama-2-13b llama-2-70b; do
-            az acr build --build-arg LLAMA_VERSION=$model --build-arg SRC_DIR=pkg/presets/llama-2 -t aimodelsregistry.azurecr.io/$model:${{ env.IMAGE_TAG }} -r aimodelsregistry .
-          done
-          for model in llama-2-7b-chat llama-2-13b-chat llama-2-70b-chat; do
-            az acr build --build-arg LLAMA_VERSION=$model --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/$model:${{ env.IMAGE_TAG }} -r aimodelsregistry .
-          done
-
+          az acr build --build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=pkg/presets/llama-2 -t aimodelsregistry.azurecr.io/llama-2-7b:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry .
+  
+  llama-2-13b:
+    needs: setup
+    runs-on: ubuntu-20.04
+    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2/')
+    steps:
+      - name: Build and push Llama model
+        run: |
+          az acr build --build-arg LLAMA_VERSION=llama-2-13b --build-arg SRC_DIR=pkg/presets/llama-2 -t aimodelsregistry.azurecr.io/llama-2-13b:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry .
+  
+  llama-2-70b:
+    needs: setup
+    runs-on: ubuntu-20.04
+    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2/')
+    steps:
+      - name: Build and push Llama model
+        run: |
+          az acr build --build-arg LLAMA_VERSION=llama-2-70b --build-arg SRC_DIR=pkg/presets/llama-2 -t aimodelsregistry.azurecr.io/llama-2-70b:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry .
+                
+  llama-2-7b-chat:
+    needs: setup
+    runs-on: ubuntu-20.04
+    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2-chat/')
+    steps:
+      - name: Build and push Llama chat model
+        run: |
+          az acr build --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-7b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry .
+  
+  llama-2-13b-chat:
+    needs: setup
+    runs-on: ubuntu-20.04
+    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2-chat/')
+    steps:
+      - name: Build and push Llama chat model
+        run: |
+          az acr build --build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-13b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry .
+  
+  llama-2-70b-chat:
+    needs: setup
+    runs-on: ubuntu-20.04
+    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2-chat/')
+    steps:
+      - name: Build and push Llama chat model
+        run: |
+          az acr build --build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-70b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry .
+                
