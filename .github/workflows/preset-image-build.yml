@@ -31,14 +31,16 @@ jobs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Az CLI login
-        uses: azure/login@v1
+        uses: actions/checkout@v4
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          submodules: true
+          fetch-depth: 0
+
+      - uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.CLIENT_ID }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          allow-no-subscriptions: true
       
       - name: Install Azure CLI latest
         run: |
