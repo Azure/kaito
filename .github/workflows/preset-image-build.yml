@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - Ishaan/auto-image-build   # This line is added to trigger on pushes to your PR branch.
     paths:
       - 'pkg/presets/falcon/**'
       - 'pkg/presets/llama-2/**'
