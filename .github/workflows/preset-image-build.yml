@@ -35,6 +35,7 @@ jobs:
       - name: Install Azure CLI latest
         run: |
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          az account set --subscription ${{ secrets.SUBSCRIPTION_ID }}
 
       - name: 'Az CLI login'
         uses: azure/login@v1.4.7
