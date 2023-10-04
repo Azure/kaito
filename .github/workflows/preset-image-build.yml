@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - Ishaan/auto-image-build   # This line is added to trigger on pushes to your PR branch.
+      - Ishaan/auto-image-build
     paths:
       - 'pkg/presets/falcon/**'
       - 'pkg/presets/llama-2/**'
@@ -18,6 +18,10 @@ on:
       image_tag:
         description: 'Image Tag'
         required: false
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   setup:
