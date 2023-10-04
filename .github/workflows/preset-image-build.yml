@@ -8,6 +8,15 @@ on:
       - 'pkg/presets/falcon/**'
       - 'pkg/presets/llama-2/**'
       - 'pkg/presets/llama-2-chat/**'
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Release (yes/no)'
+        required: true
+        default: 'no'
+      image_tag:
+        description: 'Image Tag'
+        required: false
 
 jobs:
   setup:
@@ -31,7 +40,12 @@ jobs:
 
       - name: Set Image Tag
         id: set_tag
-        run: echo "::set-output name=image_tag::$(git rev-parse --short HEAD)"
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag }}" ]]; then
+            echo "::set-output name=image_tag::${{ github.event.inputs.image_tag }}"
+          else
+            echo "::set-output name=image_tag::$(git rev-parse --short HEAD)"
+          fi
 
       - name: 'Login to ACR'
         run: az acr login --name aimodelsregistry
