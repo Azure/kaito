@@ -1,0 +1,49 @@
+name: Build and Push Models
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pkg/presets/falcon/**'
+      - 'pkg/presets/llama-2/**'
+      - 'pkg/presets/llama-2-chat/**'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - uses: azure/login@v1.4.7
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install Azure CLI latest
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          az account set --subscription ${{ secrets.SUBSCRIPTION_ID }}
+
+      - name: Set Image Tag
+        run: echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      # Build and push falcon model if required
+      - name: Build and push Falcon model
+        if: contains(github.event.pull_request.labels.*.name, 'pkg/presets/falcon')
+        run: |
+          cd docker/presets/falcon
+          az acr build -t aimodelsregistry.azurecr.io/falcon:${{ env.IMAGE_TAG }} -r aimodelsregistry .
+
+      # Build and push llama models if required
+      - name: Build and push Llama models
+        if: contains(github.event.pull_request.labels.*.name, 'pkg/presets/llama-2') || contains(github.event.pull_request.labels.*.name, 'pkg/presets/llama-2-chat')
+        run: |
+          for model in llama-2-7b llama-2-13b llama-2-70b; do
+            az acr build --build-arg LLAMA_VERSION=$model --build-arg SRC_DIR=pkg/presets/llama-2 -t aimodelsregistry.azurecr.io/$model:${{ env.IMAGE_TAG }} -r aimodelsregistry .
+          done
+          for model in llama-2-7b-chat llama-2-13b-chat llama-2-70b-chat; do
+            az acr build --build-arg LLAMA_VERSION=$model --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/$model:${{ env.IMAGE_TAG }} -r aimodelsregistry .
+          done
+
