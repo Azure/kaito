@@ -116,7 +116,7 @@ def generate_text(params: GenerationParams):
 
     result = ""
     for seq in sequences:
-        print(f"Result {seq['generated_text']}")
+        print(f"Result: {seq['generated_text']}")
         result += seq['generated_text']
 
     return {"Result": result}
