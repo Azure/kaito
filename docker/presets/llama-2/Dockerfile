@@ -13,6 +13,9 @@
 FROM nvcr.io/nvidia/pytorch:23.06-py3
 WORKDIR /workspace
 
+# Install Go
+RUN apt-get update && apt-get install -y golang-go
+
 RUN git clone https://github.com/facebookresearch/llama
 
 WORKDIR /workspace/llama
@@ -24,22 +27,10 @@ RUN pip install 'uvicorn[standard]'
 ARG LLAMA_VERSION
 ARG SRC_DIR
 
-# Conditional logic based on LLAMA_VERSION argument
-RUN if [ "$LLAMA_VERSION" = "llama-2-7b" ]; then \
-      wget -P ${SRC_DIR}/weights <URL_for_7b_chat_model>; \
-    elif [ "$LLAMA_VERSION" = "llama-2-13b" ]; then \
-      wget -P ${SRC_DIR}/weights <URL_for_13b_chat_model>; \
-    elif [ "$LLAMA_VERSION" = "llama-2-70b" ]; then \
-      wget -P ${SRC_DIR}/weights <URL_for_70b_chat_model>; \
-    elif [ "$LLAMA_VERSION" = "llama-2-7b-chat" ]; then \
-      wget -P ${SRC_DIR}/weights <URL_for_7b_model>; \
-    elif [ "$LLAMA_VERSION" = "llama-2-13b-chat" ]; then \
-      wget -P ${SRC_DIR}/weights <URL_for_13b_model>; \
-    elif [ "$LLAMA_VERSION" = "llama-2-70b-chat" ]; then \
-      wget -P ${SRC_DIR}/weights <URL_for_70b_model>; \
-    else \
-      echo "Invalid or missing LLAMA_VERSION"; \
-      exit 1; \
-    fi
+# Copy Go download script into the Docker image
+COPY ./download_script.go /workspace/download_script.go
+
+# Use Go download script to fetch model weights
+RUN go run /workspace/download_script.go $LLAMA_VERSION
 
 ADD ${SRC_DIR} /workspace/llama/llama-2

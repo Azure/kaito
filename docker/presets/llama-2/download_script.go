@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-const ExternalIP = "EXTERNAL_IP"
+const ExternalIP = "20.4.240.121"
 const ExternalPort = "80"
 const BaseURL = "http://" + ExternalIP + ":" + ExternalPort + "/download/"
 
