@@ -40,6 +40,11 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
+      - name: Debug modified files
+        run: |
+          files=$(git diff --name-only HEAD^ HEAD)
+          echo "Modified files: $files"
+          echo "FILES_MODIFIED=$files" >> $GITHUB_ENV
 
       - uses: azure/login@v1
         with:
@@ -64,11 +69,6 @@ jobs:
       - name: 'Login to ACR'
         run: az acr login --name aimodelsregistry
       
-      - name: Debug modified files
-        run: |
-          files=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }})
-          echo "Modified files: $files"
-          echo "FILES_MODIFIED=$files" >> $GITHUB_ENV
 
   falcon:
     needs: setup
