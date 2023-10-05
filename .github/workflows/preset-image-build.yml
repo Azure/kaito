@@ -121,6 +121,9 @@ jobs:
     steps:
       - name: Build and push Falcon model
         run: |
+          echo "FALCON_MODIFIED for this job: ${{ needs.setup.outputs.FALCON_MODIFIED }}"
+          echo "LLAMA2_MODIFIED for this job: ${{ needs.setup.outputs.LLAMA2_MODIFIED }}"
+          echo "LLAMA2_CHAT_MODIFIED for this job: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }}"
           cd docker/presets/falcon
           az acr build -t aimodelsregistry.azurecr.io/falcon:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry .
 
