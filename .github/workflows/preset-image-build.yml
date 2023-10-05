@@ -79,9 +79,14 @@ jobs:
             fi
           done
           echo "FALCON_MODIFIED=true" >> $GITHUB_OUTPUT
-
           echo "LLAMA2_MODIFIED=false" >> $GITHUB_OUTPUT
           echo "LLAMA2_CHAT_MODIFIED=false" >> $GITHUB_OUTPUT
+
+
+      - name: Debug job conditional
+        run: |
+          echo "FALCON_MODIFIED for this job: ${{ needs.setup.outputs.FALCON_MODIFIED }}"
+          
 
       - name: Az CLI login
         uses: azure/login@v1
