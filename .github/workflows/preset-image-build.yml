@@ -117,20 +117,17 @@ jobs:
   falcon:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ 'false' }} == 'true'
+    if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true'}} 
     steps:
       - name: Build and push Falcon model
         run: |
-          echo "FALCON_MODIFIED for this job: ${{ needs.setup.outputs.FALCON_MODIFIED }}"
-          echo "LLAMA2_MODIFIED for this job: ${{ needs.setup.outputs.LLAMA2_MODIFIED }}"
-          echo "LLAMA2_CHAT_MODIFIED for this job: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }}"
           cd docker/presets/falcon
           az acr build -t aimodelsregistry.azurecr.io/falcon:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry .
 
   llama-2-7b:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ 'false' }} == 'true'
+    if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true'}}
     steps:
       - name: Build and push Llama model
         run: |
@@ -139,7 +136,7 @@ jobs:
   llama-2-13b:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ 'false' }} == 'true'
+    if: ${{ needs.setup.outputs.LLAMA2_MODIFIED  == 'true'}}
     steps:
       - name: Build and push Llama model
         run: |
@@ -148,7 +145,7 @@ jobs:
   llama-2-70b:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ 'false' }} == 'true'
+    if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
     steps:
       - name: Build and push Llama model
         run: |
@@ -157,7 +154,7 @@ jobs:
   llama-2-7b-chat:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ 'false' }} == 'true'
+    if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
     steps:
       - name: Build and push Llama chat model
         run: |
@@ -166,7 +163,7 @@ jobs:
   llama-2-13b-chat:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }} == 'true'
+    if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
     steps:
       - name: Build and push Llama chat model
         run: |
@@ -175,7 +172,7 @@ jobs:
   llama-2-70b-chat:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }} == 'true'
+    if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
     steps:
       - name: Build and push Llama chat model
         run: |
