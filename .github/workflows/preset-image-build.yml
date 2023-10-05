@@ -34,6 +34,9 @@ jobs:
     runs-on: ubuntu-20.04
     outputs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
+      FALCON_MODIFIED: ${{ env.FALCON_MODIFIED }}
+      LLAMA2_MODIFIED: ${{ env.LLAMA2_MODIFIED }}
+      LLAMA2_CHAT_MODIFIED: ${{ env.LLAMA2_CHAT_MODIFIED }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,7 +94,7 @@ jobs:
   falcon:
     needs: setup
     runs-on: ubuntu-20.04
-    if: contains(github.event.commits[0].modified, 'pkg/presets/falcon/')
+    if: ${{ needs.setup.outputs.FALCON_MODIFIED }} == 'true'
     steps:
       - name: Build and push Falcon model
         run: |
@@ -101,7 +104,7 @@ jobs:
   llama-2-7b:
     needs: setup
     runs-on: ubuntu-20.04
-    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2/')
+    if: ${{ needs.setup.outputs.LLAMA2_MODIFIED }} == 'true'
     steps:
       - name: Build and push Llama model
         run: |
@@ -110,7 +113,7 @@ jobs:
   llama-2-13b:
     needs: setup
     runs-on: ubuntu-20.04
-    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2/')
+    if: ${{ needs.setup.outputs.LLAMA2_MODIFIED }} == 'true'
     steps:
       - name: Build and push Llama model
         run: |
@@ -119,7 +122,7 @@ jobs:
   llama-2-70b:
     needs: setup
     runs-on: ubuntu-20.04
-    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2/')
+    if: ${{ needs.setup.outputs.LLAMA2_MODIFIED }} == 'true'
     steps:
       - name: Build and push Llama model
         run: |
