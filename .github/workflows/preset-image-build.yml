@@ -38,12 +38,6 @@ jobs:
       LLAMA2_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_MODIFIED }}
       LLAMA2_CHAT_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_CHAT_MODIFIED }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          fetch-depth: 0
-      
       - name: Check Modified files
         run: |
           files=$(git diff --name-only HEAD^ HEAD)
@@ -82,36 +76,24 @@ jobs:
           echo "LLAMA2_MODIFIED=$LLAMA2_MODIFIED" >> $GITHUB_OUTPUT
           echo "LLAMA2_CHAT_MODIFIED=$LLAMA2_CHAT_MODIFIED" >> $GITHUB_OUTPUT
 
-
       - name: Images to Build
         run: |
           echo "FALCON_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}"
           echo "LLAMA2_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.LLAMA2_MODIFIED }}"
-          echo "LLAMA2_CHAT_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.LLAMA2_CHAT_MODIFIED }}"
-          
-
-      - name: Az CLI login
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
-      - name: Install Azure CLI latest
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          echo "LLAMA2_CHAT_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.LLAMA2_CHAT_MODIFIED }}"          
 
       - name: Set Image Tag
         id: set_tag
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag }}" ]]; then
-            echo "::set-output name=image_tag::${{ github.event.inputs.image_tag }}"
+            echo "IMAGE_TAG=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
           else
-            echo "::set-output name=image_tag::$(git rev-parse --short HEAD)"
+            echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           fi
 
-      - name: 'Login to ACR'
-        run: az acr login --name aimodelsregistry
+      - name: Image Tag
+        run: |
+          echo "image_tag for this job: ${{ steps.check_modified_paths.outputs.image_tag }}"
       
 
   falcon:
@@ -119,6 +101,26 @@ jobs:
     runs-on: ubuntu-20.04
     if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true'}} 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Az CLI login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    
+      - name: Install Azure CLI latest
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+      - name: 'Login to ACR'
+        run: az acr login --name aimodelsregistry
+      
       - name: Build and push Falcon model
         run: |
           pwd
@@ -131,6 +133,26 @@ jobs:
     runs-on: ubuntu-20.04
     if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true'}}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Az CLI login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    
+      - name: Install Azure CLI latest
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+      - name: 'Login to ACR'
+        run: az acr login --name aimodelsregistry
+
       - name: Build and push Llama model
         run: |
           az acr build --build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=pkg/presets/llama-2 -t aimodelsregistry.azurecr.io/llama-2-7b:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry .
