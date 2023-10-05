@@ -66,7 +66,9 @@ jobs:
       
       - name: Debug modified files
         run: |
-          echo "Modified files: ${{ github.event.commits[0].modified }}"
+          files=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }})
+          echo "Modified files: $files"
+          echo "FILES_MODIFIED=$files" >> $GITHUB_ENV
 
   falcon:
     needs: setup
