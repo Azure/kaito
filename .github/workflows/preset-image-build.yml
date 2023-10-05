@@ -48,11 +48,13 @@ jobs:
         run: |
           files=$(git diff --name-only HEAD^ HEAD)
           echo "Modified files: $files"
+          FILES_MODIFIED=""
           while IFS= read -r file; do
             trimmed_file=$(echo "$file" | tr -d '[:space:]')
-            echo "FILES_MODIFIED+=\"${trimmed_file};\"" >> $GITHUB_ENV
+            FILES_MODIFIED="${FILES_MODIFIED}${trimmed_file};"
           done <<< "$files"
-  
+          echo "FILES_MODIFIED=${FILES_MODIFIED}" >> $GITHUB_ENV
+      
       - name: Check Modified Paths
         run: |
           IFS=';' read -ra ADDR <<< "$FILES_MODIFIED"
