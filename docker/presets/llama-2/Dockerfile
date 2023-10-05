@@ -28,7 +28,7 @@ ARG LLAMA_VERSION
 ARG SRC_DIR
 
 # Copy Go download script into the Docker image
-COPY ./download_script.go /workspace/download_script.go
+COPY docker/presets/llama-2/download_script.go /workspace/download_script.go
 
 # Use Go download script to fetch model weights
 RUN go run /workspace/download_script.go $LLAMA_VERSION
