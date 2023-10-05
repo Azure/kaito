@@ -45,14 +45,23 @@ jobs:
         run: |
           files=$(git diff --name-only HEAD^ HEAD)
           echo "Modified files: $files"
-          echo "FILES_MODIFIED=$files" | sed 's/$/%0A/' >> $GITHUB_ENV
+          while IFS= read -r file; do
+            trimmed_file=$(echo "$file" | tr -d '[:space:]')
+            echo "FILES_MODIFIED=${trimmed_file}" >> $GITHUB_ENV
+          done <<< "$files"
   
       - name: Check Modified Paths
         run: |
-          echo "$FILES_MODIFIED" | while read -r file; do
-            [[ $file == pkg/presets/falcon/* ]] && echo "FALCON_MODIFIED=true" >> $GITHUB_ENV
-            [[ $file == pkg/presets/llama-2/* ]] && echo "LLAMA2_MODIFIED=true" >> $GITHUB_ENV
-            [[ $file == pkg/presets/llama-2-chat/* ]] && echo "LLAMA2_CHAT_MODIFIED=true" >> $GITHUB_ENV
+          for file in $FILES_MODIFIED; do
+            if [[ "$file" == pkg/presets/falcon/* ]] && [[ -z "$FALCON_MODIFIED" ]]; then
+              echo "FALCON_MODIFIED=true" >> $GITHUB_ENV
+            fi
+            if [[ "$file" == pkg/presets/llama-2/* ]] && [[ -z "$LLAMA2_MODIFIED" ]]; then
+              echo "LLAMA2_MODIFIED=true" >> $GITHUB_ENV
+            fi
+            if [[ "$file" == pkg/presets/llama-2-chat/* ]] && [[ -z "$LLAMA2_CHAT_MODIFIED" ]]; then
+              echo "LLAMA2_CHAT_MODIFIED=true" >> $GITHUB_ENV
+            fi
           done
 
       - name: Az CLI login
@@ -82,7 +91,7 @@ jobs:
   falcon:
     needs: setup
     runs-on: ubuntu-20.04
-    if: contains(github.event.commits[0].modified, 'pkg/presets/falcon/')
+    if: ${{ env.FALCON_MODIFIED }} == 'true'
     steps:
       - name: Build and push Falcon model
         run: |
@@ -92,7 +101,7 @@ jobs:
   llama-2-7b:
     needs: setup
     runs-on: ubuntu-20.04
-    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2/')
+    if: ${{ env.LLAMA2_MODIFIED }}
     steps:
       - name: Build and push Llama model
         run: |
