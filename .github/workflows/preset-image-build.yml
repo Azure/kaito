@@ -91,7 +91,7 @@ jobs:
   falcon:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ env.FALCON_MODIFIED }} == 'true'
+    if: contains(github.event.commits[0].modified, 'pkg/presets/falcon/')
     steps:
       - name: Build and push Falcon model
         run: |
@@ -101,7 +101,7 @@ jobs:
   llama-2-7b:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ env.LLAMA2_MODIFIED }}
+    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2/')
     steps:
       - name: Build and push Llama model
         run: |
