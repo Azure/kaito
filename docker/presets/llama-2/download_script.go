@@ -45,15 +45,25 @@ func downloadFile(fp string, url string, wg *sync.WaitGroup) {
 }
 
 type WriteCounter struct {
-	filename string
-	total    int64
-	read     *int64
+	filename     string
+	total        int64
+	read         *int64
+	lastReported int64
 }
 
 func (wc *WriteCounter) Write(p []byte) (int, error) {
 	n := len(p)
 	*wc.read += int64(n)
-	fmt.Printf("\rDownloading [%s]: %d out of %d bytes (%.2f%%)\n", filepath.Base(wc.filename), *wc.read, wc.total, float64(*wc.read)/float64(wc.total)*100)
+
+	// Calculate every 1% increment of the total size
+	onePercent := wc.total / 100
+
+	// Check if the bytes read has surpassed another 1% increment since the last reported value
+	if *wc.read-wc.lastReported >= onePercent {
+		fmt.Printf("\rDownloading [%s]: %d out of %d bytes (%.2f%%)\n", filepath.Base(wc.filename), *wc.read, wc.total, float64(*wc.read)/float64(wc.total)*100)
+		wc.lastReported = *wc.read
+	}
+
 	return n, nil
 }
 
