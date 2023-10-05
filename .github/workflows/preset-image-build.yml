@@ -78,9 +78,9 @@ jobs:
               echo "File does not match any paths: $file"
             fi
           done
-          echo "FALCON_MODIFIED=true" >> $GITHUB_OUTPUT
-          echo "LLAMA2_MODIFIED=false" >> $GITHUB_OUTPUT
-          echo "LLAMA2_CHAT_MODIFIED=false" >> $GITHUB_OUTPUT
+          echo "FALCON_MODIFIED=$FALCON_MODIFIED" >> $GITHUB_OUTPUT
+          echo "LLAMA2_MODIFIED=$LLAMA2_MODIFIED" >> $GITHUB_OUTPUT
+          echo "LLAMA2_CHAT_MODIFIED=$LLAMA2_CHAT_MODIFIED" >> $GITHUB_OUTPUT
 
 
       - name: Debug job conditional
