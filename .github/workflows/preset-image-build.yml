@@ -38,7 +38,13 @@ jobs:
       LLAMA2_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_MODIFIED }}
       LLAMA2_CHAT_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_CHAT_MODIFIED }}
     steps:
-      - name: Check Modified files
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+  
+      - name: Get Modified files
         run: |
           files=$(git diff --name-only HEAD^ HEAD)
           echo "Modified files: $files"
@@ -91,7 +97,7 @@ jobs:
             echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           fi
 
-      - name: Image Tag
+      - name: Print Image Tag
         run: |
           echo "image_tag for this job: ${{ steps.check_modified_paths.outputs.image_tag }}"
       
