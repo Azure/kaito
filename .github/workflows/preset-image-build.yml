@@ -57,6 +57,7 @@ jobs:
           FILES_MODIFIED=""
           while IFS= read -r file; do
             trimmed_file=$(echo "$file" | tr -d '[:space:]')
+            echo "Trimmed file: $trimmed_file"
             FILES_MODIFIED="${FILES_MODIFIED}${trimmed_file};"
           done <<< "$files"
           echo "FILES_MODIFIED=${FILES_MODIFIED}" >> $GITHUB_ENV
@@ -66,15 +67,21 @@ jobs:
         run: |
           IFS=';' read -ra ADDR <<< "$FILES_MODIFIED"
           for file in "${ADDR[@]}"; do
+            echo "Checking file: $file"
             if [[ "$file" == pkg/presets/falcon/* ]]; then
+              echo "File matches falcon path: $file"
               echo "FALCON_MODIFIED=true" >> $GITHUB_ENV
               echo "::set-output name=FALCON_MODIFIED::true"
             elif [[ "$file" == pkg/presets/llama-2/* ]]; then
+              echo "File matches llama-2 path: $file"
               echo "LLAMA2_MODIFIED=true" >> $GITHUB_ENV
               echo "::set-output name=LLAMA2_MODIFIED::true"
             elif [[ "$file" == pkg/presets/llama-2-chat/* ]]; then
+              echo "File matches llama-2-chat path: $file"
               echo "LLAMA2_CHAT_MODIFIED=true" >> $GITHUB_ENV
               echo "::set-output name=LLAMA2_CHAT_MODIFIED::true"
+            else
+              echo "File does not match any paths: $file"
             fi
           done
 
