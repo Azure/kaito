@@ -85,7 +85,7 @@ jobs:
 
       - name: Debug job conditional
         run: |
-          echo "FALCON_MODIFIED for this job: ${{ needs.setup.outputs.FALCON_MODIFIED }}"
+          echo "FALCON_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}"
           
 
       - name: Az CLI login
