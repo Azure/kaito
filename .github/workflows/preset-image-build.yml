@@ -160,7 +160,7 @@ jobs:
 
       - name: Build and push Llama model
         run: |
-          az acr build --build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=pkg/presets/llama-2 -t aimodelsregistry.azurecr.io/llama-2-7b:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
+          az acr build --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} --build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=pkg/presets/llama-2 -t aimodelsregistry.azurecr.io/llama-2-7b:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
   
   llama-2-13b:
     needs: setup
@@ -189,7 +189,7 @@ jobs:
 
       - name: Build and push Llama model
         run: |
-          az acr build --build-arg LLAMA_VERSION=llama-2-13b --build-arg SRC_DIR=pkg/presets/llama-2 -t aimodelsregistry.azurecr.io/llama-2-13b:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
+          az acr build --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} --build-arg LLAMA_VERSION=llama-2-13b --build-arg SRC_DIR=pkg/presets/llama-2 -t aimodelsregistry.azurecr.io/llama-2-13b:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
   
   llama-2-70b:
     needs: setup
@@ -218,7 +218,7 @@ jobs:
 
       - name: Build and push Llama model
         run: |
-          az acr build --build-arg LLAMA_VERSION=llama-2-70b --build-arg SRC_DIR=pkg/presets/llama-2 -t aimodelsregistry.azurecr.io/llama-2-70b:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
+          az acr build --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} --build-arg LLAMA_VERSION=llama-2-70b --build-arg SRC_DIR=pkg/presets/llama-2 -t aimodelsregistry.azurecr.io/llama-2-70b:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
                 
   llama-2-7b-chat:
     needs: setup
@@ -247,7 +247,7 @@ jobs:
 
       - name: Build and push Llama chat model
         run: |
-          az acr build --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-7b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
+          az acr build --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-7b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
   
   llama-2-13b-chat:
     needs: setup
@@ -276,7 +276,7 @@ jobs:
 
       - name: Build and push Llama chat model
         run: |
-          az acr build --build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-13b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
+          az acr build --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} --build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-13b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
   
   llama-2-70b-chat:
     needs: setup
@@ -305,4 +305,4 @@ jobs:
       
       - name: Build and push Llama chat model
         run: |
-          az acr build --build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-70b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
+          az acr build --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} --build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-70b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .

@@ -10,10 +10,6 @@ import (
 	"sync"
 )
 
-const ExternalIP = "20.4.240.121"
-const ExternalPort = "80"
-const BaseURL = "http://" + ExternalIP + ":" + ExternalPort + "/download/"
-
 func downloadFile(fp string, url string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -67,47 +63,47 @@ func (wc *WriteCounter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-func getURLsForModel(modelVersion string) []string {
+func getURLsForModel(baseURL, modelVersion string) []string {
 	switch modelVersion {
 	case "llama-2-7b":
 		return []string{
-			BaseURL + "llama-2-7b/consolidated.00.pth",
+			baseURL + "llama-2-7b/consolidated.00.pth",
 		}
 	case "llama-2-7b-chat":
 		return []string{
-			BaseURL + "llama-2-7b-chat/consolidated.00.pth",
+			baseURL + "llama-2-7b-chat/consolidated.00.pth",
 		}
 	case "llama-2-13b":
 		return []string{
-			BaseURL + "llama-2-13b/consolidated.00.pth",
-			BaseURL + "llama-2-13b/consolidated.01.pth",
+			baseURL + "llama-2-13b/consolidated.00.pth",
+			baseURL + "llama-2-13b/consolidated.01.pth",
 		}
 	case "llama-2-13b-chat":
 		return []string{
-			BaseURL + "llama-2-13b-chat/consolidated.00.pth",
-			BaseURL + "llama-2-13b-chat/consolidated.01.pth",
+			baseURL + "llama-2-13b-chat/consolidated.00.pth",
+			baseURL + "llama-2-13b-chat/consolidated.01.pth",
 		}
 	case "llama-2-70b":
 		return []string{
-			BaseURL + "llama-2-70b/consolidated.00.pth",
-			BaseURL + "llama-2-70b/consolidated.01.pth",
-			BaseURL + "llama-2-70b/consolidated.02.pth",
-			BaseURL + "llama-2-70b/consolidated.03.pth",
-			BaseURL + "llama-2-70b/consolidated.04.pth",
-			BaseURL + "llama-2-70b/consolidated.05.pth",
-			BaseURL + "llama-2-70b/consolidated.06.pth",
-			BaseURL + "llama-2-70b/consolidated.07.pth",
+			baseURL + "llama-2-70b/consolidated.00.pth",
+			baseURL + "llama-2-70b/consolidated.01.pth",
+			baseURL + "llama-2-70b/consolidated.02.pth",
+			baseURL + "llama-2-70b/consolidated.03.pth",
+			baseURL + "llama-2-70b/consolidated.04.pth",
+			baseURL + "llama-2-70b/consolidated.05.pth",
+			baseURL + "llama-2-70b/consolidated.06.pth",
+			baseURL + "llama-2-70b/consolidated.07.pth",
 		}
 	case "llama-2-70b-chat":
 		return []string{
-			BaseURL + "llama-2-70b-chat/consolidated.00.pth",
-			BaseURL + "llama-2-70b-chat/consolidated.01.pth",
-			BaseURL + "llama-2-70b-chat/consolidated.02.pth",
-			BaseURL + "llama-2-70b-chat/consolidated.03.pth",
-			BaseURL + "llama-2-70b-chat/consolidated.04.pth",
-			BaseURL + "llama-2-70b-chat/consolidated.05.pth",
-			BaseURL + "llama-2-70b-chat/consolidated.06.pth",
-			BaseURL + "llama-2-70b-chat/consolidated.07.pth",
+			baseURL + "llama-2-70b-chat/consolidated.00.pth",
+			baseURL + "llama-2-70b-chat/consolidated.01.pth",
+			baseURL + "llama-2-70b-chat/consolidated.02.pth",
+			baseURL + "llama-2-70b-chat/consolidated.03.pth",
+			baseURL + "llama-2-70b-chat/consolidated.04.pth",
+			baseURL + "llama-2-70b-chat/consolidated.05.pth",
+			baseURL + "llama-2-70b-chat/consolidated.06.pth",
+			baseURL + "llama-2-70b-chat/consolidated.07.pth",
 		}
 	default:
 		log.Fatalf("Invalid model version: %s", modelVersion)
@@ -125,14 +121,18 @@ func ensureDirExists(dirName string) {
 }
 
 func main() {
-	if len(os.Args) != 2 {
-		log.Fatalf("Usage: %s <model_version>", os.Args[0])
+	if len(os.Args) != 4 {
+		log.Fatalf("Usage: %s <model_version> <external_IP> <external_port>", os.Args[0])
 	}
+
+	externalIP := os.Args[2]
+	externalPort := os.Args[3]
+	baseURL := "http://" + externalIP + ":" + externalPort + "/download/"
 
 	ensureDirExists("weights")
 
 	modelVersion := os.Args[1]
-	urls := getURLsForModel(modelVersion)
+	urls := getURLsForModel(baseURL, modelVersion)
 
 	var wg sync.WaitGroup
 
