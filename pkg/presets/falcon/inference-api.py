@@ -14,10 +14,10 @@ import transformers
 import torch
 import torch.distributed as dist
 
-parser = argparse.ArgumentParser(description='HuggingFace Model Configuration')
+parser = argparse.ArgumentParser(description='Falcon Model Configuration')
 parser.add_argument('--load_in_8bit', default=False, action='store_true', help='Load model in 8-bit mode')
 parser.add_argument('--disable_trust_remote_code', default=False, action='store_true', help='Disable trusting remote code when loading the model')
-parser.add_argument('--model_id', required=True, type=str, help='The HuggingFace ID for the pre-trained model')
+parser.add_argument('--model_id', required=True, type=str, help='The Falcon ID for the pre-trained model')
 args = parser.parse_args()
 
 app = FastAPI()
