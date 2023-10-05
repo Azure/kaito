@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -13,11 +14,11 @@ const ExternalIP = "20.4.240.121"
 const ExternalPort = "80"
 const BaseURL = "http://" + ExternalIP + ":" + ExternalPort + "/download/"
 
-func downloadFile(filepath string, url string, wg *sync.WaitGroup) {
+func downloadFile(fp string, url string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// Create the file
-	out, err := os.Create(filepath)
+	out, err := os.Create(fp)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -34,7 +35,7 @@ func downloadFile(filepath string, url string, wg *sync.WaitGroup) {
 	totalBytes := resp.ContentLength
 	var bytesRead int64
 
-	progressReader := io.TeeReader(resp.Body, &WriteCounter{total: totalBytes, read: &bytesRead})
+	progressReader := io.TeeReader(resp.Body, &WriteCounter{filename: fp, total: totalBytes, read: &bytesRead})
 
 	// Write the data to the file
 	_, err = io.Copy(out, progressReader)
@@ -44,14 +45,15 @@ func downloadFile(filepath string, url string, wg *sync.WaitGroup) {
 }
 
 type WriteCounter struct {
-	total int64
-	read  *int64
+	filename string
+	total    int64
+	read     *int64
 }
 
 func (wc *WriteCounter) Write(p []byte) (int, error) {
 	n := len(p)
 	*wc.read += int64(n)
-	fmt.Printf("\rDownloaded %d out of %d bytes (%.2f%%)", *wc.read, wc.total, float64(*wc.read)/float64(wc.total)*100)
+	fmt.Printf("\rDownloading [%s]: %d out of %d bytes (%.2f%%)\n", filepath.Base(wc.filename), *wc.read, wc.total, float64(*wc.read)/float64(wc.total)*100)
 	return n, nil
 }
 
@@ -125,9 +127,9 @@ func main() {
 	var wg sync.WaitGroup
 
 	for i, url := range urls {
-		filePath := fmt.Sprintf("weights/consolidated.%02d.pth", i)
+		fp := fmt.Sprintf("weights/consolidated.%02d.pth", i)
 		wg.Add(1)
-		go downloadFile(filePath, url, &wg)
+		go downloadFile(fp, url, &wg)
 	}
 
 	wg.Wait()
