@@ -117,7 +117,7 @@ jobs:
   falcon:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true'}} 
+    if: ${{ 'false' }} == 'true'
     steps:
       - name: Build and push Falcon model
         run: |
@@ -130,7 +130,7 @@ jobs:
   llama-2-7b:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true'}}
+    if: ${{ 'false' }} == 'true'
     steps:
       - name: Build and push Llama model
         run: |
@@ -139,7 +139,7 @@ jobs:
   llama-2-13b:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.LLAMA2_MODIFIED  == 'true'}}
+    if: ${{ 'false' }} == 'true'
     steps:
       - name: Build and push Llama model
         run: |
@@ -148,7 +148,7 @@ jobs:
   llama-2-70b:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.LLAMA2_MODIFIED }} == 'true'
+    if: ${{ 'false' }} == 'true'
     steps:
       - name: Build and push Llama model
         run: |
@@ -157,7 +157,7 @@ jobs:
   llama-2-7b-chat:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }} == 'true'
+    if: ${{ 'false' }} == 'true'
     steps:
       - name: Build and push Llama chat model
         run: |
