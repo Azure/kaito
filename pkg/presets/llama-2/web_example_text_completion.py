@@ -173,7 +173,7 @@ if __name__ == "__main__":
         # This is the main server that handles the main logic of our application.
         app_main = FastAPI()
         setup_main_routes()
-        uvicorn.run(app=app_main, host='0.0.0.0', port=5000)  # Use the app_main instance
+        uvicorn.run(app=app_main, host='0.0.0.0', port=5000)  # Use the app_main instance.
     else:
         # This code is executed by all processes that aren't the globally ranked 0.
         # This includes processes on the main node as well as on other nodes.
