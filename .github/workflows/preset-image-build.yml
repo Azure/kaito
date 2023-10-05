@@ -67,14 +67,17 @@ jobs:
           IFS=';' read -ra ADDR <<< "$FILES_MODIFIED"
           for file in "${ADDR[@]}"; do
             if [[ "$file" == pkg/presets/falcon/* ]]; then
-              echo "FALCON_MODIFIED=true"
+              echo "FALCON_MODIFIED=true" >> $GITHUB_ENV
+              echo "::set-output name=FALCON_MODIFIED::true"
             elif [[ "$file" == pkg/presets/llama-2/* ]]; then
-              echo "LLAMA2_MODIFIED=true"
+              echo "LLAMA2_MODIFIED=true" >> $GITHUB_ENV
+              echo "::set-output name=LLAMA2_MODIFIED::true"
             elif [[ "$file" == pkg/presets/llama-2-chat/* ]]; then
-              echo "LLAMA2_CHAT_MODIFIED=true"
+              echo "LLAMA2_CHAT_MODIFIED=true" >> $GITHUB_ENV
+              echo "::set-output name=LLAMA2_CHAT_MODIFIED::true"
             fi
           done
-          
+
       - name: Az CLI login
         uses: azure/login@v1
         with:
