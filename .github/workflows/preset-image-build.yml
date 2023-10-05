@@ -43,7 +43,13 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
-
+      
+      - name: Initialize Modified Path Variables
+        run: |
+          echo "FALCON_MODIFIED=false" >> $GITHUB_ENV
+          echo "LLAMA2_MODIFIED=false" >> $GITHUB_ENV
+          echo "LLAMA2_CHAT_MODIFIED=false" >> $GITHUB_ENV
+      
       - name: Check Modified files
         run: |
           files=$(git diff --name-only HEAD^ HEAD)
@@ -59,13 +65,13 @@ jobs:
         run: |
           IFS=';' read -ra ADDR <<< "$FILES_MODIFIED"
           for file in "${ADDR[@]}"; do
-            if [[ "$file" == pkg/presets/falcon/* ]] && [[ -z "$FALCON_MODIFIED" ]]; then
+            if [[ "$file" == pkg/presets/falcon/* ]] && [[ "$FALCON_MODIFIED" == "false" ]]; then
               echo "FALCON_MODIFIED=true" >> $GITHUB_ENV
             fi
-            if [[ "$file" == pkg/presets/llama-2/* ]] && [[ -z "$LLAMA2_MODIFIED" ]]; then
+            if [[ "$file" == pkg/presets/llama-2/* ]] && [[ "$LLAMA2_MODIFIED" == "false" ]]; then
               echo "LLAMA2_MODIFIED=true" >> $GITHUB_ENV
             fi
-            if [[ "$file" == pkg/presets/llama-2-chat/* ]] && [[ -z "$LLAMA2_CHAT_MODIFIED" ]]; then
+            if [[ "$file" == pkg/presets/llama-2-chat/* ]] && [[ "$LLAMA2_CHAT_MODIFIED" == "false" ]]; then
               echo "LLAMA2_CHAT_MODIFIED=true" >> $GITHUB_ENV
             fi
           done
