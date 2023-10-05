@@ -83,7 +83,7 @@ jobs:
           echo "LLAMA2_CHAT_MODIFIED=$LLAMA2_CHAT_MODIFIED" >> $GITHUB_OUTPUT
 
 
-      - name: Debug job conditional
+      - name: Images to Build
         run: |
           echo "FALCON_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}"
           echo "LLAMA2_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.LLAMA2_MODIFIED }}"
@@ -121,6 +121,8 @@ jobs:
     steps:
       - name: Build and push Falcon model
         run: |
+          pwd
+          ls -la
           cd docker/presets/falcon
           az acr build -t aimodelsregistry.azurecr.io/falcon:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry .
 
