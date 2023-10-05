@@ -50,12 +50,13 @@ jobs:
           echo "Modified files: $files"
           while IFS= read -r file; do
             trimmed_file=$(echo "$file" | tr -d '[:space:]')
-            echo "FILES_MODIFIED=${trimmed_file}" >> $GITHUB_ENV
+            echo "FILES_MODIFIED+=\"${trimmed_file};\"" >> $GITHUB_ENV
           done <<< "$files"
   
       - name: Check Modified Paths
         run: |
-          for file in $FILES_MODIFIED; do
+          IFS=';' read -ra ADDR <<< "$FILES_MODIFIED"
+          for file in "${ADDR[@]}"; do
             if [[ "$file" == pkg/presets/falcon/* ]] && [[ -z "$FALCON_MODIFIED" ]]; then
               echo "FALCON_MODIFIED=true" >> $GITHUB_ENV
             fi
@@ -131,7 +132,7 @@ jobs:
   llama-2-7b-chat:
     needs: setup
     runs-on: ubuntu-20.04
-    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2-chat/')
+    if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }} == 'true'
     steps:
       - name: Build and push Llama chat model
         run: |
@@ -140,7 +141,7 @@ jobs:
   llama-2-13b-chat:
     needs: setup
     runs-on: ubuntu-20.04
-    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2-chat/')
+    if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }} == 'true'
     steps:
       - name: Build and push Llama chat model
         run: |
@@ -149,7 +150,7 @@ jobs:
   llama-2-70b-chat:
     needs: setup
     runs-on: ubuntu-20.04
-    if: contains(github.event.commits[0].modified, 'pkg/presets/llama-2-chat/')
+    if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }} == 'true'
     steps:
       - name: Build and push Llama chat model
         run: |
