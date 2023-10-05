@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"sort"
 
-	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
+	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

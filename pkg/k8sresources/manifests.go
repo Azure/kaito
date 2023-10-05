@@ -3,9 +3,10 @@ package k8sresources
 import (
 	"context"
 	"fmt"
+
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
+	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"

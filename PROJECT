@@ -6,7 +6,7 @@ domain: io
 layout:
 - go.kubebuilder.io/v4
 projectName: kdm
-repo: github.com/kdm
+repo: github.com/azure/kdm
 resources:
 - api:
     crdVersion: v1
@@ -15,6 +15,6 @@ resources:
   domain: io
   group: kdm
   kind: Workspace
-  path: github.com/kdm/api/v1alpha1
+  path: github.com/azure/kdm/api/v1alpha1
   version: v1alpha1
 version: "3"

@@ -1,4 +1,4 @@
-module github.com/kdm
+module github.com/azure/kdm
 
 go 1.20
 

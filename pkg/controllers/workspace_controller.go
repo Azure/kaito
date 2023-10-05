@@ -3,15 +3,16 @@ package controllers
 import (
 	"context"
 	"fmt"
-	appsv1 "k8s.io/api/apps/v1"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
+
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
+	"github.com/azure/kdm/pkg/inference"
+	"github.com/azure/kdm/pkg/k8sresources"
+	"github.com/azure/kdm/pkg/machine"
 	"github.com/go-logr/logr"
-	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
-	"github.com/kdm/pkg/inference"
-	"github.com/kdm/pkg/k8sresources"
-	"github.com/kdm/pkg/machine"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
