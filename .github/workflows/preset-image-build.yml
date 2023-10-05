@@ -92,9 +92,9 @@ jobs:
         id: set_tag
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag }}" ]]; then
-            echo "IMAGE_TAG=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+            echo "image_tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
           else
-            echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+            echo "image_tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           fi
 
       - name: Print Image Tag
