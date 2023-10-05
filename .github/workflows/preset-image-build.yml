@@ -34,9 +34,9 @@ jobs:
     runs-on: ubuntu-20.04
     outputs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
-      FALCON_MODIFIED: ${{ env.FALCON_MODIFIED }}
-      LLAMA2_MODIFIED: ${{ env.LLAMA2_MODIFIED }}
-      LLAMA2_CHAT_MODIFIED: ${{ env.LLAMA2_CHAT_MODIFIED }}
+      FALCON_MODIFIED: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}
+      LLAMA2_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_MODIFIED }}
+      LLAMA2_CHAT_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_CHAT_MODIFIED }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,20 +62,19 @@ jobs:
           echo "FILES_MODIFIED=${FILES_MODIFIED}" >> $GITHUB_ENV
       
       - name: Check Modified Paths
+        id: check_modified_paths
         run: |
           IFS=';' read -ra ADDR <<< "$FILES_MODIFIED"
           for file in "${ADDR[@]}"; do
-            if [[ "$file" == pkg/presets/falcon/* ]] && [[ "$FALCON_MODIFIED" == "false" ]]; then
-              echo "FALCON_MODIFIED=true" >> $GITHUB_ENV
-            fi
-            if [[ "$file" == pkg/presets/llama-2/* ]] && [[ "$LLAMA2_MODIFIED" == "false" ]]; then
-              echo "LLAMA2_MODIFIED=true" >> $GITHUB_ENV
-            fi
-            if [[ "$file" == pkg/presets/llama-2-chat/* ]] && [[ "$LLAMA2_CHAT_MODIFIED" == "false" ]]; then
-              echo "LLAMA2_CHAT_MODIFIED=true" >> $GITHUB_ENV
+            if [[ "$file" == pkg/presets/falcon/* ]]; then
+              echo "FALCON_MODIFIED=true"
+            elif [[ "$file" == pkg/presets/llama-2/* ]]; then
+              echo "LLAMA2_MODIFIED=true"
+            elif [[ "$file" == pkg/presets/llama-2-chat/* ]]; then
+              echo "LLAMA2_CHAT_MODIFIED=true"
             fi
           done
-
+          
       - name: Az CLI login
         uses: azure/login@v1
         with:
@@ -103,7 +102,7 @@ jobs:
   falcon:
     needs: setup
     runs-on: ubuntu-20.04
-    if: env.FALCON_MODIFIED == 'true'
+    if: ${{ needs.setup.outputs.FALCON_MODIFIED }} == 'true'
     steps:
       - name: Build and push Falcon model
         run: |
