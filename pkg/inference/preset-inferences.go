@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
-	"github.com/kdm/pkg/k8sresources"
+	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
+	"github.com/azure/kdm/pkg/k8sresources"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"

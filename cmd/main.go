@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	"github.com/kdm/pkg/controllers"
-	"github.com/kdm/pkg/webhooks"
+	"github.com/azure/kdm/pkg/controllers"
+	"github.com/azure/kdm/pkg/webhooks"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/injection/sharedmain"
 	"knative.dev/pkg/signals"
@@ -42,7 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
+	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
