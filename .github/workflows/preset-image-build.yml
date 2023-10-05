@@ -44,11 +44,11 @@ jobs:
           submodules: true
           fetch-depth: 0
       
-      - name: Initialize Modified Path Variables
-        run: |
-          echo "::set-output name=FALCON_MODIFIED::false"
-          echo "::set-output name=LLAMA2_MODIFIED::false"
-          echo "::set-output name=LLAMA2_CHAT_MODIFIED::false"
+      # - name: Initialize Modified Path Variables
+      #   run: |
+      #     echo "::set-output name=FALCON_MODIFIED::false"
+      #     echo "::set-output name=LLAMA2_MODIFIED::false"
+      #     echo "::set-output name=LLAMA2_CHAT_MODIFIED::false"
         
       - name: Check Modified files
         run: |
@@ -65,23 +65,28 @@ jobs:
       - name: Check Modified Paths
         id: check_modified_paths
         run: |
+          FALCON_MODIFIED=false
+          LLAMA2_MODIFIED=false
+          LLAMA2_CHAT_MODIFIED=false
           IFS=';' read -ra ADDR <<< "$FILES_MODIFIED"
           for file in "${ADDR[@]}"; do
             echo "Checking file: $file"
-            if [[ "$file" == pkg/presets/falcon/* ]]; then
+            if [[ "$file" == pkg/presets/falcon/* ]] && [[ "$FALCON_MODIFIED" == false ]]; then
               echo "File matches falcon path: $file"
-              echo "::set-output name=FALCON_MODIFIED::true"
-            elif [[ "$file" == pkg/presets/llama-2/* ]]; then
+              FALCON_MODIFIED=true
+            elif [[ "$file" == pkg/presets/llama-2/* ]] && [[ "$LLAMA2_MODIFIED" == false ]]; then
               echo "File matches llama-2 path: $file"
-              echo "::set-output name=LLAMA2_MODIFIED::true"
-            elif [[ "$file" == pkg/presets/llama-2-chat/* ]]; then
+              LLAMA2_MODIFIED=true
+            elif [[ "$file" == pkg/presets/llama-2-chat/* ]] && [[ "$LLAMA2_CHAT_MODIFIED" == false ]]; then
               echo "File matches llama-2-chat path: $file"
-              echo "::set-output name=LLAMA2_CHAT_MODIFIED::true"
+              LLAMA2_CHAT_MODIFIED=true
             else
               echo "File does not match any paths: $file"
             fi
           done
-        
+          echo "::set-output name=FALCON_MODIFIED::$FALCON_MODIFIED"
+          echo "::set-output name=LLAMA2_MODIFIED::$LLAMA2_MODIFIED"
+          echo "::set-output name=LLAMA2_CHAT_MODIFIED::$LLAMA2_CHAT_MODIFIED"
 
       - name: Az CLI login
         uses: azure/login@v1
