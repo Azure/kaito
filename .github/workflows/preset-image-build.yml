@@ -131,10 +131,7 @@ jobs:
       
       - name: Build and push Falcon model
         run: |
-          pwd
-          ls -la
-          cd docker/presets/falcon
-          az acr build -t aimodelsregistry.azurecr.io/falcon:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry .
+          az acr build -t aimodelsregistry.azurecr.io/falcon:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/falcon/Dockerfile .
 
   llama-2-7b:
     needs: setup
