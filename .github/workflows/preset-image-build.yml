@@ -103,7 +103,7 @@ jobs:
   falcon:
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.FALCON_MODIFIED }} == 'true'
+    if: ${{env.FALCON_MODIFIED}} == 'true'
     steps:
       - name: Build and push Falcon model
         run: |
