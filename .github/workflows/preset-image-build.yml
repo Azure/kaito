@@ -40,22 +40,31 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
-      - name: Debug modified files
+
+      - name: Check Modified files
         run: |
           files=$(git diff --name-only HEAD^ HEAD)
           echo "Modified files: $files"
-          echo "FILES_MODIFIED=$files" >> $GITHUB_ENV
+          echo "FILES_MODIFIED=$files" | sed 's/$/%0A/' >> $GITHUB_ENV
+  
+      - name: Check Modified Paths
+        run: |
+          echo "$FILES_MODIFIED" | while read -r file; do
+            [[ $file == pkg/presets/falcon/* ]] && echo "FALCON_MODIFIED=true" >> $GITHUB_ENV
+            [[ $file == pkg/presets/llama-2/* ]] && echo "LLAMA2_MODIFIED=true" >> $GITHUB_ENV
+            [[ $file == pkg/presets/llama-2-chat/* ]] && echo "LLAMA2_CHAT_MODIFIED=true" >> $GITHUB_ENV
+          done
 
-      - uses: azure/login@v1
+      - name: Az CLI login
+        uses: azure/login@v1
         with:
           client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       
       - name: Install Azure CLI latest
         run: |
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Set Image Tag
         id: set_tag
