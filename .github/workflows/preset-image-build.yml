@@ -246,7 +246,7 @@ jobs:
 
       - name: Build and push Llama chat model
         run: |
-          az acr build --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-7b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2-chat/Dockerfile .
+          az acr build --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-7b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
   
   llama-2-13b-chat:
     needs: setup
@@ -275,7 +275,7 @@ jobs:
 
       - name: Build and push Llama chat model
         run: |
-          az acr build --build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-13b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2-chat/Dockerfile .
+          az acr build --build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-13b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
   
   llama-2-70b-chat:
     needs: setup
@@ -304,4 +304,4 @@ jobs:
       
       - name: Build and push Llama chat model
         run: |
-          az acr build --build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-70b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2-chat/Dockerfile .
+          az acr build --build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat -t aimodelsregistry.azurecr.io/llama-2-70b-chat:${{ needs.setup.outputs.image_tag }} -r aimodelsregistry -f docker/presets/llama-2/Dockerfile .
