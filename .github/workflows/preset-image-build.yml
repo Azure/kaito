@@ -44,12 +44,6 @@ jobs:
           submodules: true
           fetch-depth: 0
       
-      # - name: Initialize Modified Path Variables
-      #   run: |
-      #     echo "::set-output name=FALCON_MODIFIED::false"
-      #     echo "::set-output name=LLAMA2_MODIFIED::false"
-      #     echo "::set-output name=LLAMA2_CHAT_MODIFIED::false"
-        
       - name: Check Modified files
         run: |
           files=$(git diff --name-only HEAD^ HEAD)
@@ -84,9 +78,9 @@ jobs:
               echo "File does not match any paths: $file"
             fi
           done
-          echo "::set-output name=FALCON_MODIFIED::$FALCON_MODIFIED"
-          echo "::set-output name=LLAMA2_MODIFIED::$LLAMA2_MODIFIED"
-          echo "::set-output name=LLAMA2_CHAT_MODIFIED::$LLAMA2_CHAT_MODIFIED"
+          echo "FALCON_MODIFIED=$FALCON_MODIFIED" >> $GITHUB_OUTPUT
+          echo "LLAMA2_MODIFIED=$LLAMA2_MODIFIED" >> $GITHUB_OUTPUT
+          echo "LLAMA2_CHAT_MODIFIED=$LLAMA2_CHAT_MODIFIED" >> $GITHUB_OUTPUT
 
       - name: Az CLI login
         uses: azure/login@v1
