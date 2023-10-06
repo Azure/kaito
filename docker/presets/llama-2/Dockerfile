@@ -30,7 +30,7 @@ ARG EXTERNAL_IP
 ARG EXTERNAL_PORT
 
 # Copy Go download script into the Docker image
-COPY docker/presets/llama-2/download_script.go /workspace/download_script.go
+COPY docker/presets/download_script.go /workspace/download_script.go
 
 # Use Go download script to fetch model weights
 RUN go run /workspace/download_script.go ${LLAMA_VERSION} ${EXTERNAL_IP} ${EXTERNAL_PORT}
