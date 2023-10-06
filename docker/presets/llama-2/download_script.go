@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-func downloadFile(fp string, url string, wg *sync.WaitGroup) {
+func downloadFile(fp string, url string, token string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// Create the file
@@ -20,8 +20,17 @@ func downloadFile(fp string, url string, wg *sync.WaitGroup) {
 	}
 	defer out.Close()
 
-	// Get the data
-	resp, err := http.Get(url)
+	// Create new request
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Add token to request header
+	req.Header.Add("Authorization", "Bearer "+token)
+
+	// Execute the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -125,6 +134,10 @@ func main() {
 		log.Fatalf("Usage: %s <model_version> <external_IP> <external_port>", os.Args[0])
 	}
 
+	token := os.Getenv("AUTH_TOKEN_ENV_VAR")
+	if token == "" {
+		log.Fatal("AUTH_TOKEN_ENV_VAR not set!")
+	}
 	externalIP := os.Args[2]
 	externalPort := os.Args[3]
 	baseURL := "http://" + externalIP + ":" + externalPort + "/download/"
@@ -139,7 +152,7 @@ func main() {
 	for i, url := range urls {
 		fp := fmt.Sprintf("weights/consolidated.%02d.pth", i)
 		wg.Add(1)
-		go downloadFile(fp, url, &wg)
+		go downloadFile(fp, url, token, &wg)
 	}
 
 	wg.Wait()

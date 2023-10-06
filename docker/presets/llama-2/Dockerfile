@@ -28,6 +28,9 @@ ARG LLAMA_VERSION
 ARG SRC_DIR
 ARG EXTERNAL_IP
 ARG EXTERNAL_PORT
+ARG WEB_SERVER_AUTH_TOKEN
+
+ENV AUTH_TOKEN_ENV_VAR=${WEB_SERVER_AUTH_TOKEN}
 
 # Copy Go download script into the Docker image
 COPY docker/presets/download_script.go /workspace/download_script.go
