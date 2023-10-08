@@ -14,7 +14,7 @@ FROM nvcr.io/nvidia/pytorch:23.06-py3
 WORKDIR /workspace
 
 # Install Go
-RUN apt-get update && apt-get install -y golang-go
+RUN apt-get update && apt-get install -y --no-install-recommends golang-go
 
 RUN git clone https://github.com/facebookresearch/llama
 

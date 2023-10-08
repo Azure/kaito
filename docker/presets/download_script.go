@@ -89,20 +89,20 @@ func (wc *WriteCounter) Write(p []byte) (int, error) {
 
 func falconCommonURLs(modelVersion string) []string {
 	return []string{
-		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/config.json", modelVersion),
-		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/pytorch_model.bin.index.json", modelVersion),
-		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/tokenizer.json", modelVersion),
-		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/tokenizer_config.json", modelVersion),
-		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/special_tokens_map.json", modelVersion),
-		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/configuration_falcon.py", modelVersion),
-		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/generation_config.json", modelVersion),
-		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/modeling_falcon.py", modelVersion),
+		fmt.Sprintf("https://huggingface.co/%s/raw/main/config.json", modelVersion),
+		fmt.Sprintf("https://huggingface.co/%s/raw/main/pytorch_model.bin.index.json", modelVersion),
+		fmt.Sprintf("https://huggingface.co/%s/raw/main/tokenizer.json", modelVersion),
+		fmt.Sprintf("https://huggingface.co/%s/raw/main/tokenizer_config.json", modelVersion),
+		fmt.Sprintf("https://huggingface.co/%s/raw/main/special_tokens_map.json", modelVersion),
+		fmt.Sprintf("https://huggingface.co/%s/raw/main/configuration_falcon.py", modelVersion),
+		fmt.Sprintf("https://huggingface.co/%s/raw/main/generation_config.json", modelVersion),
+		fmt.Sprintf("https://huggingface.co/%s/raw/main/modeling_falcon.py", modelVersion),
 	}
 }
 
 func falconModelURLs(modelVersion string, count int) (urls []string) {
 	for i := 1; i <= count; i++ {
-		url := fmt.Sprintf("https://huggingface.co/tiiuae/%s/resolve/main/pytorch_model-%05d-of-%05d.bin", modelVersion, i, count)
+		url := fmt.Sprintf("https://huggingface.co/%s/resolve/main/pytorch_model-%05d-of-%05d.bin", modelVersion, i, count)
 		urls = append(urls, url)
 	}
 	return
@@ -111,9 +111,9 @@ func falconModelURLs(modelVersion string, count int) (urls []string) {
 func getURLsForModel(linkType, baseURL, modelVersion string) []string {
 	if linkType == PublicLink {
 		switch modelVersion {
-		case "falcon-7b", "falcon-7b-instruct":
+		case "tiiuae/falcon-7b", "tiiuae/falcon-7b-instruct":
 			return append(falconModelURLs(modelVersion, 2), falconCommonURLs(modelVersion)...)
-		case "falcon-40b", "falcon-40b-instruct":
+		case "tiiuae/falcon-40b", "tiiuae/falcon-40b-instruct":
 			return append(falconModelURLs(modelVersion, 9), falconCommonURLs(modelVersion)...)
 		default:
 			log.Fatalf("Invalid model version for public link: %s", modelVersion)
@@ -198,8 +198,8 @@ func main() {
 		if token == "" {
 			log.Fatal("AUTH_TOKEN_ENV_VAR not set!")
 		}
-		externalIP := os.Args[2]
-		externalPort := os.Args[3]
+		externalIP := os.Args[3]
+		externalPort := os.Args[4]
 		baseURL = "http://" + externalIP + ":" + externalPort + "/download/"
 	}
 
