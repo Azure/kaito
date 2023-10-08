@@ -170,7 +170,7 @@ jobs:
           --build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b-instruct \
           .
   
-  falcon-13b:
+  falcon-40b:
     needs: setup
     runs-on: ubuntu-20.04
     if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true'}} 
@@ -197,13 +197,13 @@ jobs:
       
       - name: Build and push Falcon model
         run: |
-          az acr build -t aimodelsregistry.azurecr.io/falcon-13b:${{ needs.setup.outputs.image_tag }} \
+          az acr build -t aimodelsregistry.azurecr.io/falcon-40b:${{ needs.setup.outputs.image_tag }} \
           -r aimodelsregistry \
           -f docker/presets/falcon/Dockerfile \
-          --build-arg FALCON_MODEL_NAME=tiiuae/falcon-13b \
+          --build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b \
           .
 
-  falcon-13b-instruct:
+  falcon-40b-instruct:
     needs: setup
     runs-on: ubuntu-20.04
     if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true'}} 
@@ -230,10 +230,10 @@ jobs:
       
       - name: Build and push Falcon model
         run: |
-          az acr build -t aimodelsregistry.azurecr.io/falcon-13b-instruct:${{ needs.setup.outputs.image_tag }} \
+          az acr build -t aimodelsregistry.azurecr.io/falcon-40b-instruct:${{ needs.setup.outputs.image_tag }} \
           -r aimodelsregistry \
           -f docker/presets/falcon/Dockerfile \
-          --build-arg FALCON_MODEL_NAME=tiiuae/falcon-13b-instruct \
+          --build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b-instruct \
           .
 
   llama-2-7b:

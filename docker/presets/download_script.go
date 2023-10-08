@@ -194,6 +194,9 @@ func main() {
 	token := ""
 	baseURL := ""
 	if linkType == PrivateLink {
+		if len(os.Args) != 4 {
+			log.Fatalf("Usage (private link): %s <link_type> <model_version> <external_IP> <external_port>", os.Args[0])
+		}
 		token = os.Getenv("AUTH_TOKEN_ENV_VAR")
 		if token == "" {
 			log.Fatal("AUTH_TOKEN_ENV_VAR not set!")
