@@ -10,8 +10,21 @@ import (
 	"sync"
 )
 
-func downloadFile(fp string, url string, token string, wg *sync.WaitGroup) {
+const (
+	PublicLink     = "public"
+	PrivateLink    = "private"
+	DownloadFolder = "weights"
+)
+
+func getFilenameFromURL(url string) string {
+	return filepath.Base(url)
+}
+
+func downloadFile(folderPath string, url string, token string, wg *sync.WaitGroup) {
 	defer wg.Done()
+
+	fileName := getFilenameFromURL(url)
+	fp := filepath.Join(folderPath, fileName)
 
 	// Create the file
 	out, err := os.Create(fp)
@@ -25,8 +38,10 @@ func downloadFile(fp string, url string, token string, wg *sync.WaitGroup) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Add token to request header
-	req.Header.Add("Authorization", "Bearer "+token)
+	// If token is provided, add to request header
+	if token != "" {
+		req.Header.Add("Authorization", "Bearer "+token)
+	}
 
 	// Execute the request
 	client := &http.Client{}
@@ -72,7 +87,44 @@ func (wc *WriteCounter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-func getURLsForModel(baseURL, modelVersion string) []string {
+func falconCommonURLs(modelVersion string) []string {
+	return []string{
+		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/config.json", modelVersion),
+		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/pytorch_model.bin.index.json", modelVersion),
+		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/tokenizer.json", modelVersion),
+		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/tokenizer_config.json", modelVersion),
+		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/special_tokens_map.json", modelVersion),
+		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/configuration_falcon.py", modelVersion),
+		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/generation_config.json", modelVersion),
+		fmt.Sprintf("https://huggingface.co/tiiuae/%s/raw/main/modeling_falcon.py", modelVersion),
+	}
+}
+
+func falconModelURLs(modelVersion string, count int) (urls []string) {
+	for i := 1; i <= count; i++ {
+		url := fmt.Sprintf("https://huggingface.co/tiiuae/%s/resolve/main/pytorch_model-%05d-of-%05d.bin", modelVersion, i, count)
+		urls = append(urls, url)
+	}
+	return
+}
+
+func getURLsForModel(linkType, baseURL, modelVersion string) []string {
+	if linkType == PublicLink {
+		switch modelVersion {
+		case "falcon-7b", "falcon-7b-instruct":
+			return append(falconModelURLs(modelVersion, 2), falconCommonURLs(modelVersion)...)
+		case "falcon-40b", "falcon-40b-instruct":
+			return append(falconModelURLs(modelVersion, 9), falconCommonURLs(modelVersion)...)
+		default:
+			log.Fatalf("Invalid model version for public link: %s", modelVersion)
+			return nil
+		}
+	} else {
+		return getPrivateURLsForModel(baseURL, modelVersion)
+	}
+}
+
+func getPrivateURLsForModel(baseURL, modelVersion string) []string {
 	switch modelVersion {
 	case "llama-2-7b":
 		return []string{
@@ -114,8 +166,9 @@ func getURLsForModel(baseURL, modelVersion string) []string {
 			baseURL + "llama-2-70b-chat/consolidated.06.pth",
 			baseURL + "llama-2-70b-chat/consolidated.07.pth",
 		}
+
 	default:
-		log.Fatalf("Invalid model version: %s", modelVersion)
+		log.Fatalf("Invalid model version for private link: %s", modelVersion)
 		return nil
 	}
 }
@@ -130,29 +183,32 @@ func ensureDirExists(dirName string) {
 }
 
 func main() {
-	if len(os.Args) != 4 {
-		log.Fatalf("Usage: %s <model_version> <external_IP> <external_port>", os.Args[0])
+	if len(os.Args) < 3 {
+		log.Fatalf("Usage: %s <link_type> <model_version> [external_IP] [external_port]", os.Args[0])
 	}
 
-	token := os.Getenv("AUTH_TOKEN_ENV_VAR")
-	if token == "" {
-		log.Fatal("AUTH_TOKEN_ENV_VAR not set!")
+	linkType := os.Args[1]
+	modelVersion := os.Args[2]
+	ensureDirExists(DownloadFolder)
+
+	token := ""
+	baseURL := ""
+	if linkType == PrivateLink {
+		token = os.Getenv("AUTH_TOKEN_ENV_VAR")
+		if token == "" {
+			log.Fatal("AUTH_TOKEN_ENV_VAR not set!")
+		}
+		externalIP := os.Args[2]
+		externalPort := os.Args[3]
+		baseURL = "http://" + externalIP + ":" + externalPort + "/download/"
 	}
-	externalIP := os.Args[2]
-	externalPort := os.Args[3]
-	baseURL := "http://" + externalIP + ":" + externalPort + "/download/"
 
-	ensureDirExists("weights")
-
-	modelVersion := os.Args[1]
-	urls := getURLsForModel(baseURL, modelVersion)
-
+	urls := getURLsForModel(linkType, baseURL, modelVersion)
 	var wg sync.WaitGroup
 
-	for i, url := range urls {
-		fp := fmt.Sprintf("weights/consolidated.%02d.pth", i)
+	for _, url := range urls {
 		wg.Add(1)
-		go downloadFile(fp, url, token, &wg)
+		go downloadFile(DownloadFolder, url, token, &wg)
 	}
 
 	wg.Wait()
