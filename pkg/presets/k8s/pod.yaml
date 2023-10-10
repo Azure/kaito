@@ -11,7 +11,7 @@ spec:
   - command:
     - sleep
     - infinity
-    image: aimodelsregistry.azurecr.io/llama-2-7b-chat:latest
+    image: aimodelsregistry.azurecr.io/llama-2-7b-chat:ea05fdd
     name: main
     # resources:
     #   limits:
