@@ -130,6 +130,14 @@ jobs:
           - name: llama-2-7b-chat
             path: docker/presets/llama-2/Dockerfile
             build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          
+          - name: llama-2-13b
+            path: docker/presets/llama-2/Dockerfile
+            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          
+          - name: llama-2-13b-chat
+            path: docker/presets/llama-2/Dockerfile
+            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
 
         include:
           - name: falcon-7b
@@ -139,6 +147,10 @@ jobs:
           - name: llama-2-7b
             if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
           - name: llama-2-7b-chat
+            if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
+          - name: llama-2-13b
+            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
+          - name: llama-2-13b-chat
             if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
     steps: 
       - name: Checkout
