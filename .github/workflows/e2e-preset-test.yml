@@ -67,7 +67,7 @@ jobs:
         #     node-osdisk-size: 400
 
           - name: llama-2-7b-chat
-            tag: 0df91d2
+            tag: 036071a
             node-count: 1
             node-vm-size: Standard_NC12s_v3
             node-osdisk-size: 100

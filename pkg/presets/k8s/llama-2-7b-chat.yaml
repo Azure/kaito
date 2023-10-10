@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: llama-container
-          image: aimodelsregistry.azurecr.io/llama-2-7b-chat:0df91d2
+          image: aimodelsregistry.azurecr.io/llama-2-7b-chat:036071a
           command:
             - /bin/sh
             - -c
