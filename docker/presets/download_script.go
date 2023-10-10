@@ -125,45 +125,28 @@ func getURLsForModel(linkType, baseURL, modelVersion string) []string {
 
 func getPrivateURLsForModel(baseURL, modelVersion string) []string {
 	switch modelVersion {
-	case "llama-2-7b":
+	case "llama-2-7b", "llama-2-7b-chat":
 		return []string{
-			baseURL + "llama-2-7b/consolidated.00.pth",
+			fmt.Sprintf("%s%s/consolidated.00.pth", baseURL, modelVersion),
+			fmt.Sprintf("%s%s/params.json", baseURL, modelVersion),
 		}
-	case "llama-2-7b-chat":
+	case "llama-2-13b", "llama-2-13b-chat":
 		return []string{
-			baseURL + "llama-2-7b-chat/consolidated.00.pth",
+			fmt.Sprintf("%s%s/consolidated.00.pth", baseURL, modelVersion),
+			fmt.Sprintf("%s%s/consolidated.01.pth", baseURL, modelVersion),
+			fmt.Sprintf("%s%s/params.json", baseURL, modelVersion),
 		}
-	case "llama-2-13b":
+
+	case "llama-2-70b", "llama-2-70b-chat":
 		return []string{
-			baseURL + "llama-2-13b/consolidated.00.pth",
-			baseURL + "llama-2-13b/consolidated.01.pth",
-		}
-	case "llama-2-13b-chat":
-		return []string{
-			baseURL + "llama-2-13b-chat/consolidated.00.pth",
-			baseURL + "llama-2-13b-chat/consolidated.01.pth",
-		}
-	case "llama-2-70b":
-		return []string{
-			baseURL + "llama-2-70b/consolidated.00.pth",
-			baseURL + "llama-2-70b/consolidated.01.pth",
-			baseURL + "llama-2-70b/consolidated.02.pth",
-			baseURL + "llama-2-70b/consolidated.03.pth",
-			baseURL + "llama-2-70b/consolidated.04.pth",
-			baseURL + "llama-2-70b/consolidated.05.pth",
-			baseURL + "llama-2-70b/consolidated.06.pth",
-			baseURL + "llama-2-70b/consolidated.07.pth",
-		}
-	case "llama-2-70b-chat":
-		return []string{
-			baseURL + "llama-2-70b-chat/consolidated.00.pth",
-			baseURL + "llama-2-70b-chat/consolidated.01.pth",
-			baseURL + "llama-2-70b-chat/consolidated.02.pth",
-			baseURL + "llama-2-70b-chat/consolidated.03.pth",
-			baseURL + "llama-2-70b-chat/consolidated.04.pth",
-			baseURL + "llama-2-70b-chat/consolidated.05.pth",
-			baseURL + "llama-2-70b-chat/consolidated.06.pth",
-			baseURL + "llama-2-70b-chat/consolidated.07.pth",
+			fmt.Sprintf("%s%s/consolidated.00.pth", baseURL, modelVersion),
+			fmt.Sprintf("%s%s/consolidated.01.pth", baseURL, modelVersion),
+			fmt.Sprintf("%s%s/consolidated.03.pth", baseURL, modelVersion),
+			fmt.Sprintf("%s%s/consolidated.04.pth", baseURL, modelVersion),
+			fmt.Sprintf("%s%s/consolidated.05.pth", baseURL, modelVersion),
+			fmt.Sprintf("%s%s/consolidated.06.pth", baseURL, modelVersion),
+			fmt.Sprintf("%s%s/consolidated.07.pth", baseURL, modelVersion),
+			fmt.Sprintf("%s%s/params.json", baseURL, modelVersion),
 		}
 
 	default:
