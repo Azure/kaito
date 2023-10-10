@@ -126,16 +126,38 @@ jobs:
 
       - name: Create Nodepool
         run: |
+            NODEPOOL_EXIST=$(az aks nodepool show \
+                            --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+                            --cluster-name new_demo \
+                            --resource-group llm-test \
+                            --query 'name' -o tsv || echo "")
+            echo "NODEPOOL_EXIST: $NODEPOOL_EXIST"
+            if [ -z "$NODEPOOL_EXIST" ]; then
             az aks nodepool add \
-               --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
-               --cluster-name new_demo \
-               --resource-group llm-test \
-               --node-count ${{ matrix.image.node-count }} \
-               --node-vm-size ${{ matrix.image.node-vm-size }} \
-               --node-osdisk-size ${{ matrix.image.node-osdisk-size }} \
-               --node-labels pool=${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
-               --node-taints sku=gpu:NoSchedule \
-               --aks-custom-headers UseGPUDedicatedVHD=true
+                --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+                --cluster-name new_demo \
+                --resource-group llm-test \
+                --node-count ${{ matrix.image.node-count }} \
+                --node-vm-size ${{ matrix.image.node-vm-size }} \
+                --node-osdisk-size ${{ matrix.image.node-osdisk-size }} \
+                --node-labels pool=${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+                --node-taints sku=gpu:NoSchedule \
+                --aks-custom-headers UseGPUDedicatedVHD=true
+            else
+                NODEPOOL_STATE=$(az aks nodepool show \
+                                    --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+                                    --cluster-name new_demo \
+                                    --resource-group llm-test \
+                                    --query 'provisioningState' -o tsv)
+                echo "NODEPOOL_STATE: $NODEPOOL_STATE"          
+                if [ "$NODEPOOL_STATE" != "Running" ]; then
+                    echo "Nodepool exists but is not in a running state. Please check manually."
+                    exit 1
+                else
+                    echo "Nodepool already exists and is in a running state."
+                fi
+            fi
+          
         
       - name: Deploy image to K8s
         run: |
