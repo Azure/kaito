@@ -23,11 +23,11 @@ jobs:
     strategy:
       matrix:
         image:
-          - name: falcon-7b
-            tag: latest
-            node-count: 1
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 100
+        #   - name: falcon-7b
+        #     tag: latest
+        #     node-count: 1
+        #     node-vm-size: Standard_NC12s_v3
+        #     node-osdisk-size: 100
 
         #   - name: falcon-7b-instruct
         #     tag: latest
@@ -110,7 +110,8 @@ jobs:
         run: |
           az aks get-credentials --resource-group llm-test --name new_demo
     
-      - name: Create Nodepool
+      - name: Get Nodepool Name
+        id: get_nodepool_name
         run: |
             NAME_SUFFIX=${{ matrix.image.name }}
             NAME_SUFFIX_WITHOUT_DASHES=${NAME_SUFFIX//-/}  # Removing all '-' symbols
@@ -120,10 +121,13 @@ jobs:
             else
                 TRUNCATED_NAME_SUFFIX=$NAME_SUFFIX_WITHOUT_DASHES
             fi
-            
             echo "Nodepool Name: $TRUNCATED_NAME_SUFFIX"
+            echo "NODEPOOL_NAME=$NODEPOOL_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create Nodepool
+        run: |
             az aks nodepool add \
-               --name $TRUNCATED_NAME_SUFFIX \
+               --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
                --cluster-name new_demo \
                --resource-group llm-test \
                --node-count ${{ matrix.image.node-count }} \
@@ -209,6 +213,8 @@ jobs:
       - name: Delete Nodepool
         run: |
             az aks nodepool delete \
-            --name e2etest-${{ matrix.image.name }} --cluster-name new_demo --resource-group llm-test \
+            --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+            --cluster-name new_demo \
+            --resource-group llm-test \
             --yes --no-wait
         
