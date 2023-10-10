@@ -113,13 +113,15 @@ jobs:
       - name: Create Nodepool
         run: |
             az aks nodepool add \
-            --name e2etest-${{ matrix.image.name }} --cluster-name new_demo --resource-group llm-test \
-            --node-count ${{ matrix.image.node-count }} \ 
-            --node-vm-size ${{ matrix.image.node-vm-size }} \
-            --node-osdisk-size ${{ matrix.image.node-osdisk-size }} \
-            --node-taints sku=gpu:NoSchedule \
-            --aks-custom-headers UseGPUDedicatedVHD=true
-      
+               --name e2etest-${{ matrix.image.name }} \
+               --cluster-name new_demo \
+               --resource-group llm-test \
+               --node-count ${{ matrix.image.node-count }} \
+               --node-vm-size ${{ matrix.image.node-vm-size }} \
+               --node-osdisk-size ${{ matrix.image.node-osdisk-size }} \
+               --node-taints sku=gpu:NoSchedule \
+               --aks-custom-headers UseGPUDedicatedVHD=true
+        
       - name: Deploy image to K8s
         run: |
             kubectl apply -f pkg/presets/k8s/${{ matrix.image.name}}.yaml
