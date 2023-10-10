@@ -112,8 +112,10 @@ jobs:
     
       - name: Create Nodepool
         run: |
+            NAME_SUFFIX=${{ matrix.image.name }}
+            TRUNCATED_NAME_SUFFIX=${NAME_SUFFIX: -12}
             az aks nodepool add \
-               --name e2etest-${{ matrix.image.name }} \
+               --name $TRUNCATED_NAME_SUFFIX \
                --cluster-name new_demo \
                --resource-group llm-test \
                --node-count ${{ matrix.image.node-count }} \
