@@ -150,8 +150,8 @@ jobs:
                                 --resource-group llm-test \
                                 --query 'provisioningState' -o tsv)
                 echo "NODEPOOL_STATE: $NODEPOOL_STATE"          
-                if [ "$NODEPOOL_STATE" != "Running" ]; then
-                    echo "Nodepool exists but is not in a running state. Please check manually."
+                if [ "$NODEPOOL_STATE" != "Succeeded" ]; then
+                    echo "Nodepool exists but is not in a Succeeded state. Please check manually."
                     exit 1
                 else
                     echo "Nodepool already exists and is in a running state."
@@ -165,7 +165,7 @@ jobs:
     
       - name: Wait for deployment to be ready
         run: |
-            kubectl rollout status deployment/${{ matrix.image.name }}
+            kubectl rollout status deployment/llama-deployment
     
       - name: Retrieve External Service IP
         id: get_ip
