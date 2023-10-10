@@ -11,9 +11,8 @@ import (
 )
 
 const (
-	PublicLink     = "public"
-	PrivateLink    = "private"
-	DownloadFolder = "weights"
+	PublicLink  = "public"
+	PrivateLink = "private"
 )
 
 func getFilenameFromURL(url string) string {
@@ -175,7 +174,7 @@ func getPrivateURLsForModel(baseURL, modelVersion string) []string {
 
 func ensureDirExists(dirName string) {
 	if _, err := os.Stat(dirName); os.IsNotExist(err) {
-		err := os.Mkdir(dirName, 0755)
+		err := os.MkdirAll(dirName, 0755)
 		if err != nil {
 			log.Fatalf("Failed to create directory: %v", err)
 		}
@@ -183,26 +182,27 @@ func ensureDirExists(dirName string) {
 }
 
 func main() {
-	if len(os.Args) < 3 {
-		log.Fatalf("Usage: %s <link_type> <model_version> [external_IP] [external_port]", os.Args[0])
+	if len(os.Args) < 4 {
+		log.Fatalf("Usage: %s <link_type> <model_version> <output_directory> [external_IP] [external_port]", os.Args[0])
 	}
 
 	linkType := os.Args[1]
 	modelVersion := os.Args[2]
-	ensureDirExists(DownloadFolder)
+	outputDirectory := os.Args[3]
+	ensureDirExists(outputDirectory)
 
 	token := ""
 	baseURL := ""
 	if linkType == PrivateLink {
-		if len(os.Args) != 5 {
-			log.Fatalf("Usage (private link): %s <link_type> <model_version> <external_IP> <external_port>", os.Args[0])
+		if len(os.Args) != 6 {
+			log.Fatalf("Usage (private link): %s <link_type> <model_version> <output_directory> <external_IP> <external_port>", os.Args[0])
 		}
 		token = os.Getenv("AUTH_TOKEN_ENV_VAR")
 		if token == "" {
 			log.Fatal("AUTH_TOKEN_ENV_VAR not set!")
 		}
-		externalIP := os.Args[3]
-		externalPort := os.Args[4]
+		externalIP := os.Args[4]
+		externalPort := os.Args[5]
 		baseURL = "http://" + externalIP + ":" + externalPort + "/download/"
 	}
 
@@ -211,7 +211,7 @@ func main() {
 
 	for _, url := range urls {
 		wg.Add(1)
-		go downloadFile(DownloadFolder, url, token, &wg)
+		go downloadFile(outputDirectory, url, token, &wg)
 	}
 
 	wg.Wait()

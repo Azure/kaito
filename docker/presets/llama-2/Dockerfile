@@ -36,6 +36,6 @@ ENV AUTH_TOKEN_ENV_VAR=${WEB_SERVER_AUTH_TOKEN}
 COPY docker/presets/download_script.go /workspace/download_script.go
 
 # Use Go download script to fetch model weights
-RUN go run /workspace/download_script.go "private" ${LLAMA_VERSION} ${EXTERNAL_IP} ${EXTERNAL_PORT}
+RUN go run /workspace/download_script.go "private" ${LLAMA_VERSION} "/workspace/llama/llama-2/weights" ${EXTERNAL_IP} ${EXTERNAL_PORT}
 
 ADD ${SRC_DIR} /workspace/llama/llama-2
