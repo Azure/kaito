@@ -29,23 +29,23 @@ jobs:
             node-vm-size: Standard_NC12s_v3
             node-osdisk-size: 100
 
-          - name: falcon-7b-instruct
-            tag: latest
-            node-count: 1
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 100
+        #   - name: falcon-7b-instruct
+        #     tag: latest
+        #     node-count: 1
+        #     node-vm-size: Standard_NC12s_v3
+        #     node-osdisk-size: 100
 
-          - name: falcon-40b
-            tag: latest
-            node-count: 1
-            node-vm-size: Standard_NC96ads_A100_v4
-            node-osdisk-size: 400
+        #   - name: falcon-40b
+        #     tag: latest
+        #     node-count: 1
+        #     node-vm-size: Standard_NC96ads_A100_v4
+        #     node-osdisk-size: 400
 
-          - name: falcon-40b-instruct
-            tag: latest
-            node-count: 1
-            node-vm-size: Standard_NC96ads_A100_v4
-            node-osdisk-size: 400
+        #   - name: falcon-40b-instruct
+        #     tag: latest
+        #     node-count: 1
+        #     node-vm-size: Standard_NC96ads_A100_v4
+        #     node-osdisk-size: 400
 
           - name: llama-2-7b
             tag: latest
@@ -53,11 +53,11 @@ jobs:
             node-vm-size: Standard_NC12s_v3
             node-osdisk-size: 100
         
-          - name: llama-2-13b
-            tag: latest
-            node-count: 2
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 150
+        #   - name: llama-2-13b
+        #     tag: latest
+        #     node-count: 2
+        #     node-vm-size: Standard_NC12s_v3
+        #     node-osdisk-size: 150
         
         # Uncomment once supported by ACR
         #   - name: llama-2-70b
@@ -72,11 +72,11 @@ jobs:
             node-vm-size: Standard_NC12s_v3
             node-osdisk-size: 100
 
-          - name: llama-2-13b-chat
-            tag: latest
-            node-count: 2
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 150
+        #   - name: llama-2-13b-chat
+        #     tag: latest
+        #     node-count: 2
+        #     node-vm-size: Standard_NC12s_v3
+        #     node-osdisk-size: 150
         
         # Uncomment once supported by ACR
         #   - name: llama-2-70b-chat
@@ -113,7 +113,7 @@ jobs:
       - name: Create Nodepool
         run: |
             az aks nodepool add \
-            --name e2etest --cluster_name new_demo --resource-group llm-test \
+            --name e2etest-${{ matrix.image.name }} --cluster-name new_demo --resource-group llm-test \
             --node-count ${{ matrix.image.node-count }} \ 
             --node-vm-size ${{ matrix.image.node-vm-size }} \
             --node-osdisk-size ${{ matrix.image.node-osdisk-size }} \
@@ -193,4 +193,10 @@ jobs:
                 -d '{"prompt":"YOUR_PROMPT_HERE","max_length":200,"min_length":0,"do_sample":true,"early_stopping":false,"num_beams":1,"num_beam_groups":1,"diversity_penalty":0.0,"temperature":1.0,"top_k":10,"top_p":1,"typical_p":1,"repetition_penalty":1,"length_penalty":1,"no_repeat_ngram_size":0,"encoder_no_repeat_ngram_size":0,"bad_words_ids":null,"num_return_sequences":1,"output_scores":false,"return_dict_in_generate":false,"forced_bos_token_id":null,"forced_eos_token_id":null,"remove_invalid_values":null}' \
                 http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/chat
             fi
+      
+      - name: Delete Nodepool
+        run: |
+            az aks nodepool delete \
+            --name e2etest-${{ matrix.image.name }} --cluster-name new_demo --resource-group llm-test \
+            --yes --no-wait
         
