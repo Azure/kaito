@@ -237,6 +237,5 @@ jobs:
             az aks nodepool delete \
             --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
             --cluster-name new_demo \
-            --resource-group llm-test \
-            --yes --no-wait
+            --resource-group llm-test
         

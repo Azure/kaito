@@ -106,72 +106,139 @@ jobs:
       - name: Print Image Tag
         run: |
           echo "image_tag for this job: ${{ steps.set_tag.outputs.image_tag }}"
-
-  falcon-7b:
+  build: 
     needs: setup
     runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true'}} 
-    steps:
+    strategy:
+      fail-fast: false
+      matrix: 
+        model: 
+          - name: falcon-7b
+            dockerfile: docker/presets/falcon/Dockerfile
+            model_id: tiiuae/falcon-7b
+            build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b"
+
+          - name: falcon-7b-instruct
+            dockerfile: docker/presets/falcon/Dockerfile
+            model_id: tiiuae/falcon-7b-instruct
+            build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b-instruct"
+
+          - name: llama-2-7b
+            path: docker/presets/llama-2/Dockerfile
+            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          
+          - name: llama-2-7b-chat
+            path: docker/presets/llama-2/Dockerfile
+            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+
+        include:
+          - name: falcon-7b
+            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
+          - name: falcon-7b-instruct
+            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
+          - name: llama-2-7b
+            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
+          - name: llama-2-7b-chat
+            if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
+    steps: 
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: true
           fetch-depth: 0
-
       - name: Az CLI login
         uses: azure/login@v1
         with:
           client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    
+      
       - name: Install Azure CLI latest
         run: |
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
       - name: 'Login to ACR'
         run: az acr login --name aimodelsregistry
-      
-      - name: Build and push Falcon model
+
+      - name: Build and push model
         run: |
-          az acr build -t aimodelsregistry.azurecr.io/falcon-7b:${{ needs.setup.outputs.image_tag }} \
+          BUILD_ARGS="${{ matrix.model.build_args }}"
+          BUILD_ARGS=${BUILD_ARGS/__EXTERNAL_IP__/${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }}}
+          BUILD_ARGS=${BUILD_ARGS/__EXTERNAL_PORT__/${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }}}
+          BUILD_ARGS=${BUILD_ARGS/__WEB_SERVER_AUTH_TOKEN__/${{ secrets.WEB_SERVER_AUTH_TOKEN }}}
+
+          az acr build \
+          $BUILD_ARGS \
+          -t aimodelsregistry.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
           -r aimodelsregistry \
-          -f docker/presets/falcon/Dockerfile \
-          --build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b \
+          -f ${{ matrix.model.dockerfile }} \
           .
 
-  falcon-7b-instruct:
-    needs: setup
-    runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true'}} 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          fetch-depth: 0
+  # falcon-7b:
+  #   needs: setup
+  #   runs-on: ubuntu-20.04
+  #   if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true'}} 
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         submodules: true
+  #         fetch-depth: 0
 
-      - name: Az CLI login
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #     - name: Az CLI login
+  #       uses: azure/login@v1
+  #       with:
+  #         client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     
-      - name: Install Azure CLI latest
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  #     - name: Install Azure CLI latest
+  #       run: |
+  #         curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
-      - name: 'Login to ACR'
-        run: az acr login --name aimodelsregistry
+  #     - name: 'Login to ACR'
+  #       run: az acr login --name aimodelsregistry
       
-      - name: Build and push Falcon model
-        run: |
-          az acr build -t aimodelsregistry.azurecr.io/falcon-7b-instruct:${{ needs.setup.outputs.image_tag }} \
-          -r aimodelsregistry \
-          -f docker/presets/falcon/Dockerfile \
-          --build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b-instruct \
-          .
+  #     - name: Build and push Falcon model
+  #       run: |
+  #         az acr build -t aimodelsregistry.azurecr.io/falcon-7b:${{ needs.setup.outputs.image_tag }} \
+  #         -r aimodelsregistry \
+  #         -f docker/presets/falcon/Dockerfile \
+  #         --build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b \
+  #         .
+
+  # falcon-7b-instruct:
+  #   needs: setup
+  #   runs-on: ubuntu-20.04
+  #   if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true'}} 
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         submodules: true
+  #         fetch-depth: 0
+
+  #     - name: Az CLI login
+  #       uses: azure/login@v1
+  #       with:
+  #         client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    
+  #     - name: Install Azure CLI latest
+  #       run: |
+  #         curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+  #     - name: 'Login to ACR'
+  #       run: az acr login --name aimodelsregistry
+      
+  #     - name: Build and push Falcon model
+  #       run: |
+  #         az acr build -t aimodelsregistry.azurecr.io/falcon-7b-instruct:${{ needs.setup.outputs.image_tag }} \
+  #         -r aimodelsregistry \
+  #         -f docker/presets/falcon/Dockerfile \
+  #         --build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b-instruct \
+  #         .
   
   # falcon-40b:
   #   needs: setup
@@ -240,81 +307,81 @@ jobs:
   #         --build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b-instruct \
   #         .
 
-  llama-2-7b:
-    needs: setup
-    runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true'}}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          fetch-depth: 0
+  # llama-2-7b:
+  #   needs: setup
+  #   runs-on: ubuntu-20.04
+  #   if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true'}}
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         submodules: true
+  #         fetch-depth: 0
 
-      - name: Az CLI login
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #     - name: Az CLI login
+  #       uses: azure/login@v1
+  #       with:
+  #         client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     
-      - name: Install Azure CLI latest
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  #     - name: Install Azure CLI latest
+  #       run: |
+  #         curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
-      - name: 'Login to ACR'
-        run: az acr login --name aimodelsregistry
+  #     - name: 'Login to ACR'
+  #       run: az acr login --name aimodelsregistry
 
-      - name: Build and push Llama model
-        run: |
-          az acr build \
-          --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} \
-          --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} \
-          --build-arg LLAMA_VERSION=llama-2-7b \
-          --build-arg SRC_DIR=pkg/presets/llama-2 \
-          --build-arg WEB_SERVER_AUTH_TOKEN=${{ secrets.WEB_SERVER_AUTH_TOKEN }} \
-          -t aimodelsregistry.azurecr.io/llama-2-7b:${{ needs.setup.outputs.image_tag }} \
-          -r aimodelsregistry \
-          -f docker/presets/llama-2/Dockerfile \
-          .
+  #     - name: Build and push Llama model
+  #       run: |
+  #         az acr build \
+  #         --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} \
+  #         --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} \
+  #         --build-arg LLAMA_VERSION=llama-2-7b \
+  #         --build-arg SRC_DIR=pkg/presets/llama-2 \
+  #         --build-arg WEB_SERVER_AUTH_TOKEN=${{ secrets.WEB_SERVER_AUTH_TOKEN }} \
+  #         -t aimodelsregistry.azurecr.io/llama-2-7b:${{ needs.setup.outputs.image_tag }} \
+  #         -r aimodelsregistry \
+  #         -f docker/presets/llama-2/Dockerfile \
+  #         .
   
-  llama-2-13b:
-    needs: setup
-    runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.LLAMA2_MODIFIED  == 'true'}}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          fetch-depth: 0
+  # llama-2-13b:
+  #   needs: setup
+  #   runs-on: ubuntu-20.04
+  #   if: ${{ needs.setup.outputs.LLAMA2_MODIFIED  == 'true'}}
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         submodules: true
+  #         fetch-depth: 0
 
-      - name: Az CLI login
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #     - name: Az CLI login
+  #       uses: azure/login@v1
+  #       with:
+  #         client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     
-      - name: Install Azure CLI latest
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  #     - name: Install Azure CLI latest
+  #       run: |
+  #         curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
-      - name: 'Login to ACR'
-        run: az acr login --name aimodelsregistry
+  #     - name: 'Login to ACR'
+  #       run: az acr login --name aimodelsregistry
 
-      - name: Build and push Llama model
-        run: |
-          az acr build \
-          --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} \
-          --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} \
-          --build-arg LLAMA_VERSION=llama-2-13b \
-          --build-arg SRC_DIR=pkg/presets/llama-2 \
-          --build-arg WEB_SERVER_AUTH_TOKEN=${{ secrets.WEB_SERVER_AUTH_TOKEN }} \
-          -t aimodelsregistry.azurecr.io/llama-2-13b:${{ needs.setup.outputs.image_tag }} \
-          -r aimodelsregistry \
-          -f docker/presets/llama-2/Dockerfile \
-          .
+  #     - name: Build and push Llama model
+  #       run: |
+  #         az acr build \
+  #         --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} \
+  #         --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} \
+  #         --build-arg LLAMA_VERSION=llama-2-13b \
+  #         --build-arg SRC_DIR=pkg/presets/llama-2 \
+  #         --build-arg WEB_SERVER_AUTH_TOKEN=${{ secrets.WEB_SERVER_AUTH_TOKEN }} \
+  #         -t aimodelsregistry.azurecr.io/llama-2-13b:${{ needs.setup.outputs.image_tag }} \
+  #         -r aimodelsregistry \
+  #         -f docker/presets/llama-2/Dockerfile \
+  #         .
   
   # llama-2-70b:
   #   needs: setup
@@ -354,81 +421,81 @@ jobs:
   #         -f docker/presets/llama-2/Dockerfile \
   #         .
                 
-  llama-2-7b-chat:
-    needs: setup
-    runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          fetch-depth: 0
+  # llama-2-7b-chat:
+  #   needs: setup
+  #   runs-on: ubuntu-20.04
+  #   if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         submodules: true
+  #         fetch-depth: 0
 
-      - name: Az CLI login
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #     - name: Az CLI login
+  #       uses: azure/login@v1
+  #       with:
+  #         client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     
-      - name: Install Azure CLI latest
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  #     - name: Install Azure CLI latest
+  #       run: |
+  #         curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
-      - name: 'Login to ACR'
-        run: az acr login --name aimodelsregistry
+  #     - name: 'Login to ACR'
+  #       run: az acr login --name aimodelsregistry
 
-      - name: Build and push Llama chat model
-        run: |
-          az acr build \
-          --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} \
-          --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} \
-          --build-arg LLAMA_VERSION=llama-2-7b-chat \
-          --build-arg SRC_DIR=pkg/presets/llama-2-chat \
-          --build-arg WEB_SERVER_AUTH_TOKEN=${{ secrets.WEB_SERVER_AUTH_TOKEN }} \
-          -t aimodelsregistry.azurecr.io/llama-2-7b-chat:${{ needs.setup.outputs.image_tag }} \
-          -r aimodelsregistry \
-          -f docker/presets/llama-2/Dockerfile \
-          .
+  #     - name: Build and push Llama chat model
+  #       run: |
+  #         az acr build \
+  #         --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} \
+  #         --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} \
+  #         --build-arg LLAMA_VERSION=llama-2-7b-chat \
+  #         --build-arg SRC_DIR=pkg/presets/llama-2-chat \
+  #         --build-arg WEB_SERVER_AUTH_TOKEN=${{ secrets.WEB_SERVER_AUTH_TOKEN }} \
+  #         -t aimodelsregistry.azurecr.io/llama-2-7b-chat:${{ needs.setup.outputs.image_tag }} \
+  #         -r aimodelsregistry \
+  #         -f docker/presets/llama-2/Dockerfile \
+  #         .
   
-  llama-2-13b-chat:
-    needs: setup
-    runs-on: ubuntu-20.04
-    if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          fetch-depth: 0
+  # llama-2-13b-chat:
+  #   needs: setup
+  #   runs-on: ubuntu-20.04
+  #   if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         submodules: true
+  #         fetch-depth: 0
 
-      - name: Az CLI login
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #     - name: Az CLI login
+  #       uses: azure/login@v1
+  #       with:
+  #         client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     
-      - name: Install Azure CLI latest
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  #     - name: Install Azure CLI latest
+  #       run: |
+  #         curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
-      - name: 'Login to ACR'
-        run: az acr login --name aimodelsregistry
+  #     - name: 'Login to ACR'
+  #       run: az acr login --name aimodelsregistry
 
-      - name: Build and push Llama chat model
-        run: |
-          az acr build \
-          --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} \
-          --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} \
-          --build-arg LLAMA_VERSION=llama-2-13b-chat \
-          --build-arg SRC_DIR=pkg/presets/llama-2-chat \
-          --build-arg WEB_SERVER_AUTH_TOKEN=${{ secrets.WEB_SERVER_AUTH_TOKEN }} \
-          -t aimodelsregistry.azurecr.io/llama-2-13b-chat:${{ needs.setup.outputs.image_tag }} \
-          -r aimodelsregistry \
-          -f docker/presets/llama-2/Dockerfile \
-          .
+  #     - name: Build and push Llama chat model
+  #       run: |
+  #         az acr build \
+  #         --build-arg EXTERNAL_IP=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }} \
+  #         --build-arg EXTERNAL_PORT=${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }} \
+  #         --build-arg LLAMA_VERSION=llama-2-13b-chat \
+  #         --build-arg SRC_DIR=pkg/presets/llama-2-chat \
+  #         --build-arg WEB_SERVER_AUTH_TOKEN=${{ secrets.WEB_SERVER_AUTH_TOKEN }} \
+  #         -t aimodelsregistry.azurecr.io/llama-2-13b-chat:${{ needs.setup.outputs.image_tag }} \
+  #         -r aimodelsregistry \
+  #         -f docker/presets/llama-2/Dockerfile \
+  #         .
   
   # llama-2-70b-chat:
   #   needs: setup
