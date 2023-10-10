@@ -1,0 +1,196 @@
+name: e2e-preset-test
+
+on:
+    # For Testing
+    pull_request: 
+      branches:
+        - main
+    push:
+      branches:
+        - main
+    workflow_dispatch: {}
+
+env:
+    GO_VERSION: "1.20"
+
+permissions:
+    id-token: write
+    contents: read
+
+jobs:
+  e2e-preset-tests:
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        image:
+          - name: falcon-7b
+            tag: latest
+            node-count: 1
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 100
+
+          - name: falcon-7b-instruct
+            tag: latest
+            node-count: 1
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 100
+
+          - name: falcon-40b
+            tag: latest
+            node-count: 1
+            node-vm-size: Standard_NC96ads_A100_v4
+            node-osdisk-size: 400
+
+          - name: falcon-40b-instruct
+            tag: latest
+            node-count: 1
+            node-vm-size: Standard_NC96ads_A100_v4
+            node-osdisk-size: 400
+
+          - name: llama-2-7b
+            tag: latest
+            node-count: 1
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 100
+        
+          - name: llama-2-13b
+            tag: latest
+            node-count: 2
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 150
+        
+        # Uncomment once supported by ACR
+        #   - name: llama-2-70b
+        #     tag: latest
+        #     node-count: 2
+        #     node-vm-size: Standard_NC96ads_A100_v4
+        #     node-osdisk-size: 400
+
+          - name: llama-2-7b-chat
+            tag: latest
+            node-count: 1
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 100
+
+          - name: llama-2-13b-chat
+            tag: latest
+            node-count: 2
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 150
+        
+        # Uncomment once supported by ACR
+        #   - name: llama-2-70b-chat
+        #     tag: latest
+        #     node-count: 2
+        #     node-vm-size: Standard_NC96ads_A100_v4
+        #     node-osdisk-size: 400
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+            submodules: true
+            fetch-depth: 0
+
+      - name: Az CLI login
+        uses: azure/login@v1
+        with:
+            client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install Azure CLI latest
+        run: |
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+      - name: 'Login to ACR'
+        run: az acr login --name aimodelsregistry
+
+      - name: Set up kubectl context
+        run: |
+          az aks get-credentials --resource-group llm-test --name new_demo
+    
+      - name: Create Nodepool
+        run: |
+            az aks nodepool add \
+            --name e2etest --cluster_name new_demo --resource-group llm-test \
+            --node-count ${{ matrix.image.node-count }} \ 
+            --node-vm-size ${{ matrix.image.node-vm-size }} \
+            --node-osdisk-size ${{ matrix.image.node-osdisk-size }} \
+            --node-taints sku=gpu:NoSchedule \
+            --aks-custom-headers UseGPUDedicatedVHD=true
+      
+      - name: Deploy image to K8s
+        run: |
+            kubectl apply -f pkg/presets/k8s/${{ matrix.image.name}}.yaml
+    
+      - name: Wait for deployment to be ready
+        run: |
+            kubectl rollout status deployment/${{ matrix.image.name }}
+    
+      - name: Retrieve External Service IP
+        id: get_ip
+        run: |
+            while [[ -z $SERVICE_IP ]]; do 
+                SERVICE_IP=$(kubectl get svc llama-service -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                sleep 5
+            done 
+            echo "Service IP is $SERVICE_IP"
+            echo "SERVICE_IP=$SERVICE_IP" >> $GITHUB_OUTPUT
+        
+      - name: Test home endpoint
+        run: |
+            curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/
+
+      - name: Test healthz endpoint
+        run: |
+            curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/healthz
+    
+      - name: Test inference endpoint
+        run: |
+            if [[ "${{ matrix.image.name }}" == *"llama"* && "${{ matrix.image.name }}" == *"-chat"* ]]; then
+                echo "Testing inference for ${{ matrix.image.name }}"
+                curl -X POST \
+                -H "Content-Type: application/json" \
+                -d '{
+                    "input_data": {
+                        "input_string": [
+                            [
+                                {
+                                    "role": "system",
+                                    "content": "You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe."
+                                },
+                                {
+                                    "role": "user",
+                                    "content": "Write a brief birthday message to John"
+                                }
+                            ]
+                        ]
+                    }
+                }' \
+                http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/chat
+            elif [[ "${{ matrix.image.name }}" == *"llama"* ]]; then
+                echo "Testing inference for ${{ matrix.image.name }}"
+                curl -X POST \
+                -H "Content-Type: application/json" \
+                -d '{
+                    "prompts": [
+                        "I believe the meaning of life is",
+                        "Simply put, the theory of relativity states that ",
+                        "A brief message congratulating the team on the launch: Hi everyone, I just ",
+                        "Translate English to French: sea otter => loutre de mer, peppermint => menthe poivrée, plush girafe => girafe peluche, cheese =>"
+                    ],
+                    "parameters": {
+                        "max_gen_len": 128
+                    }
+                }' \
+                http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/generate
+            elif [[ "${{ matrix.image.name }}" == *"falcon"* ]]; then
+                echo "Testing inference for ${{ matrix.image.name }}"
+                curl -X POST \
+                -H "accept: application/json" \
+                -H "Content-Type: application/json" \
+                -d '{"prompt":"YOUR_PROMPT_HERE","max_length":200,"min_length":0,"do_sample":true,"early_stopping":false,"num_beams":1,"num_beam_groups":1,"diversity_penalty":0.0,"temperature":1.0,"top_k":10,"top_p":1,"typical_p":1,"repetition_penalty":1,"length_penalty":1,"no_repeat_ngram_size":0,"encoder_no_repeat_ngram_size":0,"bad_words_ids":null,"num_return_sequences":1,"output_scores":false,"return_dict_in_generate":false,"forced_bos_token_id":null,"forced_eos_token_id":null,"remove_invalid_values":null}' \
+                http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/chat
+            fi
+        
