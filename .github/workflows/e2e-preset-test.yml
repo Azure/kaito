@@ -23,11 +23,11 @@ jobs:
     strategy:
       matrix:
         image:
-        #   - name: falcon-7b
-        #     tag: latest
-        #     node-count: 1
-        #     node-vm-size: Standard_NC12s_v3
-        #     node-osdisk-size: 100
+          - name: falcon-7b
+            tag: latest
+            node-count: 1
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 100
 
         #   - name: falcon-7b-instruct
         #     tag: latest
@@ -47,17 +47,17 @@ jobs:
         #     node-vm-size: Standard_NC96ads_A100_v4
         #     node-osdisk-size: 400
 
-        #   - name: llama-2-7b
-        #     tag: db6dc2d
-        #     node-count: 1
-        #     node-vm-size: Standard_NC12s_v3
-        #     node-osdisk-size: 100
+          - name: llama-2-7b
+            tag: latest
+            node-count: 1
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 100
         
-        #   - name: llama-2-13b
-        #     tag: latest
-        #     node-count: 2
-        #     node-vm-size: Standard_NC12s_v3
-        #     node-osdisk-size: 150
+          - name: llama-2-13b
+            tag: latest
+            node-count: 2
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 150
         
         # Uncomment once supported by ACR
         #   - name: llama-2-70b
@@ -67,16 +67,16 @@ jobs:
         #     node-osdisk-size: 400
 
           - name: llama-2-7b-chat
-            tag: 036071a
+            tag: latest
             node-count: 1
             node-vm-size: Standard_NC12s_v3
             node-osdisk-size: 100
 
-        #   - name: llama-2-13b-chat
-        #     tag: latest
-        #     node-count: 2
-        #     node-vm-size: Standard_NC12s_v3
-        #     node-osdisk-size: 150
+          - name: llama-2-13b-chat
+            tag: latest
+            node-count: 2
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 150
         
         # Uncomment once supported by ACR
         #   - name: llama-2-70b-chat
@@ -232,8 +232,17 @@ jobs:
                 http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/chat
             fi
       
-      - name: Delete Nodepool
+      - name: Cleanup
+        if: false
+        #always()
         run: |
+            # Delete K8s Service
+            kubectl delete svc ${{ matrix.model.name }}
+
+            # Delete K8s Deployment
+            kubectl delete deployment ${{ matrix.model.name}}
+
+            # Delete AKS Nodepool
             az aks nodepool delete \
             --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
             --cluster-name new_demo \

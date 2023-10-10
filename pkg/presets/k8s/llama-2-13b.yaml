@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: llama-2-13b-chat
+  name: llama-2-13b
 spec:
   selector:
     app: llama
-    statefulset.kubernetes.io/pod-name: llama-2-13b-chat-0
+    statefulset.kubernetes.io/pod-name: llama-2-13b-0
   ports:
     - protocol: TCP
       port: 80
@@ -16,7 +16,7 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: llama-2-13b-chat
+  name: llama-2-13b
 spec:
   replicas: 2
   selector:
@@ -39,14 +39,14 @@ spec:
             topologyKey: "kubernetes.io/hostname"
       containers:
         - name: llama-container
-          image: aimodelsregistry.azurecr.io/llama-2-13b-chat:latest
+          image: aimodelsregistry.azurecr.io/llama-2-13b:latest
           command:
             - /bin/sh
             - -c
             - |
               NODE_RANK=$(echo $HOSTNAME | grep -o '[^-]*$')
-              EXTERNAL_IP=$(kubectl get svc llama-2-13b-chat -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-              cd /workspace/llama/llama-2 && torchrun web_example_chat_completion.py --nnodes 2 --nproc_per_node 1 --node_rank $NODE_RANK --master_addr $EXTERNAL_IP --master_port 29500
+              EXTERNAL_IP=$(kubectl get svc llama-2-13b -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+              cd /workspace/llama/llama-2 && torchrun web_example_text_completion.py --nnodes 2 --nproc_per_node 1 --node_rank $NODE_RANK --master_addr $EXTERNAL_IP --master_port 29500
           resources:
             limits:
               nvidia.com/gpu: "1"
@@ -80,4 +80,4 @@ spec:
           key: nvidia.com/gpu
           operator: Exists
       nodeSelector:
-        pool: lama213bchat
+        pool: llama213b
