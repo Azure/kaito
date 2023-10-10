@@ -112,9 +112,11 @@ jobs:
     
       - name: Create Nodepool
         run: |
-            NAME_SUFFIX=${{ matrix.image.name }}
+            NAME_SUFFIX=llama-2-7b
             NAME_SUFFIX_WITHOUT_DASHES=${NAME_SUFFIX//-/}  # Removing all '-' symbols
             TRUNCATED_NAME_SUFFIX=${NAME_SUFFIX_WITHOUT_DASHES: -12}
+            
+            echo "TRUNCATED_NAME_SUFFIX: $TRUNCATED_NAME_SUFFIX"
             az aks nodepool add \
                --name $TRUNCATED_NAME_SUFFIX \
                --cluster-name new_demo \
