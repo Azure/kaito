@@ -100,7 +100,7 @@ jobs:
             echo "image_tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
           else
             echo "Setting image tag based on latest commit"
-            echo "image_tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+            echo "image_tag=latest" >> $GITHUB_OUTPUT
           fi
 
       - name: Print Image Tag
@@ -199,18 +199,23 @@ jobs:
       - name: 'Login to ACR'
         run: az acr login --name aimodelsregistry
 
-      - name: Build and push model
+      - name: Build and push model (with retries)
         run: |
-          BUILD_ARGS="${{ matrix.model.build_args }}"
-          BUILD_ARGS=${BUILD_ARGS/__EXTERNAL_IP__/${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }}}
-          BUILD_ARGS=${BUILD_ARGS/__EXTERNAL_PORT__/${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }}}
-          BUILD_ARGS=${BUILD_ARGS/__WEB_SERVER_AUTH_TOKEN__/${{ secrets.WEB_SERVER_AUTH_TOKEN }}}
-          
-          echo "Docker BUILD_ARGS: $BUILD_ARGS"
+          retries=3
+          while [ $retries -gt 0 ]; do
+            BUILD_ARGS="${{ matrix.model.build_args }}"
+            BUILD_ARGS=${BUILD_ARGS/__EXTERNAL_IP__/${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }}}
+            BUILD_ARGS=${BUILD_ARGS/__EXTERNAL_PORT__/${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }}}
+            BUILD_ARGS=${BUILD_ARGS/__WEB_SERVER_AUTH_TOKEN__/${{ secrets.WEB_SERVER_AUTH_TOKEN }}}
 
-          az acr build \
-          $BUILD_ARGS \
-          -t aimodelsregistry.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
-          -r aimodelsregistry \
-          -f ${{ matrix.model.dockerfile }} \
-          .
+            echo "Docker BUILD_ARGS: $BUILD_ARGS"
+
+            az acr build \
+            $BUILD_ARGS \
+            -t aimodelsregistry.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
+            -r aimodelsregistry \
+            -f ${{ matrix.model.dockerfile }} \
+            . && break
+            retries=$((retries-1))
+            sleep 15
+          done
