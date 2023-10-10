@@ -51,7 +51,8 @@ spec:
         - effect: NoSchedule
           key: nvidia.com/gpu
           operator: Exists
-
+      nodeSelector:
+        pool: llama27b
 ---
 apiVersion: v1
 kind: Service

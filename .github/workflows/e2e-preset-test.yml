@@ -133,6 +133,7 @@ jobs:
                --node-count ${{ matrix.image.node-count }} \
                --node-vm-size ${{ matrix.image.node-vm-size }} \
                --node-osdisk-size ${{ matrix.image.node-osdisk-size }} \
+               --node-labels pool=${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
                --node-taints sku=gpu:NoSchedule \
                --aks-custom-headers UseGPUDedicatedVHD=true
         
