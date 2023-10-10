@@ -48,7 +48,7 @@ jobs:
         #     node-osdisk-size: 400
 
           - name: llama-2-7b
-            tag: latest
+            tag: db6dc2d
             node-count: 1
             node-vm-size: Standard_NC12s_v3
             node-osdisk-size: 100
@@ -67,7 +67,7 @@ jobs:
         #     node-osdisk-size: 400
 
           - name: llama-2-7b-chat
-            tag: latest
+            tag: ea05fdd
             node-count: 1
             node-vm-size: Standard_NC12s_v3
             node-osdisk-size: 100
