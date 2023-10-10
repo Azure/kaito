@@ -47,11 +47,11 @@ jobs:
         #     node-vm-size: Standard_NC96ads_A100_v4
         #     node-osdisk-size: 400
 
-          - name: llama-2-7b
-            tag: db6dc2d
-            node-count: 1
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 100
+        #   - name: llama-2-7b
+        #     tag: db6dc2d
+        #     node-count: 1
+        #     node-vm-size: Standard_NC12s_v3
+        #     node-osdisk-size: 100
         
         #   - name: llama-2-13b
         #     tag: latest
@@ -157,8 +157,7 @@ jobs:
                     echo "Nodepool already exists and is in a running state."
                 fi
             fi
-          
-        
+
       - name: Deploy image to K8s
         run: |
             kubectl apply -f pkg/presets/k8s/${{ matrix.image.name }}.yaml
