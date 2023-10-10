@@ -161,17 +161,17 @@ jobs:
         
       - name: Deploy image to K8s
         run: |
-            kubectl apply -f pkg/presets/k8s/${{ matrix.image.name}}.yaml
+            kubectl apply -f pkg/presets/k8s/${{ matrix.image.name }}.yaml
     
       - name: Wait for deployment to be ready
         run: |
-            kubectl rollout status deployment/llama-deployment
+            kubectl rollout status deployment/${{ matrix.image.name }}
     
       - name: Retrieve External Service IP
         id: get_ip
         run: |
             while [[ -z $SERVICE_IP ]]; do 
-                SERVICE_IP=$(kubectl get svc llama-service -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                SERVICE_IP=$(kubectl get svc ${{ matrix.image.name }} -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')
                 sleep 5
             done 
             echo "Service IP is $SERVICE_IP"

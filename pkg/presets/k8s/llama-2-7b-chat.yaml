@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: llama-deployment
+  name: llama-2-7b-chat
 spec:
   replicas: 1
   selector:
@@ -57,7 +57,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: llama-service
+  name: llama-2-7b-chat
 spec:
   selector:
     app: llama
