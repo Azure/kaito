@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+  name: demo
+  namespace: default
+  labels:
+    app: llama
+spec:
+  containers:
+  - command:
+    - sleep
+    - infinity
+    image: aimodelsregistry.azurecr.io/llama-2-7b-chat:ea05fdd
+    name: main
+    # resources:
+    #   limits:
+    #     nvidia.com/gpu: 1
+    #   requests:
+    #     nvidia.com/gpu: 1
+
+    volumeMounts:
+    - name: dshm
+      mountPath: /dev/shm
+  volumes:
+  - name: dshm
+    emptyDir:
+      medium: Memory
+  nodeSelector:
+    kubernetes.io/hostname: aks-gpu2-18612566-vmss000001
+  tolerations:
+  - effect: NoSchedule
+    key: sku
+    operator: Equal
+    value: gpu
+  - effect: NoSchedule
+    key: nvidia.com/gpu
+    operator: Exists
