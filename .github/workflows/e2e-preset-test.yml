@@ -36,6 +36,7 @@ jobs:
             node-vm-size: Standard_NC12s_v3
             node-osdisk-size: 100
 
+        # Uncomment once supported by ACR
         #   - name: falcon-40b
         #     tag: latest
         #     node-count: 1
