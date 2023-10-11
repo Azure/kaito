@@ -2,8 +2,9 @@ name: E2E Preset Test
 
 on:
     workflow_run:
-        workflows: ["Build and Push Preset Models"]
-        types: [completed]
+        workflows: [Build and Push Preset Models]
+        types: 
+            - completed
     workflow_dispatch: {}
 
 env:
