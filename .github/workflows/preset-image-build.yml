@@ -100,7 +100,7 @@ jobs:
             echo "image_tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
           else
             echo "Setting image tag based on latest commit"
-            echo "image_tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+            echo "image_tag=latest" >> $GITHUB_OUTPUT
           fi
 
       - name: Print Image Tag
