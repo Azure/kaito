@@ -2,13 +2,13 @@ name: Build and Push Preset Models
 
 on:
   # For Testing
-  # pull_request:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - 'pkg/presets/falcon/**'
-  #     - 'pkg/presets/llama-2/**'
-  #     - 'pkg/presets/llama-2-chat/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'pkg/presets/falcon/**'
+      - 'pkg/presets/llama-2/**'
+      - 'pkg/presets/llama-2-chat/**'
   push:
     branches:
       - main
@@ -127,7 +127,7 @@ jobs:
           
           - name: llama-2-7b-chat
             dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
           
           - name: llama-2-13b
             dockerfile: docker/presets/llama-2/Dockerfile
@@ -135,7 +135,7 @@ jobs:
           
           - name: llama-2-13b-chat
             dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
           
           # TODO: Support large models
           # - name: falcon-40b
@@ -152,7 +152,7 @@ jobs:
           
           # - name: llama-2-70b-chat
           #   dockerfile: docker/presets/llama-2/Dockerfile
-          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
 
         include:
           - name: falcon-7b
