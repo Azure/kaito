@@ -234,7 +234,7 @@ jobs:
                 curl -X POST \
                 -H "accept: application/json" \
                 -H "Content-Type: application/json" \
-                -d '{"prompt":"YOUR_PROMPT_HERE","max_length":200,"min_length":0,"do_sample":true,"early_stopping":false,"num_beams":1,"num_beam_groups":1,"diversity_penalty":0.0,"temperature":1.0,"top_k":10,"top_p":1,"typical_p":1,"repetition_penalty":1,"length_penalty":1,"no_repeat_ngram_size":0,"encoder_no_repeat_ngram_size":0,"bad_words_ids":null,"num_return_sequences":1,"output_scores":false,"return_dict_in_generate":false,"forced_bos_token_id":null,"forced_eos_token_id":null,"remove_invalid_values":null}' \
+                -d '{"prompt":"Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron:","max_length":200,"min_length":0,"do_sample":true,"early_stopping":false,"num_beams":1,"num_beam_groups":1,"diversity_penalty":0.0,"temperature":1.0,"top_k":10,"top_p":1,"typical_p":1,"repetition_penalty":1,"length_penalty":1,"no_repeat_ngram_size":0,"encoder_no_repeat_ngram_size":0,"bad_words_ids":null,"num_return_sequences":1,"output_scores":false,"return_dict_in_generate":false,"forced_bos_token_id":null,"forced_eos_token_id":null,"remove_invalid_values":null}' \
                 http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/chat
             fi
       
@@ -242,10 +242,10 @@ jobs:
         if: always()
         run: |
             # Delete K8s Service
-            kubectl delete svc ${{ matrix.model.name }}
+            kubectl delete svc ${{ matrix.image.name }}
 
             # Delete K8s Deployment
-            kubectl delete deployment ${{ matrix.model.name}}
+            kubectl delete deployment ${{ matrix.image.name}}
 
             # Delete AKS Nodepool
             az aks nodepool delete \
