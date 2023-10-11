@@ -158,15 +158,10 @@ jobs:
                     echo "Nodepool already exists and is in a running state."
                 fi
             fi
-
-      - name: Deploy image to K8s
-        run: |
-            kubectl apply -f pkg/presets/k8s/${{ matrix.image.name }}.yaml
     
-      - name: Wait for deployment to be ready
-        run: |
-            kubectl rollout status statefulset/${{ matrix.image.name }}
-    
+      - name: Create Service
+        run: kubectl apply -f pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-service.yaml
+      
       - name: Retrieve External Service IP
         id: get_ip
         run: |
@@ -176,6 +171,15 @@ jobs:
             done 
             echo "Service IP is $SERVICE_IP"
             echo "SERVICE_IP=$SERVICE_IP" >> $GITHUB_OUTPUT
+        
+      - name: Replace IP and Deploy Statefulset to K8s
+        run: |
+            sed -i "s/change-me/${{ steps.get_ip.outputs.SERVICE_IP }}/g" pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            kubectl apply -f pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+    
+      - name: Wait for Statefulset to be ready
+        run: |
+            kubectl rollout status statefulset/${{ matrix.image.name }}
         
       - name: Test home endpoint
         run: |
