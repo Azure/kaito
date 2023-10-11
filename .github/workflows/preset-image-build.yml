@@ -132,42 +132,42 @@ jobs:
             dockerfile: docker/presets/falcon/Dockerfile
             build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b"
 
-          # - name: falcon-7b-instruct
-          #   dockerfile: docker/presets/falcon/Dockerfile
-          #   build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b-instruct"
+          - name: falcon-7b-instruct
+            dockerfile: docker/presets/falcon/Dockerfile
+            build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b-instruct"
 
-          # - name: llama-2-7b
-          #   dockerfile: docker/presets/llama-2/Dockerfile
-          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          - name: llama-2-7b
+            dockerfile: docker/presets/llama-2/Dockerfile
+            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
           
-          # - name: llama-2-7b-chat
-          #   dockerfile: docker/presets/llama-2/Dockerfile
-          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          - name: llama-2-7b-chat
+            dockerfile: docker/presets/llama-2/Dockerfile
+            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
           
-          # - name: llama-2-13b
-          #   dockerfile: docker/presets/llama-2/Dockerfile
-          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          - name: llama-2-13b
+            dockerfile: docker/presets/llama-2/Dockerfile
+            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
           
-          # - name: llama-2-13b-chat
-          #   dockerfile: docker/presets/llama-2/Dockerfile
-          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          - name: llama-2-13b-chat
+            dockerfile: docker/presets/llama-2/Dockerfile
+            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
           
           # TODO: Support large models
-          # - name: falcon-40b
-          #   dockerfile: docker/presets/falcon/Dockerfile
-          #   build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b"
+          - name: falcon-40b
+            dockerfile: docker/presets/falcon/Dockerfile
+            build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b"
           
-          # - name: falcon-40b-instruct
-          #   dockerfile: docker/presets/falcon/Dockerfile
-          #   build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b-instruct"
+          - name: falcon-40b-instruct
+            dockerfile: docker/presets/falcon/Dockerfile
+            build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b-instruct"
 
-          # - name: llama-2-70b
-          #   dockerfile: docker/presets/llama-2/Dockerfile
-          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-70b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          - name: llama-2-70b
+            dockerfile: docker/presets/llama-2/Dockerfile
+            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-70b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
           
-          # - name: llama-2-70b-chat
-          #   dockerfile: docker/presets/llama-2/Dockerfile
-          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          - name: llama-2-70b-chat
+            dockerfile: docker/presets/llama-2/Dockerfile
+            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
 
         include:
           - name: falcon-7b
@@ -184,15 +184,15 @@ jobs:
             if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
           
           # TODO: Support large models
-          # - name: falcon-40b
-          #   if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
-          # - name: falcon-40b-instruct
-          #   if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
+          - name: falcon-40b
+            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
+          - name: falcon-40b-instruct
+            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
           
-          # - name: llama-2-70b
-          #   if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
-          # - name: llama-2-70b-chat
-          #   if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
+          - name: llama-2-70b
+            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
+          - name: llama-2-70b-chat
+            if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
 
     steps:
       - name: Checkout
