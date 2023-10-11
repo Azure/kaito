@@ -164,7 +164,7 @@ jobs:
     
       - name: Wait for deployment to be ready
         run: |
-            kubectl rollout status deployment/${{ matrix.image.name }}
+            kubectl rollout status statefulset/${{ matrix.image.name }}
     
       - name: Retrieve External Service IP
         id: get_ip
