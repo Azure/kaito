@@ -239,8 +239,7 @@ jobs:
             fi
       
       - name: Cleanup
-        if: false
-        #always()
+        if: always()
         run: |
             # Delete K8s Service
             kubectl delete svc ${{ matrix.model.name }}
