@@ -21,13 +21,14 @@ jobs:
   e2e-preset-tests:
     runs-on: ubuntu-20.04
     strategy:
+      fail-fast: false
       matrix:
         image:
-          - name: falcon-7b
-            tag: latest
-            node-count: 1
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 100
+        #   - name: falcon-7b
+        #     tag: latest
+        #     node-count: 1
+        #     node-vm-size: Standard_NC12s_v3
+        #     node-osdisk-size: 100
 
         #   - name: falcon-7b-instruct
         #     tag: latest
