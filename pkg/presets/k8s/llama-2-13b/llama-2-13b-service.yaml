@@ -7,10 +7,12 @@ spec:
     app: llama
     statefulset.kubernetes.io/pod-name: llama-2-13b-0
   ports:
-    - protocol: TCP
+    - name: http
+      protocol: TCP
       port: 80
       targetPort: 5000
-    - protocol: TCP
+    - name: torchrun
+      protocol: TCP
       port: 29500
       targetPort: 29500
   type: LoadBalancer
