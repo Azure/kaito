@@ -10,5 +10,8 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 5000
+    - protocol: TCP
+      port: 29500
+      targetPort: 29500
   type: LoadBalancer
   publishNotReadyAddresses: true
