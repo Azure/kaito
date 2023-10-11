@@ -7,6 +7,7 @@ spec:
   selector:
     matchLabels:
       app: llama
+  podManagementPolicy: Parallel
   template:
     metadata:
       labels:
@@ -32,6 +33,7 @@ spec:
             - /bin/sh
             - -c
             - |
+              echo "MASTER_ADDR: $MASTER_ADDR"
               NODE_RANK=$(echo $HOSTNAME | grep -o '[^-]*$')
               cd /workspace/llama/llama-2 && torchrun --nnodes 2 --nproc_per_node 1 --node_rank $NODE_RANK --master-addr $MASTER_ADDR --master-port 29500 web_example_text_completion.py
           resources:
