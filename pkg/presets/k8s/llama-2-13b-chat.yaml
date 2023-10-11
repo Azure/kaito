@@ -45,7 +45,8 @@ spec:
             - -c
             - |
               NODE_RANK=$(echo $HOSTNAME | grep -o '[^-]*$')
-              EXTERNAL_IP=$(kubectl get svc llama-2-13b-chat -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+              EXTERNAL_IP=llama-2-13b-chat.default.svc.cluster.local
+              # EXTERNAL_IP=$(kubectl get svc llama-2-13b-chat -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
               cd /workspace/llama/llama-2 && torchrun --nnodes 2 --nproc_per_node 1 --node_rank $NODE_RANK --master_addr $EXTERNAL_IP --master_port 29500 web_example_chat_completion.py
           resources:
             limits:
