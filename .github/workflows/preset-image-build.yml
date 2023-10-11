@@ -2,13 +2,13 @@ name: Build and Push Preset Models
 
 on:
   # For Testing
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'pkg/presets/falcon/**'
-      - 'pkg/presets/llama-2/**'
-      - 'pkg/presets/llama-2-chat/**'
+  # pull_request:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'pkg/presets/falcon/**'
+  #     - 'pkg/presets/llama-2/**'
+  #     - 'pkg/presets/llama-2-chat/**'
   push:
     branches:
       - main

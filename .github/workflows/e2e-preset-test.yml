@@ -158,7 +158,7 @@ jobs:
                     echo "Nodepool already exists and is in a running state."
                 fi
             fi
-    
+
       - name: Create Service
         run: kubectl apply -f pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-service.yaml
       
