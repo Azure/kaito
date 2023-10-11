@@ -22,7 +22,7 @@ args = parser.parse_args()
 
 app = FastAPI()
 
-tokenizer = AutoTokenizer.from_pretrained(args.model_id)
+tokenizer = AutoTokenizer.from_pretrained("/workspace/weights")
 model = AutoModelForCausalLM.from_pretrained(
     "/workspace/weights", # args.model_id,
     device_map="auto",
