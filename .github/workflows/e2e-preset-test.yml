@@ -2,7 +2,7 @@ name: E2E Preset Test
 
 on:
     workflow_run:
-        workflows: [Build and Push Preset Models]
+        workflows: ["Build and Push Preset Models"]
         types: 
             - completed
     workflow_dispatch: {}
@@ -92,6 +92,13 @@ jobs:
         run: |
             tag=$(cat image_tag.txt)
             echo "IMAGE_TAG=$tag" >> $GITHUB_OUTPUT
+
+            # Set the ACR based on the tag value
+            if [[ "$tag" == "latest" ]]; then
+              echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
+            else
+              echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
+            fi
           
       - name: Az CLI login
         uses: azure/login@v1
@@ -105,7 +112,7 @@ jobs:
             curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
       - name: 'Login to ACR'
-        run: az acr login --name aimodelsregistry
+        run: az acr login --name ${{ steps.get_image_tag.outputs.ACR_NAME }}
 
       - name: Set up kubectl context
         run: |
