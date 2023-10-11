@@ -82,3 +82,4 @@ spec:
           operator: Exists
       nodeSelector:
         pool: lama213bchat
+  
