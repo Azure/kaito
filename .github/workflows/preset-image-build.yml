@@ -32,7 +32,6 @@ permissions:
 jobs:
   setup:
     runs-on: ubuntu-latest
-    if: false
     outputs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
       FALCON_MODIFIED: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}
@@ -124,6 +123,7 @@ jobs:
   
   build-small-models: 
     needs: setup
+    if: false
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
