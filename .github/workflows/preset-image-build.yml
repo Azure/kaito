@@ -200,6 +200,11 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
+
+      - name: Install Azure CLI latest
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
       - name: Az CLI login
         uses: azure/login@v1
         with:
@@ -207,9 +212,6 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       
-      - name: Install Azure CLI latest
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
       - name: 'Login to ACR'
         id: acr_login
