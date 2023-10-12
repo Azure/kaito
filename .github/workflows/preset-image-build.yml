@@ -32,6 +32,7 @@ permissions:
 jobs:
   setup:
     runs-on: ubuntu-latest
+    if: false
     outputs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
       FALCON_MODIFIED: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}
@@ -217,7 +218,7 @@ jobs:
 
   build-large-models: 
     needs: setup
-    if: false
+    if: true
     runs-on: self-hosted
     strategy:
       fail-fast: false
@@ -264,7 +265,7 @@ jobs:
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
       - name: Az CLI login
-        uses: azure/login@v1
+        uses: azure/login@v1.4.6
         with:
           client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
