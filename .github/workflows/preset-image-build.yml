@@ -127,7 +127,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: 
-        model: 
+        model:
           - name: falcon-7b
             dockerfile: docker/presets/falcon/Dockerfile
             build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b"
