@@ -210,7 +210,10 @@ jobs:
         with:
           client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          allow-no-subscriptions: true
+      
+      - name: Set AZ Subscription
+        run: az account set --subscription ${{ secrets.SUBSCRIPTION_ID }}
       
       - name: 'Login to ACR'
         id: acr_login
