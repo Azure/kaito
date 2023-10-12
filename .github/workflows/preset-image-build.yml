@@ -272,16 +272,18 @@ jobs:
           allow-no-subscriptions: true
 
       - name: 'Set subscription'
-        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}} 
+        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
 
-      - name: 'Login to ACR'
+      - name: 'Attach and Login to ACR'
         id: acr_login
         run: |
           if [[ ${{ needs.setup.outputs.image_tag == 'latest'}} ]]; then
             echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
+            az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistry
             az acr login --name aimodelsregistry
           else
             echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
+            az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistrytest
             az acr login --name aimodelsregistrytest
           fi
 
