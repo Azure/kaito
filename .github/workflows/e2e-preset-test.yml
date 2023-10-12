@@ -183,6 +183,7 @@ jobs:
         run: |
             sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
             sed -i "s/TAG_HERE/${{ steps.get_image_tag.outputs.IMAGE_TAG }}/g" pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/REPO_HERE/${{ steps.get_image_tag.outputs.ACR_NAME }}/g" pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
             kubectl apply -f pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
     
       - name: Wait for Statefulset to be ready

@@ -132,42 +132,42 @@ jobs:
             dockerfile: docker/presets/falcon/Dockerfile
             build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b"
 
-          - name: falcon-7b-instruct
-            dockerfile: docker/presets/falcon/Dockerfile
-            build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b-instruct"
+          # - name: falcon-7b-instruct
+          #   dockerfile: docker/presets/falcon/Dockerfile
+          #   build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b-instruct"
 
-          - name: llama-2-7b
-            dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          # - name: llama-2-7b
+          #   dockerfile: docker/presets/llama-2/Dockerfile
+          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
           
-          - name: llama-2-7b-chat
-            dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          # - name: llama-2-7b-chat
+          #   dockerfile: docker/presets/llama-2/Dockerfile
+          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
           
-          - name: llama-2-13b
-            dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          # - name: llama-2-13b
+          #   dockerfile: docker/presets/llama-2/Dockerfile
+          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
           
-          - name: llama-2-13b-chat
-            dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          # - name: llama-2-13b-chat
+          #   dockerfile: docker/presets/llama-2/Dockerfile
+          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
           
-          # TODO: Support large models
-          - name: falcon-40b
-            dockerfile: docker/presets/falcon/Dockerfile
-            build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b"
+          # # TODO: Support large models
+          # - name: falcon-40b
+          #   dockerfile: docker/presets/falcon/Dockerfile
+          #   build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b"
           
-          - name: falcon-40b-instruct
-            dockerfile: docker/presets/falcon/Dockerfile
-            build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b-instruct"
+          # - name: falcon-40b-instruct
+          #   dockerfile: docker/presets/falcon/Dockerfile
+          #   build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b-instruct"
 
-          - name: llama-2-70b
-            dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-70b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          # - name: llama-2-70b
+          #   dockerfile: docker/presets/llama-2/Dockerfile
+          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-70b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
           
-          - name: llama-2-70b-chat
-            dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+          # - name: llama-2-70b-chat
+          #   dockerfile: docker/presets/llama-2/Dockerfile
+          #   build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
 
         include:
           - name: falcon-7b
@@ -222,8 +222,21 @@ jobs:
             az acr login --name aimodelsregistrytest
           fi
 
+      - name: Check if Docker Pod is Running (if not run it)
+        run: |
+          DEPLOYMENT=$(kubectl get deployment docker-deployment -o=jsonpath='{.metadata.name}' --ignore-not-found)
+          if [ -z "$DEPLOYMENT" ]; then
+            # Apply the deployment if it does not exist
+            kubectl apply -f pkg/presets/k8s/docker.yaml
+          fi
+          kubectl wait --for=condition=ready pod -l app=docker --timeout=300s
+          
+      # - name: AZ Attach ACR
+      #   run: |
+          
       - name: Build and push model (with retries)
         run: |
+          POD_NAME=$(kubectl get pod -l app=docker -o=jsonpath='{.items[0].metadata.name}')
           retries=3
           while [ $retries -gt 0 ]; do
             BUILD_ARGS="${{ matrix.model.build_args }}"
@@ -233,7 +246,8 @@ jobs:
 
             echo "Docker BUILD_ARGS: $BUILD_ARGS"
 
-            az acr build \
+            kubectl exec $POD_NAME -- \
+            docker build \
             $BUILD_ARGS \
             -t ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
             -r ${{ steps.acr_login.outputs.ACR_NAME }} \

@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: falcon-container
-          image: aimodelsregistry.azurecr.io/falcon-7b-instruct:latest
+          image: REPO_HERE.azurecr.io/falcon-7b-instruct:latest
           command:
             - /bin/sh
             - -c
