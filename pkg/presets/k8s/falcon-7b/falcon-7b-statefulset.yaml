@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: falcon-container
-          image: REPO_HERE.azurecr.io/falcon-7b:latest
+          image: REPO_HERE.azurecr.io/falcon-7b:TAG_HERE
           command:
             - /bin/sh
             - -c
