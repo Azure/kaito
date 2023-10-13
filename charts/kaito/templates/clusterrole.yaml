@@ -6,10 +6,10 @@ metadata:
   labels:
     {{- include "kaito.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["kaito.io"]
+  - apiGroups: ["kaito.sh"]
     resources: ["workspaces"]
     verbs: ["create", "delete", "update", "patch","get","list","watch"]
-  - apiGroups: ["kaito.io"]
+  - apiGroups: ["kaito.sh"]
     resources: ["workspaces/status"]
     verbs: ["create", "delete", "update", "patch","get","list","watch"]
   - apiGroups: [""]
@@ -39,4 +39,4 @@ rules:
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["validatingwebhookconfigurations"]
     verbs: ["update"]
-    resourceNames: ["validation.webhook.kaito.io"]
+    resourceNames: ["validation.webhook.kaito.sh"]

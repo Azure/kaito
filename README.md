@@ -63,8 +63,8 @@ watch kubectl describe workspace workspace-llama-2-7b-chat
 
 ```bash
 Name:         workspace-llama-2-7b-aks
-Annotations:  kubernetes-kaito.io/service-type: load-balancer
-API Version:  kaito.io/v1alpha1
+Annotations:  kubernetes-kaito.sh/service-type: load-balancer
+API Version:  kaito.sh/v1alpha1
 Inference:
   Preset:
     Name:  llama-2-7b

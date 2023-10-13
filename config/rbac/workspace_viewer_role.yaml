@@ -11,10 +11,10 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: workspace-viewer-role
 rules:
-- apiGroups: ["kaito.io"]
+- apiGroups: ["kaito.sh"]
   resources: ["workspaces"]
   verbs: ["get","list","watch"]
-- apiGroups: ["kaito.io"]
+- apiGroups: ["kaito.sh"]
   resources: ["workspaces/status"]
   verbs: ["get"]
 - apiGroups: [""]

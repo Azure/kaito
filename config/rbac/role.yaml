@@ -5,7 +5,7 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - kaito.io
+  - kaito.sh
   resources:
   - workspaces
   verbs:

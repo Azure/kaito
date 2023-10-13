@@ -23,8 +23,8 @@ func NewWebhooks() []knativeinjection.ControllerConstructor {
 
 func NewCRDValidationWebhook(ctx context.Context, _ configmap.Watcher) *controller.Impl {
 	return validation.NewAdmissionController(ctx,
-		"validation.webhook.kaito.io",
-		"/validate/workspace.kaito.io",
+		"validation.webhook.kaito.sh",
+		"/validate/workspace.kaito.sh",
 		Resources,
 		func(ctx context.Context) context.Context { return ctx },
 		true,

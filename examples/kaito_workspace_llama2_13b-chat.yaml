@@ -1,8 +1,8 @@
-apiVersion: kaito.io/v1alpha1
+apiVersion: kaito.sh/v1alpha1
 kind: Workspace
 metadata:
   annotations:
-    kubernetes-kaito.io/service-type: load-balancer
+    kubernetes-kaito.sh/service-type: load-balancer
   name: workspace-llama-2-13b-chat
 resource:
   instanceType: "Standard_NC12s_v3"

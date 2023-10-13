@@ -5,7 +5,7 @@ const (
 	// Non-prefixed labels/annotations are reserved for end-use.
 
 	// KAITOPrefix Kubernetes Data Mining prefix.
-	KAITOPrefix = "kubernetes-kaito.io/"
+	KAITOPrefix = "kubernetes-kaito.sh/"
 
 	// AnnotationServiceType determines whether kaito creates ClusterIP or LoadBalancer type service.
 	AnnotationServiceType = KAITOPrefix + "service-type"
