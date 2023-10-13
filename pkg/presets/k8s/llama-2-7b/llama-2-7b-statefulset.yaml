@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: llama-container
-          image: aimodelsregistry.azurecr.io/llama-2-7b:latest
+          image: REPO_HERE.azurecr.io/llama-2-7b:TAG_HERE
           command:
             - /bin/sh
             - -c
