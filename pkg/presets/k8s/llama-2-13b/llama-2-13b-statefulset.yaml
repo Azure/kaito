@@ -25,7 +25,7 @@ spec:
             topologyKey: "kubernetes.io/hostname"
       containers:
         - name: llama-container
-          image: aimodelsregistry.azurecr.io/llama-2-13b:TAG_HERE # Placeholder that will be replaced
+          image: REPO_HERE.azurecr.io/llama-2-13b:TAG_HERE # Placeholder that will be replaced
           env:
           - name: MASTER_ADDR
             value: "MASTER_ADDR_HERE"  # Placeholder that will be replaced

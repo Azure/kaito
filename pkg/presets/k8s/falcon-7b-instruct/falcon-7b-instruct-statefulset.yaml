@@ -15,16 +15,11 @@ spec:
     spec:
       containers:
         - name: falcon-container
-          image: aimodelsregistry.azurecr.io/falcon-7b-instruct:latest
+          image: REPO_HERE.azurecr.io/falcon-7b-instruct:TAG_HERE
           command:
             - /bin/sh
             - -c
             - accelerate launch --config_file config.yaml --num_processes 1 --num_machines 1 --use_deepspeed --machine_rank 0 --gpu_ids all inference-api.py
-          # resources:
-          #   limits:
-          #     nvidia.com/gpu: "1"
-          #   requests:
-          #     nvidia.com/gpu: "1"
           livenessProbe:
             httpGet:
               path: /healthz

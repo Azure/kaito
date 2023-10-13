@@ -12,3 +12,4 @@ spec:
       targetPort: 5000
   type: LoadBalancer
   publishNotReadyAddresses: true
+  
