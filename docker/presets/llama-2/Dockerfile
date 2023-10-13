@@ -9,4 +9,4 @@ RUN pip install -e .
 RUN pip install fastapi pydantic
 RUN pip install 'uvicorn[standard]'
 
-ADD pkg/presets/llama-2 /workspace/llama/llama-2
+ADD presets/llama-2 /workspace/llama/llama-2
