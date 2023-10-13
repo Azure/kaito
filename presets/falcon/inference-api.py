@@ -56,7 +56,6 @@ def health_check():
         raise HTTPException(status_code=500, detail="Falcon pipeline not initialized")
     return {"status": "Healthy"}
 
-
 class GenerationParams(BaseModel):
     prompt: str
     max_length: int = 200

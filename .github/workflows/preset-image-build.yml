@@ -285,11 +285,11 @@ jobs:
           if [[ ${{ needs.setup.outputs.image_tag == 'latest'}} ]]; then
             echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
             az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistry
-            az acr login --name aimodelsregistry
+            az acr login -n aimodelsregistry --expose-token
           else
             echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
             az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistrytest
-            az acr login --name aimodelsregistrytest
+            az acr login -n aimodelsregistrytest --expose-token
           fi
 
       - name: Check if Docker Pod is Running (if not run it)
