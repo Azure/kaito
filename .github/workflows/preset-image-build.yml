@@ -5,16 +5,16 @@ on:
     branches:
       - main
     paths:
-      - 'pkg/presets/falcon/**'
-      - 'pkg/presets/llama-2/**'
-      - 'pkg/presets/llama-2-chat/**'
+      - 'presets/falcon/**'
+      - 'presets/llama-2/**'
+      - 'presets/llama-2-chat/**'
   push:
     branches:
       - main
     paths:
-      - 'pkg/presets/falcon/**'
-      - 'pkg/presets/llama-2/**'
-      - 'pkg/presets/llama-2-chat/**'
+      - 'presets/falcon/**'
+      - 'presets/llama-2/**'
+      - 'presets/llama-2-chat/**'
   workflow_dispatch:
     inputs:
       release:
