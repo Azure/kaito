@@ -228,7 +228,7 @@ jobs:
           - name: falcon-40b
             dockerfile: docker/presets/falcon/Dockerfile
             build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b"
-          
+
           - name: falcon-40b-instruct
             dockerfile: docker/presets/falcon/Dockerfile
             build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b-instruct"
