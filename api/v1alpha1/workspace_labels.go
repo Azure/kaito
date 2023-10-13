@@ -4,14 +4,14 @@ const (
 
 	// Non-prefixed labels/annotations are reserved for end-use.
 
-	// KDMPrefix Kubernetes Data Mining prefix.
-	KDMPrefix = "kubernetes-kdm.io/"
+	// KAITOPrefix Kubernetes Data Mining prefix.
+	KAITOPrefix = "kubernetes-kaito.io/"
 
-	// AnnotationServiceType determines whether kdm creates ClusterIP or LoadBalancer type service.
-	AnnotationServiceType = KDMPrefix + "service-type"
+	// AnnotationServiceType determines whether kaito creates ClusterIP or LoadBalancer type service.
+	AnnotationServiceType = KAITOPrefix + "service-type"
 
 	// LabelWorkspaceName is the label for workspace name.
-	LabelWorkspaceName = KDMPrefix + "workspace-name"
+	LabelWorkspaceName = KAITOPrefix + "workspace-name"
 
 	ServiceTypeClusterIP    = "cluster-ip"
 	ServiceTypeLoadBalancer = "load-balancer"

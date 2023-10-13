@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"sort"
 
-	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -15,7 +15,7 @@ import (
 	"k8s.io/klog/v2"
 )
 
-func (c *WorkspaceReconciler) updateWorkspaceStatus(ctx context.Context, wObj *kdmv1alpha1.Workspace) error {
+func (c *WorkspaceReconciler) updateWorkspaceStatus(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
 	return retry.OnError(retry.DefaultRetry,
 		func(err error) bool {
 			return apierrors.IsServiceUnavailable(err) || apierrors.IsServerTimeout(err) || apierrors.IsTooManyRequests(err)
@@ -25,7 +25,7 @@ func (c *WorkspaceReconciler) updateWorkspaceStatus(ctx context.Context, wObj *k
 		})
 }
 
-func (c *WorkspaceReconciler) updateStatusConditionIfNotMatch(ctx context.Context, wObj *kdmv1alpha1.Workspace, cType kdmv1alpha1.ConditionType,
+func (c *WorkspaceReconciler) updateStatusConditionIfNotMatch(ctx context.Context, wObj *kaitov1alpha1.Workspace, cType kaitov1alpha1.ConditionType,
 	cStatus metav1.ConditionStatus, cReason, cMessage string) error {
 	if curCondition := meta.FindStatusCondition(wObj.Status.Conditions, string(cType)); curCondition != nil {
 		if curCondition.Status == cStatus && curCondition.Reason == cReason && curCondition.Message == cMessage {
@@ -45,7 +45,7 @@ func (c *WorkspaceReconciler) updateStatusConditionIfNotMatch(ctx context.Contex
 	return c.updateWorkspaceStatus(ctx, wObj)
 }
 
-func (c *WorkspaceReconciler) updateStatusNodeListIfNotMatch(ctx context.Context, wObj *kdmv1alpha1.Workspace, validNodeList []*corev1.Node) error {
+func (c *WorkspaceReconciler) updateStatusNodeListIfNotMatch(ctx context.Context, wObj *kaitov1alpha1.Workspace, validNodeList []*corev1.Node) error {
 	nodeNameList := lo.Map(validNodeList, func(v *corev1.Node, _ int) string {
 		return v.Name
 	})

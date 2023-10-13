@@ -6,15 +6,15 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: workspace-editor-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: kdm
-    app.kubernetes.io/part-of: kdm
+    app.kubernetes.io/created-by: kaito
+    app.kubernetes.io/part-of: kaito
     app.kubernetes.io/managed-by: kustomize
   name: workspace-editor-role
 rules:
-  - apiGroups: ["kdm.io"]
+  - apiGroups: ["kaito.io"]
     resources: ["workspaces"]
     verbs: ["create", "delete", "update", "patch","get","list","watch"]
-  - apiGroups: ["kdm.io"]
+  - apiGroups: ["kaito.io"]
     resources: ["workspaces/status"]
     verbs: ["create", "delete", "update", "patch"]
   - apiGroups: [""]

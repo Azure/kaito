@@ -1,22 +1,22 @@
-# KDM Helm Chart
+# KAITO Helm Chart
 
 ## Install
 
 ```bash
 export REGISTRY=<your_docker_registry>
-export IMG_NAME=kdm
+export IMG_NAME=kaito
 export IMG_TAG=0.1.0
-helm install kdm-workspace ./charts/kdm  --set image.repository=${REGISTRY}/$(IMG_NAME) --set image.tag=$(IMG_TAG)
+helm install kaito-workspace ./charts/kaito  --set image.repository=${REGISTRY}/$(IMG_NAME) --set image.tag=$(IMG_TAG)
 ```
 
 ## Configuration 
 
-The following table lists the configurable parameters of the KDM chart and their default values.
+The following table lists the configurable parameters of the KAITO chart and their default values.
 
 | Parameter                                  | Description | Default                   |
 |--------------------------------------------|-------------|-------------------------- |
 | `replicaCount`                             |             | `1`                       |
-| `image.repository`                         |             | `ghcr.io/Azure/kdm/kdm`   |
+| `image.repository`                         |             | `ghcr.io/Azure/kaito/kaito`   |
 | `image.pullPolicy`                         |             | `"IfNotPresent"`          |
 | `image.tag`                                |             | `latest`                  |
 | `imagePullSecrets`                         |             | `[]`                      |

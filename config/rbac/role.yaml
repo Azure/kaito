@@ -5,7 +5,7 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - kdm.io
+  - kaito.io
   resources:
   - workspaces
   verbs:

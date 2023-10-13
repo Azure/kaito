@@ -3,8 +3,8 @@ package controllers
 import (
 	"context"
 
-	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
-	"github.com/azure/kdm/pkg/utils"
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/utils"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -12,7 +12,7 @@ import (
 )
 
 // garbageCollectWorkspace remove finalizer associated with workspace object.
-func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj *kdmv1alpha1.Workspace) (ctrl.Result, error) {
+func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace) (ctrl.Result, error) {
 	klog.InfoS("garbageCollectWorkspace", "workspace", klog.KObj(wObj))
 
 	staleWObj := wObj.DeepCopy()

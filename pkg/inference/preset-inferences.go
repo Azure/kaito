@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
-	"github.com/azure/kdm/pkg/k8sresources"
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/k8sresources"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -63,7 +63,7 @@ var (
 	}
 )
 
-func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kdmv1alpha1.Workspace, inferenceObj PresetInferenceParam) error {
+func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1alpha1.Workspace, inferenceObj PresetInferenceParam) error {
 	if inferenceObj.ModelName == "LLaMa2" {
 		existingService := &corev1.Service{}
 		err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, kubeClient, existingService)
@@ -83,7 +83,7 @@ func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kdmv1al
 	return nil
 }
 
-func CreatePresetInference(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace,
+func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	inferenceObj PresetInferenceParam, kubeClient client.Client) error {
 	klog.InfoS("CreatePresetInference", "workspace", klog.KObj(workspaceObj))
 
@@ -170,7 +170,7 @@ func prepareInferenceParameters(ctx context.Context, inferenceObj PresetInferenc
 	return commands, resourceRequirements
 }
 
-func configVolume(wObj *kdmv1alpha1.Workspace, inferenceObj PresetInferenceParam) ([]corev1.Volume, []corev1.VolumeMount) {
+func configVolume(wObj *kaitov1alpha1.Workspace, inferenceObj PresetInferenceParam) ([]corev1.Volume, []corev1.VolumeMount) {
 	volume := []corev1.Volume{}
 	volumeMount := []corev1.VolumeMount{}
 
