@@ -194,7 +194,7 @@ jobs:
             echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
             az acr login --name aimodelsregistrytest
           fi
-          
+
       - name: Build and push model (with retries)
         run: |
           retries=3
