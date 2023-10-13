@@ -268,7 +268,7 @@ jobs:
           else
             echo "Azure CLI already installed."
           fi
-      
+
       - name: 'Az CLI login'
         uses: azure/login@v1.4.6
         with:
