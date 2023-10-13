@@ -3,8 +3,8 @@ package controllers
 import (
 	"context"
 
-	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
-	"github.com/kdm/pkg/utils"
+	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
+	"github.com/azure/kdm/pkg/utils"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"

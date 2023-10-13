@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
+	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
 )
 
 const (

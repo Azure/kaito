@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	kdmv1alpha1 "github.com/kdm/api/v1alpha1"
+	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
