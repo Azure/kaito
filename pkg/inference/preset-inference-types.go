@@ -26,9 +26,9 @@ var (
 	baseCommandPresetLlama2AChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kdmv1alpha1.PresetLlama2AChat)
 	baseCommandPresetLlama2BChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kdmv1alpha1.PresetLlama2BChat)
 	baseCommandPresetLlama2CChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kdmv1alpha1.PresetLlama2CChat)
-	llamaTextInferenceFile       = "web_example_text_completion.py"
-	llamaChatInferenceFile       = "web_example_chat_completion.py"
-	llamaRunParams               = map[string]string{
+	// llamaTextInferenceFile       = "web_example_text_completion.py" TODO: To support Text Generation Llama Models
+	llamaChatInferenceFile = "web_example_chat_completion.py"
+	llamaRunParams         = map[string]string{
 		"max_seq_len":    "512",
 		"max_batch_size": "8",
 	}
