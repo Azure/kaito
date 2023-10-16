@@ -282,7 +282,7 @@ jobs:
       - name: 'Attach and Login to ACR'
         id: acr_login
         run: |
-          if [[ ${{ needs.setup.outputs.image_tag == 'latest'}} ]]; then
+          if [[ "${{ needs.setup.outputs.image_tag }}" == "latest" ]]; then
             echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
             az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistry
             az acr login -n aimodelsregistry --expose-token
@@ -310,12 +310,15 @@ jobs:
           POD_NAME=$(kubectl get pod -l app=docker -o=jsonpath='{.items[0].metadata.name}')
           echo "POD_NAME=$POD_NAME" >> $GITHUB_OUTPUT
 
-      # - name: Place Dockerfile On Pod
-      #   run: |
-      #     DIRECTORY=$(dirname ${{ matrix.model.dockerfile }})
-      #     kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- mkdir -p /$DIRECTORY
-      #     kubectl cp ${{ matrix.model.dockerfile }} ${{ steps.get_pod_name.outputs.POD_NAME }}:/${{ matrix.model.dockerfile }}
-
+      - name: Docker login
+        run: |
+          if [[ "${{ steps.acr_login.outputs.ACR_NAME }}" == "aimodelsregistry" ]]; then
+            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
+            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password ${{ secrets.ACR_AMR_PASSWORD }}
+          else
+            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
+            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password ${{ secrets.ACR_AMRT_PASSWORD }}
+          fi
       - name: Build model (with retries)
         run: |
           retries=3
