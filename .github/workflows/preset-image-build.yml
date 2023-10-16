@@ -331,7 +331,7 @@ jobs:
             docker build \
             $BUILD_ARGS \
             -t ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
-            -f /${{ matrix.model.dockerfile }} \
+            -f /home/${{ matrix.model.dockerfile }} \
             . && break
             retries=$((retries-1))
             sleep 15

@@ -14,12 +14,12 @@ spec:
     spec:
       containers:
       - name: docker
-        image: docker:latest
+        image: docker:dind
         securityContext:
           privileged: true
         volumeMounts:
         - name: host-volume
-          mountPath: /
+          mountPath: /home
       volumes:
       - name: host-volume
         hostPath:
