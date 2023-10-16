@@ -23,5 +23,5 @@ spec:
       volumes:
       - name: host-volume
         hostPath:
-          path: /
+          path: /actions-runner/_work/kdm/kdm
           type: Directory
