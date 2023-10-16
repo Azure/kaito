@@ -22,6 +22,8 @@ spec:
           mountPath: /home
         - name: llama-volume
           mountPath: /home/llama
+        - name: falcon-volume
+          mountPath: /home/falcon
       volumes:
       - name: host-volume
         hostPath:
@@ -30,4 +32,8 @@ spec:
       - name: llama-volume
         hostPath: 
           path: /llama
+          type: Directory
+      - name: falcon-volume
+        hostPath:
+          path: /falcon
           type: Directory

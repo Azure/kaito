@@ -68,13 +68,13 @@ jobs:
           IFS=';' read -ra ADDR <<< "$FILES_MODIFIED"
           for file in "${ADDR[@]}"; do
             echo "Checking file: $file"
-            if [[ "$file" == pkg/presets/falcon/* ]] && [[ "$FALCON_MODIFIED" == false ]]; then
+            if [[ "$file" == presets/falcon/* ]] && [[ "$FALCON_MODIFIED" == false ]]; then
               echo "File matches falcon path: $file"
               FALCON_MODIFIED=true
-            elif [[ "$file" == pkg/presets/llama-2/* ]] && [[ "$LLAMA2_MODIFIED" == false ]]; then
+            elif [[ "$file" == presets/llama-2/* ]] && [[ "$LLAMA2_MODIFIED" == false ]]; then
               echo "File matches llama-2 path: $file"
               LLAMA2_MODIFIED=true
-            elif [[ "$file" == pkg/presets/llama-2-chat/* ]] && [[ "$LLAMA2_CHAT_MODIFIED" == false ]]; then
+            elif [[ "$file" == presets/llama-2-chat/* ]] && [[ "$LLAMA2_CHAT_MODIFIED" == false ]]; then
               echo "File matches llama-2-chat path: $file"
               LLAMA2_CHAT_MODIFIED=true
             else
@@ -139,19 +139,19 @@ jobs:
 
           - name: llama-2-7b
             dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+            build_args: "--build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=/home/presets/llama-2"
           
           - name: llama-2-7b-chat
             dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+            build_args: "--build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
           
           - name: llama-2-13b
             dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b --build-arg SRC_DIR=pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+            build_args: "--build-arg LLAMA_VERSION=llama-2-13b --build-arg SRC_DIR=/home/presets/llama-2"
           
           - name: llama-2-13b-chat
             dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+            build_args: "--build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
         
         include:
           - name: falcon-7b
@@ -235,11 +235,11 @@ jobs:
 
           - name: llama-2-70b
             dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-70b --build-arg SRC_DIR=/home/pkg/presets/llama-2 --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+            build_args: "--build-arg LLAMA_VERSION=llama-2-70b --build-arg SRC_DIR=/home/presets/llama-2"
           
           - name: llama-2-70b-chat
             dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg EXTERNAL_IP=__EXTERNAL_IP__ --build-arg EXTERNAL_PORT=__EXTERNAL_PORT__ --build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=/home/pkg/presets/llama-2-chat --build-arg WEB_SERVER_AUTH_TOKEN=__WEB_SERVER_AUTH_TOKEN__"
+            build_args: "--build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
 
         include:
           # TODO: Support large models
@@ -324,9 +324,6 @@ jobs:
           retries=3
           while [ $retries -gt 0 ]; do
             BUILD_ARGS="${{ matrix.model.build_args }}"
-            BUILD_ARGS=${BUILD_ARGS/__EXTERNAL_IP__/${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }}}
-            BUILD_ARGS=${BUILD_ARGS/__EXTERNAL_PORT__/${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }}}
-            BUILD_ARGS=${BUILD_ARGS/__WEB_SERVER_AUTH_TOKEN__/${{ secrets.WEB_SERVER_AUTH_TOKEN }}}
 
             echo "Docker BUILD_ARGS: $BUILD_ARGS"
 

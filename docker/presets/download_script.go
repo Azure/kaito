@@ -1,3 +1,8 @@
+/*
+ * This script allows you to download llama and falcon weights using parallel wget.
+ * Llama is to be downloaded via hosted web server.
+ * Falcon from public url.
+ */
 package main
 
 import (

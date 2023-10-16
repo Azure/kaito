@@ -15,8 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 ARG FALCON_MODEL_NAME
 
-COPY /home/docker/presets/download_script.go /workspace/download_script.go
-RUN go run /workspace/download_script.go "public" ${FALCON_MODEL_NAME} "/workspace/falcon/weights"
-
+# Copy the entire model to the weights directory
+COPY /falcon/${FALCON_MODEL_NAME} /workspace/falcon/weights
 # Copy the entire 'presets/falcon' folder to the working directory
 COPY /home/presets/falcon /workspace/falcon
