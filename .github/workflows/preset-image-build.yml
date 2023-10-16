@@ -304,9 +304,6 @@ jobs:
           fi
           kubectl wait --for=condition=ready pod -l app=docker --timeout=300s
           
-      # - name: AZ Attach ACR
-      #   run: |
-          
       - name: Build and push model (with retries)
         run: |
           POD_NAME=$(kubectl get pod -l app=docker -o=jsonpath='{.items[0].metadata.name}')
@@ -323,7 +320,6 @@ jobs:
             docker build \
             $BUILD_ARGS \
             -t ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
-            -r ${{ steps.acr_login.outputs.ACR_NAME }} \
             -f ${{ matrix.model.dockerfile }} \
             . && break
             retries=$((retries-1))
