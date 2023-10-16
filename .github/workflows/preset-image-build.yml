@@ -291,6 +291,9 @@ jobs:
             az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistrytest
             az acr login -n aimodelsregistrytest --expose-token
           fi
+      
+      - name: Get Context
+        run: az aks get-credentials -n GitRunner -g llm-test
 
       - name: Check if Docker Pod is Running (if not run it)
         run: |
