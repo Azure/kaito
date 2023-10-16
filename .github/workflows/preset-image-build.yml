@@ -316,7 +316,7 @@ jobs:
       #     kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- mkdir -p /$DIRECTORY
       #     kubectl cp ${{ matrix.model.dockerfile }} ${{ steps.get_pod_name.outputs.POD_NAME }}:/${{ matrix.model.dockerfile }}
 
-      - name: Build and push model (with retries)
+      - name: Build model (with retries)
         run: |
           retries=3
           while [ $retries -gt 0 ]; do
@@ -336,3 +336,28 @@ jobs:
             retries=$((retries-1))
             sleep 15
           done
+
+      - name: Push model to ACR (with retries)
+        run: |
+          retries=3
+          while [ $retries -gt 0 ]; do
+            # Push the Docker image to ACR
+            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
+            docker push ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }}
+            
+            # Check if the push was successful
+            if [ $? -eq 0 ]; then
+              echo "Docker push successful!"
+              break
+            else
+              echo "Docker push failed. Retrying..."
+              retries=$((retries-1))
+              sleep 15
+            fi
+          done
+      
+          if [ $retries -eq 0 ]; then
+            echo "Docker push failed after 3 retries."
+            exit 1
+          fi
+      
