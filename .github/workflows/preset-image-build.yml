@@ -310,11 +310,11 @@ jobs:
           POD_NAME=$(kubectl get pod -l app=docker -o=jsonpath='{.items[0].metadata.name}')
           echo "POD_NAME=$POD_NAME" >> $GITHUB_OUTPUT
 
-      - name: Place Dockerfile On Pod
-        run: |
-          DIRECTORY=$(dirname ${{ matrix.model.dockerfile }})
-          kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- mkdir -p /$DIRECTORY
-          kubectl cp ${{ matrix.model.dockerfile }} ${{ steps.get_pod_name.outputs.POD_NAME }}:/${{ matrix.model.dockerfile }}
+      # - name: Place Dockerfile On Pod
+      #   run: |
+      #     DIRECTORY=$(dirname ${{ matrix.model.dockerfile }})
+      #     kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- mkdir -p /$DIRECTORY
+      #     kubectl cp ${{ matrix.model.dockerfile }} ${{ steps.get_pod_name.outputs.POD_NAME }}:/${{ matrix.model.dockerfile }}
 
       - name: Build and push model (with retries)
         run: |
