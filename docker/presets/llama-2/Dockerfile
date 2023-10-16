@@ -37,5 +37,5 @@ ARG SRC_DIR
 
 # Use Go download script to fetch model weights
 # RUN go run /workspace/download_script.go "private" ${LLAMA_VERSION} "/workspace/llama/llama-2/weights" ${EXTERNAL_IP} ${EXTERNAL_PORT}
-ADD /llama/${LLAMA_VERSION} /workspace/llama/llama-2/weights
+ADD /home/llama/${LLAMA_VERSION} /workspace/llama/llama-2/weights
 ADD ${SRC_DIR} /workspace/llama/llama-2
