@@ -131,60 +131,6 @@ jobs:
           else
             echo "Azure CLI already installed."
           fi
-      
-      - name: 'Az CLI login'
-        uses: azure/login@v1.4.6
-        with:
-          client-id: ${{ secrets.AZURE_KDM_PRESET_SELF_RUNNER_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
-  
-      - name: 'Set subscription'
-        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
-
-      - name: 'Attach and Login to ACR'
-        id: acr_login
-        run: |
-          if [[ "${{ steps.set_tag.outputs.image_tag }}" == "latest" ]]; then
-            ACR_NAME="aimodelsregistry"
-          else
-            ACR_NAME="aimodelsregistrytest"
-          fi
-          
-          CHECK_ACR_OUTPUT=$(az aks check-acr -g llm-test -n GitRunner --acr $ACR_NAME)
-          if [[ ! $CHECK_ACR_OUTPUT =~ "Your cluster can pull images from $ACR_NAME.azurecr.io!" ]]; then
-            az aks update -n GitRunner -g llm-test --attach-acr $ACR_NAME
-          fi
-          az acr login -n $ACR_NAME --expose-token
-          echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
-
-      - name: Get Context
-        run: az aks get-credentials -n GitRunner -g llm-test
-
-      - name: Check if Docker Pod is Running (if not run it)
-        run: |
-          DEPLOYMENT=$(kubectl get deployment docker-deployment -o=jsonpath='{.metadata.name}' --ignore-not-found)
-          if [ -z "$DEPLOYMENT" ]; then
-            # Apply the deployment if it does not exist
-            kubectl apply -f presets/k8s/docker.yaml
-          fi
-          kubectl wait --for=condition=ready pod -l app=docker --timeout=300s
-        
-      - name: Get Deployment Pod Name
-        id: get_pod_name
-        run: |
-          POD_NAME=$(kubectl get pod -l app=docker -o=jsonpath='{.items[0].metadata.name}')
-          echo "POD_NAME=$POD_NAME" >> $GITHUB_OUTPUT
-        
-      - name: Docker login
-        run: |
-          if [[ "${{ steps.acr_login.outputs.ACR_NAME }}" == "aimodelsregistry" ]]; then
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
-            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password ${{ secrets.ACR_AMR_PASSWORD }}
-          else
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
-            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password ${{ secrets.ACR_AMRT_PASSWORD }}
-          fi
         
   build-models: 
     needs: setup
@@ -236,11 +182,11 @@ jobs:
 
         include:
           - name: falcon-7b
-            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
+            if: ${{ needs.setup.outputs.FALCON_MODIFIED }} == 'true'
           - name: falcon-7b-instruct
             if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
           - name: llama-2-7b
-            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
+            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED }} == 'true'
           - name: llama-2-7b-chat
             if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
           - name: llama-2-13b
@@ -265,8 +211,59 @@ jobs:
           submodules: true
           fetch-depth: 0
 
+      - name: 'Az CLI login'
+        uses: azure/login@v1.4.6
+        with:
+          client-id: ${{ secrets.AZURE_KDM_PRESET_SELF_RUNNER_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+  
+      - name: 'Set subscription'
+        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
+
+      - name: 'Attach and Login to ACR'
+        id: acr_login
+        run: |
+          if [[ "${{ needs.setup.outputs.image_tag }}" == "latest" ]]; then
+            ACR_NAME="aimodelsregistry"
+          else
+            ACR_NAME="aimodelsregistrytest"
+          fi
+          
+          CHECK_ACR_OUTPUT=$(az aks check-acr -g llm-test -n GitRunner --acr $ACR_NAME)
+          if [[ ! $CHECK_ACR_OUTPUT =~ "Your cluster can pull images from $ACR_NAME.azurecr.io!" ]]; then
+            az aks update -n GitRunner -g llm-test --attach-acr $ACR_NAME
+          fi
+          az acr login -n $ACR_NAME --expose-token
+          echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
+
       - name: Get Context
         run: az aks get-credentials -n GitRunner -g llm-test
+
+      - name: Check if Docker Pod is Running (if not run it)
+        run: |
+          DEPLOYMENT=$(kubectl get deployment docker-deployment -o=jsonpath='{.metadata.name}' --ignore-not-found)
+          if [ -z "$DEPLOYMENT" ]; then
+            # Apply the deployment if it does not exist
+            kubectl apply -f presets/k8s/docker.yaml
+          fi
+          kubectl wait --for=condition=ready pod -l app=docker --timeout=300s
+        
+      - name: Get Deployment Pod Name
+        id: get_pod_name
+        run: |
+          POD_NAME=$(kubectl get pod -l app=docker -o=jsonpath='{.items[0].metadata.name}')
+          echo "POD_NAME=$POD_NAME" >> $GITHUB_OUTPUT
+        
+      - name: Docker login
+        run: |
+          if [[ "${{ steps.acr_login.outputs.ACR_NAME }}" == "aimodelsregistry" ]]; then
+            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
+            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password ${{ secrets.ACR_AMR_PASSWORD }}
+          else
+            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
+            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password ${{ secrets.ACR_AMRT_PASSWORD }}
+          fi
       
       - name: Build model (with retries)
         run: |
