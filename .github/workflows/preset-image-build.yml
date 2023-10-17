@@ -156,47 +156,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.matrix_prep.outputs.matrix)}}
-        # model:
-        #   - name: falcon-7b
-        #     dockerfile: docker/presets/falcon/Dockerfile
-        #     build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b"
-
-        #   - name: falcon-7b-instruct
-        #     dockerfile: docker/presets/falcon/Dockerfile
-        #     build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b-instruct"
-
-        #   - name: llama-2-7b
-        #     dockerfile: docker/presets/llama-2/Dockerfile
-        #     build_args: "--build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=/home/presets/llama-2"
-          
-        #   - name: llama-2-7b-chat
-        #     dockerfile: docker/presets/llama-2/Dockerfile
-        #     build_args: "--build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
-          
-        #   - name: llama-2-13b
-        #     dockerfile: docker/presets/llama-2/Dockerfile
-        #     build_args: "--build-arg LLAMA_VERSION=llama-2-13b --build-arg SRC_DIR=/home/presets/llama-2"
-          
-        #   - name: llama-2-13b-chat
-        #     dockerfile: docker/presets/llama-2/Dockerfile
-        #     build_args: "--build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
-        
-        #   - name: falcon-40b
-        #     dockerfile: docker/presets/falcon/Dockerfile
-        #     build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b"
-
-        #   - name: falcon-40b-instruct
-        #     dockerfile: docker/presets/falcon/Dockerfile
-        #     build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b-instruct"
-
-        #   - name: llama-2-70b
-        #     dockerfile: docker/presets/llama-2/Dockerfile
-        #     build_args: "--build-arg LLAMA_VERSION=llama-2-70b --build-arg SRC_DIR=/home/presets/llama-2"
-          
-        #   - name: llama-2-70b-chat
-        #     dockerfile: docker/presets/llama-2/Dockerfile
-        #     build_args: "--build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
