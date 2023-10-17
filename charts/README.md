@@ -5,7 +5,7 @@
 ```bash
 export REGISTRY=<your_docker_registry>
 export IMG_NAME=kaito
-export IMG_TAG=0.0.1
+export IMG_TAG=0.0.2
 helm install kaito-workspace ./charts/kaito  --set image.repository=${REGISTRY}/$(IMG_NAME) --set image.tag=$(IMG_TAG)
 ```
 

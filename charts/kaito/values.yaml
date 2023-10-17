@@ -7,7 +7,7 @@ replicaCount: 1
 image:
   repository: helayoty/kaito
   pullPolicy: Always
-  tag: 0.0.1
+  tag: 0.0.2
 
 imagePullSecrets: []
 
