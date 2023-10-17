@@ -146,7 +146,7 @@ jobs:
       id: set_matrix
       run: |
         matrix=$(jq --arg FALCON_MODIFIED "${{ needs.setup.outputs.FALCON_MODIFIED }}" --arg LLAMA2_MODIFIED "${{ needs.setup.outputs.LLAMA2_MODIFIED }}" --arg LLAMA2_CHAT_MODIFIED "${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }}" 'map( 
-            . | select((.runOn == $FALCON_MODIFIED) or (.runOn == $LLAMA2_MODIFIED) or (.runOn == $LLAMA2_CHAT_MODIFIED))
+            . | select((.shouldBuildFalcon == $FALCON_MODIFIED) or (.shouldBuildLlama2 == $LLAMA2_MODIFIED) or (.shouldBuildLlama2Chat == $LLAMA2_CHAT_MODIFIED))
         )' .github/matrix-configs.json) 
         echo "matrix={\"include\":$(echo $matrix)}" >> $GITHUB_OUTPUT
 
