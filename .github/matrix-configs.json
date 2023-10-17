@@ -1,0 +1,31 @@
+[
+    {
+        "model": {
+            "runs_on": "self-hosted",
+            "name": "falcon-7b",
+            "dockerfile": "docker/presets/falcon/Dockerfile",
+            "build_args": "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b"
+        },
+        "runOn": "true"
+    },
+    {
+        "model": {
+            "runs_on": "self-hosted",
+            "name": "falcon-7b-instruct",
+            "dockerfile": "docker/presets/falcon/Dockerfile",
+            "build_args": "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b-instruct"
+        },
+        "runOn": "true"
+    },
+
+    {
+        "model": {
+            "runs_on": "self-hosted",
+            "name": "llama-2-7b",
+            "dockerfile": "docker/presets/llama-2/Dockerfile",
+            "build_args": "--build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=/home/presets/llama-2"
+        },
+        "runOn": "true"
+    }
+
+]
