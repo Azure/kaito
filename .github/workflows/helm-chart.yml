@@ -2,7 +2,7 @@ name: publish_helm_chart
 
 on:
   workflow_run:
-    workflows: [ "Create, Scan and Publish KDM image" ]
+    workflows: [ "Create, Scan and Publish KAITO image" ]
     types: [ completed ]
     branches: [ release-** ]
 

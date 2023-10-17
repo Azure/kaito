@@ -3,9 +3,9 @@ before:
   hooks:
     - go mod tidy
 builds:
-  - id: kdm
+  - id: kaito
     main: ./cmd
-    binary: bin/kdm
+    binary: bin/kaito
     goos:
       - linux
     goarch:

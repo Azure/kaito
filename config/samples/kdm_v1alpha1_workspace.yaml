@@ -1,21 +1,21 @@
-apiVersion: kdm.io/v1alpha1
+apiVersion: kaito.sh/v1alpha1
 kind: Workspace
 metadata:
   annotations:
-    kubernetes-kdm.io/service-type : load-balancer
+    kubernetes-kaito.sh/service-type : load-balancer
   labels:
     app.kubernetes.io/name: workspace
     app.kubernetes.io/instance: workspace-sample
-    app.kubernetes.io/part-of: kdm
+    app.kubernetes.io/part-of: kaito
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: kdm
+    app.kubernetes.io/created-by: kaito
   name: workspace-sample-aks
 resource:
   count: 2
   instanceType: "Standard_NC12s_v3"
   labelSelector:
     matchLabels:
-      apps: kdm
+      apps: kaito
   preferredNodes:
     - "node1"
     - "aks-machine98722-26559722-vmss000001"
