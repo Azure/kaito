@@ -33,11 +33,10 @@ jobs:
         with:
           client-id: ${{ secrets.KAITO_MCR_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          subscription-id: ${{ secrets.KAITO_MCR_SUBSCRIPTION_ID }}
       - name: 'Publish to ACR'
         id: Publish
         run: |
-          az account set -s ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           az acr login -n ${{ vars.AZURE_REGISTRY }}
           OUTPUT_TYPE=type=registry make docker-build-kaito
         env:
