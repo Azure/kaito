@@ -1,4 +1,4 @@
-name: Push image to ACR
+tsname: Push image to ACR
 on:
   workflow_dispatch:
 
@@ -37,8 +37,8 @@ jobs:
       - name: 'Publish to ACR'
         id: Publish
         run: |
-          az acr login -n ${{ vars.AZURE_REGISTRY }}
+          az acr login -n ${{ secrets.KAITO_MCR_REGISTRY }}
           OUTPUT_TYPE=type=registry make docker-build-kaito
         env:
             VERSION: ${{ env.IMG_TAG }}
-            REGISTRY: ${{ secrets.AZURE_REGISTRY }}
+            REGISTRY: ${{ secrets.KAITO_MCR_REGISTRY }}
