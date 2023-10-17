@@ -1,10 +1,6 @@
 name: Push image to ACR
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: [ "Create release" ]
-    types: [ completed ]
-    branches: [release-** ]
 
 
 permissions:
@@ -17,52 +13,15 @@ env:
 
 jobs:
   publish:
-    if: |
-      always() &&
-      (github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-20.04
     steps:
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION  }}
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: true
-      - name: Download tag artifact
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.KDM_ACCESS_TOKEN_READ }}
-          script: |
-            let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               run_id: context.payload.workflow_run.id,
-            });
-            let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
-              return artifact.name == "artifacts"
-            })[0];
-            let download = await github.rest.actions.downloadArtifact({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               artifact_id: matchArtifact.id,
-               archive_format: 'zip',
-            });
-            let fs = require('fs');
-            fs.writeFileSync(`/tmp/artifacts.zip`, Buffer.from(download.data));
-      - run: |
-          mkdir -p /tmp/artifacts
-          unzip /tmp/artifacts.zip -d /tmp/artifacts
-        shell: bash
-      - run: |
-          echo "Downloaded artifacts:"
-          ls -ablh /tmp/artifacts
-        shell: bash
-      - name: Parse artifacts and assign GA environment variables
+      - name: Set Image Tag
         run: |
-          tag=$(tail -n 1 /tmp/artifacts/tag.txt)
+          tag=${{ github.ref }}
           echo "IMG_TAG=$tag" >> $GITHUB_ENV
       - uses: actions/checkout@v4
         with:
