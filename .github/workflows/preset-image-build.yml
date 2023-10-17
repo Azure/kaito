@@ -146,16 +146,20 @@ jobs:
         id: acr_login
         run: |
           if [[ "${{ steps.set_tag.outputs.image_tag }}" == "latest" ]]; then
-            echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
-            az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistry
-            az acr login -n aimodelsregistry --expose-token
+            ACR_NAME="aimodelsregistry"
           else
-            echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
-            az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistrytest
-            az acr login -n aimodelsregistrytest --expose-token
+            ACR_NAME="aimodelsregistrytest"
           fi
-          - name: Get Context
-          run: az aks get-credentials -n GitRunner -g llm-test
+          
+          CHECK_ACR_OUTPUT=$(az aks check-acr -g llm-test -n GitRunner --acr $ACR_NAME)
+          if [[ ! $CHECK_ACR_OUTPUT =~ "Your cluster can pull images from $ACR_NAME.azurecr.io!" ]]; then
+            az aks update -n GitRunner -g llm-test --attach-acr $ACR_NAME
+          fi
+          az acr login -n $ACR_NAME --expose-token
+          echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
+  
+      - name: Get Context
+        run: az aks get-credentials -n GitRunner -g llm-test
   
       - name: Check if Docker Pod is Running (if not run it)
         run: |
