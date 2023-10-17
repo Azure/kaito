@@ -1,4 +1,4 @@
-tsname: Push image to ACR
+name: Push image to ACR
 on:
   workflow_dispatch:
 
