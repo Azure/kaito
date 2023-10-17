@@ -64,10 +64,10 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - name: 'Publish to ACR'
-        id: publish
+        id: Publish
         run: |
           az acr login -n ${{ vars.AZURE_REGISTRY }}
-          OUTPUT_TYPE=type=registry make docker-build-kdm
+          OUTPUT_TYPE=type=registry make docker-build-kaito
         env:
             VERSION: ${{ env.IMG_TAG }}
             REGISTRY: ${{ secrets.AZURE_REGISTRY }}
