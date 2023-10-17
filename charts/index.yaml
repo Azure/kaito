@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  kaito:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2023-10-17T18:23:40.243669564Z"
+    description: A Helm chart for Kubernetes
+    digest: 91a984ef50dd29a6d1aa77065a6142c295ba070e294bea6346c8e9f3db07803f
+    name: kaito
+    type: application
+    urls:
+    - https://Azure.github.io/kaito/charts/kaito-0.0.1.tgz
+    version: 0.0.1
+generated: "2023-10-17T18:23:40.242674845Z"
