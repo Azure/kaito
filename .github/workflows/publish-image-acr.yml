@@ -17,7 +17,9 @@ env:
 
 jobs:
   publish:
-    if: ${{ (github.event.workflow_run.conclusion == 'success') || (github.event_name == 'workflow_dispatch') }}
+    if: |
+      always() &&
+      (github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-20.04
     steps:
       - name: Set up Go ${{ env.GO_VERSION }}
