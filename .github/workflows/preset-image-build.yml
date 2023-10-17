@@ -31,12 +31,14 @@ permissions:
 
 jobs:
   setup:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
       FALCON_MODIFIED: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}
       LLAMA2_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_MODIFIED }}
       LLAMA2_CHAT_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_CHAT_MODIFIED }}
+      ACR_NAME: ${{ steps.acr_login.outputs.ACR_NAME }}
+      POD_NAME: ${{ steps.get_pod_name.outputs.POD_NAME }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -120,11 +122,69 @@ jobs:
         with:
           name: image-tag-artifact
           path: ${{ steps.image_tag_path.outputs.IMAGE_TAG_PATH }}
+      
+      - name: Install Azure CLI latest
+        run: |
+          if ! which az > /dev/null; then
+            echo "Azure CLI not found. Installing..."
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          else
+            echo "Azure CLI already installed."
+          fi
+      
+      - name: 'Az CLI login'
+        uses: azure/login@v1.4.6
+        with:
+          client-id: ${{ secrets.AZURE_KDM_PRESET_SELF_RUNNER_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
   
-  build-small-models: 
+      - name: 'Set subscription'
+        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
+
+      - name: 'Attach and Login to ACR'
+        id: acr_login
+        run: |
+          if [[ "${{ steps.set_tag.outputs.image_tag }}" == "latest" ]]; then
+            echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
+            az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistry
+            az acr login -n aimodelsregistry --expose-token
+          else
+            echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
+            az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistrytest
+            az acr login -n aimodelsregistrytest --expose-token
+          fi
+          - name: Get Context
+          run: az aks get-credentials -n GitRunner -g llm-test
+  
+      - name: Check if Docker Pod is Running (if not run it)
+        run: |
+          DEPLOYMENT=$(kubectl get deployment docker-deployment -o=jsonpath='{.metadata.name}' --ignore-not-found)
+          if [ -z "$DEPLOYMENT" ]; then
+            # Apply the deployment if it does not exist
+            kubectl apply -f presets/k8s/docker.yaml
+          fi
+          kubectl wait --for=condition=ready pod -l app=docker --timeout=300s
+        
+      - name: Get Deployment Pod Name
+        id: get_pod_name
+        run: |
+          POD_NAME=$(kubectl get pod -l app=docker -o=jsonpath='{.items[0].metadata.name}')
+          echo "POD_NAME=$POD_NAME" >> $GITHUB_OUTPUT
+        
+      - name: Docker login
+        run: |
+          if [[ "${{ steps.acr_login.outputs.ACR_NAME }}" == "aimodelsregistry" ]]; then
+            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
+            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password ${{ secrets.ACR_AMR_PASSWORD }}
+          else
+            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
+            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password ${{ secrets.ACR_AMRT_PASSWORD }}
+          fi
+        
+  build-models: 
     needs: setup
-    if: false
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix: 
@@ -153,78 +213,7 @@ jobs:
             dockerfile: docker/presets/llama-2/Dockerfile
             build_args: "--build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
         
-        include:
-          - name: falcon-7b
-            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
-          - name: falcon-7b-instruct
-            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
-          - name: llama-2-7b
-            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
-          - name: llama-2-7b-chat
-            if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
-          - name: llama-2-13b
-            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
-          - name: llama-2-13b-chat
-            if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          fetch-depth: 0
-
-      - name: Install Azure CLI latest
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-      - name: 'Az CLI login'
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
-      - name: 'Login to ACR'
-        id: acr_login
-        run: |
-          if [[ ${{ needs.setup.outputs.image_tag == 'latest'}} ]]; then
-            echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
-            az acr login --name aimodelsregistry
-          else
-            echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
-            az acr login --name aimodelsregistrytest
-          fi
-
-      - name: Build and push model (with retries)
-        run: |
-          retries=3
-          while [ $retries -gt 0 ]; do
-            BUILD_ARGS="${{ matrix.model.build_args }}"
-            BUILD_ARGS=${BUILD_ARGS/__EXTERNAL_IP__/${{ secrets.AZURE_WEB_SERVER_EXTERNAL_IP }}}
-            BUILD_ARGS=${BUILD_ARGS/__EXTERNAL_PORT__/${{ secrets.AZURE_WEB_SERVER_EXTERNAL_PORT }}}
-            BUILD_ARGS=${BUILD_ARGS/__WEB_SERVER_AUTH_TOKEN__/${{ secrets.WEB_SERVER_AUTH_TOKEN }}}
-
-            echo "Docker BUILD_ARGS: $BUILD_ARGS"
-
-            az acr build \
-            $BUILD_ARGS \
-            -t ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
-            -r ${{ steps.acr_login.outputs.ACR_NAME }} \
-            -f ${{ matrix.model.dockerfile }} \
-            . && break
-            retries=$((retries-1))
-            sleep 15
-          done
-
-  build-large-models: 
-    needs: setup
-    if: true
-    runs-on: self-hosted
-    strategy:
-      fail-fast: false
-      matrix: 
-        model:
-          # # TODO: Support large models
+          # TODO: Support large models
           - name: falcon-40b
             dockerfile: docker/presets/falcon/Dockerfile
             build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b"
@@ -242,6 +231,18 @@ jobs:
             build_args: "--build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
 
         include:
+          - name: falcon-7b
+            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
+          - name: falcon-7b-instruct
+            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
+          - name: llama-2-7b
+            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
+          - name: llama-2-7b-chat
+            if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
+          - name: llama-2-13b
+            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
+          - name: llama-2-13b-chat
+            if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
           # TODO: Support large models
           - name: falcon-40b
             if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
@@ -260,65 +261,6 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      - name: Install Azure CLI latest
-        run: |
-          if ! which az > /dev/null; then
-            echo "Azure CLI not found. Installing..."
-            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          else
-            echo "Azure CLI already installed."
-          fi
-
-      - name: 'Az CLI login'
-        uses: azure/login@v1.4.6
-        with:
-          client-id: ${{ secrets.AZURE_KDM_PRESET_SELF_RUNNER_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
-
-      - name: 'Set subscription'
-        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
-
-      - name: 'Attach and Login to ACR'
-        id: acr_login
-        run: |
-          if [[ "${{ needs.setup.outputs.image_tag }}" == "latest" ]]; then
-            echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
-            az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistry
-            az acr login -n aimodelsregistry --expose-token
-          else
-            echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
-            az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistrytest
-            az acr login -n aimodelsregistrytest --expose-token
-          fi
-      
-      - name: Get Context
-        run: az aks get-credentials -n GitRunner -g llm-test
-
-      - name: Check if Docker Pod is Running (if not run it)
-        run: |
-          DEPLOYMENT=$(kubectl get deployment docker-deployment -o=jsonpath='{.metadata.name}' --ignore-not-found)
-          if [ -z "$DEPLOYMENT" ]; then
-            # Apply the deployment if it does not exist
-            kubectl apply -f presets/k8s/docker.yaml
-          fi
-          kubectl wait --for=condition=ready pod -l app=docker --timeout=300s
-      
-      - name: Get Deployment Pod Name
-        id: get_pod_name
-        run: |
-          POD_NAME=$(kubectl get pod -l app=docker -o=jsonpath='{.items[0].metadata.name}')
-          echo "POD_NAME=$POD_NAME" >> $GITHUB_OUTPUT
-
-      - name: Docker login
-        run: |
-          if [[ "${{ steps.acr_login.outputs.ACR_NAME }}" == "aimodelsregistry" ]]; then
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
-            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password ${{ secrets.ACR_AMR_PASSWORD }}
-          else
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
-            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password ${{ secrets.ACR_AMRT_PASSWORD }}
-          fi
       - name: Build model (with retries)
         run: |
           retries=3
@@ -327,23 +269,28 @@ jobs:
 
             echo "Docker BUILD_ARGS: $BUILD_ARGS"
 
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
+            kubectl exec ${{ needs.setup.outputs.POD_NAME }} -- \
             docker build \
             $BUILD_ARGS \
-            -t ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
+            -t ${{ needs.setup.outputs.ACR_NAME  }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
             -f /home/${{ matrix.model.dockerfile }} \
             . && break
             retries=$((retries-1))
             sleep 15
           done
 
+          if [ $retries -eq 0 ]; then
+            echo "Docker build failed after 3 retries."
+            exit 1
+          fi
+
       - name: Push model to ACR (with retries)
         run: |
           retries=3
           while [ $retries -gt 0 ]; do
             # Push the Docker image to ACR
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
-            docker push ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }}
+            kubectl exec ${{ needs.setup.outputs.POD_NAME }} -- \
+            docker push ${{ needs.setup.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }}
             
             # Check if the push was successful
             if [ $? -eq 0 ]; then
@@ -355,7 +302,7 @@ jobs:
               sleep 15
             fi
           done
-      
+
           if [ $retries -eq 0 ]; then
             echo "Docker push failed after 3 retries."
             exit 1

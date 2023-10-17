@@ -4,9 +4,6 @@ FROM nvcr.io/nvidia/pytorch:23.06-py3
 # Set the working directory
 WORKDIR /workspace/falcon
 
-# Install Go
-RUN apt-get update && apt-get install -y --no-install-recommends golang-go
-
 # First, copy just the requirements.txt file and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and
 # avoid reinstalling dependencies unless the requirements file changes.
