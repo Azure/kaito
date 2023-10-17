@@ -432,6 +432,8 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 		err = inference.CreatePresetInference(ctx, wObj, inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2BChat], c.Client)
 	case kaitov1alpha1.PresetLlama2CChat:
 		err = inference.CreatePresetInference(ctx, wObj, inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2CChat], c.Client)
+	case kaitov1alpha1.PresetFalcon7BInstructModel:
+		err = inference.CreatePresetInference(ctx, wObj, inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BInstructModel], c.Client)
 	default:
 		err = fmt.Errorf("preset model %s is not supported", presetName)
 		klog.ErrorS(err, "no inference has been created")

@@ -46,7 +46,7 @@ var (
 
 	baseCommandPresetFalcon7B = "accelerate launch --use_deepspeed"
 	falconInferenceFile       = "inference-api.py"
-	falconRunParams           = map[string]string{ /*TODO: Include Quantization (load_in_8bit) and trust remote code params*/ }
+	falconRunParams           = map[string]string{}
 
 	defaultTorchRunParams = map[string]string{
 		"nnodes":         DefaultNnodes,
@@ -132,12 +132,15 @@ var (
 			WorldSize:              8,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
+	}
 
+	// FalconPresetInferences defines the preset inferences for Falcon.
+	FalconPresetInferences = map[kaitov1alpha1.ModelName]PresetInferenceParam{
 		kaitov1alpha1.PresetFalcon7BInstructModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon7bInstructImage,
 			DiskStorageRequirement: "50Gi",
-			GPURequirement:         "2",
+			GPURequirement:         "1",
 			GPUMemoryRequirement:   "14Gi",
 			TorchRunParams:         defaultAccelerateParams,
 			ModelRunParams:         falconRunParams,
