@@ -158,9 +158,6 @@ jobs:
           az acr login -n $ACR_NAME --expose-token
           echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
   
-      - name: Get Context
-        run: az aks get-credentials -n GitRunner -g llm-test
-  
       - name: Check if Docker Pod is Running (if not run it)
         run: |
           DEPLOYMENT=$(kubectl get deployment docker-deployment -o=jsonpath='{.metadata.name}' --ignore-not-found)
@@ -265,6 +262,9 @@ jobs:
           submodules: true
           fetch-depth: 0
 
+      - name: Get Context
+        run: az aks get-credentials -n GitRunner -g llm-test
+      
       - name: Build model (with retries)
         run: |
           retries=3
