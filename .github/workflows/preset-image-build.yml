@@ -176,34 +176,34 @@ jobs:
           - name: llama-2-70b-chat
             dockerfile: docker/presets/llama-2/Dockerfile
             build_args: "--build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
-        shouldBuildFalcon: ${{ needs.setup.outputs.FALCON_MODIFIED }} == true
-        shouldBuildLlama2: ${{ needs.setup.outputs.LLAMA2_MODIFIED }} == true
-        shouldBuildLlama2Chat: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }} == true
+        shouldBuildFalcon: "${{ needs.setup.outputs.FALCON_MODIFIED }}"
+        shouldBuildLlama2: "${{ needs.setup.outputs.LLAMA2_MODIFIED }}"
+        shouldBuildLlama2Chat: "${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }}"
         exclude:
           - model:
               name: falcon-7b
-            shouldBuildFalcon: false
+            shouldBuildFalcon: "false"
           - model:
               name: falcon-7b-instruct
-            shouldBuildFalcon: false
+            shouldBuildFalcon: "false"
           - model:
               name: llama-2-7b
-            shouldBuildLlama2: false
+            shouldBuildLlama2: "false"
           - model:
               name: llama-2-7b-chat
-            shouldBuildLlama2Chat: false
+            shouldBuildLlama2Chat: "false"
           - model:
               name: llama-2-13b
-            shouldBuildLlama2: false
+            shouldBuildLlama2: "false"
           - model:
               name: llama-2-13b-chat
-            shouldBuildLlama2Chat: false
+            shouldBuildLlama2Chat: "false"
           - model:
               name: falcon-40b
-            shouldBuildFalcon: false
+            shouldBuildFalcon: "false"
           - model:
               name: falcon-40b-instruct
-            shouldBuildFalcon: false
+            shouldBuildFalcon: "false"
           - model:
               name: llama-2-70b
             shouldBuildLlama2: false
