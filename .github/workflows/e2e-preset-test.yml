@@ -116,7 +116,7 @@ jobs:
 
       - name: Set up kubectl context
         run: |
-          az aks get-credentials --resource-group llm-test --name new_demo
+          az aks get-credentials --resource-group llm-test --name GitRunner
     
       - name: Get Nodepool Name
         id: get_nodepool_name
@@ -136,14 +136,14 @@ jobs:
         run: |
             NODEPOOL_EXIST=$(az aks nodepool show \
                             --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
-                            --cluster-name new_demo \
+                            --cluster-name GitRunner \
                             --resource-group llm-test \
                             --query 'name' -o tsv || echo "")
             echo "NODEPOOL_EXIST: $NODEPOOL_EXIST"
             if [ -z "$NODEPOOL_EXIST" ]; then
                 az aks nodepool add \
                     --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
-                    --cluster-name new_demo \
+                    --cluster-name GitRunner \
                     --resource-group llm-test \
                     --node-count ${{ matrix.image.node-count }} \
                     --node-vm-size ${{ matrix.image.node-vm-size }} \
@@ -154,7 +154,7 @@ jobs:
             else
                 NODEPOOL_STATE=$(az aks nodepool show \
                                 --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
-                                --cluster-name new_demo \
+                                --cluster-name GitRunner \
                                 --resource-group llm-test \
                                 --query 'provisioningState' -o tsv)
                 echo "NODEPOOL_STATE: $NODEPOOL_STATE"          
@@ -167,7 +167,7 @@ jobs:
             fi
 
       - name: Create Service
-        run: kubectl apply -f pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-service.yaml
+        run: kubectl apply -f presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-service.yaml
       
       - name: Retrieve External Service IP
         id: get_ip
@@ -181,10 +181,10 @@ jobs:
         
       - name: Replace IP and Deploy Statefulset to K8s
         run: |
-            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            sed -i "s/TAG_HERE/${{ steps.get_image_tag.outputs.IMAGE_TAG }}/g" pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            sed -i "s/REPO_HERE/${{ steps.get_image_tag.outputs.ACR_NAME }}/g" pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            kubectl apply -f pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/TAG_HERE/${{ steps.get_image_tag.outputs.IMAGE_TAG }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/REPO_HERE/${{ steps.get_image_tag.outputs.ACR_NAME }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            kubectl apply -f presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
     
       - name: Wait for Statefulset to be ready
         run: |
@@ -258,6 +258,6 @@ jobs:
             # Delete AKS Nodepool
             az aks nodepool delete \
             --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
-            --cluster-name new_demo \
+            --cluster-name GitRunner \
             --resource-group llm-test
         
