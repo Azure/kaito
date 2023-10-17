@@ -14,17 +14,17 @@ import transformers
 import torch
 import torch.distributed as dist
 
-parser = argparse.ArgumentParser(description='HuggingFace Model Configuration')
+parser = argparse.ArgumentParser(description='Falcon Model Configuration')
 parser.add_argument('--load_in_8bit', default=False, action='store_true', help='Load model in 8-bit mode')
 parser.add_argument('--disable_trust_remote_code', default=False, action='store_true', help='Disable trusting remote code when loading the model')
-parser.add_argument('--model_id', required=True, type=str, help='The HuggingFace ID for the pre-trained model')
+# parser.add_argument('--model_id', required=True, type=str, help='The Falcon ID for the pre-trained model')
 args = parser.parse_args()
 
 app = FastAPI()
 
-tokenizer = AutoTokenizer.from_pretrained(args.model_id)
+tokenizer = AutoTokenizer.from_pretrained("/workspace/falcon/weights")
 model = AutoModelForCausalLM.from_pretrained(
-    args.model_id,
+    "/workspace/falcon/weights", # args.model_id,
     device_map="auto",
     torch_dtype=torch.bfloat16,
     trust_remote_code=not args.disable_trust_remote_code, # Use NOT since our flag disables the trust
@@ -55,7 +55,6 @@ def health_check():
     if not pipeline: 
         raise HTTPException(status_code=500, detail="Falcon pipeline not initialized")
     return {"status": "Healthy"}
-
 
 class GenerationParams(BaseModel):
     prompt: str

@@ -26,8 +26,9 @@ var (
 	baseCommandPresetLlama2AChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kdmv1alpha1.PresetLlama2AChat)
 	baseCommandPresetLlama2BChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kdmv1alpha1.PresetLlama2BChat)
 	baseCommandPresetLlama2CChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kdmv1alpha1.PresetLlama2CChat)
-	llamaInferenceFile           = "web_example_chat_completion.py"
-	llamaRunParams               = map[string]string{
+	// llamaTextInferenceFile       = "web_example_text_completion.py" TODO: To support Text Generation Llama Models
+	llamaChatInferenceFile = "web_example_chat_completion.py"
+	llamaRunParams         = map[string]string{
 		"max_seq_len":    "512",
 		"max_batch_size": "8",
 	}
@@ -74,7 +75,7 @@ var (
 			GPUMemoryRequirement:   "16Gi",
 			TorchRunParams:         defaultTorchRunParams,
 			ModelRunParams:         llamaRunParams,
-			InferenceFile:          llamaInferenceFile,
+			InferenceFile:          llamaChatInferenceFile,
 			DeploymentTimeout:      time.Duration(10) * time.Minute,
 			BaseCommand:            baseCommandPresetLlama2AChat,
 			WorldSize:              1,
@@ -88,7 +89,7 @@ var (
 			GPUMemoryRequirement:   "16Gi",
 			TorchRunParams:         defaultTorchRunParams,
 			ModelRunParams:         llamaRunParams,
-			InferenceFile:          llamaInferenceFile,
+			InferenceFile:          llamaChatInferenceFile,
 			DeploymentTimeout:      time.Duration(20) * time.Minute,
 			BaseCommand:            baseCommandPresetLlama2BChat,
 			WorldSize:              2,
@@ -102,7 +103,7 @@ var (
 			GPUMemoryRequirement:   "19Gi",
 			TorchRunParams:         defaultTorchRunParams,
 			ModelRunParams:         llamaRunParams,
-			InferenceFile:          llamaInferenceFile,
+			InferenceFile:          llamaChatInferenceFile,
 			DeploymentTimeout:      time.Duration(30) * time.Minute,
 			BaseCommand:            baseCommandPresetLlama2CChat,
 			WorldSize:              8,

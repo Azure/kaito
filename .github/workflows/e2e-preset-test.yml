@@ -1,0 +1,263 @@
+name: E2E Preset Test
+
+on:
+    workflow_run:
+        workflows: ["Build and Push Preset Models"]
+        types: 
+            - completed
+    workflow_dispatch: {}
+
+env:
+    GO_VERSION: "1.20"
+
+permissions:
+    id-token: write
+    contents: read
+
+jobs:
+  e2e-preset-tests:
+    runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - name: falcon-7b
+            node-count: 1
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 100
+
+        #   - name: falcon-7b-instruct
+        #     node-count: 1
+        #     node-vm-size: Standard_NC12s_v3
+        #     node-osdisk-size: 100
+
+        # Uncomment once supported by ACR
+        #   - name: falcon-40b
+        #     node-count: 1
+        #     node-vm-size: Standard_NC96ads_A100_v4
+        #     node-osdisk-size: 400
+
+        #   - name: falcon-40b-instruct
+        #     node-count: 1
+        #     node-vm-size: Standard_NC96ads_A100_v4
+        #     node-osdisk-size: 400
+
+        #   - name: llama-2-7b
+        #     node-count: 1
+        #     node-vm-size: Standard_NC12s_v3
+        #     node-osdisk-size: 100
+        
+        #   - name: llama-2-13b
+        #     node-count: 2
+        #     node-vm-size: Standard_NC12s_v3
+        #     node-osdisk-size: 150
+        
+        # Uncomment once supported by ACR
+        #   - name: llama-2-70b
+        #     node-count: 2
+        #     node-vm-size: Standard_NC96ads_A100_v4
+        #     node-osdisk-size: 400
+
+        #   - name: llama-2-7b-chat
+        #     node-count: 1
+        #     node-vm-size: Standard_NC12s_v3
+        #     node-osdisk-size: 100
+
+        #   - name: llama-2-13b-chat
+        #     node-count: 2
+        #     node-vm-size: Standard_NC12s_v3
+        #     node-osdisk-size: 150
+        
+        # Uncomment once supported by ACR
+        #   - name: llama-2-70b-chat
+        #     node-count: 2
+        #     node-vm-size: Standard_NC96ads_A100_v4
+        #     node-osdisk-size: 400
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+            submodules: true
+            fetch-depth: 0
+      
+      - name: Download image tag artifact 
+        uses: actions/download-artifact@v3
+        id: download
+        with:
+            name: image-tag-artifact
+
+      - name: Read image tag
+        id: get_image_tag
+        run: |
+            tag=$(cat image_tag.txt)
+            echo "IMAGE_TAG=$tag" >> $GITHUB_OUTPUT
+
+            # Set the ACR based on the tag value
+            if [[ "$tag" == "latest" ]]; then
+              echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
+            else
+              echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
+            fi
+        
+      - name: Install Azure CLI latest
+        run: |
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+      - name: Az CLI login
+        uses: azure/login@v1.4.6
+        with:
+            client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: 'Login to ACR'
+        run: az acr login --name ${{ steps.get_image_tag.outputs.ACR_NAME }}
+
+      - name: Set up kubectl context
+        run: |
+          az aks get-credentials --resource-group llm-test --name new_demo
+    
+      - name: Get Nodepool Name
+        id: get_nodepool_name
+        run: |
+            NAME_SUFFIX=${{ matrix.image.name }}
+            NAME_SUFFIX_WITHOUT_DASHES=${NAME_SUFFIX//-/}  # Removing all '-' symbols
+            
+            if [ ${#NAME_SUFFIX_WITHOUT_DASHES} -gt 12 ]; then
+                TRUNCATED_NAME_SUFFIX=${NAME_SUFFIX_WITHOUT_DASHES: -12}
+            else
+                TRUNCATED_NAME_SUFFIX=$NAME_SUFFIX_WITHOUT_DASHES
+            fi
+            echo "Nodepool Name: $TRUNCATED_NAME_SUFFIX"
+            echo "NODEPOOL_NAME=$TRUNCATED_NAME_SUFFIX" >> $GITHUB_OUTPUT
+
+      - name: Create Nodepool
+        run: |
+            NODEPOOL_EXIST=$(az aks nodepool show \
+                            --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+                            --cluster-name new_demo \
+                            --resource-group llm-test \
+                            --query 'name' -o tsv || echo "")
+            echo "NODEPOOL_EXIST: $NODEPOOL_EXIST"
+            if [ -z "$NODEPOOL_EXIST" ]; then
+                az aks nodepool add \
+                    --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+                    --cluster-name new_demo \
+                    --resource-group llm-test \
+                    --node-count ${{ matrix.image.node-count }} \
+                    --node-vm-size ${{ matrix.image.node-vm-size }} \
+                    --node-osdisk-size ${{ matrix.image.node-osdisk-size }} \
+                    --labels pool=${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+                    --node-taints sku=gpu:NoSchedule \
+                    --aks-custom-headers UseGPUDedicatedVHD=true
+            else
+                NODEPOOL_STATE=$(az aks nodepool show \
+                                --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+                                --cluster-name new_demo \
+                                --resource-group llm-test \
+                                --query 'provisioningState' -o tsv)
+                echo "NODEPOOL_STATE: $NODEPOOL_STATE"          
+                if [ "$NODEPOOL_STATE" != "Succeeded" ]; then
+                    echo "Nodepool exists but is not in a Succeeded state. Please check manually."
+                    exit 1
+                else
+                    echo "Nodepool already exists and is in a running state."
+                fi
+            fi
+
+      - name: Create Service
+        run: kubectl apply -f pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-service.yaml
+      
+      - name: Retrieve External Service IP
+        id: get_ip
+        run: |
+            while [[ -z $SERVICE_IP ]]; do 
+                SERVICE_IP=$(kubectl get svc ${{ matrix.image.name }} -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                sleep 5
+            done 
+            echo "Service IP is $SERVICE_IP"
+            echo "SERVICE_IP=$SERVICE_IP" >> $GITHUB_OUTPUT
+        
+      - name: Replace IP and Deploy Statefulset to K8s
+        run: |
+            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/TAG_HERE/${{ steps.get_image_tag.outputs.IMAGE_TAG }}/g" pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/REPO_HERE/${{ steps.get_image_tag.outputs.ACR_NAME }}/g" pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            kubectl apply -f pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+    
+      - name: Wait for Statefulset to be ready
+        run: |
+            kubectl rollout status statefulset/${{ matrix.image.name }}
+        
+      - name: Test home endpoint
+        run: |
+            curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/
+
+      - name: Test healthz endpoint
+        run: |
+            curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/healthz
+    
+      - name: Test inference endpoint
+        run: |
+            if [[ "${{ matrix.image.name }}" == *"llama"* && "${{ matrix.image.name }}" == *"-chat"* ]]; then
+                echo "Testing inference for ${{ matrix.image.name }}"
+                curl -X POST \
+                -H "Content-Type: application/json" \
+                -d '{
+                    "input_data": {
+                        "input_string": [
+                            [
+                                {
+                                    "role": "system",
+                                    "content": "You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe."
+                                },
+                                {
+                                    "role": "user",
+                                    "content": "Write a brief birthday message to John"
+                                }
+                            ]
+                        ]
+                    }
+                }' \
+                http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/chat
+            elif [[ "${{ matrix.image.name }}" == *"llama"* ]]; then
+                echo "Testing inference for ${{ matrix.image.name }}"
+                curl -X POST \
+                -H "Content-Type: application/json" \
+                -d '{
+                    "prompts": [
+                        "I believe the meaning of life is",
+                        "Simply put, the theory of relativity states that ",
+                        "A brief message congratulating the team on the launch: Hi everyone, I just ",
+                        "Translate English to French: sea otter => loutre de mer, peppermint => menthe poivrée, plush girafe => girafe peluche, cheese =>"
+                    ],
+                    "parameters": {
+                        "max_gen_len": 128
+                    }
+                }' \
+                http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/generate
+            elif [[ "${{ matrix.image.name }}" == *"falcon"* ]]; then
+                echo "Testing inference for ${{ matrix.image.name }}"
+                curl -X POST \
+                -H "accept: application/json" \
+                -H "Content-Type: application/json" \
+                -d '{"prompt":"Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron:","max_length":200,"min_length":0,"do_sample":true,"early_stopping":false,"num_beams":1,"num_beam_groups":1,"diversity_penalty":0.0,"temperature":1.0,"top_k":10,"top_p":1,"typical_p":1,"repetition_penalty":1,"length_penalty":1,"no_repeat_ngram_size":0,"encoder_no_repeat_ngram_size":0,"bad_words_ids":null,"num_return_sequences":1,"output_scores":false,"return_dict_in_generate":false,"forced_bos_token_id":null,"forced_eos_token_id":null,"remove_invalid_values":null}' \
+                http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/chat
+            fi
+      
+      - name: Cleanup
+        if: always()
+        run: |
+            # Delete K8s Service
+            kubectl delete svc ${{ matrix.image.name }}
+
+            # Delete K8s Deployment
+            kubectl delete statefulset ${{ matrix.image.name }}
+
+            # Delete AKS Nodepool
+            az aks nodepool delete \
+            --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+            --cluster-name new_demo \
+            --resource-group llm-test
+        
