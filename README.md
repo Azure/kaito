@@ -26,11 +26,11 @@ az aks create --name kaito-aks --resource-group kaito-rg --node-count 1  --gener
 ```bash
 
 git clone https://github.com/Azure/gpu-provisioner.git
-cd gpu-vmprovisioner
+cd gpu-provisioner
 
 AZURE_SUBSCRIPTION_ID=<your_subscription_id> AZURE_LOCATION=<Azure_region> \
 AZURE_RESOURCE_GROUP=<your_resource_group_name> AZURE_ACR_NAME=<you_Azure_container_registry_name> \
-AZURE_CLUSTER_NAME=<you_AKS_cluster_name> make az-perm az-patch-skaffold-kubenet az-run
+AZURE_CLUSTER_NAME=<you_AKS_cluster_name> make az-perm az-patch-helm
 ```
 3. Build and push docker image
 
