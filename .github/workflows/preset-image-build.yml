@@ -85,7 +85,7 @@ jobs:
           echo "LLAMA2_MODIFIED=$LLAMA2_MODIFIED" >> $GITHUB_OUTPUT
           echo "LLAMA2_CHAT_MODIFIED=$LLAMA2_CHAT_MODIFIED" >> $GITHUB_OUTPUT
 
-      - name: Images to Build
+      - name: Models to Build
         run: |
           echo "FALCON_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}"
           echo "LLAMA2_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.LLAMA2_MODIFIED }}"
@@ -135,7 +135,7 @@ jobs:
     runs-on: self-hosted
     strategy:
       fail-fast: false
-      matrix: 
+      matrix:
         model:
           - name: falcon-7b
             dockerfile: docker/presets/falcon/Dockerfile
@@ -161,7 +161,6 @@ jobs:
             dockerfile: docker/presets/llama-2/Dockerfile
             build_args: "--build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
         
-          # TODO: Support large models
           - name: falcon-40b
             dockerfile: docker/presets/falcon/Dockerfile
             build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b"
@@ -177,30 +176,40 @@ jobs:
           - name: llama-2-70b-chat
             dockerfile: docker/presets/llama-2/Dockerfile
             build_args: "--build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
-
-        include:
-          - name: falcon-7b
-            if: ${{ needs.setup.outputs.FALCON_MODIFIED }} == 'true'
-          - name: falcon-7b-instruct
-            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
-          - name: llama-2-7b
-            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED }} == 'true'
-          - name: llama-2-7b-chat
-            if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
-          - name: llama-2-13b
-            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
-          - name: llama-2-13b-chat
-            if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
-          # TODO: Support large models
-          - name: falcon-40b
-            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
-          - name: falcon-40b-instruct
-            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
-          
-          - name: llama-2-70b
-            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
-          - name: llama-2-70b-chat
-            if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
+        shouldBuildFalcon: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
+        shouldBuildLlama2: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
+        shouldBuildLlama2Chat: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
+        exclude:
+          - model:
+              name: falcon-7b
+            shouldBuildFalcon: false
+          - model:
+              name: falcon-7b-instruct
+            shouldBuildFalcon: false
+          - model:
+              name: llama-2-7b
+            shouldBuildLlama2: false
+          - model:
+              name: llama-2-7b-chat
+            shouldBuildLlama2Chat: false
+          - model:
+              name: llama-2-13b
+            shouldBuildLlama2: false
+          - model:
+              name: llama-2-13b-chat
+            shouldBuildLlama2Chat: false
+          - model:
+              name: falcon-40b
+            shouldBuildFalcon: false
+          - model:
+              name: falcon-40b-instruct
+            shouldBuildFalcon: false
+          - model:
+              name: llama-2-70b
+            shouldBuildLlama2: false
+          - model:
+              name: llama-2-70b-chat
+            shouldBuildLlama2Chat: false
 
     steps:
       - name: Checkout
