@@ -37,8 +37,6 @@ jobs:
       FALCON_MODIFIED: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}
       LLAMA2_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_MODIFIED }}
       LLAMA2_CHAT_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_CHAT_MODIFIED }}
-      ACR_NAME: ${{ steps.acr_login.outputs.ACR_NAME }}
-      POD_NAME: ${{ steps.get_pod_name.outputs.POD_NAME }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -273,10 +271,10 @@ jobs:
 
             echo "Docker BUILD_ARGS: $BUILD_ARGS"
 
-            kubectl exec ${{ needs.setup.outputs.POD_NAME }} -- \
+            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
             docker build \
             $BUILD_ARGS \
-            -t ${{ needs.setup.outputs.ACR_NAME  }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
+            -t ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
             -f /home/${{ matrix.model.dockerfile }} \
             . && break
             retries=$((retries-1))
@@ -293,8 +291,8 @@ jobs:
           retries=3
           while [ $retries -gt 0 ]; do
             # Push the Docker image to ACR
-            kubectl exec ${{ needs.setup.outputs.POD_NAME }} -- \
-            docker push ${{ needs.setup.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }}
+            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
+            docker push ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }}
             
             # Check if the push was successful
             if [ $? -eq 0 ]; then
