@@ -12,7 +12,7 @@ import uvicorn
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import transformers
 import torch
-import torch.distributed as dist
+# import torch.distributed as dist
 
 parser = argparse.ArgumentParser(description='Falcon Model Configuration')
 parser.add_argument('--load_in_8bit', default=False, action='store_true', help='Load model in 8-bit mode')
