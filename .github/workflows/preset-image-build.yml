@@ -114,6 +114,7 @@ jobs:
           sudo mkdir -p /tmp/artifacts
           sudo chmod 777 /tmp/artifacts
           echo ${{ steps.set_tag.outputs.image_tag  }} >> /tmp/artifacts/tag.txt
+          sudo chmod 666 /tmp/artifacts/tag.txt  # Set file permissions to be world-writable
           cat /tmp/artifacts/tag.txt
 
       - name: Upload image tag as artifact
