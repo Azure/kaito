@@ -23,7 +23,7 @@ on:
         default: 'no'
       image_tag:
         description: 'Image Tag'
-        required: false
+        required: true
 
 permissions:
   id-token: write
@@ -37,8 +37,6 @@ jobs:
       FALCON_MODIFIED: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}
       LLAMA2_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_MODIFIED }}
       LLAMA2_CHAT_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_CHAT_MODIFIED }}
-      ACR_NAME: ${{ steps.acr_login.outputs.ACR_NAME }}
-      POD_NAME: ${{ steps.get_pod_name.outputs.POD_NAME }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -87,7 +85,7 @@ jobs:
           echo "LLAMA2_MODIFIED=$LLAMA2_MODIFIED" >> $GITHUB_OUTPUT
           echo "LLAMA2_CHAT_MODIFIED=$LLAMA2_CHAT_MODIFIED" >> $GITHUB_OUTPUT
 
-      - name: Images to Build
+      - name: Models to Build
         run: |
           echo "FALCON_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}"
           echo "LLAMA2_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.LLAMA2_MODIFIED }}"
@@ -111,17 +109,20 @@ jobs:
         run: |
           echo "image_tag for this job: ${{ steps.set_tag.outputs.image_tag }}"
       
-      - name: Save image tag as artifact
-        id: image_tag_path
+      - name: Save registry and tag as an artifact for other workflows
         run: |
-          echo "${{ steps.set_tag.outputs.image_tag }}" > image_tag.txt
-          echo "IMAGE_TAG_PATH=$(pwd)/image_tag.txt" >> $GITHUB_OUTPUT
-      
+          sudo mkdir -p /tmp/artifacts
+          sudo chmod 777 /tmp/artifacts
+          echo ${{ steps.set_tag.outputs.image_tag }} | sudo tee /tmp/artifacts/tag.txt
+          sudo chmod 666 /tmp/artifacts/tag.txt
+          # ls -l /tmp/artifacts  # Check the permissions of the directory contents
+          cat /tmp/artifacts/tag.txt
+
       - name: Upload image tag as artifact
         uses: actions/upload-artifact@v3
         with:
-          name: image-tag-artifact
-          path: ${{ steps.image_tag_path.outputs.IMAGE_TAG_PATH }}
+          name: artifacts
+          path: /tmp/artifacts
       
       - name: Install Azure CLI latest
         run: |
@@ -131,7 +132,40 @@ jobs:
           else
             echo "Azure CLI already installed."
           fi
-      
+  
+  matrix_prep:
+    needs: setup
+    runs-on: self-hosted
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+        fetch-depth: 0
+
+    - name: "Set matrix"
+      id: set_matrix
+      run: |
+        matrix=$(jq --arg FALCON_MODIFIED "${{ needs.setup.outputs.FALCON_MODIFIED }}" --arg LLAMA2_MODIFIED "${{ needs.setup.outputs.LLAMA2_MODIFIED }}" --arg LLAMA2_CHAT_MODIFIED "${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }}" 'map( 
+            . | select((.shouldBuildFalcon == $FALCON_MODIFIED) or (.shouldBuildLlama2 == $LLAMA2_MODIFIED) or (.shouldBuildLlama2Chat == $LLAMA2_CHAT_MODIFIED))
+        )' .github/matrix-configs.json) 
+        echo "matrix={\"include\":$(echo $matrix)}" >> $GITHUB_OUTPUT
+
+  build-models: 
+    needs: [setup, matrix_prep]
+    runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJson(needs.matrix_prep.outputs.matrix)}}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
       - name: 'Az CLI login'
         uses: azure/login@v1.4.6
         with:
@@ -145,18 +179,22 @@ jobs:
       - name: 'Attach and Login to ACR'
         id: acr_login
         run: |
-          if [[ "${{ steps.set_tag.outputs.image_tag }}" == "latest" ]]; then
-            echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
-            az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistry
-            az acr login -n aimodelsregistry --expose-token
+          if [[ "${{ needs.setup.outputs.image_tag }}" == "latest" ]]; then
+            ACR_NAME="aimodelsregistry"
           else
-            echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
-            az aks update -n GitRunner -g llm-test --attach-acr aimodelsregistrytest
-            az acr login -n aimodelsregistrytest --expose-token
+            ACR_NAME="aimodelsregistrytest"
           fi
-          - name: Get Context
-          run: az aks get-credentials -n GitRunner -g llm-test
-  
+          
+          CHECK_ACR_OUTPUT=$(az aks check-acr -g llm-test -n GitRunner --acr $ACR_NAME)
+          if [[ ! $CHECK_ACR_OUTPUT =~ "Your cluster can pull images from $ACR_NAME.azurecr.io!" ]]; then
+            az aks update -n GitRunner -g llm-test --attach-acr $ACR_NAME
+          fi
+          az acr login -n $ACR_NAME --expose-token
+          echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
+
+      - name: Get Context
+        run: az aks get-credentials -n GitRunner -g llm-test
+
       - name: Check if Docker Pod is Running (if not run it)
         run: |
           DEPLOYMENT=$(kubectl get deployment docker-deployment -o=jsonpath='{.metadata.name}' --ignore-not-found)
@@ -181,86 +219,7 @@ jobs:
             kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
             docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password ${{ secrets.ACR_AMRT_PASSWORD }}
           fi
-        
-  build-models: 
-    needs: setup
-    runs-on: self-hosted
-    strategy:
-      fail-fast: false
-      matrix: 
-        model:
-          - name: falcon-7b
-            dockerfile: docker/presets/falcon/Dockerfile
-            build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b"
-
-          - name: falcon-7b-instruct
-            dockerfile: docker/presets/falcon/Dockerfile
-            build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b-instruct"
-
-          - name: llama-2-7b
-            dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=/home/presets/llama-2"
-          
-          - name: llama-2-7b-chat
-            dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
-          
-          - name: llama-2-13b
-            dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg LLAMA_VERSION=llama-2-13b --build-arg SRC_DIR=/home/presets/llama-2"
-          
-          - name: llama-2-13b-chat
-            dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
-        
-          # TODO: Support large models
-          - name: falcon-40b
-            dockerfile: docker/presets/falcon/Dockerfile
-            build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b"
-
-          - name: falcon-40b-instruct
-            dockerfile: docker/presets/falcon/Dockerfile
-            build_args: "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b-instruct"
-
-          - name: llama-2-70b
-            dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg LLAMA_VERSION=llama-2-70b --build-arg SRC_DIR=/home/presets/llama-2"
-          
-          - name: llama-2-70b-chat
-            dockerfile: docker/presets/llama-2/Dockerfile
-            build_args: "--build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
-
-        include:
-          - name: falcon-7b
-            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
-          - name: falcon-7b-instruct
-            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
-          - name: llama-2-7b
-            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
-          - name: llama-2-7b-chat
-            if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
-          - name: llama-2-13b
-            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
-          - name: llama-2-13b-chat
-            if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
-          # TODO: Support large models
-          - name: falcon-40b
-            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
-          - name: falcon-40b-instruct
-            if: ${{ needs.setup.outputs.FALCON_MODIFIED == 'true' }}
-          
-          - name: llama-2-70b
-            if: ${{ needs.setup.outputs.LLAMA2_MODIFIED == 'true' }}
-          - name: llama-2-70b-chat
-            if: ${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED == 'true' }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          fetch-depth: 0
-
+      
       - name: Build model (with retries)
         run: |
           retries=3
@@ -269,10 +228,10 @@ jobs:
 
             echo "Docker BUILD_ARGS: $BUILD_ARGS"
 
-            kubectl exec ${{ needs.setup.outputs.POD_NAME }} -- \
+            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
             docker build \
             $BUILD_ARGS \
-            -t ${{ needs.setup.outputs.ACR_NAME  }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
+            -t ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
             -f /home/${{ matrix.model.dockerfile }} \
             . && break
             retries=$((retries-1))
@@ -289,8 +248,8 @@ jobs:
           retries=3
           while [ $retries -gt 0 ]; do
             # Push the Docker image to ACR
-            kubectl exec ${{ needs.setup.outputs.POD_NAME }} -- \
-            docker push ${{ needs.setup.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }}
+            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
+            docker push ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }}
             
             # Check if the push was successful
             if [ $? -eq 0 ]; then
