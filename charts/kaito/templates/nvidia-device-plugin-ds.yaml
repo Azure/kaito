@@ -65,7 +65,6 @@ metadata:
   name: high-priority-nonpreempting
   namespace: {{ include "kaito.fullname" . }}
   labels:
-   labels:
     {{- include "kaito.labels" . | nindent 4 }}
 value: 1000000
 preemptionPolicy: Never
