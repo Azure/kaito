@@ -6,7 +6,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -14,7 +14,7 @@ import (
 	"k8s.io/klog/v2"
 )
 
-func GenerateServiceManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, serviceType corev1.ServiceType) *corev1.Service {
+func GenerateServiceManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, serviceType corev1.ServiceType) *corev1.Service {
 	klog.InfoS("GenerateServiceManifest", "workspace", klog.KObj(workspaceObj), "serviceType", serviceType)
 
 	selector := make(map[string]string)
@@ -30,7 +30,7 @@ func GenerateServiceManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Work
 			Namespace: workspaceObj.Namespace,
 			OwnerReferences: []v1.OwnerReference{
 				{
-					APIVersion: kdmv1alpha1.GroupVersion.String(),
+					APIVersion: kaitov1alpha1.GroupVersion.String(),
 					Kind:       "Workspace",
 					UID:        workspaceObj.UID,
 					Name:       workspaceObj.Name,
@@ -63,7 +63,7 @@ func GenerateServiceManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Work
 	}
 }
 
-func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, imageName string,
+func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imageName string,
 	replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements,
 	tolerations []corev1.Toleration, volumes []corev1.Volume, volumeMount []corev1.VolumeMount) *appsv1.StatefulSet {
@@ -86,7 +86,7 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kdmv1alpha1.
 			Namespace: workspaceObj.Namespace,
 			OwnerReferences: []v1.OwnerReference{
 				{
-					APIVersion: kdmv1alpha1.GroupVersion.String(),
+					APIVersion: kaitov1alpha1.GroupVersion.String(),
 					Kind:       "Workspace",
 					UID:        workspaceObj.UID,
 					Name:       workspaceObj.Name,

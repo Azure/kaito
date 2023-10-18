@@ -1,4 +1,4 @@
-module github.com/azure/kdm
+module github.com/azure/kaito
 
 go 1.20
 

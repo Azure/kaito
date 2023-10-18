@@ -1,8 +1,8 @@
 
 # Image URL to use all building/pushing image targets
-REGISTRY ?= helayoty
-IMG_NAME ?= kdm
-VERSION ?= v0.1.0
+REGISTRY ?= ghcr.io/azure/kaito
+IMG_NAME ?= workspace
+VERSION ?= v0.0.1
 IMG_TAG ?= $(subst v,,$(VERSION))
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.27.2
@@ -113,10 +113,10 @@ docker-buildx: test ## Build and push docker image for the manager for cross-pla
 		docker buildx inspect $(BUILDX_BUILDER_NAME) --bootstrap; \
 	fi
 
-.PHONY: docker-build-kdm
-docker-build-kdm: docker-buildx
+.PHONY: docker-build-kaito
+docker-build-kaito: docker-buildx
 	docker buildx build \
-		--file ./docker/kdm/Dockerfile \
+		--file ./docker/kaito/Dockerfile \
 		--output=$(OUTPUT_TYPE) \
 		--platform="linux/$(ARCH)" \
 		--pull \
@@ -200,9 +200,9 @@ lint: $(GOLANGCI_LINT)
 .PHONY: release-manifest
 release-manifest:
 	@sed -i -e 's/^VERSION ?= .*/VERSION ?= ${VERSION}/' ./Makefile
-	@sed -i -e "s/version: .*/version: ${IMG_TAG}/" ./charts/kdm/Chart.yaml
-	@sed -i -e "s/tag: .*/tag: ${IMG_TAG}/" ./charts/kdm/values.yaml
+	@sed -i -e "s/version: .*/version: ${IMG_TAG}/" ./charts/kaito/Chart.yaml
+	@sed -i -e "s/tag: .*/tag: ${IMG_TAG}/" ./charts/kaito/values.yaml
 	@sed -i -e 's/IMG_TAG=.*/IMG_TAG=${IMG_TAG}/' ./charts/README.md
 	git checkout -b release-${VERSION}
-	git add ./Makefile ./charts/kdm/Chart.yaml ./charts/kdm/values.yaml ./charts/README.md
+	git add ./Makefile ./charts/kaito/Chart.yaml ./charts/kaito/values.yaml ./charts/README.md
 	git commit -s -m "release: update manifest and helm charts for ${VERSION}"

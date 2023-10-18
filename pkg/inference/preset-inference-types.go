@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 )
 
 const (
@@ -19,13 +19,13 @@ const (
 var (
 	registryName = os.Getenv("PRESET_REGISTRY_NAME")
 
-	presetLlama2AChatImage = registryName + fmt.Sprintf("/%s:latest", kdmv1alpha1.PresetLlama2AChat)
-	presetLlama2BChatImage = registryName + fmt.Sprintf("/%s:latest", kdmv1alpha1.PresetLlama2BChat)
-	presetLlama2CChatImage = registryName + fmt.Sprintf("/%s:latest", kdmv1alpha1.PresetLlama2CChat)
+	presetLlama2AChatImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetLlama2AChat)
+	presetLlama2BChatImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetLlama2BChat)
+	presetLlama2CChatImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetLlama2CChat)
 
-	baseCommandPresetLlama2AChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kdmv1alpha1.PresetLlama2AChat)
-	baseCommandPresetLlama2BChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kdmv1alpha1.PresetLlama2BChat)
-	baseCommandPresetLlama2CChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kdmv1alpha1.PresetLlama2CChat)
+	baseCommandPresetLlama2AChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kaitov1alpha1.PresetLlama2AChat)
+	baseCommandPresetLlama2BChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kaitov1alpha1.PresetLlama2BChat)
+	baseCommandPresetLlama2CChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kaitov1alpha1.PresetLlama2CChat)
 	// llamaTextInferenceFile       = "web_example_text_completion.py" TODO: To support Text Generation Llama Models
 	llamaChatInferenceFile = "web_example_chat_completion.py"
 	llamaRunParams         = map[string]string{
@@ -65,9 +65,9 @@ type PresetInferenceParam struct {
 var (
 
 	// Llama2PresetInferences defines the preset inferences for LLaMa2.
-	Llama2PresetInferences = map[kdmv1alpha1.ModelName]PresetInferenceParam{
+	Llama2PresetInferences = map[kaitov1alpha1.ModelName]PresetInferenceParam{
 
-		kdmv1alpha1.PresetLlama2AChat: {
+		kaitov1alpha1.PresetLlama2AChat: {
 			ModelName:              "LLaMa2",
 			Image:                  presetLlama2AChatImage,
 			DiskStorageRequirement: "34Gi",
@@ -81,7 +81,7 @@ var (
 			WorldSize:              1,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
-		kdmv1alpha1.PresetLlama2BChat: {
+		kaitov1alpha1.PresetLlama2BChat: {
 			ModelName:              "LLaMa2",
 			Image:                  presetLlama2BChatImage,
 			DiskStorageRequirement: "46Gi",
@@ -95,7 +95,7 @@ var (
 			WorldSize:              2,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
-		kdmv1alpha1.PresetLlama2CChat: {
+		kaitov1alpha1.PresetLlama2CChat: {
 			ModelName:              "LLaMa2",
 			Image:                  presetLlama2CChatImage,
 			DiskStorageRequirement: "158Gi",

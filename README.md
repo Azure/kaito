@@ -1,7 +1,7 @@
-# KDM
+# KAITO
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/Azure/kdm)](https://goreportcard.com/report/github.com/Azure/kdm)
-![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Azure/kdm)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Azure/kaito)](https://goreportcard.com/report/github.com/Azure/kaito)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Azure/kaito)
 
 This project introduce `workspace` crd and its controller. The goal is to simplify the workflow of deploying inference services using OSS AI/ML models, and training workloads (to be added) against a standard AKS cluster.
 
@@ -16,8 +16,8 @@ Please refer to Helm chart [README](charts/README.md) for more details.
 1. Create an Azure Kubernetes Service (AKS) cluster
 
 ```bash
-az group create --name kdm-rg --location eastus
-az aks create --name kdm-aks --resource-group kdm-rg --node-count 1  --generate-ssh-keys
+az group create --name kaito-rg --location eastus
+az aks create --name kaito-aks --resource-group kaito-rg --node-count 1  --generate-ssh-keys
 ```
 <!-- markdown-link-check-disable -->
 2. Install [gpu-provisioner](https://github.com/Azure/gpu-provisioner.git) helm chart
@@ -26,33 +26,33 @@ az aks create --name kdm-aks --resource-group kdm-rg --node-count 1  --generate-
 ```bash
 
 git clone https://github.com/Azure/gpu-provisioner.git
-cd gpu-vmprovisioner
+cd gpu-provisioner
 
 AZURE_SUBSCRIPTION_ID=<your_subscription_id> AZURE_LOCATION=<Azure_region> \
 AZURE_RESOURCE_GROUP=<your_resource_group_name> AZURE_ACR_NAME=<you_Azure_container_registry_name> \
-AZURE_CLUSTER_NAME=<you_AKS_cluster_name> make az-perm az-patch-skaffold-kubenet az-run
+AZURE_CLUSTER_NAME=<you_AKS_cluster_name> make az-perm az-patch-helm
 ```
 3. Build and push docker image
 
 ```bash
 export REGISTRY=<your_docker_registry>
-export IMG_NAME=kdm
+export IMG_NAME=kaito
 
-make docker-build-kdm
+make docker-build-kaito
 ```
-4. Install KDM helm chart
+4. Install KAITO helm chart
 
 ```bash
-helm install kdm --set image.repository=${REGISTRY}/$(IMG_NAME) ./charts/kdm
+helm install kaito --set image.repository=${REGISTRY}/$(IMG_NAME) ./charts/kaito
 ```
 
-5. Run KDM workspace example
+5. Run KAITO workspace example
 
 ```bash
-kubectl apply -f examples/kdm_workspace_llama2_7b-chat.yaml
+kubectl apply -f examples/kaito_workspace_llama2_7b-chat.yaml
 ```
 
-6. Watch the KDM workspace CR status
+6. Watch the KAITO workspace CR status
 
 ```bash
 watch kubectl describe workspace workspace-llama-2-7b-chat 
@@ -63,8 +63,8 @@ watch kubectl describe workspace workspace-llama-2-7b-chat
 
 ```bash
 Name:         workspace-llama-2-7b-aks
-Annotations:  kubernetes-kdm.io/service-type: load-balancer
-API Version:  kdm.io/v1alpha1
+Annotations:  kubernetes-kaito.sh/service-type: load-balancer
+API Version:  kaito.sh/v1alpha1
 Inference:
   Preset:
     Name:  llama-2-7b
@@ -129,7 +129,7 @@ Events:  <none>
 7. Clean up
 
 ```bash
-az aks delete --name kdm-aks --resource-group kdm-rg
+az aks delete --name kaito-aks --resource-group kaito-rg
 ```
 
 ## Contributing
