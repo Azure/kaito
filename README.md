@@ -43,7 +43,7 @@ make docker-build-kaito
 4. Install KAITO helm chart
 
 ```bash
-helm install kaito --set image.repository=${REGISTRY}/$(IMG_NAME) ./charts/kaito
+helm install kaito --set image.repository=${REGISTRY}/${IMG_NAME} ./charts/kaito
 ```
 
 5. Run KAITO workspace example
