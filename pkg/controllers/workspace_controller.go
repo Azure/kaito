@@ -306,7 +306,7 @@ func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *k
 	return k8sresources.GetNode(ctx, newMachine.Status.NodeName, c.Client)
 }
 
-// ensureNodePlugins ensures node plugins (Nvidia and DADI) are installed.
+// ensureNodePlugins ensures node plugins are installed.
 func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kaitov1alpha1.Workspace, nodeObj *corev1.Node) error {
 	klog.InfoS("EnsureNodePlugins", "node", klog.KObj(nodeObj))
 
@@ -339,33 +339,10 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kaito
 						fmt.Sprintf("waiting for nvidia plugins to get installed on node %s", nodeObj.Name)); err != nil {
 						return err
 					}
-					time.Sleep(1 * time.Second)
-					continue
 				}
+				time.Sleep(1 * time.Second)
+				continue
 			}
-
-			//DADI plugin
-			if err := k8sresources.CheckDADIPlugin(ctx, nodeObj, c.Client); err != nil {
-				if err := k8sresources.UpdateNodeWithLabel(ctx, nodeObj.Name, k8sresources.LabelKeyCustomGPUProvisioner,
-					k8sresources.GPUString, c.Client); err != nil {
-					if errors.IsNotFound(err) {
-						klog.ErrorS(err, "DADI plugin cannot be installed, node not found", "node", nodeObj.Name)
-						if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionFalse,
-							"checkMachineStatusFailed", err.Error()); err != nil {
-							klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
-							return err
-						}
-						return err
-					}
-					if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionUnknown, "InstallNodePluginsWaiting",
-						fmt.Sprintf("waiting for dadi plugins to get installed on node %s", nodeObj.Name)); err != nil {
-						return err
-					}
-					time.Sleep(1 * time.Second)
-					continue
-				}
-			}
-
 			return nil
 		}
 	}
