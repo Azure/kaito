@@ -55,7 +55,7 @@ jobs:
         if: github.event_name == 'workflow_run'
         run: |
           mkdir -p /tmp/artifacts
-          unzip /tmp/artifacts.zip -d /tmp/artifacts
+          unzip -o /tmp/artifacts.zip -d /tmp/artifacts
         shell: bash
       - name: Display downloaded aritifacts
         if: github.event_name == 'workflow_run'
