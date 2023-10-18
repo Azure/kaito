@@ -115,7 +115,7 @@ jobs:
           sudo chmod 777 /tmp/artifacts
           echo ${{ steps.set_tag.outputs.image_tag }} | sudo tee /tmp/artifacts/tag.txt
           sudo chmod 666 /tmp/artifacts/tag.txt
-          ls -l /tmp/artifacts  # Check the permissions of the directory contents
+          # ls -l /tmp/artifacts  # Check the permissions of the directory contents
           cat /tmp/artifacts/tag.txt
 
       - name: Upload image tag as artifact
