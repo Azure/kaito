@@ -1,5 +1,13 @@
 [
-
+    {
+        "model": {
+            "runs_on": "self-hosted",
+            "name": "falcon-7b",
+            "dockerfile": "docker/presets/falcon/Dockerfile",
+            "build_args": "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b"
+        },
+        "shouldBuildFalcon": "true"
+    },
     {
         "model": {
             "runs_on": "self-hosted",
@@ -10,7 +18,25 @@
         "shouldBuildFalcon": "true"
     },
 
+    {
+        "model": {
+            "runs_on": "self-hosted",
+            "name": "falcon-40b",
+            "dockerfile": "docker/presets/falcon/Dockerfile",
+            "build_args": "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b"
+        },
+        "shouldBuildFalcon": "true"
+    },
 
+    {
+        "model": {
+            "runs_on": "self-hosted",
+            "name": "falcon-40b-instruct",
+            "dockerfile": "docker/presets/falcon/Dockerfile",
+            "build_args": "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b-instruct"
+        },
+        "shouldBuildFalcon": "true"
+    },
 
     {
         "model": {
