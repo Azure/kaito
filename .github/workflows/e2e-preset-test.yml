@@ -336,15 +336,27 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-            # Delete K8s Service
-            kubectl delete svc ${{ matrix.image.name }}
-
-            # Delete K8s Deployment
-            kubectl delete statefulset ${{ matrix.image.name }}
-
-            # Delete AKS Nodepool
-            az aks nodepool delete \
-            --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
-            --cluster-name GitRunner \
-            --resource-group llm-test
+            # Check and Delete K8s Service if it exists
+            if kubectl get svc ${{ matrix.image.name }} > /dev/null 2>&1; then
+                kubectl delete svc ${{ matrix.image.name }}
+            fi
         
+            # Check and Delete K8s StatefulSet if it exists
+            if kubectl get statefulset ${{ matrix.image.name }} > /dev/null 2>&1; then
+                kubectl delete statefulset ${{ matrix.image.name }}
+            fi
+            
+            NODEPOOL_EXIST=$(az aks nodepool show \
+                            --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+                            --cluster-name GitRunner \
+                            --resource-group llm-test \
+                            --query 'name' -o tsv || echo "")
+
+            # Check and Delete AKS Nodepool if it exists
+            if [ -n "$NODEPOOL_EXIST" ]; then
+                az aks nodepool delete \
+                --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+                --cluster-name GitRunner \
+                --resource-group llm-test
+            fi
+          
