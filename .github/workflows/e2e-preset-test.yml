@@ -183,7 +183,6 @@ jobs:
             TAG=${{ needs.setup.outputs.IMG_TAG }}
         
             TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv)
-            echo "$TAGS" | grep -q "^$TAG$"
         
             if echo "$TAGS" | grep -q "^$TAG$"; then
                 echo "IMAGE_EXISTS=true" >> $GITHUB_OUTPUT
