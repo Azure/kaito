@@ -5,8 +5,11 @@ on:
         workflows: ["Build and Push Preset Models"]
         types: 
             - completed
-    workflow_dispatch: {}
-
+    workflow_dispatch:
+        inputs:
+            image_tag:
+                description: 'Image Tag'
+                required: true
 env:
     GO_VERSION: "1.20"
 
@@ -15,8 +18,69 @@ permissions:
     contents: read
 
 jobs:
+  setup: 
+    runs-on: self-hosted
+    outputs: 
+        IMG_TAG: ${{ steps.set_final_tag.outputs.image_tag }}
+    steps: 
+      - name: Determine tag from dispatch
+        if: github.event_name == 'workflow_dispatch'
+        id: determine_tag
+        run: echo "IMG_TAG=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+
+      - name: Download tag artifact
+        if: github.event_name == 'workflow_run'
+        uses: actions/github-script@v6
+        with:
+            github-token: ${{ secrets.KAITO_ACCESS_TOKEN_READ }}
+            script: |
+                let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: context.payload.workflow_run.id,
+                });
+                let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
+                    return artifact.name == "artifacts"
+                })[0];
+                let download = await github.rest.actions.downloadArtifact({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    artifact_id: matchArtifact.id,
+                    archive_format: 'zip',
+                });
+                let fs = require('fs');
+                fs.writeFileSync(`/tmp/artifacts.zip`, Buffer.from(download.data));
+      - name: Unzip tag artifact
+        if: github.event_name == 'workflow_run'
+        run: |
+          mkdir -p /tmp/artifacts
+          unzip /tmp/artifacts.zip -d /tmp/artifacts
+        shell: bash
+      - name: Display downloaded aritifacts
+        if: github.event_name == 'workflow_run'
+        run: |
+          echo "Downloaded artifacts:"
+          ls -ablh /tmp/artifacts
+        shell: bash
+      - name: Parse artifacts and assign GA environment variables
+        if: github.event_name == 'workflow_run'
+        id: get_image_tag
+        run: |
+            tag=$(tail -n 1 /tmp/artifacts/tag.txt)
+            echo "IMG_TAG=$tag" >> $GITHUB_OUTPUT
+
+      - name: Set final image tag
+        id: set_final_tag
+        run: |
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+                echo "IMG_TAG=${{ steps.determine_tag.outputs.IMG_TAG }}" >> $GITHUB_OUTPUT
+            else
+                echo "IMG_TAG=${{ steps.get_image_tag.outputs.IMG_TAG }}" >> $GITHUB_OUTPUT
+            fi
+
   e2e-preset-tests:
-    runs-on: ubuntu-20.04
+    needs: setup
+    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
@@ -80,47 +144,12 @@ jobs:
         with:
             submodules: true
             fetch-depth: 0
-      
-      - name: Download tag artifact
-        uses: actions/github-script@v6
-        with:
-            github-token: ${{ secrets.KAITO_ACCESS_TOKEN_READ }}
-            script: |
-                let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    run_id: context.payload.workflow_run.id,
-                });
-                let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
-                    return artifact.name == "artifacts"
-                })[0];
-                let download = await github.rest.actions.downloadArtifact({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    artifact_id: matchArtifact.id,
-                    archive_format: 'zip',
-                });
-                let fs = require('fs');
-                fs.writeFileSync(`/tmp/artifacts.zip`, Buffer.from(download.data));
-      - run: |
-          mkdir -p /tmp/artifacts
-          unzip /tmp/artifacts.zip -d /tmp/artifacts
-        shell: bash
-      - run: |
-          echo "Downloaded artifacts:"
-          ls -ablh /tmp/artifacts
-        shell: bash
-      - name: Parse artifacts and assign GA environment variables
-        id: get_image_tag
-        run: |
-            tag=$(tail -n 1 /tmp/artifacts/tag.txt)
-            echo "IMG_TAG=$tag" >> $GITHUB_OUTPUT
-
+    
       - name: Get ACR Name
         id: get_acr_name
         run: |
             # Set the ACR based on the tag value
-            if [[ "${{ steps.get_image_tag.outputs.IMG_TAG }}" == "latest" ]]; then
+            if [[ "${{ needs.setup.outputs.IMG_TAG }}" == "latest" ]]; then
               echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
             else
               echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
@@ -128,12 +157,17 @@ jobs:
         
       - name: Install Azure CLI latest
         run: |
-            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+            if ! which az > /dev/null; then
+                echo "Azure CLI not found. Installing..."
+                curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+            else
+                echo "Azure CLI already installed."
+            fi
 
       - name: Az CLI login
         uses: azure/login@v1.4.6
         with:
-            client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
+            client-id: ${{ secrets.AZURE_KDM_PRESET_SELF_RUNNER_CLIENT_ID }}
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
             subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
@@ -208,7 +242,7 @@ jobs:
       - name: Replace IP and Deploy Statefulset to K8s
         run: |
             sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            sed -i "s/TAG_HERE/${{ steps.get_image_tag.outputs.IMG_TAG }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/TAG_HERE/${{ needs.setup.outputs.IMG_TAG }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
             sed -i "s/REPO_HERE/${{ steps.get_acr_name.outputs.ACR_NAME }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
             kubectl apply -f presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
     

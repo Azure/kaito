@@ -23,7 +23,7 @@ on:
         default: 'no'
       image_tag:
         description: 'Image Tag'
-        required: false
+        required: true
 
 permissions:
   id-token: write
