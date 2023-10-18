@@ -109,17 +109,17 @@ jobs:
         run: |
           echo "image_tag for this job: ${{ steps.set_tag.outputs.image_tag }}"
       
-      - name: Save image tag as artifact
-        id: image_tag_path
+      - name: Save registry and tag as an artifact for other workflows that run on workflow_run to download them
         run: |
-          echo "${{ steps.set_tag.outputs.image_tag }}" > image_tag.txt
-          echo "IMAGE_TAG_PATH=$(pwd)/image_tag.txt" >> $GITHUB_OUTPUT
-      
+          mkdir -p /tmp/artifacts
+          echo ${{ steps.set_tag.outputs.image_tag  }} >> /tmp/artifacts/tag.txt
+          cat /tmp/artifacts/tag.txt
+
       - name: Upload image tag as artifact
         uses: actions/upload-artifact@v3
         with:
-          name: image-tag-artifact
-          path: ${{ steps.image_tag_path.outputs.IMAGE_TAG_PATH }}
+          name: artifacts
+          path: /tmp/artifacts
       
       - name: Install Azure CLI latest
         run: |

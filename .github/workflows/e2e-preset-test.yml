@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   e2e-preset-tests:
-    runs-on: self-hosted
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
@@ -81,20 +81,46 @@ jobs:
             submodules: true
             fetch-depth: 0
       
-      - name: Download image tag artifact 
-        uses: actions/download-artifact@v3
-        id: download
+      - name: Download tag artifact
+        uses: actions/github-script@v6
         with:
-            name: image-tag-artifact
-
-      - name: Read image tag
+            github-token: ${{ secrets.KAITO_ACCESS_TOKEN_READ }}
+            script: |
+                let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: context.payload.workflow_run.id,
+                });
+                let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
+                    return artifact.name == "artifacts"
+                })[0];
+                let download = await github.rest.actions.downloadArtifact({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    artifact_id: matchArtifact.id,
+                    archive_format: 'zip',
+                });
+                let fs = require('fs');
+                fs.writeFileSync(`/tmp/artifacts.zip`, Buffer.from(download.data));
+      - run: |
+          mkdir -p /tmp/artifacts
+          unzip /tmp/artifacts.zip -d /tmp/artifacts
+        shell: bash
+      - run: |
+          echo "Downloaded artifacts:"
+          ls -ablh /tmp/artifacts
+        shell: bash
+      - name: Parse artifacts and assign GA environment variables
         id: get_image_tag
         run: |
-            tag=$(cat image_tag.txt)
-            echo "IMAGE_TAG=$tag" >> $GITHUB_OUTPUT
+            tag=$(tail -n 1 /tmp/artifacts/tag.txt)
+            echo "IMG_TAG=$tag" >> $GITHUB_OUTPUT
 
+      - name: Get ACR Name
+        id: get_acr_name
+        run: |
             # Set the ACR based on the tag value
-            if [[ "$tag" == "latest" ]]; then
+            if [[ "${{ steps.get_image_tag.outputs.IMG_TAG }}" == "latest" ]]; then
               echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
             else
               echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
@@ -112,7 +138,7 @@ jobs:
             subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: 'Login to ACR'
-        run: az acr login --name ${{ steps.get_image_tag.outputs.ACR_NAME }}
+        run: az acr login --name ${{ steps.get_acr_name.outputs.ACR_NAME }}
 
       - name: Set up kubectl context
         run: |
@@ -182,8 +208,8 @@ jobs:
       - name: Replace IP and Deploy Statefulset to K8s
         run: |
             sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            sed -i "s/TAG_HERE/${{ steps.get_image_tag.outputs.IMAGE_TAG }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            sed -i "s/REPO_HERE/${{ steps.get_image_tag.outputs.ACR_NAME }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/TAG_HERE/${{ steps.get_image_tag.outputs.IMG_TAG }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/REPO_HERE/${{ steps.get_acr_name.outputs.ACR_NAME }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
             kubectl apply -f presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
     
       - name: Wait for Statefulset to be ready
