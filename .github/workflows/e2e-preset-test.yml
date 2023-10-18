@@ -21,7 +21,7 @@ jobs:
   setup: 
     runs-on: self-hosted
     outputs: 
-        IMG_TAG: ${{ steps.set_final_tag.outputs.image_tag }}
+        IMG_TAG: ${{ steps.set_final_tag.outputs.IMG_TAG }}
     steps: 
       - name: Determine tag from dispatch
         if: github.event_name == 'workflow_dispatch'
