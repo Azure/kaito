@@ -122,15 +122,15 @@ jobs:
         #     node-vm-size: Standard_NC96ads_A100_v4
         #     node-osdisk-size: 400
 
-          - name: llama-2-7b-chat
-            node-count: 1
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 100
+        #   - name: llama-2-7b-chat
+        #     node-count: 1
+        #     node-vm-size: Standard_NC12s_v3
+        #     node-osdisk-size: 100
 
-          - name: llama-2-13b-chat
-            node-count: 2
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 150
+        #   - name: llama-2-13b-chat
+        #     node-count: 2
+        #     node-vm-size: Standard_NC12s_v3
+        #     node-osdisk-size: 150
         
         # Uncomment once service/deployment made
         #   - name: llama-2-70b-chat
