@@ -12,6 +12,7 @@ import (
 	"github.com/azure/kaito/pkg/inference"
 	"github.com/azure/kaito/pkg/k8sresources"
 	"github.com/azure/kaito/pkg/machine"
+	"github.com/azure/kaito/pkg/utils"
 	"github.com/go-logr/logr"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
@@ -23,11 +24,10 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/apis/core"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -52,6 +52,17 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	// Handle deleting workspace, garbage collect all the resources.
 	if !workspaceObj.DeletionTimestamp.IsZero() {
 		return c.deleteWorkspace(ctx, workspaceObj)
+	} else {
+		// Ensure finalizer
+		if !controllerutil.ContainsFinalizer(workspaceObj, utils.WorkspaceFinalizer) {
+			controllerutil.AddFinalizer(workspaceObj, utils.WorkspaceFinalizer)
+			updateCopy := workspaceObj.DeepCopy()
+			if updateErr := c.Update(ctx, updateCopy, &client.UpdateOptions{}); updateErr != nil {
+				klog.ErrorS(updateErr, "failed to ensure the finalizer to the workspace",
+					"workspace", klog.KObj(updateCopy))
+				return ctrl.Result{}, updateErr
+			}
+		}
 	}
 
 	return c.addOrUpdateWorkspace(ctx, workspaceObj)
@@ -456,7 +467,7 @@ func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kaitov1alpha1.Workspace{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		For(&kaitov1alpha1.Workspace{}).
 		Watches(
 			&v1alpha5.Machine{}, c.watchMachines()).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 5}).
@@ -468,11 +479,19 @@ func (c *WorkspaceReconciler) watchMachines() handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(
 		func(ctx context.Context, o client.Object) []reconcile.Request {
 			machineObj := o.(*v1alpha5.Machine)
+			name, ok := machineObj.Labels[kaitov1alpha1.LabelWorkspaceName]
+			if !ok {
+				return nil
+			}
+			namespace, ok := machineObj.Labels[kaitov1alpha1.LabelWorkspaceNamespace]
+			if !ok {
+				return nil
+			}
 			return []reconcile.Request{
 				{
 					NamespacedName: client.ObjectKey{
-						Name:      machineObj.Name,
-						Namespace: machineObj.Namespace,
+						Name:      name,
+						Namespace: namespace,
 					},
 				},
 			}
