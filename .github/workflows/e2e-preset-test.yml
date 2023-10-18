@@ -18,7 +18,8 @@ permissions:
     contents: read
 
 jobs:
-  setup: 
+  setup:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: self-hosted
     outputs: 
         IMG_TAG: ${{ steps.set_final_tag.outputs.IMG_TAG }}
@@ -79,6 +80,7 @@ jobs:
             fi
 
   e2e-preset-tests:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     needs: setup
     runs-on: self-hosted
     strategy:
@@ -173,11 +175,30 @@ jobs:
       - name: 'Set subscription'
         run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
 
+      - name: 'Check if Image exists in ACR'
+        id: check_image
+        run: |
+            ACR_NAME=${{ steps.get_acr_name.outputs.ACR_NAME }}
+            IMAGE_NAME=${{ matrix.image.name }}
+            TAG=${{ needs.setup.outputs.IMG_TAG }}
+        
+            TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv)
+            echo "$TAGS" | grep -q "^$TAG$"
+        
+            if echo "$TAGS" | grep -q "^$TAG$"; then
+                echo "IMAGE_EXISTS=true" >> $GITHUB_OUTPUT
+            else
+                echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
+                echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
+            fi
+
       - name: Set up kubectl context
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
           az aks get-credentials --resource-group llm-test --name GitRunner
     
       - name: Get Nodepool Name
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         id: get_nodepool_name
         run: |
             NAME_SUFFIX=${{ matrix.image.name }}
@@ -192,6 +213,7 @@ jobs:
             echo "NODEPOOL_NAME=$TRUNCATED_NAME_SUFFIX" >> $GITHUB_OUTPUT
 
       - name: Create Nodepool
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
             NODEPOOL_EXIST=$(az aks nodepool show \
                             --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
@@ -226,9 +248,11 @@ jobs:
             fi
 
       - name: Create Service
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: kubectl apply -f presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-service.yaml
       
       - name: Retrieve External Service IP
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         id: get_ip
         run: |
             while [[ -z $SERVICE_IP ]]; do 
@@ -239,6 +263,7 @@ jobs:
             echo "SERVICE_IP=$SERVICE_IP" >> $GITHUB_OUTPUT
         
       - name: Replace IP and Deploy Statefulset to K8s
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
             sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
             sed -i "s/TAG_HERE/${{ needs.setup.outputs.IMG_TAG }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
@@ -246,18 +271,22 @@ jobs:
             kubectl apply -f presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
     
       - name: Wait for Statefulset to be ready
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
             kubectl rollout status statefulset/${{ matrix.image.name }}
         
       - name: Test home endpoint
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
             curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/
 
       - name: Test healthz endpoint
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
             curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/healthz
     
       - name: Test inference endpoint
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
             if [[ "${{ matrix.image.name }}" == *"llama"* && "${{ matrix.image.name }}" == *"-chat"* ]]; then
                 echo "Testing inference for ${{ matrix.image.name }}"
