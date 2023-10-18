@@ -112,8 +112,8 @@ jobs:
       - name: Save registry and tag as an artifact for other workflows that run on workflow_run to download them
         run: |
           sudo mkdir -p /tmp/artifacts
-          echo ${{ steps.set_tag.outputs.image_tag  }} >> /tmp/artifacts/tag.txt
-          cat /tmp/artifacts/tag.txt
+          echo ${{ steps.set_tag.outputs.image_tag }} | sudo tee /tmp/artifacts/tag.txt
+          sudo cat /tmp/artifacts/tag.txt
 
       - name: Upload image tag as artifact
         uses: actions/upload-artifact@v3
