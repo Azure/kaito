@@ -16,6 +16,7 @@ import (
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -277,17 +278,31 @@ func (c *WorkspaceReconciler) validateNodeInstanceType(ctx context.Context, wObj
 // createAndValidateNode creates a new machine and validates status.
 func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *kaitov1alpha1.Workspace) (*corev1.Node, error) {
 	klog.InfoS("createAndValidateNode", "workspace", klog.KObj(wObj))
+	var machineOSDiskSize string
+	if wObj.Inference.Preset.Name != "" {
+		machineOSDiskSize = inference.Llama2PresetInferences[wObj.Inference.Preset.Name].DiskStorageRequirement
+	}
+	if machineOSDiskSize == "" {
+		machineOSDiskSize = "0" // The default OS size is used
+	}
 
-	newMachine := machine.GenerateMachineManifest(ctx, inference.Llama2PresetInferences[wObj.Inference.Preset.Name].DiskStorageRequirement, wObj)
+Retry_withdifferentname:
+	newMachine := machine.GenerateMachineManifest(ctx, machineOSDiskSize, wObj)
 
 	if err := machine.CreateMachine(ctx, newMachine, c.Client); err != nil {
-		klog.ErrorS(err, "failed to create machine", "machine", newMachine.Name)
-		if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionFalse,
-			"machineFailedCreation", err.Error()); err != nil {
-			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+		if apierrors.IsAlreadyExists(err) {
+			klog.InfoS("There exists a machine with the same name, retry with a different name", "machine", newMachine.Name)
+			goto Retry_withdifferentname
+		} else {
+
+			klog.ErrorS(err, "failed to create machine", "machine", newMachine.Name)
+			if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionFalse,
+				"machineFailedCreation", err.Error()); err != nil {
+				klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
+				return nil, err
+			}
 			return nil, err
 		}
-		return nil, err
 	}
 	klog.InfoS("a new machine has been created", "machine", newMachine.Name)
 
@@ -318,7 +333,7 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kaito
 			return ctx.Err()
 		default:
 			if nodeObj == nil {
-				return errors.NewNotFound(core.Resource("nodes"), nodeObj.Name)
+				return apierrors.NewNotFound(core.Resource("nodes"), nodeObj.Name)
 			}
 
 			//Nvidia Plugin
@@ -326,7 +341,7 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kaito
 			if !foundNvidiaPlugin {
 				err := k8sresources.UpdateNodeWithLabel(ctx, nodeObj.Name, k8sresources.LabelKeyNvidia, k8sresources.LabelValueNvidia, c.Client)
 				if err != nil {
-					if errors.IsNotFound(err) {
+					if apierrors.IsNotFound(err) {
 						klog.ErrorS(err, "nvidia plugin cannot be installed, node not found", "node", nodeObj.Name)
 						if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionFalse,
 							"checkMachineStatusFailed", err.Error()); err != nil {
@@ -363,7 +378,7 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kaitov
 	existingSVC := &corev1.Service{}
 	err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingSVC)
 	if err != nil {
-		if !errors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 	} else {
@@ -388,7 +403,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 	existingObj := &appsv1.StatefulSet{}
 	err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj)
 	if err != nil {
-		if !errors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
 				"WorkspaceInferenceStatusFailed", err.Error()); err != nil {
 				klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
