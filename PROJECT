@@ -5,16 +5,16 @@
 domain: io
 layout:
 - go.kubebuilder.io/v4
-projectName: kdm
-repo: github.com/azure/kdm
+projectName: kaito
+repo: github.com/azure/kaito
 resources:
 - api:
     crdVersion: v1
     namespaced: true
   controller: true
   domain: io
-  group: kdm
+  group: kaito
   kind: Workspace
-  path: github.com/azure/kdm/api/v1alpha1
+  path: github.com/azure/kaito/api/v1alpha1
   version: v1alpha1
 version: "3"

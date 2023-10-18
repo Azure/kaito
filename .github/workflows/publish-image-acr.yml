@@ -1,57 +1,27 @@
 name: Push image to ACR
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: [ "Create release" ]
-    types: [ completed ]
-    branches: [ main, release-** ]
 
 
 permissions:
   id-token: write
   contents: read
+  packages: read
+
+env:
+  GO_VERSION: '1.20'
 
 jobs:
   publish:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: pwsh
+    runs-on: ubuntu-20.04
     steps:
-      - name: Download tag artifact
-        uses: actions/github-script@v6
+      - name: Set up Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v4
         with:
-          github-token: ${{ secrets.KDM_ACCESS_TOKEN_READ }}
-          script: |
-            let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               run_id: context.payload.workflow_run.id,
-            });
-            let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
-              return artifact.name == "artifacts"
-            })[0];
-            let download = await github.rest.actions.downloadArtifact({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               artifact_id: matchArtifact.id,
-               archive_format: 'zip',
-            });
-            let fs = require('fs');
-            fs.writeFileSync(`/tmp/artifacts.zip`, Buffer.from(download.data));
-      - run: |
-          mkdir -p /tmp/artifacts
-          unzip /tmp/artifacts.zip -d /tmp/artifacts
-        shell: bash
-      - run: |
-          echo "Downloaded artifacts:"
-          ls -ablh /tmp/artifacts
-        shell: bash
-      - name: Parse artifacts and assign GA environment variables
+          go-version: ${{ env.GO_VERSION  }}
+      - name: Set Image Tag
         run: |
-          tag=$(tail -n 1 /tmp/artifacts/tag.txt)
-          echo "IMG_TAG=$tag" >> $GITHUB_ENV
+          echo "IMG_TAG=$(echo "${{ github.ref }}" | tr -d refs/tags/)" >> $GITHUB_ENV
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -60,14 +30,14 @@ jobs:
       - name: 'Az CLI login'
         uses: azure/login@v1.4.7
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-id: ${{ secrets.KAITO_MCR_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          subscription-id: ${{ secrets.KAITO_MCR_SUBSCRIPTION_ID }}
       - name: 'Publish to ACR'
-        id: publish
+        id: Publish
         run: |
-          az acr login -n ${{ vars.AZURE_REGISTRY }}
-          OUTPUT_TYPE=type=registry make docker-build-kdm
+          az acr login -n ${{ secrets.KAITO_MCR_REGISTRY }}
+          OUTPUT_TYPE=type=registry make docker-build-kaito
         env:
             VERSION: ${{ env.IMG_TAG }}
-            REGISTRY: ${{ secrets.AZURE_REGISTRY }}
+            REGISTRY: ${{ secrets.KAITO_MCR_REGISTRY }}/unlisted/aks/kaito

@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	"github.com/azure/kdm/pkg/controllers"
-	"github.com/azure/kdm/pkg/webhooks"
+	"github.com/azure/kaito/pkg/controllers"
+	"github.com/azure/kaito/pkg/webhooks"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/injection/sharedmain"
 	"knative.dev/pkg/signals"
@@ -42,7 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -63,7 +63,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(kdmv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(kaitov1alpha1.AddToScheme(scheme))
 	utilruntime.Must(v1alpha5.SchemeBuilder.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 	klog.InitFlags(nil)
@@ -116,7 +116,7 @@ func main() {
 		Client:   mgr.GetClient(),
 		Log:      log.Log.WithName("controllers").WithName("Workspace"),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("KDM-Workspace-controller"),
+		Recorder: mgr.GetEventRecorderFor("KAITO-Workspace-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "unable to create controller", "controller", "Workspace")
 		exitWithErrorFunc()

@@ -11,7 +11,7 @@ import (
 	"knative.dev/pkg/webhook/resourcesemantics"
 	"knative.dev/pkg/webhook/resourcesemantics/validation"
 
-	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 )
 
 func NewWebhooks() []knativeinjection.ControllerConstructor {
@@ -23,8 +23,8 @@ func NewWebhooks() []knativeinjection.ControllerConstructor {
 
 func NewCRDValidationWebhook(ctx context.Context, _ configmap.Watcher) *controller.Impl {
 	return validation.NewAdmissionController(ctx,
-		"validation.webhook.kdm.io",
-		"/validate/workspace.kdm.io",
+		"validation.webhook.kaito.sh",
+		"/validate/workspace.kaito.sh",
 		Resources,
 		func(ctx context.Context) context.Context { return ctx },
 		true,
@@ -32,5 +32,5 @@ func NewCRDValidationWebhook(ctx context.Context, _ configmap.Watcher) *controll
 }
 
 var Resources = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
-	kdmv1alpha1.GroupVersion.WithKind("Workspace"): &kdmv1alpha1.Workspace{},
+	kaitov1alpha1.GroupVersion.WithKind("Workspace"): &kaitov1alpha1.Workspace{},
 }

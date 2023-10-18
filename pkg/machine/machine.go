@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	kdmv1alpha1 "github.com/azure/kdm/api/v1alpha1"
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -33,13 +33,13 @@ var (
 )
 
 // GenerateMachineManifest generates a machine object from	the given workspace.
-func GenerateMachineManifest(ctx context.Context, storageRequirement string, workspaceObj *kdmv1alpha1.Workspace) *v1alpha5.Machine {
+func GenerateMachineManifest(ctx context.Context, storageRequirement string, workspaceObj *kaitov1alpha1.Workspace) *v1alpha5.Machine {
 	klog.InfoS("GenerateMachineManifest", "workspace", klog.KObj(workspaceObj))
 
 	machineName := fmt.Sprint("machine", rand.Intn(100_000))
 	machineLabels := map[string]string{
-		LabelProvisionerName:           ProvisionerName,
-		kdmv1alpha1.LabelWorkspaceName: workspaceObj.Name,
+		LabelProvisionerName:             ProvisionerName,
+		kaitov1alpha1.LabelWorkspaceName: workspaceObj.Name,
 	}
 	if workspaceObj.Resource.LabelSelector != nil &&
 		len(workspaceObj.Resource.LabelSelector.MatchLabels) != 0 {
@@ -53,7 +53,7 @@ func GenerateMachineManifest(ctx context.Context, storageRequirement string, wor
 			Labels:    machineLabels,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: kdmv1alpha1.GroupVersion.String(),
+					APIVersion: kaitov1alpha1.GroupVersion.String(),
 					Kind:       "Workspace",
 					UID:        workspaceObj.UID,
 					Name:       workspaceObj.Name,
@@ -136,7 +136,7 @@ func CreateMachine(ctx context.Context, machineObj *v1alpha5.Machine, kubeClient
 }
 
 // CheckOngoingProvisioningMachines Check if the there are any machines in provisioning condition. If so, then subtract them from the remaining nodes we need to create.
-func CheckOngoingProvisioningMachines(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, kubeClient client.Client) (int, error) {
+func CheckOngoingProvisioningMachines(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) (int, error) {
 	klog.InfoS("CheckOngoingProvisioningMachines", "workspace", klog.KObj(workspaceObj))
 	machines, err := ListMachines(ctx, workspaceObj, kubeClient)
 	if err != nil {
@@ -148,7 +148,7 @@ func CheckOngoingProvisioningMachines(ctx context.Context, workspaceObj *kdmv1al
 		// check if the machine is being created for the requested workspace.
 		if machines.Items[i].ObjectMeta.Labels != nil {
 			labels := machines.Items[i].ObjectMeta.Labels
-			if val, exists := labels[kdmv1alpha1.LabelWorkspaceName]; exists && val == workspaceObj.Name {
+			if val, exists := labels[kaitov1alpha1.LabelWorkspaceName]; exists && val == workspaceObj.Name {
 
 				// check if the machine is being created has the requested workspace instance type.
 				_, machineInstanceType := lo.Find(machines.Items[i].Spec.Requirements, func(requirement v1.NodeSelectorRequirement) bool {
@@ -178,7 +178,7 @@ func CheckOngoingProvisioningMachines(ctx context.Context, workspaceObj *kdmv1al
 }
 
 // ListMachines list all machine	objects in the cluster.
-func ListMachines(ctx context.Context, workspaceObj *kdmv1alpha1.Workspace, kubeClient client.Client) (*v1alpha5.MachineList, error) {
+func ListMachines(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) (*v1alpha5.MachineList, error) {
 	klog.InfoS("ListMachines", "workspace", klog.KObj(workspaceObj))
 	machineList := &v1alpha5.MachineList{}
 
