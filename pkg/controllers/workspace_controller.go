@@ -278,7 +278,17 @@ func (c *WorkspaceReconciler) validateNodeInstanceType(ctx context.Context, wObj
 func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *kaitov1alpha1.Workspace) (*corev1.Node, error) {
 	klog.InfoS("createAndValidateNode", "workspace", klog.KObj(wObj))
 
-	newMachine := machine.GenerateMachineManifest(ctx, inference.Llama2PresetInferences[wObj.Inference.Preset.Name].DiskStorageRequirement, wObj)
+	var newMachine *v1alpha5.Machine
+	presetName := wObj.Inference.Preset.Name
+	if _, exists := inference.Llama2PresetInferences[presetName]; exists {
+		newMachine = machine.GenerateMachineManifest(ctx, inference.Llama2PresetInferences[presetName].DiskStorageRequirement, wObj)
+	} else if _, exists := inference.FalconPresetInferences[presetName]; exists {
+		newMachine = machine.GenerateMachineManifest(ctx, inference.FalconPresetInferences[presetName].DiskStorageRequirement, wObj)
+	} else {
+		err := fmt.Errorf("preset model %s is not supported", presetName)
+		klog.ErrorS(err, "no newMachine has been created")
+		return nil, err
+	}
 
 	if err := machine.CreateMachine(ctx, newMachine, c.Client); err != nil {
 		klog.ErrorS(err, "failed to create machine", "machine", newMachine.Name)
