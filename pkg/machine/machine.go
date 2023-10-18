@@ -2,8 +2,9 @@ package machine
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -36,7 +37,8 @@ var (
 func GenerateMachineManifest(ctx context.Context, storageRequirement string, workspaceObj *kaitov1alpha1.Workspace) *v1alpha5.Machine {
 	klog.InfoS("GenerateMachineManifest", "workspace", klog.KObj(workspaceObj))
 
-	machineName := fmt.Sprint("machine", rand.Intn(100_000))
+	digest := sha256.Sum256([]byte(workspaceObj.Namespace + workspaceObj.Name + time.Now().Format("2006-01-02 15:04:05.000000000"))) // We make sure the machine name is not fixed to the a workspace
+	machineName := "ws" + hex.EncodeToString(digest[0:])[0:9]
 	machineLabels := map[string]string{
 		LabelProvisionerName:             ProvisionerName,
 		kaitov1alpha1.LabelWorkspaceName: workspaceObj.Name,
@@ -44,6 +46,7 @@ func GenerateMachineManifest(ctx context.Context, storageRequirement string, wor
 	if workspaceObj.Resource.LabelSelector != nil &&
 		len(workspaceObj.Resource.LabelSelector.MatchLabels) != 0 {
 		machineLabels = lo.Assign(machineLabels, workspaceObj.Resource.LabelSelector.MatchLabels)
+
 	}
 
 	return &v1alpha5.Machine{
