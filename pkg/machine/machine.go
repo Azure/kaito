@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
@@ -172,16 +171,15 @@ func ListMachinesByWorkspace(ctx context.Context, workspaceObj *kaitov1alpha1.Wo
 	klog.InfoS("ListMachinesByWorkspace", "workspace", klog.KObj(workspaceObj))
 	machineList := &v1alpha5.MachineList{}
 
-	sel := labels.NewSelector()
-	r1, _ := labels.NewRequirement(kaitov1alpha1.LabelWorkspaceName, selection.Equals, []string{workspaceObj.Name})
-	sel = sel.Add(*r1)
-	r2, _ := labels.NewRequirement(kaitov1alpha1.LabelWorkspaceNamespace, selection.Equals, []string{workspaceObj.Namespace})
-	sel = sel.Add(*r2)
+	ls := labels.Set{
+		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
+		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
+	}
 
 	err := retry.OnError(retry.DefaultBackoff, func(err error) bool {
 		return true
 	}, func() error {
-		return kubeClient.List(ctx, machineList, &client.MatchingLabelsSelector{Selector: sel})
+		return kubeClient.List(ctx, machineList, &client.MatchingLabelsSelector{Selector: ls.AsSelector()})
 	})
 	if err != nil {
 		return nil, err

@@ -148,7 +148,7 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 		klog.InfoS("PreferredNodes list is empty")
 	} else {
 		for n := range preferredList {
-			lo.Find(validNodeList, func(nodeItem *corev1.Node) bool {
+			lo.Find(validCurrentClusterNodeList, func(nodeItem *corev1.Node) bool {
 				if nodeItem.Name == preferredList[n] {
 					validNodeList = append(validNodeList, nodeItem)
 					return true
