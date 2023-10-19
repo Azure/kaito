@@ -4,6 +4,7 @@ import (
 	"context"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/machine"
 	"github.com/azure/kaito/pkg/utils"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -14,6 +15,18 @@ import (
 // garbageCollectWorkspace remove finalizer associated with workspace object.
 func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace) (ctrl.Result, error) {
 	klog.InfoS("garbageCollectWorkspace", "workspace", klog.KObj(wObj))
+
+	mList, err := machine.ListMachinesByWorkspace(ctx, wObj, c.Client)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	// We should delete all the machines that are created by this workspace
+	for i := range mList.Items {
+		if deleteErr := c.Delete(ctx, &mList.Items[i], &client.DeleteOptions{}); deleteErr != nil {
+			klog.ErrorS(deleteErr, "failed to delete the machine", "machine", klog.KObj(&mList.Items[i]))
+			return ctrl.Result{}, deleteErr
+		}
+	}
 
 	staleWObj := wObj.DeepCopy()
 	staleWObj.SetFinalizers(nil)

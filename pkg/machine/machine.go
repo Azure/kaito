@@ -13,6 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
@@ -40,8 +41,9 @@ func GenerateMachineManifest(ctx context.Context, storageRequirement string, wor
 	digest := sha256.Sum256([]byte(workspaceObj.Namespace + workspaceObj.Name + time.Now().Format("2006-01-02 15:04:05.000000000"))) // We make sure the machine name is not fixed to the a workspace
 	machineName := "ws" + hex.EncodeToString(digest[0:])[0:9]
 	machineLabels := map[string]string{
-		LabelProvisionerName:             ProvisionerName,
-		kaitov1alpha1.LabelWorkspaceName: workspaceObj.Name,
+		LabelProvisionerName:                  ProvisionerName,
+		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
+		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
 	}
 	if workspaceObj.Resource.LabelSelector != nil &&
 		len(workspaceObj.Resource.LabelSelector.MatchLabels) != 0 {
@@ -54,14 +56,6 @@ func GenerateMachineManifest(ctx context.Context, storageRequirement string, wor
 			Name:      machineName,
 			Namespace: workspaceObj.Namespace,
 			Labels:    machineLabels,
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion: kaitov1alpha1.GroupVersion.String(),
-					Kind:       "Workspace",
-					UID:        workspaceObj.UID,
-					Name:       workspaceObj.Name,
-				},
-			},
 		},
 		Spec: v1alpha5.MachineSpec{
 			MachineTemplateRef: &v1alpha5.MachineTemplateRef{
@@ -141,54 +135,51 @@ func CreateMachine(ctx context.Context, machineObj *v1alpha5.Machine, kubeClient
 // CheckOngoingProvisioningMachines Check if the there are any machines in provisioning condition. If so, then subtract them from the remaining nodes we need to create.
 func CheckOngoingProvisioningMachines(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) (int, error) {
 	klog.InfoS("CheckOngoingProvisioningMachines", "workspace", klog.KObj(workspaceObj))
-	machines, err := ListMachines(ctx, workspaceObj, kubeClient)
+	machines, err := ListMachinesByWorkspace(ctx, workspaceObj, kubeClient)
 	if err != nil {
 		return 0, err
 	}
 
 	machinesProvisioningCount := 0
 	for i := range machines.Items {
-		// check if the machine is being created for the requested workspace.
-		if machines.Items[i].ObjectMeta.Labels != nil {
-			labels := machines.Items[i].ObjectMeta.Labels
-			if val, exists := labels[kaitov1alpha1.LabelWorkspaceName]; exists && val == workspaceObj.Name {
+		// check if the machine is being created has the requested workspace instance type.
+		_, machineInstanceType := lo.Find(machines.Items[i].Spec.Requirements, func(requirement v1.NodeSelectorRequirement) bool {
+			return requirement.Key == v1.LabelInstanceTypeStable &&
+				requirement.Operator == v1.NodeSelectorOpIn &&
+				lo.Contains(requirement.Values, workspaceObj.Resource.InstanceType)
+		})
+		if machineInstanceType {
+			_, found := lo.Find(machines.Items[i].GetConditions(), func(condition apis.Condition) bool {
+				return condition.Type == v1alpha5.MachineInitialized && condition.Status == v1.ConditionFalse
+			})
 
-				// check if the machine is being created has the requested workspace instance type.
-				_, machineInstanceType := lo.Find(machines.Items[i].Spec.Requirements, func(requirement v1.NodeSelectorRequirement) bool {
-					return requirement.Key == v1.LabelInstanceTypeStable &&
-						requirement.Operator == v1.NodeSelectorOpIn &&
-						lo.Contains(requirement.Values, workspaceObj.Resource.InstanceType)
-				})
-				if machineInstanceType {
-					_, found := lo.Find(machines.Items[i].GetConditions(), func(condition apis.Condition) bool {
-						return condition.Type == v1alpha5.MachineInitialized && condition.Status == v1.ConditionFalse
-					})
-
-					if found || machines.Items[i].GetConditions() == nil { // checking conditions==nil is a workaround for conditions delaying to set on the machine object.
-						//wait until	machine is initialized.
-						err := CheckMachineStatus(ctx, &machines.Items[i], kubeClient)
-						if err != nil {
-							return 0, err
-						}
-						machinesProvisioningCount++
-					}
+			if found || machines.Items[i].GetConditions() == nil { // checking conditions==nil is a workaround for conditions delaying to set on the machine object.
+				//wait until machine is initialized.
+				err := CheckMachineStatus(ctx, &machines.Items[i], kubeClient)
+				if err != nil {
+					return 0, err
 				}
-
+				machinesProvisioningCount++
 			}
 		}
 	}
 	return machinesProvisioningCount, nil
 }
 
-// ListMachines list all machine	objects in the cluster.
-func ListMachines(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) (*v1alpha5.MachineList, error) {
-	klog.InfoS("ListMachines", "workspace", klog.KObj(workspaceObj))
+// ListMachines list all machine objects in the cluster that are created by the workspace identified by the label.
+func ListMachinesByWorkspace(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) (*v1alpha5.MachineList, error) {
+	klog.InfoS("ListMachinesByWorkspace", "workspace", klog.KObj(workspaceObj))
 	machineList := &v1alpha5.MachineList{}
+
+	ls := labels.Set{
+		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
+		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
+	}
 
 	err := retry.OnError(retry.DefaultBackoff, func(err error) bool {
 		return true
 	}, func() error {
-		return kubeClient.List(ctx, machineList, &client.ListOptions{})
+		return kubeClient.List(ctx, machineList, &client.MatchingLabelsSelector{Selector: ls.AsSelector()})
 	})
 	if err != nil {
 		return nil, err
