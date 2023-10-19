@@ -5,8 +5,11 @@ on:
         workflows: ["Build and Push Preset Models"]
         types: 
             - completed
-    workflow_dispatch: {}
-
+    workflow_dispatch:
+        inputs:
+            image_tag:
+                description: 'Image Tag'
+                required: true
 env:
     GO_VERSION: "1.20"
 
@@ -15,7 +18,70 @@ permissions:
     contents: read
 
 jobs:
+  setup:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: self-hosted
+    outputs: 
+        IMG_TAG: ${{ steps.set_final_tag.outputs.IMG_TAG }}
+    steps: 
+      - name: Determine tag from dispatch
+        if: github.event_name == 'workflow_dispatch'
+        id: determine_tag
+        run: echo "IMG_TAG=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+
+      - name: Download tag artifact
+        if: github.event_name == 'workflow_run'
+        uses: actions/github-script@v6
+        with:
+            github-token: ${{ secrets.KAITO_ACCESS_TOKEN_READ }}
+            script: |
+                let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: context.payload.workflow_run.id,
+                });
+                let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
+                    return artifact.name == "artifacts"
+                })[0];
+                let download = await github.rest.actions.downloadArtifact({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    artifact_id: matchArtifact.id,
+                    archive_format: 'zip',
+                });
+                let fs = require('fs');
+                fs.writeFileSync(`/tmp/artifacts.zip`, Buffer.from(download.data));
+      - name: Unzip tag artifact
+        if: github.event_name == 'workflow_run'
+        run: |
+          mkdir -p /tmp/artifacts
+          unzip -o /tmp/artifacts.zip -d /tmp/artifacts
+        shell: bash
+      - name: Display downloaded aritifacts
+        if: github.event_name == 'workflow_run'
+        run: |
+          echo "Downloaded artifacts:"
+          ls -ablh /tmp/artifacts
+        shell: bash
+      - name: Parse artifacts and assign GA environment variables
+        if: github.event_name == 'workflow_run'
+        id: get_image_tag
+        run: |
+            tag=$(tail -n 1 /tmp/artifacts/tag.txt)
+            echo "IMG_TAG=$tag" >> $GITHUB_OUTPUT
+
+      - name: Set final image tag
+        id: set_final_tag
+        run: |
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+                echo "IMG_TAG=${{ steps.determine_tag.outputs.IMG_TAG }}" >> $GITHUB_OUTPUT
+            else
+                echo "IMG_TAG=${{ steps.get_image_tag.outputs.IMG_TAG }}" >> $GITHUB_OUTPUT
+            fi
+
   e2e-preset-tests:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    needs: setup
     runs-on: self-hosted
     strategy:
       fail-fast: false
@@ -26,49 +92,48 @@ jobs:
             node-vm-size: Standard_NC12s_v3
             node-osdisk-size: 100
 
-        #   - name: falcon-7b-instruct
-        #     node-count: 1
-        #     node-vm-size: Standard_NC12s_v3
-        #     node-osdisk-size: 100
+          - name: falcon-7b-instruct
+            node-count: 1
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 100
 
-        # Uncomment once supported by ACR
-        #   - name: falcon-40b
-        #     node-count: 1
-        #     node-vm-size: Standard_NC96ads_A100_v4
-        #     node-osdisk-size: 400
+          - name: falcon-40b
+            node-count: 1
+            node-vm-size: Standard_NC96ads_A100_v4
+            node-osdisk-size: 400
 
-        #   - name: falcon-40b-instruct
-        #     node-count: 1
-        #     node-vm-size: Standard_NC96ads_A100_v4
-        #     node-osdisk-size: 400
+          - name: falcon-40b-instruct
+            node-count: 1
+            node-vm-size: Standard_NC96ads_A100_v4
+            node-osdisk-size: 400
 
-        #   - name: llama-2-7b
-        #     node-count: 1
-        #     node-vm-size: Standard_NC12s_v3
-        #     node-osdisk-size: 100
+          - name: llama-2-7b
+            node-count: 1
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 100
         
-        #   - name: llama-2-13b
-        #     node-count: 2
-        #     node-vm-size: Standard_NC12s_v3
-        #     node-osdisk-size: 150
+          - name: llama-2-13b
+            node-count: 2
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 150
         
-        # Uncomment once supported by ACR
+        # Uncomment once service/deployment made
         #   - name: llama-2-70b
         #     node-count: 2
         #     node-vm-size: Standard_NC96ads_A100_v4
         #     node-osdisk-size: 400
 
-        #   - name: llama-2-7b-chat
-        #     node-count: 1
-        #     node-vm-size: Standard_NC12s_v3
-        #     node-osdisk-size: 100
+          - name: llama-2-7b-chat
+            node-count: 1
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 100
 
-        #   - name: llama-2-13b-chat
-        #     node-count: 2
-        #     node-vm-size: Standard_NC12s_v3
-        #     node-osdisk-size: 150
+          - name: llama-2-13b-chat
+            node-count: 2
+            node-vm-size: Standard_NC12s_v3
+            node-osdisk-size: 150
         
-        # Uncomment once supported by ACR
+        # Uncomment once service/deployment made
         #   - name: llama-2-70b-chat
         #     node-count: 2
         #     node-vm-size: Standard_NC96ads_A100_v4
@@ -80,21 +145,12 @@ jobs:
         with:
             submodules: true
             fetch-depth: 0
-      
-      - name: Download image tag artifact 
-        uses: actions/download-artifact@v3
-        id: download
-        with:
-            name: image-tag-artifact
-
-      - name: Read image tag
-        id: get_image_tag
+    
+      - name: Get ACR Name
+        id: get_acr_name
         run: |
-            tag=$(cat image_tag.txt)
-            echo "IMAGE_TAG=$tag" >> $GITHUB_OUTPUT
-
             # Set the ACR based on the tag value
-            if [[ "$tag" == "latest" ]]; then
+            if [[ "${{ needs.setup.outputs.IMG_TAG }}" == "latest" ]]; then
               echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
             else
               echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
@@ -102,23 +158,46 @@ jobs:
         
       - name: Install Azure CLI latest
         run: |
-            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+            if ! which az > /dev/null; then
+                echo "Azure CLI not found. Installing..."
+                curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+            else
+                echo "Azure CLI already installed."
+            fi
 
-      - name: Az CLI login
+      - name: 'Az CLI login'
         uses: azure/login@v1.4.6
         with:
-            client-id: ${{ secrets.AZURE_KDM_PRESET_CLIENT_ID }}
+            client-id: ${{ secrets.AZURE_KDM_PRESET_SELF_RUNNER_CLIENT_ID }}
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+            allow-no-subscriptions: true
+      
+      - name: 'Set subscription'
+        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
 
-      - name: 'Login to ACR'
-        run: az acr login --name ${{ steps.get_image_tag.outputs.ACR_NAME }}
+      - name: 'Check if Image exists in ACR'
+        id: check_image
+        run: |
+            ACR_NAME=${{ steps.get_acr_name.outputs.ACR_NAME }}
+            IMAGE_NAME=${{ matrix.image.name }}
+            TAG=${{ needs.setup.outputs.IMG_TAG }}
+        
+            TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv)
+        
+            if echo "$TAGS" | grep -q "^$TAG$"; then
+                echo "IMAGE_EXISTS=true" >> $GITHUB_OUTPUT
+            else
+                echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
+                echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
+            fi
 
       - name: Set up kubectl context
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
-          az aks get-credentials --resource-group llm-test --name new_demo
+          az aks get-credentials --resource-group llm-test --name GitRunner
     
       - name: Get Nodepool Name
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         id: get_nodepool_name
         run: |
             NAME_SUFFIX=${{ matrix.image.name }}
@@ -133,17 +212,18 @@ jobs:
             echo "NODEPOOL_NAME=$TRUNCATED_NAME_SUFFIX" >> $GITHUB_OUTPUT
 
       - name: Create Nodepool
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
             NODEPOOL_EXIST=$(az aks nodepool show \
                             --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
-                            --cluster-name new_demo \
+                            --cluster-name GitRunner \
                             --resource-group llm-test \
                             --query 'name' -o tsv || echo "")
             echo "NODEPOOL_EXIST: $NODEPOOL_EXIST"
             if [ -z "$NODEPOOL_EXIST" ]; then
                 az aks nodepool add \
                     --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
-                    --cluster-name new_demo \
+                    --cluster-name GitRunner \
                     --resource-group llm-test \
                     --node-count ${{ matrix.image.node-count }} \
                     --node-vm-size ${{ matrix.image.node-vm-size }} \
@@ -154,7 +234,7 @@ jobs:
             else
                 NODEPOOL_STATE=$(az aks nodepool show \
                                 --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
-                                --cluster-name new_demo \
+                                --cluster-name GitRunner \
                                 --resource-group llm-test \
                                 --query 'provisioningState' -o tsv)
                 echo "NODEPOOL_STATE: $NODEPOOL_STATE"          
@@ -167,9 +247,11 @@ jobs:
             fi
 
       - name: Create Service
-        run: kubectl apply -f pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-service.yaml
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
+        run: kubectl apply -f presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-service.yaml
       
       - name: Retrieve External Service IP
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         id: get_ip
         run: |
             while [[ -z $SERVICE_IP ]]; do 
@@ -180,25 +262,30 @@ jobs:
             echo "SERVICE_IP=$SERVICE_IP" >> $GITHUB_OUTPUT
         
       - name: Replace IP and Deploy Statefulset to K8s
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
-            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            sed -i "s/TAG_HERE/${{ steps.get_image_tag.outputs.IMAGE_TAG }}/g" pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            sed -i "s/REPO_HERE/${{ steps.get_image_tag.outputs.ACR_NAME }}/g" pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            kubectl apply -f pkg/presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/TAG_HERE/${{ needs.setup.outputs.IMG_TAG }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/REPO_HERE/${{ steps.get_acr_name.outputs.ACR_NAME }}/g" presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            kubectl apply -f presets/k8s/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
     
       - name: Wait for Statefulset to be ready
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
             kubectl rollout status statefulset/${{ matrix.image.name }}
         
       - name: Test home endpoint
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
             curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/
 
       - name: Test healthz endpoint
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
             curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/healthz
     
       - name: Test inference endpoint
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
             if [[ "${{ matrix.image.name }}" == *"llama"* && "${{ matrix.image.name }}" == *"-chat"* ]]; then
                 echo "Testing inference for ${{ matrix.image.name }}"
@@ -249,15 +336,29 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-            # Delete K8s Service
-            kubectl delete svc ${{ matrix.image.name }}
-
-            # Delete K8s Deployment
-            kubectl delete statefulset ${{ matrix.image.name }}
-
-            # Delete AKS Nodepool
-            az aks nodepool delete \
-            --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
-            --cluster-name new_demo \
-            --resource-group llm-test
+            # Check and Delete K8s Service if it exists
+            if kubectl get svc ${{ matrix.image.name }} > /dev/null 2>&1; then
+                kubectl delete svc ${{ matrix.image.name }}
+            fi
         
+            # Check and Delete K8s StatefulSet if it exists
+            if kubectl get statefulset ${{ matrix.image.name }} > /dev/null 2>&1; then
+                kubectl delete statefulset ${{ matrix.image.name }}
+            fi
+
+            # Check and Delete AKS Nodepool if it exists            
+            if [ -n "${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }}" ]; then
+                NODEPOOL_EXIST=$(az aks nodepool show \
+                                --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+                                --cluster-name GitRunner \
+                                --resource-group llm-test \
+                                --query 'name' -o tsv || echo "")
+
+                if [ -n "$NODEPOOL_EXIST" ]; then
+                    az aks nodepool delete \
+                    --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
+                    --cluster-name GitRunner \
+                    --resource-group llm-test
+                fi
+            fi
+          

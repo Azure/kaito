@@ -23,16 +23,6 @@ RUN pip install 'uvicorn[standard]'
 
 ARG LLAMA_VERSION
 ARG SRC_DIR
-# ARG EXTERNAL_IP
-# ARG EXTERNAL_PORT
-# ARG WEB_SERVER_AUTH_TOKEN
 
-# ENV AUTH_TOKEN_ENV_VAR=${WEB_SERVER_AUTH_TOKEN}
-
-# Copy Go download script into the Docker image
-# COPY /home/docker/presets/download_script.go /workspace/download_script.go
-
-# Use Go download script to fetch model weights
-# RUN go run /workspace/download_script.go "private" ${LLAMA_VERSION} "/workspace/llama/llama-2/weights" ${EXTERNAL_IP} ${EXTERNAL_PORT}
 ADD /home/llama/${LLAMA_VERSION} /workspace/llama/llama-2/weights
 ADD ${SRC_DIR} /workspace/llama/llama-2

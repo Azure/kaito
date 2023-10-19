@@ -37,3 +37,5 @@ spec:
         hostPath:
           path: /falcon
           type: Directory
+      nodeSelector:
+        kubernetes.io/hostname: aks-llamserver-28588359-vmss000000
