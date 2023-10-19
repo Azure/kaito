@@ -29,6 +29,11 @@ const (
 	PresetLlama2BChat            = PresetLlama2BModel + "-chat"
 	PresetLlama2CChat            = PresetLlama2CModel + "-chat"
 
+	PresetFalcon7BModel          ModelName = "falcon-7b"
+	PresetFalcon40BModel         ModelName = "falcon-40b"
+	PresetFalcon7BInstructModel            = PresetFalcon7BModel + "-instruct"
+	PresetFalcon40BInstructModel           = PresetFalcon40BModel + "-instruct"
+
 	ModelAccessModePublic  ModelAccessMode = "public"
 	ModelAccessModePrivate ModelAccessMode = "private"
 )

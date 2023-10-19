@@ -79,6 +79,12 @@ func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1
 			inferenceObj.TorchRunParams["master_addr"] = existingService.Spec.ClusterIP
 			inferenceObj.TorchRunParams["master_port"] = "29500"
 		}
+	} else if inferenceObj.ModelName == "Falcon" {
+		inferenceObj.TorchRunParams["config_file"] = "config.yaml"
+		inferenceObj.TorchRunParams["num_processes"] = "1"
+		inferenceObj.TorchRunParams["num_machines"] = "1"
+		inferenceObj.TorchRunParams["machine_rank"] = "0"
+		inferenceObj.TorchRunParams["gpu_ids"] = "all"
 	}
 	return nil
 }
@@ -97,8 +103,17 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	volume, volumeMount := configVolume(workspaceObj, inferenceObj)
 	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj)
 
-	depObj := k8sresources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, *workspaceObj.Resource.Count, commands,
-		containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
+	var depObj client.Object
+	switch inferenceObj.ModelName {
+	case "LLaMa2":
+		depObj = k8sresources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, *workspaceObj.Resource.Count, commands,
+			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
+	case "Falcon":
+		depObj = k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, inferenceObj.Image, *workspaceObj.Resource.Count, commands,
+			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
+	default:
+		return fmt.Errorf("Model not recognized: %s", inferenceObj.ModelName)
+	}
 	err := k8sresources.CreateResource(ctx, depObj, kubeClient)
 	if err != nil {
 		return err

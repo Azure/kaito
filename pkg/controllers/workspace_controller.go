@@ -84,8 +84,14 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 		return reconcile.Result{}, err
 	}
 
+	inferenceObj, err := c.getInferenceObjFromPreset(ctx, wObj)
+	if err != nil {
+		klog.ErrorS(err, "unable to retrieve inference object from preset", "workspace", wObj)
+		return reconcile.Result{}, err
+	}
+
 	if wObj.GetAnnotations() != nil {
-		if err := c.applyAnnotations(ctx, wObj); err != nil {
+		if err := c.applyAnnotations(ctx, wObj, inferenceObj); err != nil {
 			if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
 				"workspaceFailed", err.Error()); err != nil {
 				klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
@@ -95,7 +101,7 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 		}
 	}
 
-	if err = c.applyInference(ctx, wObj); err != nil {
+	if err = c.applyInference(ctx, wObj, inferenceObj); err != nil {
 		if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
 			"workspaceFailed", err.Error()); err != nil {
 			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
@@ -291,7 +297,16 @@ func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *k
 	klog.InfoS("createAndValidateNode", "workspace", klog.KObj(wObj))
 	var machineOSDiskSize string
 	if wObj.Inference.Preset.Name != "" {
-		machineOSDiskSize = inference.Llama2PresetInferences[wObj.Inference.Preset.Name].DiskStorageRequirement
+		presetName := wObj.Inference.Preset.Name
+		if _, exists := inference.Llama2PresetInferences[presetName]; exists {
+			machineOSDiskSize = inference.Llama2PresetInferences[presetName].DiskStorageRequirement
+		} else if _, exists := inference.FalconPresetInferences[presetName]; exists {
+			machineOSDiskSize = inference.FalconPresetInferences[presetName].DiskStorageRequirement
+		} else {
+			err := fmt.Errorf("preset model %s is not supported", presetName)
+			klog.ErrorS(err, "no newMachine has been created")
+			return nil, err
+		}
 	}
 	if machineOSDiskSize == "" {
 		machineOSDiskSize = "0" // The default OS size is used
@@ -374,7 +389,7 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kaito
 	}
 }
 
-func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
+func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kaitov1alpha1.Workspace, inferenceObj inference.PresetInferenceParam) error {
 	klog.InfoS("applyAnnotations", "workspace", klog.KObj(wObj))
 	serviceType := corev1.ServiceTypeClusterIP
 	wAnnotation := wObj.GetAnnotations()
@@ -397,7 +412,8 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kaitov
 		return nil
 	}
 
-	serviceObj := k8sresources.GenerateServiceManifest(ctx, wObj, serviceType)
+	isStatefulSet := inferenceObj.ModelName == "LLaMa2"
+	serviceObj := k8sresources.GenerateServiceManifest(ctx, wObj, serviceType, isStatefulSet)
 	err = k8sresources.CreateResource(ctx, serviceObj, c.Client)
 	if err != nil {
 		return err
@@ -407,8 +423,28 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kaitov
 	return nil
 }
 
+func (c *WorkspaceReconciler) getInferenceObjFromPreset(ctx context.Context, wObj *kaitov1alpha1.Workspace) (inference.PresetInferenceParam, error) {
+	presetName := wObj.Inference.Preset.Name
+	switch presetName {
+	case kaitov1alpha1.PresetLlama2AChat:
+		return inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2AChat], nil
+	case kaitov1alpha1.PresetLlama2BChat:
+		return inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2BChat], nil
+	case kaitov1alpha1.PresetLlama2CChat:
+		return inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2CChat], nil
+	case kaitov1alpha1.PresetFalcon7BModel:
+		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BModel], nil
+	case kaitov1alpha1.PresetFalcon7BInstructModel:
+		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BInstructModel], nil
+	default:
+		err := fmt.Errorf("preset model %s is not supported", presetName)
+		klog.ErrorS(err, "no inference has been created")
+		return inference.PresetInferenceParam{}, err
+	}
+}
+
 // applyInference applies inference spec.
-func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
+func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1alpha1.Workspace, inferenceObj inference.PresetInferenceParam) error {
 	klog.InfoS("applyInference", "workspace", klog.KObj(wObj))
 
 	existingObj := &appsv1.StatefulSet{}
@@ -427,18 +463,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 		return nil
 	}
 
-	presetName := wObj.Inference.Preset.Name
-	switch presetName {
-	case kaitov1alpha1.PresetLlama2AChat:
-		err = inference.CreatePresetInference(ctx, wObj, inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2AChat], c.Client)
-	case kaitov1alpha1.PresetLlama2BChat:
-		err = inference.CreatePresetInference(ctx, wObj, inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2BChat], c.Client)
-	case kaitov1alpha1.PresetLlama2CChat:
-		err = inference.CreatePresetInference(ctx, wObj, inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2CChat], c.Client)
-	default:
-		err = fmt.Errorf("preset model %s is not supported", presetName)
-		klog.ErrorS(err, "no inference has been created")
-	}
+	err = inference.CreatePresetInference(ctx, wObj, inferenceObj, c.Client)
 	if err != nil {
 		if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
 			"WorkspaceInferenceStatusFailed", err.Error()); err != nil {
