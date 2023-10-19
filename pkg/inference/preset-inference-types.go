@@ -31,8 +31,10 @@ var (
 	presetLlama2BChatImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetLlama2BChat)
 	presetLlama2CChatImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetLlama2CChat)
 
-	presetFalcon7bInstructImage  = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon7BInstructModel)
-	presetFalcon40bInstructImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon40BInstructModel)
+	presetFalcon7bImage         = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon7BModel)
+	presetFalcon7bInstructImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon7BInstructModel)
+	// TODO: Add Preset Inferences for 40b
+	// presetFalcon40bInstructImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon40BInstructModel)
 
 	baseCommandPresetLlama2AChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kaitov1alpha1.PresetLlama2AChat)
 	baseCommandPresetLlama2BChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kaitov1alpha1.PresetLlama2BChat)
@@ -136,6 +138,19 @@ var (
 
 	// FalconPresetInferences defines the preset inferences for Falcon.
 	FalconPresetInferences = map[kaitov1alpha1.ModelName]PresetInferenceParam{
+		kaitov1alpha1.PresetFalcon7BModel: {
+			ModelName:              "Falcon",
+			Image:                  presetFalcon7bImage,
+			DiskStorageRequirement: "50Gi",
+			GPURequirement:         "1",
+			GPUMemoryRequirement:   "14Gi",
+			TorchRunParams:         defaultAccelerateParams,
+			ModelRunParams:         falconRunParams,
+			InferenceFile:          falconInferenceFile,
+			DeploymentTimeout:      time.Duration(30) * time.Minute,
+			BaseCommand:            baseCommandPresetFalcon7B,
+			DefaultVolumeMountPath: "/dev/shm",
+		},
 		kaitov1alpha1.PresetFalcon7BInstructModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon7bInstructImage,
