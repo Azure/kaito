@@ -13,6 +13,9 @@ const (
 	// LabelWorkspaceName is the label for workspace name.
 	LabelWorkspaceName = KAITOPrefix + "workspace"
 
+	// LabelWorkspaceName is the label for workspace namespace.
+	LabelWorkspaceNamespace = KAITOPrefix + "workspacenamespace"
+
 	ServiceTypeClusterIP    = "cluster-ip"
 	ServiceTypeLoadBalancer = "load-balancer"
 )

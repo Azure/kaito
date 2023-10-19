@@ -122,9 +122,9 @@ type WorkspaceStatus struct {
 // +kubebuilder:resource:path=workspaces,scope=Namespaced,categories=workspace,shortName={wk,wks}
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Instance",type="string",JSONPath=".resource.instanceType",description=""
-// +kubebuilder:printcolumn:name="ResourceReady",type="string",JSONPath=".status.condition[?(@.type==\"ResourceReady\")].status",description=""
-// +kubebuilder:printcolumn:name="InferenceReady",type="string",JSONPath=".status.condition[?(@.type==\"InferenceReady\")].status",description=""
-// +kubebuilder:printcolumn:name="WorkspaceReady",type="string",JSONPath=".status.condition[?(@.type==\"WorkspaceReady\")].status",description=""
+// +kubebuilder:printcolumn:name="ResourceReady",type="string",JSONPath=".status.conditions[?(@.type==\"ResourceReady\")].status",description=""
+// +kubebuilder:printcolumn:name="InferenceReady",type="string",JSONPath=".status.conditions[?(@.type==\"InferenceReady\")].status",description=""
+// +kubebuilder:printcolumn:name="WorkspaceReady",type="string",JSONPath=".status.conditions[?(@.type==\"WorkspaceReady\")].status",description=""
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description=""
 type Workspace struct {
 	metav1.TypeMeta   `json:",inline"`
