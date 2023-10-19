@@ -14,6 +14,13 @@ GOLANGCI_LINT_VER := v1.54.1
 GOLANGCI_LINT_BIN := golangci-lint
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN)-$(GOLANGCI_LINT_VER))
 
+
+AZURE_SUBSCRIPTION_ID ?= ff05f55d-22b5-44a7-b704-f9a8efd493ed
+AZURE_LOCATION ?= eastus
+AZURE_RESOURCE_GROUP ?= kaito-test
+AZURE_CLUSTER_NAME ?= kaito-test
+AZURE_RESOURCE_GROUP_MC=MC_$(AZURE_RESOURCE_GROUP)_$(AZURE_CLUSTER_NAME)_$(AZURE_LOCATION)
+
 # Scripts
 GO_INSTALL := ./hack/go-install.sh
 
@@ -87,8 +94,53 @@ test: manifests generate fmt vet envtest ## Run tests.
 
 .PHONY: unit-test
 unit-test: ## Run unit tests.
-	go test -v $(shell go list ./... | grep -v /vendor) -race -coverprofile=coverage.txt -covermode=atomic fmt
+	go test -v $(shell go list ./... | grep -v /vendor) -race -coverprofile=coverage.txt -covermode=atomic
 	go tool cover -func=coverage.txt
+
+TEST_SUITE ?= "..."
+TEST_TIMEOUT ?= "1h"
+.PHONY: kaito-workspace-e2e-test
+kaito-workspace-e2e-test:
+	cd test && CLUSTER_NAME=${AZURE_CLUSTER_NAME} go test \
+    		-p 1 \
+    		-count 1 \
+    		-timeout ${TEST_TIMEOUT} \
+    		-v \
+    		./e2e/suite_test.go \
+    		--ginkgo.focus="${FOCUS}" \
+    		--ginkgo.timeout=${TEST_TIMEOUT} \
+    		--ginkgo.grace-period=3m \
+    		--ginkgo.vv
+
+.PHONY: create-rg
+create-rg: ## Create resource group
+	az group create --name $(AZURE_RESOURCE_GROUP) --location $(AZURE_LOCATION) -o none
+
+.PHONY: create-acr
+create-acr:  ## Create test ACR
+	az acr create --name $(AZURE_ACR_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --sku Standard --admin-enabled -o none
+	az acr login  --name $(AZURE_ACR_NAME)
+
+.PHONY: create-aks-cluster
+create-aks-cluster: ## Create test AKS cluster (with msi, oidc and workload identity enabled)
+	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --attach-acr $(AZURE_ACR_NAME) \
+	--node-count 1 --generate-ssh-keys --enable-managed-identity  --enable-workload-identity --enable-oidc-issuer -o none
+
+	az aks nodepool add --cluster-name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --name gpunode \
+      --node-count 1 --node-vm-size standard_nc96ads_a100_v4 --node-taints sku=gpu:NoSchedule \
+      --aks-custom-headers UseGPUDedicatedVHD=true --node-osdisk-size 300
+
+	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
+
+.PHONY: az-patch-install-helm
+az-patch-install-helm:  ## Update Azure client env vars and settings in helm values.yml
+	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
+
+	yq -i '(.image.repository)                                              = "$(REGISTRY)/workspace"'                    ./charts/kaito/values.yaml
+	yq -i '(.image.tag)                                                     = "$(IMG_TAG)"'                               ./charts/kaito/values.yaml
+
+	helm install kaito-workspace ./charts/kaito
+
 ##@ Build
 
 .PHONY: build

@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: helayoty/kaito
+  repository: ghcr.io/azure/kaito/workspace
   pullPolicy: Always
   tag: 0.0.1
 
