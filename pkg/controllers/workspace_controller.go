@@ -432,6 +432,8 @@ func (c *WorkspaceReconciler) getInferenceObjFromPreset(ctx context.Context, wOb
 		return inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2BChat], nil
 	case kaitov1alpha1.PresetLlama2CChat:
 		return inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2CChat], nil
+	case kaitov1alpha1.PresetFalcon7BModel:
+		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BModel], nil
 	case kaitov1alpha1.PresetFalcon7BInstructModel:
 		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BInstructModel], nil
 	default:
