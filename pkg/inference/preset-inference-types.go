@@ -33,8 +33,9 @@ var (
 
 	presetFalcon7bImage         = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon7BModel)
 	presetFalcon7bInstructImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon7BInstructModel)
-	// TODO: Add Preset Inferences for 40b
-	// presetFalcon40bInstructImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon40BInstructModel)
+
+	presetFalcon40bImage         = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon40BModel)
+	presetFalcon40bInstructImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon40BInstructModel)
 
 	baseCommandPresetLlama2AChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kaitov1alpha1.PresetLlama2AChat)
 	baseCommandPresetLlama2BChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kaitov1alpha1.PresetLlama2BChat)
@@ -46,9 +47,9 @@ var (
 		"max_batch_size": "8",
 	}
 
-	baseCommandPresetFalcon7B = "accelerate launch --use_deepspeed"
-	falconInferenceFile       = "inference-api.py"
-	falconRunParams           = map[string]string{}
+	baseCommandPresetFalcon = "accelerate launch --use_deepspeed"
+	falconInferenceFile     = "inference-api.py"
+	falconRunParams         = map[string]string{}
 
 	defaultTorchRunParams = map[string]string{
 		"nnodes":         DefaultNnodes,
@@ -148,7 +149,7 @@ var (
 			ModelRunParams:         falconRunParams,
 			InferenceFile:          falconInferenceFile,
 			DeploymentTimeout:      time.Duration(30) * time.Minute,
-			BaseCommand:            baseCommandPresetFalcon7B,
+			BaseCommand:            baseCommandPresetFalcon,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
 		kaitov1alpha1.PresetFalcon7BInstructModel: {
@@ -161,7 +162,35 @@ var (
 			ModelRunParams:         falconRunParams,
 			InferenceFile:          falconInferenceFile,
 			DeploymentTimeout:      time.Duration(30) * time.Minute,
-			BaseCommand:            baseCommandPresetFalcon7B,
+			BaseCommand:            baseCommandPresetFalcon,
+			DefaultVolumeMountPath: "/dev/shm",
+		},
+
+		kaitov1alpha1.PresetFalcon40BModel: {
+			ModelName:              "Falcon",
+			Image:                  presetFalcon40bImage,
+			DiskStorageRequirement: "400",
+			GPURequirement:         "2",
+			GPUMemoryRequirement:   "90Gi",
+			TorchRunParams:         defaultAccelerateParams,
+			ModelRunParams:         falconRunParams,
+			InferenceFile:          falconInferenceFile,
+			DeploymentTimeout:      time.Duration(30) * time.Minute,
+			BaseCommand:            baseCommandPresetFalcon,
+			DefaultVolumeMountPath: "/dev/shm",
+		},
+
+		kaitov1alpha1.PresetFalcon40BInstructModel: {
+			ModelName:              "Falcon",
+			Image:                  presetFalcon40bInstructImage,
+			DiskStorageRequirement: "400",
+			GPURequirement:         "2",
+			GPUMemoryRequirement:   "90Gi",
+			TorchRunParams:         defaultAccelerateParams,
+			ModelRunParams:         falconRunParams,
+			InferenceFile:          falconInferenceFile,
+			DeploymentTimeout:      time.Duration(30) * time.Minute,
+			BaseCommand:            baseCommandPresetFalcon,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
 	}

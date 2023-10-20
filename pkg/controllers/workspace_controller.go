@@ -445,6 +445,10 @@ func (c *WorkspaceReconciler) getInferenceObjFromPreset(ctx context.Context, wOb
 		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BModel], nil
 	case kaitov1alpha1.PresetFalcon7BInstructModel:
 		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BInstructModel], nil
+	case kaitov1alpha1.PresetFalcon40BModel:
+		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon40BModel], nil
+	case kaitov1alpha1.PresetFalcon40BInstructModel:
+		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon40BInstructModel], nil
 	default:
 		err := fmt.Errorf("preset model %s is not supported", presetName)
 		klog.ErrorS(err, "no inference has been created")
