@@ -34,8 +34,8 @@ const (
 	PresetFalcon7BInstructModel            = PresetFalcon7BModel + "-instruct"
 	PresetFalcon40BInstructModel           = PresetFalcon40BModel + "-instruct"
 
-	ModelAccessModePublic  ModelAccessMode = "public"
-	ModelAccessModePrivate ModelAccessMode = "private"
+	ModelImageAccessModePublic  ModelImageAccessMode = "public"
+	ModelImageAccessModePrivate ModelImageAccessMode = "private"
 )
 
 // ResourceSpec desicribes the resource requirement of running the workload.
@@ -68,7 +68,7 @@ type ResourceSpec struct {
 type ModelName string
 
 // +kubebuilder:validation:Enum=public;private
-type ModelAccessMode string
+type ModelImageAccessMode string
 
 type PresetMeta struct {
 	// Name of the supported models with preset configurations.
@@ -78,7 +78,7 @@ type PresetMeta struct {
 	// If this field is "private", user needs to provide the private image information in PresetOptions.
 	// +bebuilder:default:="public"
 	// +optional
-	AccessMode ModelAccessMode `json:"accessMode,omitempty"`
+	AccessMode ModelImageAccessMode `json:"accessMode,omitempty"`
 }
 
 type PresetOptions struct {
