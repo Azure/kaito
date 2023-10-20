@@ -35,7 +35,7 @@ jobs:
 
       - name: Shorten SHA
         id: vars
-        run: echo "::set-output name=pr_sha_short::$(git rev-parse --short ${{ github.event.pull_request.head.sha }} )"
+        run: echo "pr_sha_short=$(git rev-parse --short ${{ github.event.pull_request.head.sha }})" >> $GITHUB_OUTPUT
 
       - name: Set e2e Resource and Cluster Name
         run: |
