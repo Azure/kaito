@@ -1,0 +1,115 @@
+name: e2e-test
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  GO_VERSION: "1.20"
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read # This is required for actions/checkout
+jobs:
+  e2e-tests:
+    env:
+      E2E_IMG_TAG: "kaito-e2e"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION  }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Shorten SHA
+        id: vars
+        run: echo "pr_sha_short=$(git rev-parse --short ${{ github.event.pull_request.head.sha }})" >> $GITHUB_OUTPUT
+
+      - name: Set e2e Resource and Cluster Name
+        run: |
+          rand=${{ steps.vars.outputs.pr_sha_short }}
+
+          if [ "$rand" = "" ]; then
+             rand=$RANDOM
+          fi
+
+          echo "VERSION=${rand}" >> $GITHUB_ENV
+          echo "CLUSTER_NAME=gpuprov${rand}" >> $GITHUB_ENV
+
+      - uses: azure/login@v1.4.6
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Install Azure CLI latest
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: azure/setup-helm@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+        id: install
+
+      - name: Create ACR
+        shell: bash
+        run: |
+          make create-rg
+          make create-acr
+        env:
+          AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
+          AZURE_ACR_NAME: ${{ env.CLUSTER_NAME }}
+
+      - name: build KAITO image
+        shell: bash
+        run: |
+          make docker-build-kaito
+        env:
+          REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
+          VERSION: ${{ env.VERSION }}
+
+      - name: create cluster
+        shell: bash
+        run: |
+          make create-aks-cluster
+        env:
+          AZURE_ACR_NAME: ${{ env.CLUSTER_NAME }}
+          AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
+          AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
+
+      - name: Install KAITO Workspace helm chart
+        shell: bash
+        run: |
+          make az-patch-install-helm
+          kubectl wait --for=condition=available deploy "kaito-workspace" -n kaito-workspace --timeout=300s
+        env:
+          AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
+          AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
+          REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
+          VERSION: ${{ env.VERSION }}
+
+      - name: Run e2e test
+        run: |
+          make kaito-workspace-e2e-test
+        env:
+          AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
+
+      - name: Cleanup e2e resources
+        if: ${{ always() }}
+        run: |
+          set +e
+          az group delete --name "${{ env.CLUSTER_NAME }}" --yes --no-wait || true
