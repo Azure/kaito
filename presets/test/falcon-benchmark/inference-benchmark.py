@@ -81,7 +81,7 @@ pipeline = transformers.pipeline(
 
 
 
-with open("requests.csv", "r") as f:
+with open("../common-gpt-questions.csv", "r") as f:
     requests = [line.strip() for line in f.readlines()]
 
 fieldnames = ["model", "num_nodes", "num_processes", "num_gpus", "num_prompts", "prompt_len", "model_parallelism", "data_parallelism", "quantization", "machine", "inference_time", "request_id", "timestamp"]

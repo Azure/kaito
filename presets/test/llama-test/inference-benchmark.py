@@ -16,7 +16,7 @@ def load_search_terms_from_csv(filename):
         return [row['search_terms'] for row in reader]
 
 # Load search terms and shuffle them for randomness
-search_terms = load_search_terms_from_csv("common-gpt-questions.csv")
+search_terms = load_search_terms_from_csv("../common-gpt-questions.csv")
 random.shuffle(search_terms)
 
 # Constants

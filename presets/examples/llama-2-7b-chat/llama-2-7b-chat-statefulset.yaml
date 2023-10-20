@@ -19,7 +19,7 @@ spec:
           command:
             - /bin/sh
             - -c
-            - cd /workspace/llama/llama-2 && torchrun web_example_chat_completion.py
+            - cd /workspace/llama/llama-2 && torchrun inference-api.py
           resources:
             limits:
               nvidia.com/gpu: "1"
