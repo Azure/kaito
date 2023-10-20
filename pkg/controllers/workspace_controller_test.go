@@ -85,7 +85,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 			expected:  []string{"node2", "node3"},
 		},
 
-		"three qualified nodes, one prefered, one previous, need two": {
+		"three qualified nodes, one preferred, one previous, need two": {
 			qualified: []*corev1.Node{
 				&corev1.Node{
 					ObjectMeta: v1.ObjectMeta{
@@ -109,7 +109,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 			expected:  []string{"node2", "node3"},
 		},
 
-		"three qualified nodes, one prefered, one previous, need one": {
+		"three qualified nodes, one preferred, one previous, need one": {
 			qualified: []*corev1.Node{
 				&corev1.Node{
 					ObjectMeta: v1.ObjectMeta{
@@ -159,7 +159,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 			count:     1,
 			expected:  []string{"node3"},
 		},
-		"three qualified nodes, one is created by kaito, one is prefered, one is previous, need two": {
+		"three qualified nodes, one is created by kaito, one is preferred, one is previous, need two": {
 			qualified: []*corev1.Node{
 				&corev1.Node{
 					ObjectMeta: v1.ObjectMeta{
