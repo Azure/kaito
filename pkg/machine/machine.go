@@ -132,15 +132,14 @@ func CreateMachine(ctx context.Context, machineObj *v1alpha5.Machine, kubeClient
 	})
 }
 
-// CheckOngoingProvisioningMachines Check if the there are any machines in provisioning condition. If so, then subtract them from the remaining nodes we need to create.
-func CheckOngoingProvisioningMachines(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) (int, error) {
+// WaitForPendingMachines checks if the there are any machines in provisioning condition. If so, wait until they are ready.
+func WaitForPendingMachines(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) error {
 	klog.InfoS("CheckOngoingProvisioningMachines", "workspace", klog.KObj(workspaceObj))
 	machines, err := ListMachinesByWorkspace(ctx, workspaceObj, kubeClient)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	machinesProvisioningCount := 0
 	for i := range machines.Items {
 		// check if the machine is being created has the requested workspace instance type.
 		_, machineInstanceType := lo.Find(machines.Items[i].Spec.Requirements, func(requirement v1.NodeSelectorRequirement) bool {
@@ -155,15 +154,13 @@ func CheckOngoingProvisioningMachines(ctx context.Context, workspaceObj *kaitov1
 
 			if found || machines.Items[i].GetConditions() == nil { // checking conditions==nil is a workaround for conditions delaying to set on the machine object.
 				//wait until machine is initialized.
-				err := CheckMachineStatus(ctx, &machines.Items[i], kubeClient)
-				if err != nil {
-					return 0, err
+				if err := CheckMachineStatus(ctx, &machines.Items[i], kubeClient); err != nil {
+					return err
 				}
-				machinesProvisioningCount++
 			}
 		}
 	}
-	return machinesProvisioningCount, nil
+	return nil
 }
 
 // ListMachines list all machine objects in the cluster that are created by the workspace identified by the label.
@@ -190,7 +187,7 @@ func ListMachinesByWorkspace(ctx context.Context, workspaceObj *kaitov1alpha1.Wo
 
 // CheckMachineStatus checks the status of the machine. If the machine is not ready, then it will wait for the machine to be ready.
 // If the machine is not ready after the timeout, then it will return an error.
-// if	the machine is ready, then it will return nil.
+// if the machine is ready, then it will return nil.
 func CheckMachineStatus(ctx context.Context, machineObj *v1alpha5.Machine, kubeClient client.Client) error {
 	klog.InfoS("CheckMachineStatus", "machine", klog.KObj(machineObj))
 	timeClock := clock.RealClock{}
