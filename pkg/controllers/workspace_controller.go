@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -132,68 +133,77 @@ func (c *WorkspaceReconciler) deleteWorkspace(ctx context.Context, wObj *kaitov1
 	return c.garbageCollectWorkspace(ctx, wObj)
 }
 
+func selectWorkspaceNodes(qualified []*corev1.Node, preferred []string, previous []string, count int) []*corev1.Node {
+
+	sort.Slice(qualified, func(i, j int) bool {
+		iPreferred := utils.Contains(preferred, qualified[i].Name)
+		jPreferred := utils.Contains(preferred, qualified[j].Name)
+
+		if iPreferred && !jPreferred {
+			return true
+		} else if !iPreferred && jPreferred {
+			return false
+		} else { // either all are preferred, or none is preferred
+			iPrevious := utils.Contains(previous, qualified[i].Name)
+			jPrevious := utils.Contains(previous, qualified[j].Name)
+
+			if iPrevious && !jPrevious {
+				return true
+			} else if !iPrevious && jPrevious {
+				return false
+			} else { // either all are previous, or none is previous
+				_, iCreatedByKaito := qualified[i].Labels["kaito.sh/machine-type"]
+				_, jCreatedByKaito := qualified[j].Labels["kaito.sh/machine-type"]
+
+				// Choose node created by gpu-provisioner since it is more likely to be empty to use.
+				if iCreatedByKaito && !jCreatedByKaito {
+					return true
+				} else if !iCreatedByKaito && jCreatedByKaito {
+					return false
+				} else {
+					return qualified[i].Name < qualified[j].Name
+				}
+			}
+		}
+	})
+
+	if len(qualified) <= count {
+		return qualified
+
+	}
+	return qualified[0:count]
+}
+
 // applyWorkspaceResource applies workspace resource spec.
 func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
-	klog.InfoS("applyWorkspaceResource", "workspace", klog.KObj(wObj))
-	validNodeList := []*corev1.Node{}
 
-	machinesProvisioningCount, err := machine.CheckOngoingProvisioningMachines(ctx, wObj, c.Client)
+	// Wait for pending machines if any before we decide whether to create new machine or not.
+	if err := machine.WaitForPendingMachines(ctx, wObj, c.Client); err != nil {
+		return err
+	}
+
+	// Find all nodes that match the labelSelector and instanceType, they are not necessarily created by machines.
+	validNodes, err := c.getAllQualifiedNodes(ctx, wObj)
 	if err != nil {
 		return err
 	}
 
-	// Check the current cluster nodes if they match the labelSelector and instanceType
-	validCurrentClusterNodeList, err := c.validateCurrentClusterNodes(ctx, wObj)
-	if err != nil {
-		return err
-	}
+	selectedNodes := selectWorkspaceNodes(validNodes, wObj.Resource.PreferredNodes, wObj.Status.WorkerNodes, lo.FromPtr(wObj.Resource.Count))
 
-	// Check preferredNodes
-	preferredList := wObj.Resource.PreferredNodes
-	if preferredList == nil {
-		klog.InfoS("PreferredNodes list is empty")
-	} else {
-		for n := range preferredList {
-			lo.Find(validCurrentClusterNodeList, func(nodeItem *corev1.Node) bool {
-				if nodeItem.Name == preferredList[n] {
-					validNodeList = append(validNodeList, nodeItem)
-					return true
-				}
-				// else do nothing for now
-				return false
-			})
-		}
-	}
-	// TODO check nodes in the WorkspaceStatus.WorkerNodes.
-
-	for n := range validCurrentClusterNodeList {
-		if len(validNodeList) == lo.FromPtr(wObj.Resource.Count) {
-			break
-		}
-		_, found := lo.Find(validNodeList, func(nodeItem *corev1.Node) bool {
-			return nodeItem.Name == validCurrentClusterNodeList[n].Name
-		})
-		if !found {
-			validNodeList = append(validNodeList, validCurrentClusterNodeList[n])
-		}
-	}
-
-	validNodeCount := len(validNodeList)
-	// subtract all valid nodes from the desired count
-	remainingNodeCount := lo.FromPtr(wObj.Resource.Count) - validNodeCount - machinesProvisioningCount
+	newNodesCount := lo.FromPtr(wObj.Resource.Count) - len(selectedNodes)
 
 	// if current valid nodes Count == workspace count, then all good and return
-	if remainingNodeCount == 0 {
-		klog.InfoS("number of existing nodes are equal to the required workspace count", "workspace.Count", lo.FromPtr(wObj.Resource.Count))
+	if newNodesCount == 0 {
+		klog.InfoS("number of existingnodes are equal to the required workspace count", "workspace.Count", lo.FromPtr(wObj.Resource.Count))
 	} else {
-		klog.InfoS("need to create more nodes", "NodeCount", remainingNodeCount)
+		klog.InfoS("need to create more nodes", "NodeCount", newNodesCount)
 		if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionUnknown,
-			"CreateMachinePending", fmt.Sprintf("creating %d machines", remainingNodeCount)); err != nil {
+			"CreateMachinePending", fmt.Sprintf("creating %d machines", newNodesCount)); err != nil {
 			klog.ErrorS(err, "failed to update workspace status", "workspace", wObj)
 			return err
 		}
 
-		for i := 0; i < remainingNodeCount; i++ {
+		for i := 0; i < newNodesCount; i++ {
 			newNode, err := c.createAndValidateNode(ctx, wObj)
 			if err != nil {
 				if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeResourceStatus, metav1.ConditionFalse,
@@ -203,13 +213,13 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 				}
 				return err
 			}
-			validNodeList = append(validNodeList, newNode)
+			selectedNodes = append(selectedNodes, newNode)
 		}
 	}
 
 	// Ensure all nodes plugins are running successfully
-	for i := range validNodeList {
-		err = c.ensureNodePlugins(ctx, wObj, validNodeList[i])
+	for i := range selectedNodes {
+		err = c.ensureNodePlugins(ctx, wObj, selectedNodes[i])
 		if err != nil {
 			if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeResourceStatus, metav1.ConditionFalse,
 				"workspaceResourceStatusFailed", err.Error()); err != nil {
@@ -227,7 +237,7 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 	}
 
 	// Add the valid nodes names to the WorkspaceStatus.WorkerNodes
-	err = c.updateStatusNodeListIfNotMatch(ctx, wObj, validNodeList)
+	err = c.updateStatusNodeListIfNotMatch(ctx, wObj, selectedNodes)
 	if err != nil {
 		if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeResourceStatus, metav1.ConditionFalse,
 			"workspaceResourceStatusFailed", err.Error()); err != nil {
@@ -246,10 +256,9 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 	return nil
 }
 
-// validateCurrentClusterNodes checks if the current cluster nodes match the labelSelector and instanceType.
-func (c *WorkspaceReconciler) validateCurrentClusterNodes(ctx context.Context, wObj *kaitov1alpha1.Workspace) ([]*corev1.Node, error) {
-	klog.InfoS("validateCurrentClusterNodes", "workspace", klog.KObj(wObj))
-	var validCurrentNodeList []*corev1.Node
+// getAllQualifiedNodes returns all nodes that match the labelSelector and instanceType.
+func (c *WorkspaceReconciler) getAllQualifiedNodes(ctx context.Context, wObj *kaitov1alpha1.Workspace) ([]*corev1.Node, error) {
+	var qualifiedNodes []*corev1.Node
 
 	nodeList, err := k8sresources.ListNodes(ctx, c.Client, wObj.Resource.LabelSelector.MatchLabels)
 	if err != nil {
@@ -269,11 +278,11 @@ func (c *WorkspaceReconciler) validateCurrentClusterNodes(ctx context.Context, w
 
 		if foundInstanceType && statusRunning {
 			klog.InfoS("found a current valid node", "name", nodeObj.Name)
-			validCurrentNodeList = append(validCurrentNodeList, lo.ToPtr(nodeObj))
+			qualifiedNodes = append(qualifiedNodes, lo.ToPtr(nodeObj))
 		}
 	}
 
-	return validCurrentNodeList, nil
+	return qualifiedNodes, nil
 }
 
 // check if node has the required instanceType
@@ -436,6 +445,10 @@ func (c *WorkspaceReconciler) getInferenceObjFromPreset(ctx context.Context, wOb
 		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BModel], nil
 	case kaitov1alpha1.PresetFalcon7BInstructModel:
 		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BInstructModel], nil
+	case kaitov1alpha1.PresetFalcon40BModel:
+		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon40BModel], nil
+	case kaitov1alpha1.PresetFalcon40BInstructModel:
+		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon40BInstructModel], nil
 	default:
 		err := fmt.Errorf("preset model %s is not supported", presetName)
 		klog.ErrorS(err, "no inference has been created")
