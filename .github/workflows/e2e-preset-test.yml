@@ -248,7 +248,7 @@ jobs:
 
       - name: Create Service
         if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
-        run: kubectl apply -f presets/examples/${{ matrix.image.name }}/${{ matrix.image.name }}-service.yaml
+        run: kubectl apply -f presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-service.yaml
       
       - name: Retrieve External Service IP
         if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
@@ -264,10 +264,10 @@ jobs:
       - name: Replace IP and Deploy Statefulset to K8s
         if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
-            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/examples/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            sed -i "s/TAG_HERE/${{ needs.setup.outputs.IMG_TAG }}/g" presets/examples/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            sed -i "s/REPO_HERE/${{ steps.get_acr_name.outputs.ACR_NAME }}/g" presets/examples/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            kubectl apply -f presets/examples/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/TAG_HERE/${{ needs.setup.outputs.IMG_TAG }}/g" presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/REPO_HERE/${{ steps.get_acr_name.outputs.ACR_NAME }}/g" presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            kubectl apply -f presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
     
       - name: Wait for Statefulset to be ready
         if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
