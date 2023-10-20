@@ -11,8 +11,8 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/inference"
-	"github.com/azure/kaito/pkg/k8sresources"
 	"github.com/azure/kaito/pkg/machine"
+	"github.com/azure/kaito/pkg/resources"
 	"github.com/azure/kaito/pkg/utils"
 	"github.com/go-logr/logr"
 	"github.com/samber/lo"
@@ -260,7 +260,7 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 func (c *WorkspaceReconciler) getAllQualifiedNodes(ctx context.Context, wObj *kaitov1alpha1.Workspace) ([]*corev1.Node, error) {
 	var qualifiedNodes []*corev1.Node
 
-	nodeList, err := k8sresources.ListNodes(ctx, c.Client, wObj.Resource.LabelSelector.MatchLabels)
+	nodeList, err := resources.ListNodes(ctx, c.Client, wObj.Resource.LabelSelector.MatchLabels)
 	if err != nil {
 		return nil, err
 	}
@@ -353,7 +353,7 @@ Retry_withdifferentname:
 	}
 
 	// get the node object from the machine status nodeName.
-	return k8sresources.GetNode(ctx, newMachine.Status.NodeName, c.Client)
+	return resources.GetNode(ctx, newMachine.Status.NodeName, c.Client)
 }
 
 // ensureNodePlugins ensures node plugins are installed.
@@ -372,9 +372,9 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kaito
 			}
 
 			//Nvidia Plugin
-			foundNvidiaPlugin = k8sresources.CheckNvidiaPlugin(ctx, nodeObj)
+			foundNvidiaPlugin = resources.CheckNvidiaPlugin(ctx, nodeObj)
 			if !foundNvidiaPlugin {
-				err := k8sresources.UpdateNodeWithLabel(ctx, nodeObj.Name, k8sresources.LabelKeyNvidia, k8sresources.LabelValueNvidia, c.Client)
+				err := resources.UpdateNodeWithLabel(ctx, nodeObj.Name, resources.LabelKeyNvidia, resources.LabelValueNvidia, c.Client)
 				if err != nil {
 					if apierrors.IsNotFound(err) {
 						klog.ErrorS(err, "nvidia plugin cannot be installed, node not found", "node", nodeObj.Name)
@@ -411,7 +411,7 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kaitov
 	}
 
 	existingSVC := &corev1.Service{}
-	err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingSVC)
+	err := resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingSVC)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
@@ -422,8 +422,8 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kaitov
 	}
 
 	isStatefulSet := inferenceObj.ModelName == "LLaMa2"
-	serviceObj := k8sresources.GenerateServiceManifest(ctx, wObj, serviceType, isStatefulSet)
-	err = k8sresources.CreateResource(ctx, serviceObj, c.Client)
+	serviceObj := resources.GenerateServiceManifest(ctx, wObj, serviceType, isStatefulSet)
+	err = resources.CreateResource(ctx, serviceObj, c.Client)
 	if err != nil {
 		return err
 	}
@@ -461,7 +461,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 	klog.InfoS("applyInference", "workspace", klog.KObj(wObj))
 
 	existingObj := &appsv1.StatefulSet{}
-	err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj)
+	err := resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
