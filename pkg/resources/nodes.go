@@ -1,4 +1,4 @@
-package k8sresources
+package resources
 
 import (
 	"context"
@@ -6,8 +6,6 @@ import (
 
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -17,7 +15,6 @@ const (
 	LabelValueNvidia             = "nvidia"
 	CapacityNvidiaGPU            = "nvidia.com/gpu"
 	LabelKeyCustomGPUProvisioner = "gpu-provisioner.sh/machine-type"
-	DADIDaemonSetName            = "teleportinstall"
 	GPUProvisionerNamespace      = "gpu-provisioner"
 	GPUString                    = "gpu"
 )
@@ -92,47 +89,4 @@ func CheckNvidiaPlugin(ctx context.Context, nodeObj *corev1.Node) bool {
 		return true
 	}
 	return false
-}
-
-func CheckDADIPlugin(ctx context.Context, nodeObj *corev1.Node, kubeClient client.Client) error {
-	klog.InfoS("CheckDADIPlugin", "node", klog.KObj(nodeObj))
-	if customLabel, found := nodeObj.Labels[LabelKeyCustomGPUProvisioner]; found {
-		if customLabel != GPUString {
-			return nil
-		}
-	}
-	return checkDaemonSetPodForNode(ctx, DADIDaemonSetName, nodeObj.Name, kubeClient)
-}
-
-func checkDaemonSetPodForNode(ctx context.Context, daemonSetName, nodeName string, kubeClient client.Client) error {
-	klog.InfoS("checkDaemonSetPodForNode", "daemonSetName", daemonSetName, "nodeName", nodeName)
-	podList := &corev1.PodList{}
-
-	listOpt := &client.ListOptions{
-		Namespace: GPUProvisionerNamespace,
-		FieldSelector: fields.SelectorFromSet(fields.Set{
-			"spec.nodeName": nodeName,
-		}),
-	}
-	err := retry.OnError(retry.DefaultRetry, func(err error) bool {
-		return true
-	}, func() error {
-		return kubeClient.List(ctx, podList, listOpt)
-	})
-	if err != nil {
-		klog.ErrorS(err, "cannot get pods for daemonset plugin", "daemonset-name", daemonSetName, "daemonset-namespace", GPUProvisionerNamespace, "node", nodeName)
-		return err
-	}
-	// check ownerReference is the required daemonset
-	if len(podList.Items) == 0 {
-		return fmt.Errorf("no pods have been found running on the node %s", nodeName)
-	}
-
-	for p := range podList.Items {
-		if podList.Items[p].OwnerReferences[0].Kind == "DaemonSet" &&
-			podList.Items[p].OwnerReferences[0].Name == DADIDaemonSetName {
-			return nil
-		}
-	}
-	return fmt.Errorf("%s daemonset's pod for the node %s is not running", daemonSetName, nodeName)
 }

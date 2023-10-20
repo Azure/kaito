@@ -7,7 +7,7 @@ import (
 	"time"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/k8sresources"
+	"github.com/azure/kaito/pkg/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -53,11 +53,11 @@ var (
 		{
 			Effect:   corev1.TaintEffectNoSchedule,
 			Operator: corev1.TolerationOpEqual,
-			Key:      k8sresources.GPUString,
+			Key:      resources.GPUString,
 		},
 		{
 			Effect: corev1.TaintEffectNoSchedule,
-			Value:  k8sresources.GPUString,
+			Value:  resources.GPUString,
 			Key:    "sku",
 		},
 	}
@@ -66,7 +66,7 @@ var (
 func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1alpha1.Workspace, inferenceObj PresetInferenceParam) error {
 	if inferenceObj.ModelName == "LLaMa2" {
 		existingService := &corev1.Service{}
-		err := k8sresources.GetResource(ctx, wObj.Name, wObj.Namespace, kubeClient, existingService)
+		err := resources.GetResource(ctx, wObj.Name, wObj.Namespace, kubeClient, existingService)
 		if err != nil {
 			return err
 		}
@@ -106,15 +106,15 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	var depObj client.Object
 	switch inferenceObj.ModelName {
 	case "LLaMa2":
-		depObj = k8sresources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, *workspaceObj.Resource.Count, commands,
+		depObj = resources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, *workspaceObj.Resource.Count, commands,
 			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
 	case "Falcon":
-		depObj = k8sresources.GenerateDeploymentManifest(ctx, workspaceObj, inferenceObj.Image, *workspaceObj.Resource.Count, commands,
+		depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, inferenceObj.Image, *workspaceObj.Resource.Count, commands,
 			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
 	default:
 		return fmt.Errorf("Model not recognized: %s", inferenceObj.ModelName)
 	}
-	err := k8sresources.CreateResource(ctx, depObj, kubeClient)
+	err := resources.CreateResource(ctx, depObj, kubeClient)
 	if err != nil {
 		return err
 	}
@@ -175,10 +175,10 @@ func prepareInferenceParameters(ctx context.Context, inferenceObj PresetInferenc
 
 	resourceRequirements := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse(inferenceObj.GPURequirement),
+			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(inferenceObj.GPURequirement),
 		},
 		Limits: corev1.ResourceList{
-			corev1.ResourceName(k8sresources.CapacityNvidiaGPU): resource.MustParse(inferenceObj.GPURequirement),
+			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(inferenceObj.GPURequirement),
 		},
 	}
 
