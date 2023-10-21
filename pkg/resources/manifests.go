@@ -206,3 +206,57 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 		},
 	}
 }
+
+func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) *appsv1.Deployment {
+	klog.InfoS("GenerateDeploymentManifestWithPodTemplate", "workspace", klog.KObj(workspaceObj))
+
+	templateCopy := workspaceObj.Inference.Template.DeepCopy()
+	if templateCopy.ObjectMeta.Labels == nil {
+		templateCopy.ObjectMeta.Labels = make(map[string]string)
+	}
+
+	// Gather label requirements from workspaceObj's label selector
+	labelRequirements := make([]v1.LabelSelectorRequirement, 0, len(workspaceObj.Resource.LabelSelector.MatchLabels))
+	for key, value := range workspaceObj.Resource.LabelSelector.MatchLabels {
+		labelRequirements = append(labelRequirements, v1.LabelSelectorRequirement{
+			Key:      key,
+			Operator: v1.LabelSelectorOpIn,
+			Values:   []string{value},
+		})
+		templateCopy.ObjectMeta.Labels[key] = value
+	}
+	// Overwrite affinity
+	templateCopy.Spec.Affinity = &corev1.Affinity{
+		PodAntiAffinity: &corev1.PodAntiAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+				{
+					LabelSelector: &v1.LabelSelector{
+						MatchExpressions: labelRequirements,
+					},
+					TopologyKey: "kubernetes.io/hostname",
+				},
+			},
+		},
+	}
+
+	return &appsv1.Deployment{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      workspaceObj.Name,
+			Namespace: workspaceObj.Namespace,
+			OwnerReferences: []v1.OwnerReference{
+				{
+					APIVersion: kaitov1alpha1.GroupVersion.String(),
+					Kind:       "Workspace",
+					UID:        workspaceObj.UID,
+					Name:       workspaceObj.Name,
+				},
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: lo.ToPtr(int32(*workspaceObj.Resource.Count)),
+			Selector: workspaceObj.Resource.LabelSelector,
+			Template: *templateCopy,
+		},
+	}
+
+}

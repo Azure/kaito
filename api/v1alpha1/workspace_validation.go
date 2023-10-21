@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
@@ -29,10 +30,11 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		  validate if the total GPU count is sufficient to run the preset workload if any.
 		- For other instancetypes, do pattern matches and for N, D series, we let it pass. Otherwise, fail the check.
 		- For labelSelector, call metav1.LabelSelectorAsMap. If the method returns error, meaning unsupported expressions are found, fail the check.
-		- For inference, either preset or template has to be set, not all.
 		- The preset name needs to be supported enum.
-		- API: change template to be a pointer field, change inference to be a pointer field.
 		*/
+		errs = errs.Also(
+			w.Inference.validateCreate().ViaField("inference"),
+		)
 	} else {
 		klog.InfoS("Validate update", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
 		old := base.(*Workspace)
@@ -64,10 +66,20 @@ func (r *ResourceSpec) validateUpdate(old *ResourceSpec) (errs *apis.FieldError)
 	return errs
 }
 
+func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
+	if !reflect.DeepEqual(i.Preset, PresetSpec{}) && !reflect.DeepEqual(i.Template, v1.PodTemplateSpec{}) {
+		errs = errs.Also(apis.ErrGeneric("preset and template cannot be set at the same time"))
+	}
+	return errs
+}
+
 func (i *InferenceSpec) validateUpdate(old *InferenceSpec) (errs *apis.FieldError) {
 	if i.Preset.Name != old.Preset.Name {
 		errs = errs.Also(apis.ErrGeneric("field is immutable", "name").ViaField("preset"))
 	}
-	//TODO: inference.template can be changed, but cannot be unset.
+	//inference.template can be changed, but cannot be unset.
+	if !reflect.DeepEqual(old.Template, v1.PodTemplateSpec{}) && reflect.DeepEqual(i.Template, v1.PodTemplateSpec{}) {
+		errs = errs.Also(apis.ErrGeneric("field is cannot be unset", "template").ViaField("template"))
+	}
 	return errs
 }
