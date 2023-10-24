@@ -29,7 +29,7 @@ spec:
                 - virtual-kubelet
               - key: karpenter.sh/provisioner-name
                 operator: Exists
-              - key: gpu-provisioner.sh/machine-type
+              - key: kaito.sh/machine-type
                 operator: Exists
       tolerations:
         # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
