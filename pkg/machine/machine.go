@@ -23,7 +23,7 @@ import (
 
 const (
 	ProvisionerName               = "default"
-	LabelGPUProvisionerCustom     = "gpu-provisioner.sh/machine-type"
+	LabelGPUProvisionerCustom     = "kaito.sh/machine-type"
 	LabelProvisionerName          = "karpenter.sh/provisioner-name"
 	GPUString                     = "gpu"
 	ErrorInstanceTypesUnavailable = "all requested instance types were unavailable during launch"

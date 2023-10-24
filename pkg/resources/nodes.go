@@ -11,12 +11,11 @@ import (
 )
 
 const (
-	LabelKeyNvidia               = "accelerator"
-	LabelValueNvidia             = "nvidia"
-	CapacityNvidiaGPU            = "nvidia.com/gpu"
-	LabelKeyCustomGPUProvisioner = "gpu-provisioner.sh/machine-type"
-	GPUProvisionerNamespace      = "gpu-provisioner"
-	GPUString                    = "gpu"
+	LabelKeyNvidia          = "accelerator"
+	LabelValueNvidia        = "nvidia"
+	CapacityNvidiaGPU       = "nvidia.com/gpu"
+	GPUProvisionerNamespace = "gpu-provisioner"
+	GPUString               = "gpu"
 )
 
 // GetNode get kubernetes node object with a provided name
