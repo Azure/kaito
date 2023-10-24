@@ -16,10 +16,8 @@ Please refer to Helm chart [README](charts/README.md) for more details.
 1. Create an Azure Kubernetes Service (AKS) cluster
 
 ```bash
-AZURE_RESOURCE_GROUP=<your_resource_group_name> AZURE_LOCATION=<Azure_region> make create-rg
-
-AZURE_RESOURCE_GROUP=<your_resource_group_name> AZURE_ACR_NAME=<you_Azure_container_registry_name> \
-AZURE_CLUSTER_NAME=<you_AKS_cluster_name> make create-aks-cluster
+az group create --name kaito-rg --location eastus
+az aks create --name kaito-aks --resource-group kaito-rg --node-count 1  --generate-ssh-keys
 ```
 <!-- markdown-link-check-disable -->
 2. Install [gpu-provisioner](https://github.com/Azure/gpu-provisioner.git) helm chart
@@ -30,13 +28,9 @@ AZURE_CLUSTER_NAME=<you_AKS_cluster_name> make create-aks-cluster
 git clone https://github.com/Azure/gpu-provisioner.git
 cd gpu-provisioner
 
-VERSION=v0.1.0 make docker-build
-
 AZURE_SUBSCRIPTION_ID=<your_subscription_id> AZURE_LOCATION=<Azure_region> \
 AZURE_RESOURCE_GROUP=<your_resource_group_name> AZURE_ACR_NAME=<you_Azure_container_registry_name> \
-AZURE_CLUSTER_NAME=<you_AKS_cluster_name> make az-identity-perm az-patch-helm
-
-helm install gpu-provisioner /charts/gpu-provisioner
+AZURE_CLUSTER_NAME=<you_AKS_cluster_name> make az-perm az-patch-helm
 ```
 3. Build and push docker image
 
@@ -49,7 +43,7 @@ make docker-build-kaito
 4. Install KAITO helm chart
 
 ```bash
-AZURE_RESOURCE_GROUP=<your_resource_group_name> AZURE_CLUSTER_NAME=<you_AKS_cluster_name> make az-patch-install-helm
+helm install kaito --set image.repository=${REGISTRY}/${IMG_NAME} ./charts/kaito
 ```
 
 5. Run KAITO workspace example
