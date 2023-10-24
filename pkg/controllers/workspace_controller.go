@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -19,7 +18,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -303,7 +301,7 @@ func (c *WorkspaceReconciler) validateNodeInstanceType(ctx context.Context, wObj
 func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *kaitov1alpha1.Workspace) (*corev1.Node, error) {
 	klog.InfoS("createAndValidateNode", "workspace", klog.KObj(wObj))
 	var machineOSDiskSize string
-	if wObj.Inference.Preset.Name != "" {
+	if wObj.Inference.Preset != nil && wObj.Inference.Preset.Name != "" {
 		presetName := wObj.Inference.Preset.Name
 		if _, exists := inference.Llama2PresetInferences[presetName]; exists {
 			machineOSDiskSize = inference.Llama2PresetInferences[presetName].DiskStorageRequirement
@@ -420,7 +418,7 @@ func (c *WorkspaceReconciler) applyAnnotations(ctx context.Context, wObj *kaitov
 		return nil
 	}
 	var isStatefulSet bool
-	if !reflect.DeepEqual(wObj.Inference.Preset, kaitov1alpha1.PresetSpec{}) {
+	if wObj.Inference.Preset != nil {
 		isStatefulSet = strings.Contains(string(wObj.Inference.Preset.Name), "llama")
 	}
 	serviceObj := resources.GenerateServiceManifest(ctx, wObj, serviceType, isStatefulSet)
@@ -461,7 +459,7 @@ func (c *WorkspaceReconciler) getInferenceObjFromPreset(ctx context.Context, wOb
 func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
 	klog.InfoS("applyInference", "workspace", klog.KObj(wObj))
 
-	if !reflect.DeepEqual(wObj.Inference.Template, v1.PodTemplateSpec{}) {
+	if wObj.Inference.Template != nil {
 		// TODO: handle update
 		if err := inference.CreateTemplateInference(ctx, wObj, c.Client); err != nil {
 			if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
@@ -471,7 +469,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 			}
 			return err
 		}
-	} else {
+	} else if wObj.Inference.Preset != nil {
 		// TODO: we only do create if it does not exist for preset model. Need to document it.
 		// TODO: check deployment for falcon.
 		inferenceObj, err := c.getInferenceObjFromPreset(ctx, wObj)
@@ -504,6 +502,8 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 			}
 			return err
 		}
+	} else { // Nothing to do
+		return nil
 	}
 
 	if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionTrue,
