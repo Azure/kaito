@@ -100,14 +100,14 @@ type PresetSpec struct {
 type InferenceSpec struct {
 	// Preset describles the model that will be deployed with preset configurations.
 	// +optional
-	Preset PresetSpec `json:"preset,omitempty"`
+	Preset *PresetSpec `json:"preset,omitempty"`
 	// Template specifies the Pod template used to run the inference service. Users can specify custom Pod settings
 	// if the preset configurations cannot meet the requirements. Note that if Preset is specified, Template should not
 	// be specified and vice versa.
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
 	// +optional
-	Template v1.PodTemplateSpec `json:"template,omitempty"`
+	Template *v1.PodTemplateSpec `json:"template,omitempty"`
 }
 
 // WorkspaceStatus defines the observed state of Workspace
