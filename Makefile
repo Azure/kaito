@@ -15,10 +15,10 @@ GOLANGCI_LINT_BIN := golangci-lint
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN)-$(GOLANGCI_LINT_VER))
 
 
-AZURE_SUBSCRIPTION_ID ?= ff05f55d-22b5-44a7-b704-f9a8efd493ed
+AZURE_SUBSCRIPTION_ID ?= $(AZURE_SUBSCRIPTION_ID)
 AZURE_LOCATION ?= eastus
-AZURE_RESOURCE_GROUP ?= kaito-test
-AZURE_CLUSTER_NAME ?= kaito-test
+AZURE_RESOURCE_GROUP ?= demo
+AZURE_CLUSTER_NAME ?= kaito-demo
 AZURE_RESOURCE_GROUP_MC=MC_$(AZURE_RESOURCE_GROUP)_$(AZURE_CLUSTER_NAME)_$(AZURE_LOCATION)
 
 # Scripts
@@ -38,7 +38,6 @@ endif
 $(GOLANGCI_LINT):
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/golangci/golangci-lint/cmd/golangci-lint $(GOLANGCI_LINT_BIN) $(GOLANGCI_LINT_VER)
 
-
 # CONTAINER_TOOL defines the container tool to be used for building images.
 # Be aware that the target commands are only tested with Docker which is
 # scaffolded by default. However, you might want to replace it to use other
@@ -49,26 +48,6 @@ CONTAINER_TOOL ?= docker
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
-
-.PHONY: all
-all: build
-
-##@ General
-
-# The help target prints out all targets with their descriptions organized
-# beneath their categories. The categories are represented by '##@' and the
-# target descriptions by '##'. The awk commands is responsible for reading the
-# entire set of makefiles included in this invocation, looking for lines of the
-# file as xyz: ## something, and then pretty-format the target and help. Then,
-# if there's a line with ##@ something, that gets pretty-printed as a category.
-# More info on the usage of ANSI control characters for terminal formatting:
-# https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters
-# More info on the awk command:
-# http://linuxcommand.org/lc3_adv_awk.php
-
-.PHONY: help
-help: ## Display this help.
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Development
 
@@ -126,20 +105,20 @@ create-aks-cluster: ## Create test AKS cluster (with msi, oidc and workload iden
 	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --attach-acr $(AZURE_ACR_NAME) \
 	--node-count 1 --generate-ssh-keys --enable-managed-identity  --enable-workload-identity --enable-oidc-issuer -o none
 
-	az aks nodepool add --cluster-name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --name gpunode \
-      --node-count 1 --node-vm-size standard_nc96ads_a100_v4 --node-taints sku=gpu:NoSchedule \
-      --aks-custom-headers UseGPUDedicatedVHD=true --node-osdisk-size 300
+	# az aks nodepool add --cluster-name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --name gpunode \
+    #   --node-count 1 --node-vm-size standard_nc96ads_a100_v4 --node-taints sku=gpu:NoSchedule \
+    #   --aks-custom-headers UseGPUDedicatedVHD=true --node-osdisk-size 300
 
 	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
 
 .PHONY: az-patch-install-helm
-az-patch-install-helm:  ## Update Azure client env vars and settings in helm values.yml
+az-patch-install-helm: ## Update Azure client env vars and settings in helm values.yml
 	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
 
-	yq -i '(.image.repository)                                              = "$(REGISTRY)/workspace"'                    ./charts/kaito/values.yaml
-	yq -i '(.image.tag)                                                     = "$(IMG_TAG)"'                               ./charts/kaito/values.yaml
+	yq -i '(.image.repository)                                              = "$(REGISTRY)/workspace"'                    ./charts/kaito/workspace/values.yaml
+	yq -i '(.image.tag)                                                     = "$(IMG_TAG)"'                               ./charts/kaito/workspace/values.yaml
 
-	helm install kaito-workspace ./charts/kaito
+	helm install kaito-workspace ./charts/kaito/workspace
 
 ##@ Build
 
@@ -180,22 +159,40 @@ ifndef ignore-not-found
   ignore-not-found = false
 endif
 
-.PHONY: install
-install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | $(KUBECTL) apply -f -
+##@ gpu-provider
+.PHONE: gpu-provisioner-identity-perm
+gpu-provisioner-identity-perm: ## Create identity for gpu-provisioner
+	az identity create --name gpuIdentity --resource-group $(AZURE_RESOURCE_GROUP)
 
-.PHONY: uninstall
-uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/crd | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
+	IDENTITY_PRINCIPAL_ID=$(shell az identity show --name gpuIdentity --resource-group $(AZURE_RESOURCE_GROUP) --subscription $(AZURE_SUBSCRIPTION_ID) --query 'principalId')
+	IDENTITY_CLIENT_ID=$(shell az identity show --name gpuIdentity --resource-group $(AZURE_RESOURCE_GROUP) --subscription $(AZURE_SUBSCRIPTION_ID) --query 'clientId')
 
-.PHONY: deploy
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
+	az role assignment create --assignee $(IDENTITY_PRINCIPAL_ID) --scope /subscriptions/$(AZURE_SUBSCRIPTION_ID)/resourceGroups/$(AZURE_RESOURCE_GROUP)  --role "Contributor"
 
-.PHONY: undeploy
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
+	AKS_OIDC_ISSUER=$(shell az aks show -n "$(AZURE_CLUSTER_NAME)" -g "$(AZURE_RESOURCE_GROUP)" --subscription $(AZURE_SUBSCRIPTION_ID) --query "oidcIssuerProfile.issuerUrl")
+
+	az identity federated-credential create --name gpu-federatecredential --identity-name gpuIdentity --resource-group "$(AZURE_RESOURCE_GROUP)" --issuer "$(AKS_OIDC_ISSUER)" \
+	--subject system:serviceaccount:"gpu-provisioner:gpu-provisioner" --audience api://AzureADTokenExchange --subscription $(AZURE_SUBSCRIPTION_ID)
+
+.PHONY: gpu-provisioner-helm
+gpu-provisioner-helm:  ## Update Azure client env vars and settings in helm values.yml
+	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
+	$(eval IDENTITY_CLIENT_ID=$(shell az identity show --name gpuIdentity --resource-group $(AZURE_RESOURCE_GROUP) --query 'clientId' -o tsv))
+	$(eval AZURE_TENANT_ID=$(shell az account show | jq -r ".tenantId"))
+	$(eval AZURE_SUBSCRIPTION_ID=$(shell az account show | jq -r ".subscriptionId"))
+
+	yq -i '(.controller.image.repository)                                              = "mcr.microsoft.com/aks/kaito/gpu-provisioner"'       ./charts/kaito/gpu-provisioner/values.yaml
+	yq -i '(.controller.image.tag)                                                     = "0.0.1"'                                             ./charts/kaito/gpu-provisioner/values.yaml
+	yq -i '(.controller.env[] | select(.name=="ARM_SUBSCRIPTION_ID"))           .value = "$(AZURE_SUBSCRIPTION_ID)"'                          ./charts/kaito/gpu-provisioner/values.yaml
+	yq -i '(.controller.env[] | select(.name=="LOCATION"))                      .value = "$(AZURE_LOCATION)"'                                 ./charts/kaito/gpu-provisioner/values.yaml
+	yq -i '(.controller.env[] | select(.name=="ARM_RESOURCE_GROUP"))            .value = "$(AZURE_RESOURCE_GROUP)"'                           ./charts/kaito/gpu-provisioner/values.yaml
+	yq -i '(.controller.env[] | select(.name=="AZURE_NODE_RESOURCE_GROUP"))     .value = "$(AZURE_RESOURCE_GROUP_MC)"'                        ./charts/kaito/gpu-provisioner/values.yaml
+	yq -i '(.controller.env[] | select(.name=="AZURE_CLUSTER_NAME"))            .value = "$(AZURE_CLUSTER_NAME)"'                             ./charts/kaito/gpu-provisioner/values.yaml
+	yq -i '(.settings.azure.clusterName)                                               = "$(AZURE_CLUSTER_NAME)"'                             ./charts/kaito/gpu-provisioner/values.yaml
+	yq -i '(.workloadIdentity.clientId)                                                = "$(IDENTITY_CLIENT_ID)"'                             ./charts/kaito/gpu-provisioner/values.yaml
+	yq -i '(.workloadIdentity.tenantId)                                                = "$(AZURE_TENANT_ID)"'                                ./charts/kaito/gpu-provisioner/values.yaml
+
+	helm install kaito-gpu-provisioner ./charts/kaito/gpu-provisioner
 
 ##@ Build Dependencies
 
@@ -206,28 +203,18 @@ $(LOCALBIN):
 
 ## Tool Binaries
 KUBECTL ?= kubectl
-KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v5.0.1
 CONTROLLER_TOOLS_VERSION ?= v0.12.0
-
-.PHONY: kustomize
-kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary. If wrong version is installed, it will be removed before downloading.
-$(KUSTOMIZE): $(LOCALBIN)
-	@if test -x $(LOCALBIN)/kustomize && ! $(LOCALBIN)/kustomize version | grep -q $(KUSTOMIZE_VERSION); then \
-		echo "$(LOCALBIN)/kustomize version is not expected $(KUSTOMIZE_VERSION). Removing it before installing."; \
-		rm -rf $(LOCALBIN)/kustomize; \
-	fi
-	test -s $(LOCALBIN)/kustomize || GOBIN=$(LOCALBIN) GO111MODULE=on go install sigs.k8s.io/kustomize/kustomize/v5@$(KUSTOMIZE_VERSION)
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary. If wrong version is installed, it will be overwritten.
 $(CONTROLLER_GEN): $(LOCALBIN)
 	test -s $(LOCALBIN)/controller-gen && $(LOCALBIN)/controller-gen --version | grep -q $(CONTROLLER_TOOLS_VERSION) || \
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
+	cp config/crd/bases/kaito.sh_workspaces.yaml charts/kaito/workspace/crds/
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
@@ -252,9 +239,11 @@ lint: $(GOLANGCI_LINT)
 .PHONY: release-manifest
 release-manifest:
 	@sed -i -e 's/^VERSION ?= .*/VERSION ?= ${VERSION}/' ./Makefile
-	@sed -i -e "s/version: .*/version: ${IMG_TAG}/" ./charts/kaito/Chart.yaml
-	@sed -i -e "s/tag: .*/tag: ${IMG_TAG}/" ./charts/kaito/values.yaml
-	@sed -i -e 's/IMG_TAG=.*/IMG_TAG=${IMG_TAG}/' ./charts/README.md
+	@sed -i -e "s/version: .*/version: ${IMG_TAG}/" ./charts/kaito/workspace/Chart.yaml
+	@sed -i -e "s/appVersion: .*/appVersion: ${IMG_TAG}/" ./charts/kaito/workspace/Chart.yaml
+	@sed -i -e "s/tag: .*/tag: ${IMG_TAG}/" ./charts/kaito/workspace/values.yaml
+	@sed -i -e 's/IMG_TAG=.*/IMG_TAG=${IMG_TAG}/' ./charts/kaito/workspace/README.md
+	@sed -i -e 's/image.tag=.*/image.tag=${IMG_TAG}/' ./charts/kaito/workspace/README.md
 	git checkout -b release-${VERSION}
-	git add ./Makefile ./charts/kaito/Chart.yaml ./charts/kaito/values.yaml ./charts/README.md
+	git add ./Makefile ./charts/kaito/workspace/Chart.yaml ./charts/kaito/workspace/values.yaml ./charts/workspace/README.md
 	git commit -s -m "release: update manifest and helm charts for ${VERSION}"

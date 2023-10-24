@@ -1,0 +1,166 @@
+namespace: gpu-provisioner
+# -- Overrides the chart's name.
+nameOverride: ""
+# -- Overrides the chart's computed fullname.
+fullnameOverride: ""
+# -- Additional labels to add into metadata.
+additionalLabels: {}
+# app: gpu-provisioner
+
+# -- Additional annotations to add into metadata.
+additionalAnnotations: {}
+# -- Image pull policy for Docker images.
+imagePullPolicy: IfNotPresent
+# -- Image pull secrets for Docker images.
+imagePullSecrets: []
+serviceAccount:
+  # -- Specifies if a ServiceAccount should be created.
+  create: true
+  # -- The name of the ServiceAccount to use.
+  # If not set and create is true, a name is generated using the fullname template.
+  name: ""
+  # -- Additional annotations for the ServiceAccount.
+  annotations: {}
+# -- Specifies additional rules for the core ClusterRole.
+additionalClusterRoleRules: []
+serviceMonitor:
+  # -- Specifies whether a ServiceMonitor should be created.
+  enabled: false
+  # -- Additional labels for the ServiceMonitor.
+  additionalLabels: {}
+  # -- Endpoint configuration for the ServiceMonitor.
+  endpointConfig: {}
+# -- Number of replicas.
+replicas: 1
+# -- The number of old ReplicaSets to retain to allow rollback.
+revisionHistoryLimit: 10
+# -- Strategy for updating the pod.
+strategy:
+  rollingUpdate:
+    maxUnavailable: 1
+# -- Additional labels for the pod.
+podLabels: {}
+# -- Additional annotations for the pod.
+podAnnotations: {}
+podDisruptionBudget:
+  name: karpenter
+  maxUnavailable: 1
+# -- SecurityContext for the pod.
+podSecurityContext:
+  fsGroup: 1000
+# -- PriorityClass name for the pod.
+priorityClassName: system-cluster-critical
+# -- Override the default termination grace period for the pod.
+terminationGracePeriodSeconds:
+# -- Bind the pod to the host network.
+# This is required when using a custom CNI.
+hostNetwork: false
+# -- Configure the DNS Policy for the pod
+dnsPolicy: Default
+# -- Configure DNS Config for the pod
+dnsConfig: {}
+#  options:
+#    - name: ndots
+#      value: "1"
+# -- Node selectors to schedule the pod to nodes with labels.
+nodeSelector:
+  kubernetes.io/os: linux
+# -- Affinity rules for scheduling the pod. If an explicit label selector is not provided for pod affinity or pod anti-affinity one will be created from the pod selector labels.
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.azure.com/cluster
+              operator: Exists
+            - key: type
+              operator: NotIn
+              values:
+                - virtual-kubelet
+            - key: kubernetes.io/os
+              operator: In
+              values:
+                - linux
+        - matchExpressions:
+            - key: karpenter.sh/provisioner-name
+              operator: DoesNotExist
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - topologyKey: "kubernetes.io/hostname"
+# -- Topology spread constraints to increase the controller resilience by distributing pods across the cluster zones. If an explicit label selector is not provided one will be created from the pod selector labels.
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+# -- Tolerations to allow the pod to be scheduled to nodes with taints.
+tolerations:
+  - key: CriticalAddonsOnly
+    operator: Exists
+# -- Additional volumes for the pod.
+extraVolumes: []
+controller:
+  image:
+    # -- Repository path to the controller image.
+    repository: mcr.microsoft.com/aks/kaito/gpu-provisioner
+    # -- Tag of the controller image.
+    tag: 0.0.1
+    # -- SHA256 digest of the controller image.
+    digest: ""
+  # -- SecurityContext for the controller container.
+  securityContext: {}
+  # -- Additional environment variables for the controller pod.
+  env:
+    - name: ARM_SUBSCRIPTION_ID
+      value: "null"
+    - name: LOCATION
+      value: eastus
+    - name: AZURE_CLUSTER_NAME
+      value: new_demo
+    - name: AZURE_NODE_RESOURCE_GROUP
+      value: MC_llm-test_new_demo_eastus
+    - name: ARM_RESOURCE_GROUP
+      value: llm-test
+    - name: LEADER_ELECT # disable leader election for better debugging experience
+      value: "false"
+  envFrom: []
+  # -- Resources for the controller pod.
+  resources:
+    requests:
+      cpu: 200m
+    limits:
+      cpu: 500m
+  # -- Controller outputPaths - default to stdout only
+  outputPaths:
+    - stdout
+  # -- Controller errorOutputPaths - default to stderr only
+  errorOutputPaths:
+    - stderr
+  # -- Controller log level, defaults to the global log level
+  logLevel: debug
+  # -- Controller log encoding, defaults to the global log encoding
+  logEncoding: ""
+  metrics:
+    # -- The container port to use for metrics.
+    port: 8000
+  healthProbe:
+    # -- The container port to use for http health probe.
+    port: 8081
+# -- Global log level
+logLevel: debug
+# -- Global log encoding
+logEncoding: console
+# -- Global Settings to configure gpu-provisioner
+workloadIdentity:
+  clientId: 00411c3a-8361-42f3-8917-50b6da46e9fc
+  tenantId: 72f988bf-86f1-41af-91ab-2d7cd011db47
+settings:
+  # -- Azure-specific configuration values
+  azure:
+    # -- Cluster name.
+    clusterName: new_demo
+    # -- The global tags to use on all Azure infrastructure resources (VMs, etc.)
+    # TODO: not propagated yet ...
+    tags:
+  # -- Feature Gate configuration values. Feature Gates will follow the same graduation process and requirements as feature gates
+  # in Kubernetes. More information here https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/#feature-gates-for-alpha-or-beta-features
+  featureGates:
