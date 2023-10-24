@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
 from fastapi import FastAPI, HTTPException
 import uvicorn
 from pydantic import BaseModel

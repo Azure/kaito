@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
 import csv
 import argparse
 from transformers import AutoTokenizer, AutoModelForCausalLM
