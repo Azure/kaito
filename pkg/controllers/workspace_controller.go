@@ -53,6 +53,11 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 
 	klog.InfoS("Reconciling", "workspace", req.NamespacedName)
 
+	err := c.setDynamicInferenceObjValues(ctx, workspaceObj)
+	if err != nil {
+		klog.ErrorS(err, "failed to set inference object values", "workspace", workspaceObj)
+		return ctrl.Result{}, err
+	}
 	// Handle deleting workspace, garbage collect all the resources.
 	if !workspaceObj.DeletionTimestamp.IsZero() {
 		return c.deleteWorkspace(ctx, workspaceObj)
@@ -70,6 +75,19 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	}
 
 	return c.addOrUpdateWorkspace(ctx, workspaceObj)
+}
+
+func (c *WorkspaceReconciler) setDynamicInferenceObjValues(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
+	inferenceObj, err := c.getInferenceObjFromPreset(ctx, wObj)
+	if err != nil {
+		klog.ErrorS(err, "unable to retrieve inference object from preset", "workspace", wObj)
+		return err
+	}
+	inferenceObj.AccessMode = string(wObj.Inference.Preset.PresetMeta.AccessMode)
+	if wObj.Inference.Preset.PresetOptions.Image != "" {
+		inferenceObj.Image = wObj.Inference.Preset.PresetOptions.Image
+	}
+	return nil
 }
 
 func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace) (reconcile.Result, error) {

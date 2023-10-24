@@ -66,12 +66,15 @@ var (
 		"machine_rank":  DefaultMachineRank,
 		"gpu_ids":       DefaultGPUIds,
 	}
+
+	defaultAccessMode = "public"
 )
 
 // PresetInferenceParam defines the preset inference.
 type PresetInferenceParam struct {
 	ModelName              string
 	Image                  string
+	AccessMode             string
 	DiskStorageRequirement string
 	GPURequirement         string
 	GPUMemoryRequirement   string
@@ -96,6 +99,7 @@ var (
 		kaitov1alpha1.PresetLlama2AChat: {
 			ModelName:              "LLaMa2",
 			Image:                  presetLlama2AChatImage,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "34Gi",
 			GPURequirement:         "1",
 			GPUMemoryRequirement:   "16Gi",
@@ -110,6 +114,7 @@ var (
 		kaitov1alpha1.PresetLlama2BChat: {
 			ModelName:              "LLaMa2",
 			Image:                  presetLlama2BChatImage,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "46Gi",
 			GPURequirement:         "2",
 			GPUMemoryRequirement:   "16Gi",
@@ -124,6 +129,7 @@ var (
 		kaitov1alpha1.PresetLlama2CChat: {
 			ModelName:              "LLaMa2",
 			Image:                  presetLlama2CChatImage,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "158Gi",
 			GPURequirement:         "8",
 			GPUMemoryRequirement:   "19Gi",
@@ -142,6 +148,7 @@ var (
 		kaitov1alpha1.PresetFalcon7BModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon7bImage,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "50Gi",
 			GPURequirement:         "1",
 			GPUMemoryRequirement:   "14Gi",
@@ -155,6 +162,7 @@ var (
 		kaitov1alpha1.PresetFalcon7BInstructModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon7bInstructImage,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "50Gi",
 			GPURequirement:         "1",
 			GPUMemoryRequirement:   "14Gi",
@@ -169,6 +177,7 @@ var (
 		kaitov1alpha1.PresetFalcon40BModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon40bImage,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "400",
 			GPURequirement:         "2",
 			GPUMemoryRequirement:   "90Gi",
@@ -183,6 +192,7 @@ var (
 		kaitov1alpha1.PresetFalcon40BInstructModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon40bInstructImage,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "400",
 			GPURequirement:         "2",
 			GPUMemoryRequirement:   "90Gi",

@@ -70,6 +70,9 @@ func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
 	if !reflect.DeepEqual(i.Preset, PresetSpec{}) && !reflect.DeepEqual(i.Template, v1.PodTemplateSpec{}) {
 		errs = errs.Also(apis.ErrGeneric("preset and template cannot be set at the same time"))
 	}
+	if i.Preset.PresetMeta.AccessMode == "private" && i.Preset.PresetOptions.Image == "" {
+		errs = errs.Also(apis.ErrGeneric("When AccessMode is private, an image must be provided in PresetOptions"))
+	}
 	return errs
 }
 
@@ -81,5 +84,10 @@ func (i *InferenceSpec) validateUpdate(old *InferenceSpec) (errs *apis.FieldErro
 	if !reflect.DeepEqual(old.Template, v1.PodTemplateSpec{}) && reflect.DeepEqual(i.Template, v1.PodTemplateSpec{}) {
 		errs = errs.Also(apis.ErrGeneric("field is cannot be unset", "template").ViaField("template"))
 	}
+
+	if i.Preset.PresetMeta.AccessMode == "private" && i.Preset.PresetOptions.Image == "" {
+		errs = errs.Also(apis.ErrGeneric("When AccessMode is private, an image must be provided in PresetOptions").ViaField("presetOptions"))
+	}
+
 	return errs
 }
