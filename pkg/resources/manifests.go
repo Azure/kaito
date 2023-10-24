@@ -11,12 +11,11 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog/v2"
 )
 
-func GenerateServiceManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, serviceType corev1.ServiceType, isStatefulSet bool) *corev1.Service {
-	klog.InfoS("GenerateServiceManifest", "workspace", klog.KObj(workspaceObj), "serviceType", serviceType)
+var controller = true
 
+func GenerateServiceManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, serviceType corev1.ServiceType, isStatefulSet bool) *corev1.Service {
 	selector := make(map[string]string)
 	for k, v := range workspaceObj.Resource.LabelSelector.MatchLabels {
 		selector[k] = v
@@ -37,6 +36,7 @@ func GenerateServiceManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Wo
 					Kind:       "Workspace",
 					UID:        workspaceObj.UID,
 					Name:       workspaceObj.Name,
+					Controller: &controller,
 				},
 			},
 		},
@@ -71,8 +71,6 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements,
 	tolerations []corev1.Toleration, volumes []corev1.Volume, volumeMount []corev1.VolumeMount) *appsv1.StatefulSet {
 
-	klog.InfoS("GenerateStatefulSetManifest", "workspace", klog.KObj(workspaceObj), "image", imageName)
-
 	// Gather label requirements from workspaceObj's label selector
 	labelRequirements := make([]v1.LabelSelectorRequirement, 0, len(workspaceObj.Resource.LabelSelector.MatchLabels))
 	for key, value := range workspaceObj.Resource.LabelSelector.MatchLabels {
@@ -82,7 +80,6 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 			Values:   []string{value},
 		})
 	}
-
 	return &appsv1.StatefulSet{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      workspaceObj.Name,
@@ -93,6 +90,7 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 					Kind:       "Workspace",
 					UID:        workspaceObj.UID,
 					Name:       workspaceObj.Name,
+					Controller: &controller,
 				},
 			},
 		},
@@ -142,8 +140,6 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements,
 	tolerations []corev1.Toleration, volumes []corev1.Volume, volumeMount []corev1.VolumeMount) *appsv1.Deployment {
 
-	klog.InfoS("GenerateDeploymentManifest", "workspace", klog.KObj(workspaceObj), "image", imageName)
-
 	// Gather label requirements from workspaceObj's label selector
 	labelRequirements := make([]v1.LabelSelectorRequirement, 0, len(workspaceObj.Resource.LabelSelector.MatchLabels))
 	for key, value := range workspaceObj.Resource.LabelSelector.MatchLabels {
@@ -153,7 +149,6 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 			Values:   []string{value},
 		})
 	}
-
 	return &appsv1.Deployment{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      workspaceObj.Name,
@@ -164,6 +159,7 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 					Kind:       "Workspace",
 					UID:        workspaceObj.UID,
 					Name:       workspaceObj.Name,
+					Controller: &controller,
 				},
 			},
 		},
@@ -208,8 +204,6 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 }
 
 func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) *appsv1.Deployment {
-	klog.InfoS("GenerateDeploymentManifestWithPodTemplate", "workspace", klog.KObj(workspaceObj))
-
 	templateCopy := workspaceObj.Inference.Template.DeepCopy()
 	if templateCopy.ObjectMeta.Labels == nil {
 		templateCopy.ObjectMeta.Labels = make(map[string]string)
@@ -239,6 +233,7 @@ func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj
 		},
 	}
 
+	controller := true
 	return &appsv1.Deployment{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      workspaceObj.Name,
@@ -249,6 +244,7 @@ func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj
 					Kind:       "Workspace",
 					UID:        workspaceObj.UID,
 					Name:       workspaceObj.Name,
+					Controller: &controller,
 				},
 			},
 		},

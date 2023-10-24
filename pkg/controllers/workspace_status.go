@@ -8,19 +8,35 @@ import (
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (c *WorkspaceReconciler) updateWorkspaceStatus(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
+func (c *WorkspaceReconciler) updateWorkspaceStatus(ctx context.Context, name *client.ObjectKey, condition *metav1.Condition, workerNodes []string) error {
 	return retry.OnError(retry.DefaultRetry,
 		func(err error) bool {
 			return apierrors.IsServiceUnavailable(err) || apierrors.IsServerTimeout(err) || apierrors.IsTooManyRequests(err)
 		},
 		func() error {
+			// Read the latest version to avoid update conflict.
+			wObj := &kaitov1alpha1.Workspace{}
+			if err := c.Client.Get(ctx, *name, wObj); err != nil {
+				if !errors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			}
+			if condition != nil {
+				meta.SetStatusCondition(&wObj.Status.Conditions, *condition)
+			}
+			if workerNodes != nil {
+				wObj.Status.WorkerNodes = workerNodes
+			}
 			return c.Client.Status().Update(ctx, wObj)
 		})
 }
@@ -41,8 +57,7 @@ func (c *WorkspaceReconciler) updateStatusConditionIfNotMatch(ctx context.Contex
 		ObservedGeneration: wObj.GetGeneration(),
 		Message:            cMessage,
 	}
-	meta.SetStatusCondition(&wObj.Status.Conditions, cObj)
-	return c.updateWorkspaceStatus(ctx, wObj)
+	return c.updateWorkspaceStatus(ctx, &client.ObjectKey{Name: wObj.Name, Namespace: wObj.Namespace}, &cObj, nil)
 }
 
 func (c *WorkspaceReconciler) updateStatusNodeListIfNotMatch(ctx context.Context, wObj *kaitov1alpha1.Workspace, validNodeList []*corev1.Node) error {
@@ -55,6 +70,5 @@ func (c *WorkspaceReconciler) updateStatusNodeListIfNotMatch(ctx context.Context
 		return nil
 	}
 	klog.InfoS("updateStatusNodeList", "workspace", klog.KObj(wObj))
-	wObj.Status.WorkerNodes = nodeNameList
-	return c.updateWorkspaceStatus(ctx, wObj)
+	return c.updateWorkspaceStatus(ctx, &client.ObjectKey{Name: wObj.Name, Namespace: wObj.Namespace}, nil, nodeNameList)
 }
