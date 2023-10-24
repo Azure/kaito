@@ -86,6 +86,11 @@ func (c *WorkspaceReconciler) setDynamicInferenceObjValues(ctx context.Context, 
 	inferenceObj.AccessMode = string(wObj.Inference.Preset.PresetMeta.AccessMode)
 	if wObj.Inference.Preset.PresetOptions.Image != "" {
 		inferenceObj.Image = wObj.Inference.Preset.PresetOptions.Image
+
+		imagePullSecretRefs := inferenceObj.ImagePullSecrets
+		for _, secretName := range wObj.Inference.Preset.PresetOptions.ImagePullSecrets {
+			imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
+		}
 	}
 	return nil
 }

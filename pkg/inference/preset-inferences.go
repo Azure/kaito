@@ -106,10 +106,10 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	var depObj client.Object
 	switch inferenceObj.ModelName {
 	case "LLaMa2":
-		depObj = resources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, *workspaceObj.Resource.Count, commands,
+		depObj = resources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
 			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
 	case "Falcon":
-		depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, inferenceObj.Image, *workspaceObj.Resource.Count, commands,
+		depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
 			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
 	default:
 		return fmt.Errorf("Model not recognized: %s", inferenceObj.ModelName)

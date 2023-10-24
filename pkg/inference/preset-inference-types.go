@@ -6,6 +6,7 @@ import (
 	"time"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -67,13 +68,15 @@ var (
 		"gpu_ids":       DefaultGPUIds,
 	}
 
-	defaultAccessMode = "public"
+	defaultAccessMode       = "public"
+	defaultImagePullSecrets = []corev1.LocalObjectReference{}
 )
 
 // PresetInferenceParam defines the preset inference.
 type PresetInferenceParam struct {
 	ModelName              string
 	Image                  string
+	ImagePullSecrets       []corev1.LocalObjectReference
 	AccessMode             string
 	DiskStorageRequirement string
 	GPURequirement         string
@@ -99,6 +102,7 @@ var (
 		kaitov1alpha1.PresetLlama2AChat: {
 			ModelName:              "LLaMa2",
 			Image:                  presetLlama2AChatImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "34Gi",
 			GPURequirement:         "1",
@@ -114,6 +118,7 @@ var (
 		kaitov1alpha1.PresetLlama2BChat: {
 			ModelName:              "LLaMa2",
 			Image:                  presetLlama2BChatImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "46Gi",
 			GPURequirement:         "2",
@@ -129,6 +134,7 @@ var (
 		kaitov1alpha1.PresetLlama2CChat: {
 			ModelName:              "LLaMa2",
 			Image:                  presetLlama2CChatImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "158Gi",
 			GPURequirement:         "8",
@@ -148,6 +154,7 @@ var (
 		kaitov1alpha1.PresetFalcon7BModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon7bImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "50Gi",
 			GPURequirement:         "1",
@@ -162,6 +169,7 @@ var (
 		kaitov1alpha1.PresetFalcon7BInstructModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon7bInstructImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "50Gi",
 			GPURequirement:         "1",
@@ -177,6 +185,7 @@ var (
 		kaitov1alpha1.PresetFalcon40BModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon40bImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "400",
 			GPURequirement:         "2",
@@ -192,6 +201,7 @@ var (
 		kaitov1alpha1.PresetFalcon40BInstructModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon40bInstructImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "400",
 			GPURequirement:         "2",
