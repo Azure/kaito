@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
 package resources
 
 import (
@@ -67,7 +69,7 @@ func GenerateServiceManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Wo
 }
 
 func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imageName string,
-	replicas int, commands []string, containerPorts []corev1.ContainerPort,
+	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements,
 	tolerations []corev1.Toleration, volumes []corev1.Volume, volumeMount []corev1.VolumeMount) *appsv1.StatefulSet {
 
@@ -103,6 +105,7 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 					Labels: workspaceObj.Resource.LabelSelector.MatchLabels,
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: imagePullSecretRefs,
 					Affinity: &corev1.Affinity{
 						PodAntiAffinity: &corev1.PodAntiAffinity{
 							RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
@@ -136,7 +139,7 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 }
 
 func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imageName string,
-	replicas int, commands []string, containerPorts []corev1.ContainerPort,
+	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements,
 	tolerations []corev1.Toleration, volumes []corev1.Volume, volumeMount []corev1.VolumeMount) *appsv1.Deployment {
 
@@ -171,6 +174,7 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 					Labels: workspaceObj.Resource.LabelSelector.MatchLabels,
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: imagePullSecretRefs,
 					Affinity: &corev1.Affinity{
 						PodAntiAffinity: &corev1.PodAntiAffinity{
 							RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{

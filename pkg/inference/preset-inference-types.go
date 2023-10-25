@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
 package inference
 
 import (
@@ -6,6 +8,7 @@ import (
 	"time"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -27,19 +30,17 @@ const (
 var (
 	registryName = os.Getenv("PRESET_REGISTRY_NAME")
 
-	presetLlama2AChatImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetLlama2AChat)
-	presetLlama2BChatImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetLlama2BChat)
-	presetLlama2CChatImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetLlama2CChat)
+	presetLlama2AChatImage = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetLlama2AChat)
+	presetLlama2BChatImage = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetLlama2BChat)
+	presetLlama2CChatImage = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetLlama2CChat)
 
-	presetFalcon7bImage         = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon7BModel)
-	presetFalcon7bInstructImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon7BInstructModel)
+	presetFalcon7bImage         = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetFalcon7BModel)
+	presetFalcon7bInstructImage = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetFalcon7BInstructModel)
 
-	presetFalcon40bImage         = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon40BModel)
-	presetFalcon40bInstructImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon40BInstructModel)
+	presetFalcon40bImage         = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetFalcon40BModel)
+	presetFalcon40bInstructImage = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetFalcon40BInstructModel)
 
-	baseCommandPresetLlama2AChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kaitov1alpha1.PresetLlama2AChat)
-	baseCommandPresetLlama2BChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kaitov1alpha1.PresetLlama2BChat)
-	baseCommandPresetLlama2CChat = fmt.Sprintf("cd /workspace/llama/%s && torchrun", kaitov1alpha1.PresetLlama2CChat)
+	baseCommandPresetLlama = "cd /workspace/llama/llama-2 && torchrun"
 	// llamaTextInferenceFile       = "inference-api.py" TODO: To support Text Generation Llama Models
 	llamaChatInferenceFile = "inference-api.py"
 	llamaRunParams         = map[string]string{
@@ -66,12 +67,17 @@ var (
 		"machine_rank":  DefaultMachineRank,
 		"gpu_ids":       DefaultGPUIds,
 	}
+
+	defaultAccessMode       = "public"
+	defaultImagePullSecrets = []corev1.LocalObjectReference{}
 )
 
 // PresetInferenceParam defines the preset inference.
 type PresetInferenceParam struct {
 	ModelName              string
 	Image                  string
+	ImagePullSecrets       []corev1.LocalObjectReference
+	AccessMode             string
 	DiskStorageRequirement string
 	GPURequirement         string
 	GPUMemoryRequirement   string
@@ -96,6 +102,8 @@ var (
 		kaitov1alpha1.PresetLlama2AChat: {
 			ModelName:              "LLaMa2",
 			Image:                  presetLlama2AChatImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "34Gi",
 			GPURequirement:         "1",
 			GPUMemoryRequirement:   "16Gi",
@@ -103,13 +111,15 @@ var (
 			ModelRunParams:         llamaRunParams,
 			InferenceFile:          llamaChatInferenceFile,
 			DeploymentTimeout:      time.Duration(10) * time.Minute,
-			BaseCommand:            baseCommandPresetLlama2AChat,
+			BaseCommand:            baseCommandPresetLlama,
 			WorldSize:              1,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
 		kaitov1alpha1.PresetLlama2BChat: {
 			ModelName:              "LLaMa2",
 			Image:                  presetLlama2BChatImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "46Gi",
 			GPURequirement:         "2",
 			GPUMemoryRequirement:   "16Gi",
@@ -117,13 +127,15 @@ var (
 			ModelRunParams:         llamaRunParams,
 			InferenceFile:          llamaChatInferenceFile,
 			DeploymentTimeout:      time.Duration(20) * time.Minute,
-			BaseCommand:            baseCommandPresetLlama2BChat,
+			BaseCommand:            baseCommandPresetLlama,
 			WorldSize:              2,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
 		kaitov1alpha1.PresetLlama2CChat: {
 			ModelName:              "LLaMa2",
 			Image:                  presetLlama2CChatImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "158Gi",
 			GPURequirement:         "8",
 			GPUMemoryRequirement:   "19Gi",
@@ -131,7 +143,7 @@ var (
 			ModelRunParams:         llamaRunParams,
 			InferenceFile:          llamaChatInferenceFile,
 			DeploymentTimeout:      time.Duration(30) * time.Minute,
-			BaseCommand:            baseCommandPresetLlama2CChat,
+			BaseCommand:            baseCommandPresetLlama,
 			WorldSize:              8,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
@@ -142,6 +154,8 @@ var (
 		kaitov1alpha1.PresetFalcon7BModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon7bImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "50Gi",
 			GPURequirement:         "1",
 			GPUMemoryRequirement:   "14Gi",
@@ -155,6 +169,8 @@ var (
 		kaitov1alpha1.PresetFalcon7BInstructModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon7bInstructImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "50Gi",
 			GPURequirement:         "1",
 			GPUMemoryRequirement:   "14Gi",
@@ -169,6 +185,8 @@ var (
 		kaitov1alpha1.PresetFalcon40BModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon40bImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "400",
 			GPURequirement:         "2",
 			GPUMemoryRequirement:   "90Gi",
@@ -183,6 +201,8 @@ var (
 		kaitov1alpha1.PresetFalcon40BInstructModel: {
 			ModelName:              "Falcon",
 			Image:                  presetFalcon40bInstructImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
+			AccessMode:             defaultAccessMode,
 			DiskStorageRequirement: "400",
 			GPURequirement:         "2",
 			GPUMemoryRequirement:   "90Gi",
