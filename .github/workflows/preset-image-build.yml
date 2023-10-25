@@ -17,10 +17,6 @@ on:
       - 'presets/llama-2-chat/**'
   workflow_dispatch:
     inputs:
-      release:
-        description: 'Release (yes/no)'
-        required: true
-        default: 'no'
       image_tag:
         description: 'Image Tag'
         required: true
@@ -29,9 +25,12 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  VERSION: 0.0.1
+
 jobs:
   setup:
-    runs-on: self-hosted
+    runs-on: [self-hosted, username:runner-0]
     outputs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
       FALCON_MODIFIED: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}
@@ -97,12 +96,9 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag }}" ]]; then
             echo "Using workflow dispatch to set image tag"
             echo "image_tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "Setting image tag to be latest"
-            echo "image_tag=latest" >> $GITHUB_OUTPUT
           else
-            echo "Setting image tag based on latest commit"
-            echo "image_tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+            echo "Setting image tag based on version set"
+            echo "image_tag=${{ env.VERSION }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Print Image Tag
@@ -179,7 +175,7 @@ jobs:
       - name: 'Attach and Login to ACR'
         id: acr_login
         run: |
-          if [[ "${{ needs.setup.outputs.image_tag }}" == "latest" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag }}" ]]; then
             ACR_NAME="aimodelsregistry"
           else
             ACR_NAME="aimodelsregistrytest"

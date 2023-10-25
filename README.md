@@ -1,137 +1,75 @@
-# KAITO
+# Kubernetes AI Toolchain Operator(KAITO)
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/Azure/kaito)](https://goreportcard.com/report/github.com/Azure/kaito)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Azure/kaito)
 
-This project introduce `workspace` crd and its controller. The goal is to simplify the workflow of deploying inference services using OSS AI/ML models, and training workloads (to be added) against a standard AKS cluster.
+KAITO has been designed to simplify the workflow of launching AI inference services against popular large open sourced AI models,
+such as Falcon or Llama, in a Kubernetes cluster.
 
-## Quick Start
+## Installation 
+The following guidence assumes **Azure Kubernetes Service(AKS)** is used to host the Kubernetes cluster .
 
-### Quick Install
-
-Please refer to Helm chart [README](charts/README.md) for more details.
-
-## Demo
-
-1. Create an Azure Kubernetes Service (AKS) cluster
+### Enable Workload Identity and OIDC Issuer features
+The `gpu-povisioner` component requires the [workload identity](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview?tabs=dotnet) feature to acquire the token to access the AKS managed cluster with proper permissions.
 
 ```bash
-az group create --name kaito-rg --location eastus
-az aks create --name kaito-aks --resource-group kaito-rg --node-count 1  --generate-ssh-keys
+export RESOURCE_GROUP="myResourceGroup"
+export MY_CLUSTER="myCluster"
+az aks update -g $RESOURCE_GROUP -n $MY_CLUSTER --enable-oidc-issuer --enable-workload-identity --enable-managed-identity
 ```
-<!-- markdown-link-check-disable -->
-2. Install [gpu-provisioner](https://github.com/Azure/gpu-provisioner.git) helm chart
-<!-- markdown-link-check-enable -->
+
+### Create an identity and assign permissions
+This identity `kaitoprovisioner` is created for the `gpu-povisioner` controller. It is assigned Contributor role for `$RESOURCE_GROUP` to allow operating `$MY_CLUSTER` (e.g., provisioning new nodes in it).
+```bash
+export SUBSCRIPTION="mySubscription"
+az identity create --name kaitoprovisioner -g $RESOURCE_GROUP
+export IDENTITY_PRINCIPAL_ID=$(az identity show --name kaitoprovisioner -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query 'principalId' | tr -d '"')
+export IDENTITY_CLIENT_ID=$(az identity show --name kaitoprovisioner -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query 'clientId' | tr -d '"')
+az role assignment create --assignee $IDENTITY_PRINCIPAL_ID --scope /subscriptions/$SUBSCRIPTION/resourceGroups/$RESOURCE_GROUP  --role "Contributor"
+
+```
+
+### Install helm charts
+Two charts will be installed in `$MY_CLUSTER`: `gpu-provisioner` chart and `workspace` chart.
+```bash
+helm install workspace ./charts/kaito/workspace
+
+export NODE_RESOURCE_GROUP=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --query nodeResourceGroup | tr -d '"')
+export LOCATION=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --query location | tr -d '"')
+export TENANT_ID=$(az account show | jq -r ".tenantId")
+yq -i '(.controller.env[] | select(.name=="ARM_SUBSCRIPTION_ID"))       .value = env(SUBSCRIPTION_ID)     ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="LOCATION"))                  .value = env(LOCATION)            ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="ARM_RESOURCE_GROUP"))        .value = env(RESOURCE_GROUP)      ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="AZURE_NODE_RESOURCE_GROUP")) .value = env(NODE_RESOURCE_GROUP) ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="AZURE_CLUSTER_NAME"))        .value = env(MY_CLUSTER)          ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.workloadIdentity.clientId)                                            = env(IDENTITY_CLIENT_ID)  ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.workloadIdentity.tenantId)                                            = env(TENANT_ID)           ./charts/kaito/gpu-provisioner/values.yaml
+helm install gpu-provisioner ./charts/kaito/gpu-provisioner 
+
+```
+
+### Create federated credential
+This allows `gpu-provisioner` controller to use `kaitoprovisioner` identity via an access token.
+```bash
+export AKS_OIDC_ISSUER=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query "oidcIssuerProfile.issuerUrl" | tr -d '"')
+az identity federated-credential create --name kaito-federatedcredential --identity-name kaitoprovisioner -g $RESOURCE_GROUP --issuer $AKS_OIDC_ISSUER --subject system:serviceaccount:"kaito:gpu-provisioner" --audience api://AzureADTokenExchange --subscription $SUBSCRIPTION
+```
+Note that before doing this step, the `gpu-provisioner` controller pod will constantly fail with the following message in the log:
+```
+panic: Configure azure client fails. Please ensure federatedcredential has been created for identity XXXX.
+```
+The pod will reach running state once the federated credential is created.
+
+### Clean up
 
 ```bash
-
-git clone https://github.com/Azure/gpu-provisioner.git
-cd gpu-provisioner
-
-AZURE_SUBSCRIPTION_ID=<your_subscription_id> AZURE_LOCATION=<Azure_region> \
-AZURE_RESOURCE_GROUP=<your_resource_group_name> AZURE_ACR_NAME=<you_Azure_container_registry_name> \
-AZURE_CLUSTER_NAME=<you_AKS_cluster_name> make az-perm az-patch-helm
-```
-3. Build and push docker image
-
-```bash
-export REGISTRY=<your_docker_registry>
-export IMG_NAME=kaito
-
-make docker-build-kaito
-```
-4. Install KAITO helm chart
-
-```bash
-helm install kaito --set image.repository=${REGISTRY}/${IMG_NAME} ./charts/kaito
+helm uninstall gpu-provisioner
+helm uninstall workspace
 ```
 
-5. Run KAITO workspace example
+## Quick start
 
-```bash
-kubectl apply -f examples/kaito_workspace_llama2_7b-chat.yaml
-```
-
-6. Watch the KAITO workspace CR status
-
-```bash
-watch kubectl describe workspace workspace-llama-2-7b-chat 
-```
-
-<details>
-<summary>Workspace status</summary>
-
-```bash
-Name:         workspace-llama-2-7b-aks
-Annotations:  kubernetes-kaito.sh/service-type: load-balancer
-API Version:  kaito.sh/v1alpha1
-Inference:
-  Preset:
-    Name:  llama-2-7b
-    Volume:
-      Empty Dir:
-        Medium:  Memory
-      Name:      dshm
-Kind:            Workspace
-Metadata:
-  Creation Timestamp:  2023-09-01T16:41:16Z
-  Generation:          1
-  Resource Version:    5715733
-  UID:                 95db1c71-6a87-408e-96e8-91dc7ef820fd
-Resource:
-  Count:          2
-  Instance Type:  Standard_NC12s_v3
-  Label Selector:
-    Match Labels:
-      apps:  llama-2-7b
-  Preferred Nodes:
-    node1
-    aks-machine98722-26559722-vmss000001
-Status:
-  Condition:
-    Last Transition Time:  2023-09-01T16:41:16Z
-    Message:               machine has been provisioned successfully
-    Observed Generation:   1
-    Reason:                machineProvisionSuccess
-    Status:                True
-    Type:                  MachineProvisioned
-    Last Transition Time:  2023-09-01T16:45:00Z
-    Message:               machines plugins have been installed successfully
-    Observed Generation:   1
-    Reason:                installNodePluginsSuccess
-    Status:                True
-    Type:                  MachineReady
-    Last Transition Time:  2023-09-01T16:45:00Z
-    Message:               node plugins have been installed
-    Observed Generation:   1
-    Reason:                InstallNodePluginsSuccess
-    Status:                True
-    Type:                  NodePluginsInstalled
-    Last Transition Time:  2023-09-01T16:45:00Z
-    Message:               workspace resource is ready
-    Observed Generation:   1
-    Reason:                workspaceResourceDeployedSuccess
-    Status:                True
-    Type:                  ResourceProvisioned
-    Last Transition Time:  2023-09-01T16:45:00Z
-    Message:               workspace is ready
-    Observed Generation:   1
-    Reason:                workspaceReady
-    Status:                True
-    Type:                  WorkspaceReady
-  Worker Nodes:
-    aks-machine98722-26559722-vmss000001
-    aks-machine13355-19479027-vmss000000
-Events:  <none>
-```
-</details><br/>
-
-7. Clean up
-
-```bash
-az aks delete --name kaito-aks --resource-group kaito-rg
-```
-
+TODO.
 
 
 ## Contributing
