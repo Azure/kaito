@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
 package resources
 
 import (
@@ -11,17 +13,15 @@ import (
 )
 
 const (
-	LabelKeyNvidia               = "accelerator"
-	LabelValueNvidia             = "nvidia"
-	CapacityNvidiaGPU            = "nvidia.com/gpu"
-	LabelKeyCustomGPUProvisioner = "gpu-provisioner.sh/machine-type"
-	GPUProvisionerNamespace      = "gpu-provisioner"
-	GPUString                    = "gpu"
+	LabelKeyNvidia          = "accelerator"
+	LabelValueNvidia        = "nvidia"
+	CapacityNvidiaGPU       = "nvidia.com/gpu"
+	GPUProvisionerNamespace = "gpu-provisioner"
+	GPUString               = "gpu"
 )
 
 // GetNode get kubernetes node object with a provided name
 func GetNode(ctx context.Context, nodeName string, kubeClient client.Client) (*corev1.Node, error) {
-	klog.InfoS("GetNode", "nodeName", nodeName)
 	node := &corev1.Node{}
 
 	err := kubeClient.Get(ctx, client.ObjectKey{Name: nodeName}, node, &client.GetOptions{})
@@ -36,7 +36,6 @@ func GetNode(ctx context.Context, nodeName string, kubeClient client.Client) (*c
 
 // ListNodes get list of kubernetes nodes
 func ListNodes(ctx context.Context, kubeClient client.Client, labelSelector client.MatchingLabels) (*corev1.NodeList, error) {
-	klog.InfoS("ListNodes", "labelSelector", labelSelector)
 	nodeList := &corev1.NodeList{}
 
 	err := kubeClient.List(ctx, nodeList, labelSelector)
@@ -70,7 +69,6 @@ func UpdateNodeWithLabel(ctx context.Context, nodeName, labelKey, labelValue str
 }
 
 func CheckNvidiaPlugin(ctx context.Context, nodeObj *corev1.Node) bool {
-	klog.InfoS("CheckNvidiaPlugin", "node", klog.KObj(nodeObj))
 	// check if label accelerator=nvidia exists in the node
 	var foundLabel, foundCapacity bool
 	if nvidiaLabelVal, found := nodeObj.Labels[LabelKeyNvidia]; found {

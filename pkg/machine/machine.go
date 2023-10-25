@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
 package machine
 
 import (
@@ -23,21 +25,19 @@ import (
 
 const (
 	ProvisionerName               = "default"
-	LabelGPUProvisionerCustom     = "gpu-provisioner.sh/machine-type"
+	LabelGPUProvisionerCustom     = "kaito.sh/machine-type"
 	LabelProvisionerName          = "karpenter.sh/provisioner-name"
 	GPUString                     = "gpu"
 	ErrorInstanceTypesUnavailable = "all requested instance types were unavailable during launch"
 )
 
 var (
-	//	machineStatusTimeoutInterval is the interval to check the machine status.
+	// machineStatusTimeoutInterval is the interval to check the machine status.
 	machineStatusTimeoutInterval = 240 * time.Second
 )
 
-// GenerateMachineManifest generates a machine object from	the given workspace.
+// GenerateMachineManifest generates a machine object from the given workspace.
 func GenerateMachineManifest(ctx context.Context, storageRequirement string, workspaceObj *kaitov1alpha1.Workspace) *v1alpha5.Machine {
-	klog.InfoS("GenerateMachineManifest", "workspace", klog.KObj(workspaceObj))
-
 	digest := sha256.Sum256([]byte(workspaceObj.Namespace + workspaceObj.Name + time.Now().Format("2006-01-02 15:04:05.000000000"))) // We make sure the machine name is not fixed to the a workspace
 	machineName := "ws" + hex.EncodeToString(digest[0:])[0:9]
 	machineLabels := map[string]string{
@@ -134,7 +134,6 @@ func CreateMachine(ctx context.Context, machineObj *v1alpha5.Machine, kubeClient
 
 // WaitForPendingMachines checks if the there are any machines in provisioning condition. If so, wait until they are ready.
 func WaitForPendingMachines(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) error {
-	klog.InfoS("CheckOngoingProvisioningMachines", "workspace", klog.KObj(workspaceObj))
 	machines, err := ListMachinesByWorkspace(ctx, workspaceObj, kubeClient)
 	if err != nil {
 		return err
@@ -165,7 +164,6 @@ func WaitForPendingMachines(ctx context.Context, workspaceObj *kaitov1alpha1.Wor
 
 // ListMachines list all machine objects in the cluster that are created by the workspace identified by the label.
 func ListMachinesByWorkspace(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) (*v1alpha5.MachineList, error) {
-	klog.InfoS("ListMachinesByWorkspace", "workspace", klog.KObj(workspaceObj))
 	machineList := &v1alpha5.MachineList{}
 
 	ls := labels.Set{

@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
@@ -67,7 +66,7 @@ func (r *ResourceSpec) validateUpdate(old *ResourceSpec) (errs *apis.FieldError)
 }
 
 func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
-	if !reflect.DeepEqual(i.Preset, PresetSpec{}) && !reflect.DeepEqual(i.Template, v1.PodTemplateSpec{}) {
+	if i.Preset != nil && i.Template != nil {
 		errs = errs.Also(apis.ErrGeneric("preset and template cannot be set at the same time"))
 	}
 	if i.Preset.PresetMeta.AccessMode == "private" && i.Preset.PresetOptions.Image == "" {
@@ -78,12 +77,12 @@ func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
 }
 
 func (i *InferenceSpec) validateUpdate(old *InferenceSpec) (errs *apis.FieldError) {
-	if i.Preset.Name != old.Preset.Name {
-		errs = errs.Also(apis.ErrGeneric("field is immutable", "name").ViaField("preset"))
+	if !reflect.DeepEqual(i.Preset, old.Preset) {
+		errs = errs.Also(apis.ErrGeneric("field is immutable", "preset"))
 	}
 	//inference.template can be changed, but cannot be unset.
-	if !reflect.DeepEqual(old.Template, v1.PodTemplateSpec{}) && reflect.DeepEqual(i.Template, v1.PodTemplateSpec{}) {
-		errs = errs.Also(apis.ErrGeneric("field is cannot be unset", "template").ViaField("template"))
+	if (i.Template != nil && old.Template == nil) || (i.Template == nil && old.Template != nil) {
+		errs = errs.Also(apis.ErrGeneric("field cannot be unset/set if it was set/unset", "template"))
 	}
 
 	if i.Preset.PresetMeta.AccessMode == "private" && i.Preset.PresetOptions.Image == "" {

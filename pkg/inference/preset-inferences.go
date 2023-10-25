@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
 package inference
 
 import (
@@ -91,8 +93,6 @@ func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1
 
 func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	inferenceObj PresetInferenceParam, kubeClient client.Client) error {
-	klog.InfoS("CreatePresetInference", "workspace", klog.KObj(workspaceObj))
-
 	if inferenceObj.TorchRunParams != nil {
 		if err := setTorchParams(ctx, kubeClient, workspaceObj, inferenceObj); err != nil {
 			klog.ErrorS(err, "failed to update torch params", "workspace", workspaceObj)
@@ -126,8 +126,6 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 }
 
 func checkResourceStatus(obj client.Object, kubeClient client.Client, timeoutDuration time.Duration) error {
-	klog.InfoS("checkResourceStatus", "resource", obj.GetName())
-
 	// Use Context for timeout
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutDuration)
 	defer cancel()
