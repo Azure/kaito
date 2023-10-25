@@ -434,7 +434,7 @@ func (c *WorkspaceReconciler) getInferenceObjFromPreset(ctx context.Context, wOb
 	}
 
 	inferenceObj.AccessMode = string(wObj.Inference.Preset.PresetMeta.AccessMode)
-	if wObj.Inference.Preset.PresetOptions.Image != "" {
+	if inferenceObj.AccessMode == "private" && wObj.Inference.Preset.PresetOptions.Image != "" {
 		inferenceObj.Image = wObj.Inference.Preset.PresetOptions.Image
 
 		imagePullSecretRefs := []corev1.LocalObjectReference{}

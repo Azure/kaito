@@ -85,9 +85,5 @@ func (i *InferenceSpec) validateUpdate(old *InferenceSpec) (errs *apis.FieldErro
 		errs = errs.Also(apis.ErrGeneric("field cannot be unset/set if it was set/unset", "template"))
 	}
 
-	if i.Preset.PresetMeta.AccessMode == "private" && i.Preset.PresetOptions.Image == "" {
-		errs = errs.Also(apis.ErrGeneric("When AccessMode is private, an image must be provided in PresetOptions").ViaField("presetOptions"))
-	}
-
 	return errs
 }
