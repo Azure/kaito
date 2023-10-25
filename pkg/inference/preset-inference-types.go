@@ -39,7 +39,7 @@ var (
 	presetFalcon40bImage         = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon40BModel)
 	presetFalcon40bInstructImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon40BInstructModel)
 
-	baseCommandPresetLlama = fmt.Sprintf("cd /workspace/llama/llama-2 && torchrun")
+	baseCommandPresetLlama = "cd /workspace/llama/llama-2 && torchrun"
 	// llamaTextInferenceFile       = "inference-api.py" TODO: To support Text Generation Llama Models
 	llamaChatInferenceFile = "inference-api.py"
 	llamaRunParams         = map[string]string{
