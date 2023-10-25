@@ -29,15 +29,15 @@ const (
 var (
 	registryName = os.Getenv("PRESET_REGISTRY_NAME")
 
-	presetLlama2AChatImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetLlama2AChat)
-	presetLlama2BChatImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetLlama2BChat)
-	presetLlama2CChatImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetLlama2CChat)
+	presetLlama2AChatImage = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetLlama2AChat)
+	presetLlama2BChatImage = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetLlama2BChat)
+	presetLlama2CChatImage = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetLlama2CChat)
 
-	presetFalcon7bImage         = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon7BModel)
-	presetFalcon7bInstructImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon7BInstructModel)
+	presetFalcon7bImage         = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetFalcon7BModel)
+	presetFalcon7bInstructImage = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetFalcon7BInstructModel)
 
-	presetFalcon40bImage         = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon40BModel)
-	presetFalcon40bInstructImage = registryName + fmt.Sprintf("/%s:latest", kaitov1alpha1.PresetFalcon40BInstructModel)
+	presetFalcon40bImage         = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetFalcon40BModel)
+	presetFalcon40bInstructImage = registryName + fmt.Sprintf("/%s:0.0.1", kaitov1alpha1.PresetFalcon40BInstructModel)
 
 	baseCommandPresetLlama = "cd /workspace/llama/llama-2 && torchrun"
 	// llamaTextInferenceFile       = "inference-api.py" TODO: To support Text Generation Llama Models
