@@ -69,6 +69,10 @@ func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
 	if i.Preset != nil && i.Template != nil {
 		errs = errs.Also(apis.ErrGeneric("preset and template cannot be set at the same time"))
 	}
+	if i.Preset.PresetMeta.AccessMode == "private" && i.Preset.PresetOptions.Image == "" {
+		errs = errs.Also(apis.ErrGeneric("When AccessMode is private, an image must be provided in PresetOptions"))
+	}
+	// Note: we don't enforce private access mode to have image secrets, incase anonymous pulling is enabled
 	return errs
 }
 
@@ -80,5 +84,6 @@ func (i *InferenceSpec) validateUpdate(old *InferenceSpec) (errs *apis.FieldErro
 	if (i.Template != nil && old.Template == nil) || (i.Template == nil && old.Template != nil) {
 		errs = errs.Also(apis.ErrGeneric("field cannot be unset/set if it was set/unset", "template"))
 	}
+
 	return errs
 }
