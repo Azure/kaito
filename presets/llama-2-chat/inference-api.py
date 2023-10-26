@@ -5,7 +5,6 @@ import uvicorn
 from pydantic import BaseModel
 from typing import Optional
 from multiprocessing import Process
-import threading
 
 from llama import Llama
 import torch
