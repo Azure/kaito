@@ -46,7 +46,7 @@ jobs:
           fi
 
           echo "VERSION=${rand}" >> $GITHUB_ENV
-          echo "CLUSTER_NAME=gpuprov${rand}" >> $GITHUB_ENV
+          echo "CLUSTER_NAME=kaito${rand}" >> $GITHUB_ENV
 
       - uses: azure/login@v1.4.6
         with:
@@ -74,6 +74,11 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_ACR_NAME: ${{ env.CLUSTER_NAME }}
 
+      - name: Create Azure Identity
+        shell: bash
+        run: |
+            az identity create --name gpuIdentity --resource-group  ${{ env.CLUSTER_NAME }}
+
       - name: build KAITO image
         shell: bash
         run: |
@@ -90,6 +95,34 @@ jobs:
           AZURE_ACR_NAME: ${{ env.CLUSTER_NAME }}
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
+
+      - name: Install gpu-provisioner helm chart
+        shell: bash
+        run: |
+          make gpu-provisioner-helm
+          kubectl wait --for=condition=available deploy "kaito-gpu-provisioner" -n gpu-provisioner --timeout=300s
+        env:
+          AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
+          AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
+
+      - uses: azure/login@v1.4.6
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create Role Assignment
+        shell: bash
+        run: |
+          IDENTITY_PRINCIPAL_ID="$(az identity show --name gpuIdentity --resource-group ${{ env.CLUSTER_NAME }} --query 'principalId' -otsv)"
+          az role assignment create --assignee ${IDENTITY_PRINCIPAL_ID} --scope "/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.CLUSTER_NAME }}"  --role "Contributor"
+
+      - name: Create Azure Federated Identity
+        shell: bash
+        run: |
+          AKS_OIDC_ISSUER="$(az aks show -n "${{ env.CLUSTER_NAME }}" -g "${{ env.CLUSTER_NAME }}" --query 'oidcIssuerProfile.issuerUrl' -otsv)"
+          az identity federated-credential create --name gpu-fed-credential --identity-name gpuIdentity --resource-group "${{ env.CLUSTER_NAME }}" \
+           --issuer "${AKS_OIDC_ISSUER}" --subject system:serviceaccount:"gpu-provisioner:gpu-provisioner" --audience api://AzureADTokenExchange
 
       - name: Install KAITO Workspace helm chart
         shell: bash
