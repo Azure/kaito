@@ -30,7 +30,7 @@ env:
 
 jobs:
   setup:
-    runs-on: self-hosted
+    runs-on: [self-hosted, username:runner-0]
     outputs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
       FALCON_MODIFIED: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}
