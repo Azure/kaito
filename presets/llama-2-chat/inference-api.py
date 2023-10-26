@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 import uvicorn
 from pydantic import BaseModel
 from typing import Optional
+from multiprocessing import Process
 import threading
 
 from llama import Llama
@@ -147,8 +148,8 @@ def setup_worker_routes():
         return {"status": "Healthy"}
 
 def start_worker_server():
-    uvicorn.run(app=app_worker, host='0.0.0.0', port=5000)
     print(f"Worker {dist.get_rank()} HTTP health server started at port 5000")
+    uvicorn.run(app=app_worker, host='0.0.0.0', port=5000)
 
 def worker_listen_tasks(): 
     while True:
@@ -203,8 +204,8 @@ if __name__ == "__main__":
              
             # Start the worker server in a separate thread. This worker server will
             # provide a healthz endpoint for monitoring the health of the node.
-            server_thread = threading.Thread(target=start_worker_server, daemon=True)
-            server_thread.start()
+            server_process = Process(target=start_worker_server)
+            server_process.start()
 
         # Regardless of local rank, all non-globally-0-ranked processes will listen
         # for tasks (like chat completion) from the main server.
