@@ -4,8 +4,6 @@ REGISTRY ?= ghcr.io/azure/kaito
 IMG_NAME ?= workspace
 VERSION ?= v0.0.1
 IMG_TAG ?= $(subst v,,$(VERSION))
-# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.27.2
 
 TOOLS_DIR := hack/tools
 TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/bin)
@@ -68,8 +66,8 @@ fmt: ## Run go fmt against code.
 ## --------------------------------------
 
 .PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+test: manifests generate fmt vet ## Run tests.
+	 go test ./... -coverprofile cover.out
 
 .PHONY: unit-test
 unit-test: ## Run unit tests.
