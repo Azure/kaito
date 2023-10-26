@@ -1,62 +1,65 @@
-# KAITO
+# Kubernetes AI Toolchain Operator(KAITO)
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/Azure/kaito)](https://goreportcard.com/report/github.com/Azure/kaito)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Azure/kaito)
 
-This project introduce `workspace` crd and its controller. The goal is to simplify the workflow of deploying inference services using OSS AI/ML models, and training workloads (to be added) against a standard AKS cluster.
 
-## Quick Start
+KAITO has been designed to simplify the workflow of launching AI inference services against popular large open sourced AI models,
+such as Falcon or Llama, in a Kubernetes cluster.
 
-### Quick Install
 
-Please refer to Helm chart [README](charts/README.md) for more details.
 
-## Demo
 
-1. Create an Azure Kubernetes Service (AKS) cluster
+## Installation 
 
-```bash
-az group create --name kaito-rg --location eastus
-az aks create --name kaito-aks --resource-group kaito-rg --node-count 1  --generate-ssh-keys
-```
-<!-- markdown-link-check-disable -->
-2. Install [gpu-provisioner](https://github.com/Azure/gpu-provisioner.git) helm chart
-<!-- markdown-link-check-enable -->
+The following guidence assumes **Azure Kubernetes Service(AKS)** is used to host the Kubernetes cluster .
+
+### Enable Workload Identity and OIDC Issuer features
+The `gpu-povisioner` component requires the [workload identity](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview?tabs=dotnet) feature to acquire the token to access the AKS managed cluster with proper permissions.
 
 ```bash
-
-git clone https://github.com/Azure/gpu-provisioner.git
-cd gpu-provisioner
-
-AZURE_SUBSCRIPTION_ID=<your_subscription_id> AZURE_LOCATION=<Azure_region> \
-AZURE_RESOURCE_GROUP=<your_resource_group_name> AZURE_ACR_NAME=<you_Azure_container_registry_name> \
-AZURE_CLUSTER_NAME=<you_AKS_cluster_name> make az-perm az-patch-helm
+export RESOURCE_GROUP="myResourceGroup"
+az aks update -g $RESOURCE_GROUP -n myAKSCluster --enable-oidc-issuer --enable-workload-identity --enable-managed-identity
 ```
-3. Build and push docker image
 
+### Create an identity and assign it Contributor role for cluster's resource group
+This identity `kaitoprovisioner` is created dedicatedly for the `gpu-povisioner`.
 ```bash
-export REGISTRY=<your_docker_registry>
-export IMG_NAME=kaito
+export SUBSCRIPTION="mySubscription"
+az identity create --name kaitoprovisioner -g $RESOURCE_GROUP
+export IDENTITY_PRINCIPAL_ID=$(az identity show --name kaitoprovisioner -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query 'principalId' | tr -d '"')
+export IDENTITY_CLIENT_ID=$(az identity show --name kaitoprovisioner -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query 'clientId' | tr -d '"')
+az role assignment create --assignee $IDENTITY_PRINCIPAL_ID --scope /subscriptions/$SUBSCRIPTION/resourceGroups/$RESOURCE_GROUP  --role "Contributor"
 
-make docker-build-kaito
 ```
-4. Install KAITO helm chart
 
+### Install helm chart
+Two charts will be installed in `myAKSCluster`. One for gpu-provisioner controller, another for workspace controller.
 ```bash
-helm install kaito --set image.repository=${REGISTRY}/${IMG_NAME} ./charts/kaito
+helm install workspace ./charts/kaito/workspace
+
+export NODE_RESOURCE_GROUP=$(az aks show -n myAKSCluster -g $RESOURCE_GROUP --query nodeResourceGroup | tr -d '"')
+export LOCATION=$(az aks show -n myAKSCluster -g $RESOURCE_GROUP --query location | tr -d '"')
+export TENANT_ID=$(az account show | jq -r ".tenantId")
+yq -i '(.controller.env[] | select(.name=="ARM_SUBSCRIPTION_ID"))       .value = env(SUBSCRIPTION_ID)     ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="LOCATION"))                  .value = env(LOCATION)            ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="ARM_RESOURCE_GROUP"))        .value = env(RESOURCE_GROUP)      ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="AZURE_NODE_RESOURCE_GROUP")) .value = env(NODE_RESOURCE_GROUP) ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="AZURE_CLUSTER_NAME"))        .value = myAKSCluster             ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.workloadIdentity.clientId)                                            = env(IDENTITY_CLIENT_ID)  ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.workloadIdentity.tenantId)                                            = env(TENANT_ID)           ./charts/kaito/gpu-provisioner/values.yaml
+helm install gpu-provisioner ./charts/kaito/gpu-provisioner 
+
 ```
 
-5. Run KAITO workspace example
-
+### Create federated credential for the `gpu-provisioner` controller
+Allow `gpu-provisioner` controller to use `kaitoprovisioner` identity to operate `myAKSCluster` (e.g., provisioning new nodes) which has been granted sufficient permissions.
 ```bash
-kubectl apply -f examples/kaito_workspace_llama2_7b-chat.yaml
+export AKS_OIDC_ISSUER=$(az aks show -n myAKSCluster -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query "oidcIssuerProfile.issuerUrl" | tr -d '"')
+az identity federated-credential create --name kaito-federatedcredential --identity-name kaitoprovisioner -g $RESOURCE_GROUP --issuer $AKS_OIDC_ISSUER --subject system:serviceaccount:"kaito:gpu-provisioner" --audience api://AzureADTokenExchange --subscription $SUBSCRIPTION
+
 ```
 
-6. Watch the KAITO workspace CR status
-
-```bash
-watch kubectl describe workspace workspace-llama-2-7b-chat 
-```
 
 <details>
 <summary>Workspace status</summary>
@@ -126,10 +129,12 @@ Events:  <none>
 ```
 </details><br/>
 
-7. Clean up
+### Clean up
 
 ```bash
-az aks delete --name kaito-aks --resource-group kaito-rg
+helm uninstall gpu-provisioner
+helm uninstall workspace
+
 ```
 
 
