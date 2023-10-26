@@ -97,7 +97,7 @@ jobs:
             echo "Using workflow dispatch to set image tag"
             echo "image_tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
           else
-            echo "Setting image tag based on latest commit"
+            echo "Setting image tag based on version set"
             echo "image_tag=${{ env.VERSION }}" >> $GITHUB_OUTPUT
           fi
 
