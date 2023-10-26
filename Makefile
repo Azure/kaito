@@ -65,10 +65,6 @@ fmt: ## Run go fmt against code.
 ## Tests
 ## --------------------------------------
 
-.PHONY: test
-test: manifests generate fmt vet ## Run tests.
-	 go test ./... -coverprofile cover.out
-
 .PHONY: unit-test
 unit-test: ## Run unit tests.
 	go test -v $(shell go list ./... | grep -v /vendor) -race -coverprofile=coverage.txt -covermode=atomic
