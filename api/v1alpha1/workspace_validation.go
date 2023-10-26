@@ -69,7 +69,7 @@ func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
 	if i.Preset != nil && i.Template != nil {
 		errs = errs.Also(apis.ErrGeneric("preset and template cannot be set at the same time"))
 	}
-	if i.Preset.PresetMeta.AccessMode == "private" && i.Preset.PresetOptions.Image == "" {
+	if i.Preset != nil && i.Preset.PresetMeta.AccessMode == "private" && i.Preset.PresetOptions.Image == "" {
 		errs = errs.Also(apis.ErrGeneric("When AccessMode is private, an image must be provided in PresetOptions"))
 	}
 	// Note: we don't enforce private access mode to have image secrets, incase anonymous pulling is enabled
