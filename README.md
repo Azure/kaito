@@ -3,15 +3,10 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/Azure/kaito)](https://goreportcard.com/report/github.com/Azure/kaito)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Azure/kaito)
 
-
 KAITO has been designed to simplify the workflow of launching AI inference services against popular large open sourced AI models,
 such as Falcon or Llama, in a Kubernetes cluster.
 
-
-
-
 ## Installation 
-
 The following guidence assumes **Azure Kubernetes Service(AKS)** is used to host the Kubernetes cluster .
 
 ### Enable Workload Identity and OIDC Issuer features
@@ -19,11 +14,12 @@ The `gpu-povisioner` component requires the [workload identity](https://learn.mi
 
 ```bash
 export RESOURCE_GROUP="myResourceGroup"
-az aks update -g $RESOURCE_GROUP -n myAKSCluster --enable-oidc-issuer --enable-workload-identity --enable-managed-identity
+export MY_CLUSTER="myCluster"
+az aks update -g $RESOURCE_GROUP -n $MY_CLUSTER --enable-oidc-issuer --enable-workload-identity --enable-managed-identity
 ```
 
-### Create an identity and assign it Contributor role for cluster's resource group
-This identity `kaitoprovisioner` is created dedicatedly for the `gpu-povisioner`.
+### Create an identity and assign permissions
+This identity `kaitoprovisioner` is created for the `gpu-povisioner` controller. It is assigned Contributor role for `$RESOURCE_GROUP` to allow operating `$MY_CLUSTER` (e.g., provisioning new nodes in it).
 ```bash
 export SUBSCRIPTION="mySubscription"
 az identity create --name kaitoprovisioner -g $RESOURCE_GROUP
@@ -33,110 +29,47 @@ az role assignment create --assignee $IDENTITY_PRINCIPAL_ID --scope /subscriptio
 
 ```
 
-### Install helm chart
-Two charts will be installed in `myAKSCluster`. One for gpu-provisioner controller, another for workspace controller.
+### Install helm charts
+Two charts will be installed in `$MY_CLUSTER`: `gpu-provisioner` chart and `workspace` chart.
 ```bash
 helm install workspace ./charts/kaito/workspace
 
-export NODE_RESOURCE_GROUP=$(az aks show -n myAKSCluster -g $RESOURCE_GROUP --query nodeResourceGroup | tr -d '"')
-export LOCATION=$(az aks show -n myAKSCluster -g $RESOURCE_GROUP --query location | tr -d '"')
+export NODE_RESOURCE_GROUP=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --query nodeResourceGroup | tr -d '"')
+export LOCATION=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --query location | tr -d '"')
 export TENANT_ID=$(az account show | jq -r ".tenantId")
 yq -i '(.controller.env[] | select(.name=="ARM_SUBSCRIPTION_ID"))       .value = env(SUBSCRIPTION_ID)     ./charts/kaito/gpu-provisioner/values.yaml
 yq -i '(.controller.env[] | select(.name=="LOCATION"))                  .value = env(LOCATION)            ./charts/kaito/gpu-provisioner/values.yaml
 yq -i '(.controller.env[] | select(.name=="ARM_RESOURCE_GROUP"))        .value = env(RESOURCE_GROUP)      ./charts/kaito/gpu-provisioner/values.yaml
 yq -i '(.controller.env[] | select(.name=="AZURE_NODE_RESOURCE_GROUP")) .value = env(NODE_RESOURCE_GROUP) ./charts/kaito/gpu-provisioner/values.yaml
-yq -i '(.controller.env[] | select(.name=="AZURE_CLUSTER_NAME"))        .value = myAKSCluster             ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="AZURE_CLUSTER_NAME"))        .value = env(MY_CLUSTER)          ./charts/kaito/gpu-provisioner/values.yaml
 yq -i '(.workloadIdentity.clientId)                                            = env(IDENTITY_CLIENT_ID)  ./charts/kaito/gpu-provisioner/values.yaml
 yq -i '(.workloadIdentity.tenantId)                                            = env(TENANT_ID)           ./charts/kaito/gpu-provisioner/values.yaml
 helm install gpu-provisioner ./charts/kaito/gpu-provisioner 
 
 ```
 
-### Create federated credential for the `gpu-provisioner` controller
-Allow `gpu-provisioner` controller to use `kaitoprovisioner` identity to operate `myAKSCluster` (e.g., provisioning new nodes) which has been granted sufficient permissions.
+### Create federated credential
+This allows `gpu-provisioner` controller to use `kaitoprovisioner` identity via an access token.
 ```bash
-export AKS_OIDC_ISSUER=$(az aks show -n myAKSCluster -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query "oidcIssuerProfile.issuerUrl" | tr -d '"')
+export AKS_OIDC_ISSUER=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query "oidcIssuerProfile.issuerUrl" | tr -d '"')
 az identity federated-credential create --name kaito-federatedcredential --identity-name kaitoprovisioner -g $RESOURCE_GROUP --issuer $AKS_OIDC_ISSUER --subject system:serviceaccount:"kaito:gpu-provisioner" --audience api://AzureADTokenExchange --subscription $SUBSCRIPTION
-
 ```
-
-
-<details>
-<summary>Workspace status</summary>
-
-```bash
-Name:         workspace-llama-2-7b-aks
-Annotations:  kubernetes-kaito.sh/service-type: load-balancer
-API Version:  kaito.sh/v1alpha1
-Inference:
-  Preset:
-    Name:  llama-2-7b
-    Volume:
-      Empty Dir:
-        Medium:  Memory
-      Name:      dshm
-Kind:            Workspace
-Metadata:
-  Creation Timestamp:  2023-09-01T16:41:16Z
-  Generation:          1
-  Resource Version:    5715733
-  UID:                 95db1c71-6a87-408e-96e8-91dc7ef820fd
-Resource:
-  Count:          2
-  Instance Type:  Standard_NC12s_v3
-  Label Selector:
-    Match Labels:
-      apps:  llama-2-7b
-  Preferred Nodes:
-    node1
-    aks-machine98722-26559722-vmss000001
-Status:
-  Condition:
-    Last Transition Time:  2023-09-01T16:41:16Z
-    Message:               machine has been provisioned successfully
-    Observed Generation:   1
-    Reason:                machineProvisionSuccess
-    Status:                True
-    Type:                  MachineProvisioned
-    Last Transition Time:  2023-09-01T16:45:00Z
-    Message:               machines plugins have been installed successfully
-    Observed Generation:   1
-    Reason:                installNodePluginsSuccess
-    Status:                True
-    Type:                  MachineReady
-    Last Transition Time:  2023-09-01T16:45:00Z
-    Message:               node plugins have been installed
-    Observed Generation:   1
-    Reason:                InstallNodePluginsSuccess
-    Status:                True
-    Type:                  NodePluginsInstalled
-    Last Transition Time:  2023-09-01T16:45:00Z
-    Message:               workspace resource is ready
-    Observed Generation:   1
-    Reason:                workspaceResourceDeployedSuccess
-    Status:                True
-    Type:                  ResourceProvisioned
-    Last Transition Time:  2023-09-01T16:45:00Z
-    Message:               workspace is ready
-    Observed Generation:   1
-    Reason:                workspaceReady
-    Status:                True
-    Type:                  WorkspaceReady
-  Worker Nodes:
-    aks-machine98722-26559722-vmss000001
-    aks-machine13355-19479027-vmss000000
-Events:  <none>
+Note that before doing this step, the `gpu-provisioner` controller pod will constantly fail with the following message in the log:
 ```
-</details><br/>
+panic: Configure azure client fails. Please ensure federatedcredential has been created for identity XXXX.
+```
+The pod will reach running state once the federated credential is created.
 
 ### Clean up
 
 ```bash
 helm uninstall gpu-provisioner
 helm uninstall workspace
-
 ```
 
+## Quick start
+
+TODO.
 
 
 ## Contributing
