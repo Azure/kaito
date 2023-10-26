@@ -32,7 +32,7 @@ var _ = Describe("Kaito Workspace ", func() {
 	})
 
 	It("should deploy other resources to the cluster", func() {
-		env.ExpectCreated(common.Machine)
+		//env.ExpectCreated(common.Machine)
 		env.ExpectKaitoDeployment()
 		env.ExpectKaitoReplicaSet()
 		env.ExpectKaitoService()

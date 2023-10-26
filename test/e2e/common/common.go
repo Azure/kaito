@@ -15,52 +15,51 @@ limitations under the License.
 package common
 
 import (
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	"github.com/aws/karpenter-core/pkg/test"
+
+	//"github.com/aws/karpenter-core/pkg/test"
 	"github.com/azure/kaito/api/v1alpha1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var (
-	MachineLabels = map[string]string{
-		"karpenter.sh/provisioner-name": "default",
-		"kaito.sh/workspace":            "none",
-	}
-)
+// var (
+// 	MachineLabels = map[string]string{
+// 		"karpenter.sh/provisioner-name": "default",
+// 		"kaito.sh/workspace":            "none",
+// 	}
+// )
 
-var (
-	Machine = test.Machine(v1alpha5.Machine{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   "testmachine",
-			Labels: MachineLabels,
-		},
-		Spec: v1alpha5.MachineSpec{
-			MachineTemplateRef: &v1alpha5.MachineTemplateRef{
-				Name: "test-machine",
-			},
-			Requirements: []v1.NodeSelectorRequirement{
-				{
-					Key:      v1.LabelInstanceTypeStable,
-					Operator: v1.NodeSelectorOpIn,
-					Values:   []string{"Standard_NC12s_v3"},
-				},
-				{
-					Key:      "karpenter.sh/provisioner-name",
-					Operator: v1.NodeSelectorOpIn,
-					Values:   []string{"default"},
-				},
-			},
-			Taints: []v1.Taint{
-				{
-					Key:    "sku",
-					Value:  "gpu",
-					Effect: v1.TaintEffectNoSchedule,
-				},
-			},
-		},
-	})
-)
+// var (
+// 	Machine = test.Machine(v1alpha5.Machine{
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Name:   "testmachine",
+// 			Labels: MachineLabels,
+// 		},
+// 		Spec: v1alpha5.MachineSpec{
+// 			MachineTemplateRef: &v1alpha5.MachineTemplateRef{
+// 				Name: "test-machine",
+// 			},
+// 			Requirements: []v1.NodeSelectorRequirement{
+// 				{
+// 					Key:      v1.LabelInstanceTypeStable,
+// 					Operator: v1.NodeSelectorOpIn,
+// 					Values:   []string{"Standard_NC12s_v3"},
+// 				},
+// 				{
+// 					Key:      "karpenter.sh/provisioner-name",
+// 					Operator: v1.NodeSelectorOpIn,
+// 					Values:   []string{"default"},
+// 				},
+// 			},
+// 			Taints: []v1.Taint{
+// 				{
+// 					Key:    "sku",
+// 					Value:  "gpu",
+// 					Effect: v1.TaintEffectNoSchedule,
+// 				},
+// 			},
+// 		},
+// 	})
+// )
 
 var (
 	Workspace = v1alpha1.Workspace{

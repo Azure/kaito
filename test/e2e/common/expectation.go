@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/aws/karpenter-core/pkg/test"
+	//"github.com/aws/karpenter-core/pkg/test"
 	"github.com/azure/kaito/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2" //nolint:revive,stylecheck
 	. "github.com/onsi/gomega"    //nolint:revive,stylecheck
@@ -34,7 +34,7 @@ import (
 func (env *Environment) ExpectCreatedWithOffset(offset int, objects ...client.Object) {
 	for _, object := range objects {
 		object.SetLabels(lo.Assign(object.GetLabels(), map[string]string{
-			test.DiscoveryLabel: "unspecified",
+			"test": "unspecified",
 		}))
 		ExpectWithOffset(offset+1, env.Client.Create(env, object)).To(Succeed())
 	}
