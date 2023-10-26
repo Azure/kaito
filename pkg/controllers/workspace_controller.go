@@ -412,25 +412,38 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 
 func (c *WorkspaceReconciler) getInferenceObjFromPreset(ctx context.Context, wObj *kaitov1alpha1.Workspace) (inference.PresetInferenceParam, error) {
 	presetName := wObj.Inference.Preset.Name
+	var inferenceObj inference.PresetInferenceParam
 	switch presetName {
 	case kaitov1alpha1.PresetLlama2AChat:
-		return inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2AChat], nil
+		inferenceObj = inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2AChat]
 	case kaitov1alpha1.PresetLlama2BChat:
-		return inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2BChat], nil
+		inferenceObj = inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2BChat]
 	case kaitov1alpha1.PresetLlama2CChat:
-		return inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2CChat], nil
+		inferenceObj = inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2CChat]
 	case kaitov1alpha1.PresetFalcon7BModel:
-		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BModel], nil
+		inferenceObj = inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BModel]
 	case kaitov1alpha1.PresetFalcon7BInstructModel:
-		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BInstructModel], nil
+		inferenceObj = inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BInstructModel]
 	case kaitov1alpha1.PresetFalcon40BModel:
-		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon40BModel], nil
+		inferenceObj = inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon40BModel]
 	case kaitov1alpha1.PresetFalcon40BInstructModel:
-		return inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon40BInstructModel], nil
+		inferenceObj = inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon40BInstructModel]
 	default:
 		err := fmt.Errorf("preset model %s is not supported", presetName)
 		return inference.PresetInferenceParam{}, err
 	}
+
+	inferenceObj.AccessMode = string(wObj.Inference.Preset.PresetMeta.AccessMode)
+	if inferenceObj.AccessMode == "private" && wObj.Inference.Preset.PresetOptions.Image != "" {
+		inferenceObj.Image = wObj.Inference.Preset.PresetOptions.Image
+
+		imagePullSecretRefs := []corev1.LocalObjectReference{}
+		for _, secretName := range wObj.Inference.Preset.PresetOptions.ImagePullSecrets {
+			imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
+		}
+		inferenceObj.ImagePullSecrets = imagePullSecretRefs
+	}
+	return inferenceObj, nil
 }
 
 // applyInference applies inference spec.
