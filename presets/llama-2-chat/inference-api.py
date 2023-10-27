@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 import uvicorn
 from pydantic import BaseModel
 from typing import Optional
-from multiprocessing import Process
+import multiprocessing
 
 from llama import Llama
 import torch
@@ -155,26 +155,31 @@ def worker_listen_tasks():
         worker_num = dist.get_rank()
         print(f"Worker {worker_num} ready to recieve next command")
         config = [None] * 3  # Command and its associated data
-        dist.broadcast_object_list(config, src=0)
-        command = config[0]
+        try: 
+            print(f"Worker {worker_num} entered broadcast listen")
+            dist.broadcast_object_list(config, src=0)
+            print(f"Worker {worker_num} left broadcast listen")
+            command = config[0]
 
-        if command == "generate":
-            try:
-                input_string = config[1]
-                parameters = config[2]
-                generator.chat_completion(
-                    input_string,
-                    max_gen_len=parameters.get('max_gen_len', None),
-                    temperature=parameters.get('temperature', 0.6),
-                    top_p=parameters.get('top_p', 0.9)
-                )
-                print(f"Worker {worker_num} completed generation")              
-            except Exception as e:
-                print(f"Error in generation: {str(e)}")
-        elif command == "shutdown":
-            print(f"Worker {worker_num} shutting down")
-            sys.exit(0)
-
+            if command == "generate":
+                try:
+                    input_string = config[1]
+                    parameters = config[2]
+                    print(f"Worker {worker_num} started generation")
+                    generator.chat_completion(
+                        input_string,
+                        max_gen_len=parameters.get('max_gen_len', None),
+                        temperature=parameters.get('temperature', 0.6),
+                        top_p=parameters.get('top_p', 0.9)
+                    )
+                    print(f"Worker {worker_num} completed generation")
+                except Exception as e:
+                    print(f"Error in generation: {str(e)}")
+            elif command == "shutdown":
+                print(f"Worker {worker_num} shutting down")
+                sys.exit(0)
+        except Exception as e:
+            print(f"Error in Worker Listen Task", e)
 
 if __name__ == "__main__":
     # Fetch the LOCAL_RANK environment variable to determine the rank of this process
@@ -201,9 +206,9 @@ if __name__ == "__main__":
             app_worker = FastAPI()
             setup_worker_routes()
              
-            # Start the worker server in a separate thread. This worker server will
+            # Start the worker server in a separate process. This worker server will
             # provide a healthz endpoint for monitoring the health of the node.
-            server_process = Process(target=start_worker_server)
+            server_process = multiprocessing.Process(target=start_worker_server, daemon=True)
             server_process.start()
 
         # Regardless of local rank, all non-globally-0-ranked processes will listen
