@@ -449,51 +449,61 @@ func (c *WorkspaceReconciler) getInferenceObjFromPreset(ctx context.Context, wOb
 // applyInference applies inference spec.
 func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
 
-	if wObj.Inference.Template != nil {
-		// TODO: handle update
-		if err := inference.CreateTemplateInference(ctx, wObj, c.Client); err != nil {
-			if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
-				"WorkspaceInferenceStatusFailed", err.Error()); updateErr != nil {
-				klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
-				return updateErr
-			}
-			return err
-		}
-	} else if wObj.Inference.Preset != nil {
-		// TODO: we only do create if it does not exist for preset model. Need to document it.
-		// TODO: check deployment for falcon.
-		inferenceObj, err := c.getInferenceObjFromPreset(ctx, wObj)
-		if err != nil {
-			klog.ErrorS(err, "unable to retrieve inference object from preset", "workspace", klog.KObj(wObj))
-			return err
-		}
-		existingObj := &appsv1.StatefulSet{}
-		err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj)
-		if err != nil {
-			if !apierrors.IsNotFound(err) {
-				if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
-					"WorkspaceInferenceStatusFailed", err.Error()); updateErr != nil {
-					klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
-					return updateErr
-				}
+	inferErr := func() error {
+		if wObj.Inference.Template != nil {
+			// TODO: handle update
+			workloadObj, err := inference.CreateTemplateInference(ctx, wObj, c.Client)
+			if err != nil {
 				return err
 			}
-		} else {
-			klog.InfoS("a statefulset already exists for workspace", "workspace", klog.KObj(wObj))
-			return nil
-		}
+			if err := resources.CheckResourceStatus(workloadObj, c.Client, time.Duration(10)*time.Minute); err != nil {
+				return err
+			}
+		} else if wObj.Inference.Preset != nil {
+			// TODO: we only do create if it does not exist for preset model. Need to document it.
+			inferenceObj, err := c.getInferenceObjFromPreset(ctx, wObj)
+			if err != nil {
+				klog.ErrorS(err, "unable to retrieve inference object from preset", "workspace", klog.KObj(wObj))
+				return err
+			}
 
-		err = inference.CreatePresetInference(ctx, wObj, inferenceObj, c.Client)
-		if err != nil {
-			if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
-				"WorkspaceInferenceStatusFailed", err.Error()); updateErr != nil {
-				klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
-				return updateErr
+			var existingObj client.Object
+			if inferenceObj.ModelName == "LLaMa2" {
+				existingObj = &appsv1.StatefulSet{}
+			} else {
+				existingObj = &appsv1.Deployment{}
+
+			}
+
+			if err := resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
+				klog.InfoS("An inference workload already exists for workspace", "workspace", klog.KObj(wObj))
+				if err := resources.CheckResourceStatus(existingObj, c.Client, inferenceObj.DeploymentTimeout); err != nil {
+					return err
+				}
+			} else if apierrors.IsNotFound(err) {
+				// Need to create a new workload
+				workloadObj, err := inference.CreatePresetInference(ctx, wObj, inferenceObj, c.Client)
+				if err != nil {
+					return err
+				}
+				if err := resources.CheckResourceStatus(workloadObj, c.Client, inferenceObj.DeploymentTimeout); err != nil {
+					return err
+				}
 			}
 			return err
 		}
-	} else { // Nothing to do
 		return nil
+	}()
+
+	if inferErr != nil {
+		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
+			"WorkspaceInferenceStatusFailed", inferErr.Error()); updateErr != nil {
+			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+			return updateErr
+		} else {
+			return inferErr
+
+		}
 	}
 
 	if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionTrue,
@@ -523,7 +533,7 @@ func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(c)
 }
 
-// watches for machine with label LabelCreatedByWorkspace equals workspace name.
+// watches for machine with labels indicating workspace name.
 func (c *WorkspaceReconciler) watchMachines() handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(
 		func(ctx context.Context, o client.Object) []reconcile.Request {
