@@ -101,7 +101,7 @@ extraVolumes: []
 controller:
   image:
     # -- Repository path to the controller image.
-    repository: ghcr.io/azure/gpu-provisioner
+    repository: mcr.microsoft.com/aks/kaito/gpu-provisioner
     # -- Tag of the controller image.
     tag: 0.0.1
     # -- SHA256 digest of the controller image.
