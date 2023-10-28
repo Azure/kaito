@@ -134,7 +134,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 BUILDX_BUILDER_NAME ?= img-builder
 OUTPUT_TYPE ?= type=registry
 QEMU_VERSION ?= 5.2.0-2
-ARCH ?= amd64
+ARCH ?= amd64,arm64
 
 .PHONY: docker-buildx
 docker-buildx: test ## Build and push docker image for the manager for cross-platform support
