@@ -5,7 +5,7 @@ type: application
 version: 0.0.1
 appVersion: 0.1.0
 sources:
-- https://github.com/Azure/gpu-provisioner
+  - https://github.com/Azure/gpu-provisioner
 maintainers:
   - name: Fei-Guo
     email: vrgf2003@gmail.com

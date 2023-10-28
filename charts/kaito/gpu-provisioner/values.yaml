@@ -43,7 +43,7 @@ podLabels: {}
 # -- Additional annotations for the pod.
 podAnnotations: {}
 podDisruptionBudget:
-  name: karpenter
+  name: gpu-provisioner
   maxUnavailable: 1
 # -- SecurityContext for the pod.
 podSecurityContext:
@@ -111,15 +111,15 @@ controller:
   # -- Additional environment variables for the controller pod.
   env:
     - name: ARM_SUBSCRIPTION_ID
-      value: "null"
+      value:
     - name: LOCATION
-      value: eastus
+      value:
     - name: AZURE_CLUSTER_NAME
-      value: new_demo
+      value:
     - name: AZURE_NODE_RESOURCE_GROUP
-      value: MC_llm-test_new_demo_eastus
+      value:
     - name: ARM_RESOURCE_GROUP
-      value: llm-test
+      value:
     - name: LEADER_ELECT # disable leader election for better debugging experience
       value: "false"
   envFrom: []
@@ -151,16 +151,10 @@ logLevel: debug
 logEncoding: console
 # -- Global Settings to configure gpu-provisioner
 workloadIdentity:
-  clientId: 00411c3a-8361-42f3-8917-50b6da46e9fc
-  tenantId: 72f988bf-86f1-41af-91ab-2d7cd011db47
+  clientId: ""
+  tenantId: ""
 settings:
   # -- Azure-specific configuration values
   azure:
     # -- Cluster name.
-    clusterName: new_demo
-    # -- The global tags to use on all Azure infrastructure resources (VMs, etc.)
-    # TODO: not propagated yet ...
-    tags:
-  # -- Feature Gate configuration values. Feature Gates will follow the same graduation process and requirements as feature gates
-  # in Kubernetes. More information here https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/#feature-gates-for-alpha-or-beta-features
-  featureGates:
+    clusterName:
