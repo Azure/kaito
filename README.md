@@ -37,13 +37,13 @@ helm install workspace ./charts/kaito/workspace
 export NODE_RESOURCE_GROUP=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --query nodeResourceGroup | tr -d '"')
 export LOCATION=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --query location | tr -d '"')
 export TENANT_ID=$(az account show | jq -r ".tenantId")
-yq -i '(.controller.env[] | select(.name=="ARM_SUBSCRIPTION_ID"))       .value = env(SUBSCRIPTION_ID)     ./charts/kaito/gpu-provisioner/values.yaml
-yq -i '(.controller.env[] | select(.name=="LOCATION"))                  .value = env(LOCATION)            ./charts/kaito/gpu-provisioner/values.yaml
-yq -i '(.controller.env[] | select(.name=="ARM_RESOURCE_GROUP"))        .value = env(RESOURCE_GROUP)      ./charts/kaito/gpu-provisioner/values.yaml
-yq -i '(.controller.env[] | select(.name=="AZURE_NODE_RESOURCE_GROUP")) .value = env(NODE_RESOURCE_GROUP) ./charts/kaito/gpu-provisioner/values.yaml
-yq -i '(.controller.env[] | select(.name=="AZURE_CLUSTER_NAME"))        .value = env(MY_CLUSTER)          ./charts/kaito/gpu-provisioner/values.yaml
-yq -i '(.workloadIdentity.clientId)                                            = env(IDENTITY_CLIENT_ID)  ./charts/kaito/gpu-provisioner/values.yaml
-yq -i '(.workloadIdentity.tenantId)                                            = env(TENANT_ID)           ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="ARM_SUBSCRIPTION_ID"))       .value = env(SUBSCRIPTION)'        ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="LOCATION"))                  .value = env(LOCATION)'            ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="ARM_RESOURCE_GROUP"))        .value = env(RESOURCE_GROUP)'      ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="AZURE_NODE_RESOURCE_GROUP")) .value = env(NODE_RESOURCE_GROUP)' ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.controller.env[] | select(.name=="AZURE_CLUSTER_NAME"))        .value = env(MY_CLUSTER)'          ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.workloadIdentity.clientId)                                            = env(IDENTITY_CLIENT_ID)'  ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.workloadIdentity.tenantId)                                            = env(TENANT_ID)'           ./charts/kaito/gpu-provisioner/values.yaml
 helm install gpu-provisioner ./charts/kaito/gpu-provisioner 
 
 ```
@@ -52,7 +52,7 @@ helm install gpu-provisioner ./charts/kaito/gpu-provisioner
 This allows `gpu-provisioner` controller to use `kaitoprovisioner` identity via an access token.
 ```bash
 export AKS_OIDC_ISSUER=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query "oidcIssuerProfile.issuerUrl" | tr -d '"')
-az identity federated-credential create --name kaito-federatedcredential --identity-name kaitoprovisioner -g $RESOURCE_GROUP --issuer $AKS_OIDC_ISSUER --subject system:serviceaccount:"kaito:gpu-provisioner" --audience api://AzureADTokenExchange --subscription $SUBSCRIPTION
+az identity federated-credential create --name kaito-federatedcredential --identity-name kaitoprovisioner -g $RESOURCE_GROUP --issuer $AKS_OIDC_ISSUER --subject system:serviceaccount:"gpu-provisioner:gpu-provisioner" --audience api://AzureADTokenExchange --subscription $SUBSCRIPTION
 ```
 Note that before doing this step, the `gpu-provisioner` controller pod will constantly fail with the following message in the log:
 ```

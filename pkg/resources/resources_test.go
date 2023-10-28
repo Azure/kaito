@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
-package inference
+package resources
 
 import (
 	"testing"
@@ -33,7 +33,7 @@ func TestCheckResourceStatus(t *testing.T) {
 		}
 
 		cl := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(dep).Build()
-		err := checkResourceStatus(dep, cl, 2*time.Second)
+		err := CheckResourceStatus(dep, cl, 2*time.Second)
 		assert.Nil(t, err)
 	})
 
@@ -48,7 +48,7 @@ func TestCheckResourceStatus(t *testing.T) {
 		}
 
 		cl := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(dep).Build()
-		err := checkResourceStatus(dep, cl, 1*time.Millisecond)
+		err := CheckResourceStatus(dep, cl, 1*time.Millisecond)
 		assert.Error(t, err)
 	})
 
@@ -63,7 +63,7 @@ func TestCheckResourceStatus(t *testing.T) {
 		}
 
 		cl := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(ss).Build()
-		err := checkResourceStatus(ss, cl, 2*time.Second)
+		err := CheckResourceStatus(ss, cl, 2*time.Second)
 		assert.Nil(t, err)
 	})
 
@@ -78,7 +78,7 @@ func TestCheckResourceStatus(t *testing.T) {
 		}
 
 		cl := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(ss).Build()
-		err := checkResourceStatus(ss, cl, 1*time.Millisecond)
+		err := CheckResourceStatus(ss, cl, 1*time.Millisecond)
 		assert.Error(t, err)
 	})
 
@@ -96,14 +96,14 @@ func TestCheckResourceStatus(t *testing.T) {
 		// Create the fake client without adding the dep object
 		cl := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-		err := checkResourceStatus(dep, cl, 2*time.Second)
+		err := CheckResourceStatus(dep, cl, 2*time.Second)
 		assert.Error(t, err)
 	})
 
 	t.Run("Should return error for unsupported resource type", func(t *testing.T) {
 		unsupportedResource := &appsv1.DaemonSet{}
 		cl := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(unsupportedResource).Build()
-		err := checkResourceStatus(unsupportedResource, cl, 2*time.Second)
+		err := CheckResourceStatus(unsupportedResource, cl, 2*time.Second)
 		assert.Error(t, err)
 		assert.Equal(t, "unsupported resource type", err.Error())
 	})
