@@ -2,7 +2,7 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= ghcr.io/azure/kaito
 IMG_NAME ?= workspace
-VERSION ?= v0.0.2
+VERSION ?= v0.0.1
 IMG_TAG ?= $(subst v,,$(VERSION))
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.27.2
