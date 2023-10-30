@@ -10,7 +10,7 @@
 #   --build-arg SRC_DIR=/home/presets/llama-2-chat \
 #   -t llama-2-7b-chat:latest .
 
-FROM nvcr.io/nvidia/pytorch:23.06-py3
+FROM nvcr.io/nvidia/pytorch:23.10-py3
 WORKDIR /workspace
 
 RUN git clone https://github.com/facebookresearch/llama
