@@ -20,7 +20,7 @@ on:
         description: 'Release (yes/no)'
         required: true
         default: 'no'
-      image_tag:
+      image_tag_name:
         description: 'Image Tag'
         required: true
 
@@ -93,9 +93,9 @@ jobs:
       - name: Set Image Tag
         id: set_tag
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag }}" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag_name }}" ]]; then
             echo "Using workflow dispatch to set image tag"
-            echo "image_tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+            echo "image_tag=${{ github.event.inputs.image_tag_name }}" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "Setting image tag to be latest"
             echo "image_tag=latest" >> $GITHUB_OUTPUT
