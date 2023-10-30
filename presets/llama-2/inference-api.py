@@ -166,6 +166,9 @@ def worker_listen_tasks():
             elif command == "shutdown":
                 print(f"Worker {worker_num} shutting down")
                 sys.exit(0)
+        except torch.distributed.DistBackendError as e:
+            print("torch.distributed.DistBackendError:")
+            print(e)
         except Exception as e:
             print(f"Error in Worker Listen Task", e)
 

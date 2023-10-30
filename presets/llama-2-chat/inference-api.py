@@ -21,6 +21,8 @@ parser.add_argument("--tokenizer_path", default="tokenizer.model", help="Path to
 parser.add_argument("--max_seq_len", type=int, default=128, help="Maximum sequence length.")
 parser.add_argument("--max_batch_size", type=int, default=4, help="Maximum batch size.")
 parser.add_argument("--model_parallel_size", type=int, default=int(os.environ.get("WORLD_SIZE", 1)), help="Model parallel size.")
+parser.add_argument("--local-rank", type=int, default=int(os.environ.get("WORLD_SIZE", 1)), help="Model parallel size.")
+
 args = parser.parse_args()
 
 should_shutdown = False
@@ -178,6 +180,9 @@ def worker_listen_tasks():
             elif command == "shutdown":
                 print(f"Worker {worker_num} shutting down")
                 sys.exit(0)
+        except torch.distributed.DistBackendError as e:
+            print("torch.distributed.DistBackendError:")
+            print(e)
         except Exception as e:
             print(f"Error in Worker Listen Task", e)
 
