@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	coreapis "github.com/aws/karpenter-core/pkg/apis"
 	"github.com/azure/kaito/api/v1alpha1"
 	"github.com/onsi/gomega"
 	"github.com/samber/lo"
@@ -71,6 +72,9 @@ func NewConfig() *rest.Config {
 func NewClient(config *rest.Config) (client.Client, error) {
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := coreapis.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
