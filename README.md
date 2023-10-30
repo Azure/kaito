@@ -42,6 +42,7 @@ yq -i '(.controller.env[] | select(.name=="LOCATION"))                  .value =
 yq -i '(.controller.env[] | select(.name=="ARM_RESOURCE_GROUP"))        .value = env(RESOURCE_GROUP)'      ./charts/kaito/gpu-provisioner/values.yaml
 yq -i '(.controller.env[] | select(.name=="AZURE_NODE_RESOURCE_GROUP")) .value = env(NODE_RESOURCE_GROUP)' ./charts/kaito/gpu-provisioner/values.yaml
 yq -i '(.controller.env[] | select(.name=="AZURE_CLUSTER_NAME"))        .value = env(MY_CLUSTER)'          ./charts/kaito/gpu-provisioner/values.yaml
+yq -i '(.settings.azure.clusterName)                                           = env(MY_CLUSTER)'          ./charts/kaito/gpu-provisioner/values.yaml
 yq -i '(.workloadIdentity.clientId)                                            = env(IDENTITY_CLIENT_ID)'  ./charts/kaito/gpu-provisioner/values.yaml
 yq -i '(.workloadIdentity.tenantId)                                            = env(TENANT_ID)'           ./charts/kaito/gpu-provisioner/values.yaml
 helm install gpu-provisioner ./charts/kaito/gpu-provisioner 
