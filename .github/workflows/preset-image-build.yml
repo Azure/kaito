@@ -1,5 +1,4 @@
 name: Build and Push Preset Models
-
 on:
   pull_request:
     branches:
