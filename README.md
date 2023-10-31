@@ -19,13 +19,13 @@ az aks update -g $RESOURCE_GROUP -n $MY_CLUSTER --enable-oidc-issuer --enable-wo
 ```
 
 ### Create an identity and assign permissions
-This identity `kaitoprovisioner` is created for the `gpu-povisioner` controller. It is assigned Contributor role for `$RESOURCE_GROUP` to allow operating `$MY_CLUSTER` (e.g., provisioning new nodes in it).
+The identity `kaitoprovisioner` is created for the `gpu-povisioner` controller. It is assigned Contributor role for the managed cluster resource to allow changing `$MY_CLUSTER` (e.g., provisioning new nodes in it).
 ```bash
 export SUBSCRIPTION="mySubscription"
 az identity create --name kaitoprovisioner -g $RESOURCE_GROUP
 export IDENTITY_PRINCIPAL_ID=$(az identity show --name kaitoprovisioner -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query 'principalId' | tr -d '"')
 export IDENTITY_CLIENT_ID=$(az identity show --name kaitoprovisioner -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query 'clientId' | tr -d '"')
-az role assignment create --assignee $IDENTITY_PRINCIPAL_ID --scope /subscriptions/$SUBSCRIPTION/resourceGroups/$RESOURCE_GROUP  --role "Contributor"
+az role assignment create --assignee $IDENTITY_PRINCIPAL_ID --scope /subscriptions/$SUBSCRIPTION/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ContainerService/managedClusters/$MY_CLUSTER  --role "Contributor"
 
 ```
 
