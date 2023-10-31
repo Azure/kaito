@@ -167,8 +167,7 @@ def worker_listen_tasks():
                 print(f"Worker {worker_num} shutting down")
                 sys.exit(0)
         except torch.distributed.DistBackendError as e:
-            print("torch.distributed.DistBackendError:")
-            print(e)
+            print("torch.distributed.DistBackendError", e)
         except Exception as e:
             print(f"Error in Worker Listen Task", e)
 
@@ -191,17 +190,26 @@ if __name__ == "__main__":
         # Uncomment to enable worker logs
         # sys.stdout = sys.__stdout__
 
-        # If the current process is the locally ranked 0 (i.e., the primary process)
-        # on its node, then it starts a worker server that exposes a health check endpoint.
-        if local_rank == 0:
-            app_worker = FastAPI()
-            setup_worker_routes()
-             
-            # Start the worker server in a separate process. This worker server will
-            # provide a healthz endpoint for monitoring the health of the node.
-            server_process = multiprocessing.Process(target=start_worker_server, daemon=True)
-            server_process.start()
+        os.setpgrp()
+        server_process = None
+        try: 
+            # If the current process is the locally ranked 0 (i.e., the primary process)
+            # on its node, then it starts a worker server that exposes a health check endpoint.
+            if local_rank == 0:
+                app_worker = FastAPI()
+                setup_worker_routes()
+                
+                # Start the worker server in a separate process. This worker server will
+                # provide a healthz endpoint for monitoring the health of the node.
+                server_process = multiprocessing.Process(target=start_worker_server, daemon=True)
+                server_process.start()
 
-        # Regardless of local rank, all non-globally-0-ranked processes will listen
-        # for tasks (like text completion) from the main server.
-        worker_listen_tasks()
+            # Regardless of local rank, all non-globally-0-ranked processes will listen
+            # for tasks (like chat completion) from the main server.
+            worker_listen_tasks()
+        finally:
+            if server_process: 
+                server_process.terminate()
+                server_process.join()
+            # Additional fail-safe (to ensure no lingering processes)
+            os.killpg(os.getpgrp(), signal.SIGTERM)
