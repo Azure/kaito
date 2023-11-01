@@ -70,8 +70,41 @@ helm uninstall workspace
 
 ## Quick start
 
-TODO.
+After installing Kaito, one can try following commands to start a faclon-7b inference service.
+```
+$ cat examples/kaito_workspace_falcon_7b.yaml
+apiVersion: kaito.sh/v1alpha1
+kind: Workspace
+metadata:
+  name: workspace-falcon-7b
+resource:
+  instanceType: "Standard_NC12s_v3"
+  labelSelector:
+    matchLabels:
+      apps: falcon-7b
+inference:
+  preset:
+    name: "falcon-7b"
 
+$ kubectl apply -f examples/kaito_workspace_falcon_7b.yaml
+```
+The workspace status can be tracked by running the following command. 
+```
+$ kubectl get workspace workspace-falcon-7b
+NAME                  INSTANCE            RESOURCEREADY   INFERENCEREADY   WORKSPACEREADY   AGE
+workspace-falcon-7b   Standard_NC12s_v3   True            True             True             10m
+
+```
+Once the workspace is ready, one can find the inference service's cluster ip and use a temporal `curl` pod to test the service endpoint in cluster.
+```
+$ kubectl get svc workspace-falcon-7b
+NAME                  TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)            AGE
+workspace-falcon-7b   ClusterIP   <CLUSTERIP>           <none>        80/TCP,29500/TCP   10m
+
+$ kubectl run -it --rm --restart=Never curl --image=curlimages/curl sh
+~ $ curl -X POST http://<CLUSTERIP>/chat -H "accept: application/json" -H "Content-Type: application/json" -d "{\"prompt\":\"YOUR QUESTION HERE\"}"
+
+```
 
 ## Contributing
 
@@ -90,12 +123,12 @@ For more information see the [Code of Conduct FAQ](https://opensource.microsoft.
 contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
 ## Trademarks
-
+<!-- markdown-link-check-disable -->
 This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
 trademarks or logos is subject to and must follow [Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
 Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
 Any use of third-party trademarks or logos are subject to those third-party's policies.
-
+<!-- markdown-link-check-enable -->
 ## License
 
 See [LICENSE](LICENSE).

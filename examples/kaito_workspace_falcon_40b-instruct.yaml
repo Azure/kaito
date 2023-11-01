@@ -1,8 +1,6 @@
 apiVersion: kaito.sh/v1alpha1
 kind: Workspace
 metadata:
-  annotations:
-    kubernetes-kaito.sh/service-type: load-balancer
   name: workspace-falcon-40b-instruct
 resource:
   instanceType: "Standard_NC96ads_A100_v4"

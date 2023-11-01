@@ -1,8 +1,6 @@
 apiVersion: kaito.sh/v1alpha1
 kind: Workspace
 metadata:
-  annotations:
-    kubernetes-kaito.sh/service-type: load-balancer
   name: workspace-llama-2-70b-chat
 resource:
   instanceType: "Standard_NC96ads_A100_v4"
@@ -13,3 +11,6 @@ resource:
 inference:
   preset:
     name: "llama-2-70b-chat"
+    accessMode: private
+    presetOptions:
+      image: <YOUR IMAGE URL>
