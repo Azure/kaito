@@ -19,6 +19,14 @@ const (
 	DefaultMasterPort   = "29500"
 )
 
+// Torch Rendezvous Params
+const (
+	DefaultMaxRestarts  = "3"
+	DefaultRdzvId       = "rdzv_id"
+	DefaultRdzvBackend  = "c10d"
+	DefaultRdzvEndpoint = "localhost:29500" // llama-2-13b-chat-0.llama-headless.default.svc.cluster.local:29500
+)
+
 const (
 	DefaultConfigFile   = "config.yaml"
 	DefaultNumProcesses = "1"
@@ -60,6 +68,13 @@ var (
 		"master_port":    DefaultMasterPort,
 	}
 
+	defaultTorchRunRdzvParams = map[string]string{
+		"max_restarts":  DefaultMaxRestarts,
+		"rdzv_id":       DefaultRdzvId,
+		"rdzv_backend":  DefaultRdzvBackend,
+		"rdzv_endpoint": DefaultRdzvEndpoint,
+	}
+
 	defaultAccelerateParams = map[string]string{
 		"config_file":   DefaultConfigFile,
 		"num_processes": DefaultNumProcesses,
@@ -82,6 +97,7 @@ type PresetInferenceParam struct {
 	GPURequirement         string
 	GPUMemoryRequirement   string
 	TorchRunParams         map[string]string
+	TorchRunRdzvParams     map[string]string
 	ModelRunParams         map[string]string
 	InferenceFile          string
 	// DeploymentTimeout defines the maximum duration for pulling the Preset image.
@@ -108,6 +124,7 @@ var (
 			GPURequirement:         "1",
 			GPUMemoryRequirement:   "16Gi",
 			TorchRunParams:         defaultTorchRunParams,
+			TorchRunRdzvParams:     defaultTorchRunRdzvParams,
 			ModelRunParams:         llamaRunParams,
 			InferenceFile:          llamaChatInferenceFile,
 			DeploymentTimeout:      time.Duration(10) * time.Minute,
@@ -124,6 +141,7 @@ var (
 			GPURequirement:         "2",
 			GPUMemoryRequirement:   "16Gi",
 			TorchRunParams:         defaultTorchRunParams,
+			TorchRunRdzvParams:     defaultTorchRunRdzvParams,
 			ModelRunParams:         llamaRunParams,
 			InferenceFile:          llamaChatInferenceFile,
 			DeploymentTimeout:      time.Duration(20) * time.Minute,
@@ -140,6 +158,7 @@ var (
 			GPURequirement:         "8",
 			GPUMemoryRequirement:   "19Gi",
 			TorchRunParams:         defaultTorchRunParams,
+			TorchRunRdzvParams:     defaultTorchRunRdzvParams,
 			ModelRunParams:         llamaRunParams,
 			InferenceFile:          llamaChatInferenceFile,
 			DeploymentTimeout:      time.Duration(30) * time.Minute,

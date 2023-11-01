@@ -81,6 +81,13 @@ func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1
 			inferenceObj.TorchRunParams["master_addr"] = existingService.Spec.ClusterIP
 			inferenceObj.TorchRunParams["master_port"] = "29500"
 		}
+		if inferenceObj.TorchRunRdzvParams != nil {
+			inferenceObj.TorchRunRdzvParams["max_restarts"] = "3"
+			inferenceObj.TorchRunRdzvParams["rdzv_id"] = "job"
+			inferenceObj.TorchRunRdzvParams["rdzv_backend"] = "c10d"
+			inferenceObj.TorchRunRdzvParams["rdzv_endpoint"] =
+				fmt.Sprintf("%s-0.llama-headless.default.svc.cluster.local:29500", wObj.Inference.Preset.Name)
+		}
 	} else if inferenceObj.ModelName == "Falcon" {
 		inferenceObj.TorchRunParams["config_file"] = "config.yaml"
 		inferenceObj.TorchRunParams["num_processes"] = "1"
@@ -168,6 +175,7 @@ func checkResourceStatus(obj client.Object, kubeClient client.Client, timeoutDur
 
 func prepareInferenceParameters(ctx context.Context, inferenceObj PresetInferenceParam) ([]string, corev1.ResourceRequirements) {
 	torchCommand := buildCommandStr(inferenceObj.BaseCommand, inferenceObj.TorchRunParams)
+	torchCommand = buildCommandStr(torchCommand, inferenceObj.TorchRunRdzvParams)
 	modelCommand := buildCommandStr(inferenceObj.InferenceFile, inferenceObj.ModelRunParams)
 	commands := shellCommand(torchCommand + " " + modelCommand)
 

@@ -407,6 +407,12 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 	if err != nil {
 		return err
 	}
+	headlessService := resources.GenerateHeadlessServiceManifest(ctx, wObj)
+	err = resources.CreateResource(ctx, headlessService, c.Client)
+	if err != nil {
+		return err
+	}
+	wObj.Annotations["headlessServiceCreated"] = "true"
 	return nil
 }
 

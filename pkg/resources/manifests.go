@@ -17,6 +17,32 @@ import (
 
 var controller = true
 
+func GenerateHeadlessServiceManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) *corev1.Service {
+	serviceName := fmt.Sprintf("%s-headless", workspaceObj.Inference.Preset.Name)
+	selector := make(map[string]string)
+	for k, v := range workspaceObj.Resource.LabelSelector.MatchLabels {
+		selector[k] = v
+	}
+	return &corev1.Service{
+		ObjectMeta: v1.ObjectMeta{
+			Name: serviceName,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector:  selector,
+			ClusterIP: "None",
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "torchrun",
+					Protocol:   corev1.ProtocolTCP,
+					Port:       29500,
+					TargetPort: intstr.FromInt(29500),
+				},
+			},
+			PublishNotReadyAddresses: true,
+		},
+	}
+}
+
 func GenerateServiceManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, serviceType corev1.ServiceType, isStatefulSet bool) *corev1.Service {
 	selector := make(map[string]string)
 	for k, v := range workspaceObj.Resource.LabelSelector.MatchLabels {
@@ -82,7 +108,7 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 			Values:   []string{value},
 		})
 	}
-	return &appsv1.StatefulSet{
+	ss := &appsv1.StatefulSet{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      workspaceObj.Name,
 			Namespace: workspaceObj.Namespace,
@@ -136,6 +162,10 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 			},
 		},
 	}
+	if val, ok := workspaceObj.Annotations["headlessServiceCreated"]; ok && val == "true" {
+		ss.Spec.ServiceName = fmt.Sprintf("%s-headless", workspaceObj.Inference.Preset.Name)
+	}
+	return ss
 }
 
 func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imageName string,
