@@ -5,7 +5,9 @@ import uvicorn
 from pydantic import BaseModel
 from typing import Optional
 import multiprocessing
-import time
+import multiprocessing.pool
+import threading
+import functools
 
 from llama import Llama
 import torch
@@ -26,6 +28,20 @@ args = parser.parse_args()
 
 should_shutdown = False
 
+def timeout(max_timeout):
+    """Timeout decorator, parameter in seconds."""
+    def timeout_decorator(item):
+        """Wrap the original function."""
+        @functools.wraps(item)
+        def func_wrapper(*args, **kwargs):
+            """Closure for function."""
+            with multiprocessing.pool.ThreadPool(processes=1) as pool:
+                async_result = pool.apply_async(item, args, kwargs)
+                # raises a TimeoutError if execution exceeds max_timeout
+                return async_result.get(max_timeout)
+        return func_wrapper
+    return timeout_decorator
+
 def build_generator(params):
     """Build Llama generator from provided parameters."""
     return Llama.build(**params)
@@ -34,6 +50,7 @@ def broadcast_for_shutdown():
     """Broadcasts shutdown command to worker processes."""
     dist.broadcast_object_list(["shutdown", None, None], src=0)
 
+@timeout(60.0)
 def broadcast_for_text_generation(prompts, max_gen_len, temperature, top_p):
     """Broadcasts generation parameters to worker processes."""
     dist.broadcast_object_list(["text_generate", prompts, {
@@ -41,6 +58,15 @@ def broadcast_for_text_generation(prompts, max_gen_len, temperature, top_p):
         'temperature': temperature,
         'top_p': top_p
     }], src=0)
+
+@timeout(60.0)
+def inference(input_string, max_gen_len, temperature, top_p):
+    return generator.text_completion(
+            input_string,
+            max_gen_len=max_gen_len,
+            temperature=temperature,
+            top_p=top_p,
+        )
 
 def shutdown_server():
     """Shut down the server."""
@@ -97,16 +123,22 @@ def setup_main_routes():
         top_p = parameters.get('top_p', 0.9)
 
         if dist.get_world_size() > 1:
-            broadcast_for_text_generation(prompts, max_gen_len, temperature, top_p)
+            try:
+                broadcast_for_text_generation(prompts, max_gen_len, temperature, top_p)
+            except Exception as e:
+                exception_type = type(e).__name__
+                if exception_type == "TimeoutError": 
+                    print("Broadcast failed - TimeoutError", e)
+                    os.killpg(os.getpgrp(), signal.SIGTERM)
+                raise HTTPException(status_code=400, detail="Request Failed: " + str(e))
 
-        try: 
-            results = generator.text_completion(
-                prompts,
-                max_gen_len=max_gen_len,
-                temperature=temperature,
-                top_p=top_p,
-            )
+        try:
+            results = inference(prompts, max_gen_len, temperature, top_p)
         except Exception as e:
+            exception_type = type(e).__name__
+            if exception_type == "TimeoutError": 
+                print("Inference failed - TimeoutError", e)
+                os.killpg(os.getpgrp(), signal.SIGTERM)
             raise HTTPException(status_code=400, detail="Request Failed: " + str(e))
 
         if len(results) == 0:
@@ -154,22 +186,27 @@ def worker_listen_tasks():
                     input_string = config[1]
                     parameters = config[2]
                     print(f"Worker {worker_num} started generation")
-                    generator.text_completion(
-                        input_string,
-                        max_gen_len=parameters.get('max_gen_len', None),
-                        temperature=parameters.get('temperature', 0.6),
-                        top_p=parameters.get('top_p', 0.9)
-                    )
+                    inference(input_string,
+                              parameters.get('max_gen_len', None),
+                              parameters.get('temperature', 0.6),
+                              parameters.get('top_p', 0.9)
+                            )
                     print(f"Worker {worker_num} completed generation")
                 except Exception as e:
+                    exception_type = type(e).__name__
+                    if exception_type == "TimeoutError": 
+                        print("Inference failed - TimeoutError", e)
+                        os.killpg(os.getpgrp(), signal.SIGTERM)
                     print(f"Error in generation: {str(e)}")
             elif command == "shutdown":
                 print(f"Worker {worker_num} shutting down")
                 sys.exit(0)
         except torch.distributed.DistBackendError as e:
             print("torch.distributed.DistBackendError", e)
+            os.killpg(os.getpgrp(), signal.SIGTERM)
         except Exception as e:
             print(f"Error in Worker Listen Task", e)
+            os.killpg(os.getpgrp(), signal.SIGTERM)
 
 if __name__ == "__main__":
     # Fetch the LOCAL_RANK environment variable to determine the rank of this process
@@ -199,17 +236,14 @@ if __name__ == "__main__":
                 app_worker = FastAPI()
                 setup_worker_routes()
                 
-                # Start the worker server in a separate process. This worker server will
+                # Start the worker server in a separate thread. This worker server will
                 # provide a healthz endpoint for monitoring the health of the node.
-                server_process = multiprocessing.Process(target=start_worker_server, daemon=True)
-                server_process.start()
+                server_thread = threading.Thread(target=start_worker_server, daemon=True)
+                server_thread.start()
 
             # Regardless of local rank, all non-globally-0-ranked processes will listen
             # for tasks (like chat completion) from the main server.
             worker_listen_tasks()
         finally:
-            if server_process: 
-                server_process.terminate()
-                server_process.join()
             # Additional fail-safe (to ensure no lingering processes)
             os.killpg(os.getpgrp(), signal.SIGTERM)

@@ -5,6 +5,9 @@ import uvicorn
 from pydantic import BaseModel
 from typing import Optional
 import multiprocessing
+import multiprocessing.pool
+import threading
+import functools
 
 from llama import Llama
 import torch
@@ -25,6 +28,20 @@ args = parser.parse_args()
 
 should_shutdown = False
 
+def timeout(max_timeout):
+    """Timeout decorator, parameter in seconds."""
+    def timeout_decorator(item):
+        """Wrap the original function."""
+        @functools.wraps(item)
+        def func_wrapper(*args, **kwargs):
+            """Closure for function."""
+            with multiprocessing.pool.ThreadPool(processes=1) as pool:
+                async_result = pool.apply_async(item, args, kwargs)
+                # raises a TimeoutError if execution exceeds max_timeout
+                return async_result.get(max_timeout)
+        return func_wrapper
+    return timeout_decorator
+
 def build_generator(params):
     """Build Llama generator from provided parameters."""
     return Llama.build(**params)
@@ -33,6 +50,7 @@ def broadcast_for_shutdown():
     """Broadcasts shutdown command to worker processes."""
     dist.broadcast_object_list(["shutdown", None, None], src=0)
 
+@timeout(60.0)
 def broadcast_for_generation(input_string, max_gen_len, temperature, top_p):
     """Broadcasts generation parameters to worker processes."""
     dist.broadcast_object_list(["generate", input_string, {
@@ -40,6 +58,15 @@ def broadcast_for_generation(input_string, max_gen_len, temperature, top_p):
         'temperature': temperature,
         'top_p': top_p
     }], src=0)
+
+@timeout(60.0)
+def inference(input_string, max_gen_len, temperature, top_p):
+    return generator.chat_completion(
+            input_string,
+            max_gen_len=max_gen_len,
+            temperature=temperature,
+            top_p=top_p,
+        )
 
 def shutdown_server():
     """Shut down the server."""
@@ -99,18 +126,24 @@ def setup_main_routes():
         top_p = parameters.get('top_p', 0.9)
 
         if dist.get_world_size() > 1:
-            # Broadcast generation params to worker processes
-            broadcast_for_generation(input_string, max_gen_len, temperature, top_p)
+            try: 
+                # Broadcast generation params to worker processes
+                broadcast_for_generation(input_string, max_gen_len, temperature, top_p)
+            except Exception as e:
+                exception_type = type(e).__name__
+                if exception_type == "TimeoutError": 
+                    print("Broadcast failed - TimeoutError", e)
+                    os.killpg(os.getpgrp(), signal.SIGTERM)
+                raise HTTPException(status_code=400, detail="Request Failed: " + str(e))
 
         # Master's own generation
         try:
-            results = generator.chat_completion(
-                input_string,
-                max_gen_len=max_gen_len,
-                temperature=temperature,
-                top_p=top_p,
-            )
+            results = inference(input_string, max_gen_len, temperature, top_p)
         except Exception as e:
+            exception_type = type(e).__name__
+            if exception_type == "TimeoutError": 
+                print("Inference failed - TimeoutError", e)
+                os.killpg(os.getpgrp(), signal.SIGTERM)
             raise HTTPException(status_code=400, detail="Request Failed: " + str(e))
 
         if len(results) == 0:
@@ -166,14 +199,17 @@ def worker_listen_tasks():
                     input_string = config[1]
                     parameters = config[2]
                     print(f"Worker {worker_num} started generation")
-                    generator.chat_completion(
-                        input_string,
-                        max_gen_len=parameters.get('max_gen_len', None),
-                        temperature=parameters.get('temperature', 0.6),
-                        top_p=parameters.get('top_p', 0.9)
-                    )
+                    inference(input_string,
+                              parameters.get('max_gen_len', None),
+                              parameters.get('temperature', 0.6),
+                              parameters.get('top_p', 0.9)
+                            )
                     print(f"Worker {worker_num} completed generation")
                 except Exception as e:
+                    exception_type = type(e).__name__
+                    if exception_type == "TimeoutError": 
+                        print("Inference failed - TimeoutError", e)
+                        os.killpg(os.getpgrp(), signal.SIGTERM)
                     print(f"Error in generation: {str(e)}")
             elif command == "shutdown":
                 print(f"Worker {worker_num} shutting down")
@@ -205,7 +241,7 @@ if __name__ == "__main__":
         # sys.stdout = sys.__stdout__
 
         os.setpgrp()
-        server_process = None
+        server_thread = None
         try: 
             # If the current process is the locally ranked 0 (i.e., the primary process)
             # on its node, then it starts a worker server that exposes a health check endpoint.
@@ -213,17 +249,17 @@ if __name__ == "__main__":
                 app_worker = FastAPI()
                 setup_worker_routes()
                 
-                # Start the worker server in a separate process. This worker server will
+                # Start the worker server in a separate thread. This worker server will
                 # provide a healthz endpoint for monitoring the health of the node.
-                server_process = multiprocessing.Process(target=start_worker_server, daemon=True)
-                server_process.start()
+                server_thread = threading.Thread(target=start_worker_server, daemon=True)
+                server_thread.start()
 
             # Regardless of local rank, all non-globally-0-ranked processes will listen
             # for tasks (like chat completion) from the main server.
             worker_listen_tasks()
         finally:
-            if server_process: 
-                server_process.terminate()
-                server_process.join()
+            # if server_thread: 
+            #     server_thread.terminate()
+            #     server_thread.join()
             # Additional fail-safe (to ensure no lingering processes)
             os.killpg(os.getpgrp(), signal.SIGTERM)
