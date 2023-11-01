@@ -241,7 +241,6 @@ if __name__ == "__main__":
         # sys.stdout = sys.__stdout__
 
         os.setpgrp()
-        server_thread = None
         try: 
             # If the current process is the locally ranked 0 (i.e., the primary process)
             # on its node, then it starts a worker server that exposes a health check endpoint.
@@ -258,8 +257,5 @@ if __name__ == "__main__":
             # for tasks (like chat completion) from the main server.
             worker_listen_tasks()
         finally:
-            # if server_thread: 
-            #     server_thread.terminate()
-            #     server_thread.join()
             # Additional fail-safe (to ensure no lingering processes)
             os.killpg(os.getpgrp(), signal.SIGTERM)

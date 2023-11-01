@@ -228,7 +228,6 @@ if __name__ == "__main__":
         # sys.stdout = sys.__stdout__
 
         os.setpgrp()
-        server_process = None
         try: 
             # If the current process is the locally ranked 0 (i.e., the primary process)
             # on its node, then it starts a worker server that exposes a health check endpoint.
