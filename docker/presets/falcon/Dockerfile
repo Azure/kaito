@@ -1,5 +1,5 @@
 # Use the NVIDIA PyTorch image as a base
-FROM nvcr.io/nvidia/pytorch:23.06-py3
+FROM nvcr.io/nvidia/pytorch:23.10-py3
 
 # Set the working directory
 WORKDIR /workspace/falcon
