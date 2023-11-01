@@ -50,7 +50,6 @@ def broadcast_for_shutdown():
     """Broadcasts shutdown command to worker processes."""
     dist.broadcast_object_list(["shutdown", None, None], src=0)
 
-@timeout(60.0)
 def broadcast_for_text_generation(prompts, max_gen_len, temperature, top_p):
     """Broadcasts generation parameters to worker processes."""
     dist.broadcast_object_list(["text_generate", prompts, {
@@ -59,18 +58,31 @@ def broadcast_for_text_generation(prompts, max_gen_len, temperature, top_p):
         'top_p': top_p
     }], src=0)
 
-@timeout(60.0)
-def inference(input_string, max_gen_len, temperature, top_p):
-    return generator.text_completion(
-            input_string,
+@timeout(180.0)
+def master_inference(prompts, max_gen_len, temperature, top_p):
+    if dist.get_world_size() > 1:
+        try:
+            # Broadcast generation params to worker processes
+            broadcast_for_text_generation(prompts, max_gen_len, temperature, top_p)
+        except Exception as e:
+            print("Error in broadcast_for_text_generation:", str(e))
+            raise
+
+    # Master's own generation
+    try:
+        return generator.text_completion(
+            prompts,
             max_gen_len=max_gen_len,
             temperature=temperature,
             top_p=top_p,
         )
+    except Exception as e:
+        print("Error in text_completion:", str(e))
+        raise
 
 def shutdown_server():
     """Shut down the server."""
-    os.kill(os.getpid(), signal.SIGINT)
+    os.killpg(os.getpgrp(), signal.SIGTERM)
 
 # Default values for the generator
 gen_params = {
@@ -122,23 +134,13 @@ def setup_main_routes():
         temperature = parameters.get('temperature', 0.6)
         top_p = parameters.get('top_p', 0.9)
 
-        if dist.get_world_size() > 1:
-            try:
-                broadcast_for_text_generation(prompts, max_gen_len, temperature, top_p)
-            except Exception as e:
-                exception_type = type(e).__name__
-                if exception_type == "TimeoutError": 
-                    print("Broadcast failed - TimeoutError", e)
-                    os.killpg(os.getpgrp(), signal.SIGTERM)
-                raise HTTPException(status_code=400, detail="Request Failed: " + str(e))
-
-        try:
-            results = inference(prompts, max_gen_len, temperature, top_p)
-        except Exception as e:
+        try: 
+            results = master_inference(prompts, max_gen_len, temperature, top_p)
+        except Exception as e: 
             exception_type = type(e).__name__
             if exception_type == "TimeoutError": 
-                print("Inference failed - TimeoutError", e)
-                os.killpg(os.getpgrp(), signal.SIGTERM)
+                print("Master Inference Failed - TimeoutError", e)
+                raise HTTPException(status_code=408, detail="Request Timed Out")
             raise HTTPException(status_code=400, detail="Request Failed: " + str(e))
 
         if len(results) == 0:
@@ -186,21 +188,18 @@ def worker_listen_tasks():
                     input_string = config[1]
                     parameters = config[2]
                     print(f"Worker {worker_num} started generation")
-                    inference(input_string,
-                              parameters.get('max_gen_len', None),
-                              parameters.get('temperature', 0.6),
-                              parameters.get('top_p', 0.9)
-                            )
+                    generator.text_completion(
+                        input_string,
+                        max_gen_len=parameters.get('max_gen_len', None),
+                        temperature=parameters.get('temperature', 0.6),
+                        top_p=parameters.get('top_p', 0.9),
+                    )
                     print(f"Worker {worker_num} completed generation")
                 except Exception as e:
-                    exception_type = type(e).__name__
-                    if exception_type == "TimeoutError": 
-                        print("Inference failed - TimeoutError", e)
-                        os.killpg(os.getpgrp(), signal.SIGTERM)
                     print(f"Error in generation: {str(e)}")
             elif command == "shutdown":
                 print(f"Worker {worker_num} shutting down")
-                sys.exit(0)
+                os.killpg(os.getpgrp(), signal.SIGTERM)
         except torch.distributed.DistBackendError as e:
             print("torch.distributed.DistBackendError", e)
             os.killpg(os.getpgrp(), signal.SIGTERM)
