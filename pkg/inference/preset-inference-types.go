@@ -23,7 +23,7 @@ const (
 const (
 	DefaultMaxRestarts  = "3"
 	DefaultRdzvId       = "rdzv_id"
-	DefaultRdzvBackend  = "c10d"
+	DefaultRdzvBackend  = "c10d"            // Pytorch Native Distributed data store
 	DefaultRdzvEndpoint = "localhost:29500" // llama-2-13b-chat-0.llama-headless.default.svc.cluster.local:29500
 )
 
