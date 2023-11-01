@@ -82,7 +82,7 @@ def master_inference(input_string, max_gen_len, temperature, top_p):
 
 def shutdown_server():
     """Shut down the server."""
-    os.kill(os.getpid(), signal.SIGINT)
+    os.killpg(os.getpgrp(), signal.SIGTERM)
 
 # Default values for the generator
 gen_params = {
