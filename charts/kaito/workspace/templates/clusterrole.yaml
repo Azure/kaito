@@ -11,7 +11,7 @@ rules:
     verbs: ["create", "delete", "update", "patch","get","list","watch"]
   - apiGroups: ["kaito.sh"]
     resources: ["workspaces/status"]
-    verbs: ["create", "delete", "update", "patch","get","list","watch"]
+    verbs: ["update", "patch","get","list","watch"]
   - apiGroups: [""]
     resources: ["nodes", "namespaces"]
     verbs: ["get","list","watch","update", "patch"]

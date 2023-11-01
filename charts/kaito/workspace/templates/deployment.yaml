@@ -51,9 +51,6 @@ spec:
             - name: PRESET_REGISTRY_NAME
               value: {{ .Values.presetRegistryName }}
           ports:
-            - name: http
-              containerPort: 80
-              protocol: TCP
             - name: http-metrics
               containerPort: 8080
               protocol: TCP
