@@ -189,23 +189,19 @@ def worker_listen_tasks():
         print(f"Worker {worker_num} ready to recieve next command")
         config = [None] * 3  # Command and its associated data
         try: 
-            print(f"Worker {worker_num} entered broadcast listen")
             dist.broadcast_object_list(config, src=0)
-            print(f"Worker {worker_num} left broadcast listen")
             command = config[0]
 
             if command == "generate":
                 try:
                     input_string = config[1]
                     parameters = config[2]
-                    print(f"Worker {worker_num} started generation")
                     generator.chat_completion(
                         input_string,
                         max_gen_len=parameters.get('max_gen_len', None),
                         temperature=parameters.get('temperature', 0.6),
                         top_p=parameters.get('top_p', 0.9),
                     )
-                    print(f"Worker {worker_num} completed generation")
                 except Exception as e:
                     print(f"Error in generation: {str(e)}")
             elif command == "shutdown":
