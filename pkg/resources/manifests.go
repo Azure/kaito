@@ -25,7 +25,17 @@ func GenerateHeadlessServiceManifest(ctx context.Context, workspaceObj *kaitov1a
 	}
 	return &corev1.Service{
 		ObjectMeta: v1.ObjectMeta{
-			Name: serviceName,
+			Name:      serviceName,
+			Namespace: workspaceObj.Namespace,
+			OwnerReferences: []v1.OwnerReference{
+				{
+					APIVersion: kaitov1alpha1.GroupVersion.String(),
+					Kind:       "Workspace",
+					UID:        workspaceObj.UID,
+					Name:       workspaceObj.Name,
+					Controller: &controller,
+				},
+			},
 		},
 		Spec: corev1.ServiceSpec{
 			Selector:  selector,

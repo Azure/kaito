@@ -86,7 +86,7 @@ func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1
 			inferenceObj.TorchRunRdzvParams["rdzv_id"] = "job"
 			inferenceObj.TorchRunRdzvParams["rdzv_backend"] = "c10d"
 			inferenceObj.TorchRunRdzvParams["rdzv_endpoint"] =
-				fmt.Sprintf("%s-0.llama-headless.default.svc.cluster.local:29500", wObj.Name)
+				fmt.Sprintf("%s-0.%s-headless.default.svc.cluster.local:29500", wObj.Name, wObj.Name)
 		}
 	} else if inferenceObj.ModelName == "Falcon" {
 		inferenceObj.TorchRunParams["config_file"] = "config.yaml"
