@@ -39,4 +39,4 @@ rules:
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["validatingwebhookconfigurations"]
     verbs: ["update"]
-    resourceNames: ["validation.webhook.kaito.sh"]
+    resourceNames: ["validation.workspace.kaito.sh"]
