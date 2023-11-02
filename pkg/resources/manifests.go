@@ -17,6 +17,42 @@ import (
 
 var controller = true
 
+func GenerateHeadlessServiceManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) *corev1.Service {
+	serviceName := fmt.Sprintf("%s-headless", workspaceObj.Name)
+	selector := make(map[string]string)
+	for k, v := range workspaceObj.Resource.LabelSelector.MatchLabels {
+		selector[k] = v
+	}
+	return &corev1.Service{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      serviceName,
+			Namespace: workspaceObj.Namespace,
+			OwnerReferences: []v1.OwnerReference{
+				{
+					APIVersion: kaitov1alpha1.GroupVersion.String(),
+					Kind:       "Workspace",
+					UID:        workspaceObj.UID,
+					Name:       workspaceObj.Name,
+					Controller: &controller,
+				},
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Selector:  selector,
+			ClusterIP: "None",
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "torchrun",
+					Protocol:   corev1.ProtocolTCP,
+					Port:       29500,
+					TargetPort: intstr.FromInt(29500),
+				},
+			},
+			PublishNotReadyAddresses: true,
+		},
+	}
+}
+
 func GenerateServiceManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, serviceType corev1.ServiceType, isStatefulSet bool) *corev1.Service {
 	selector := make(map[string]string)
 	for k, v := range workspaceObj.Resource.LabelSelector.MatchLabels {
@@ -71,7 +107,7 @@ func GenerateServiceManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Wo
 func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imageName string,
 	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements,
-	tolerations []corev1.Toleration, volumes []corev1.Volume, volumeMount []corev1.VolumeMount) *appsv1.StatefulSet {
+	tolerations []corev1.Toleration, volumes []corev1.Volume, volumeMount []corev1.VolumeMount, useHeadlessService bool) *appsv1.StatefulSet {
 
 	// Gather label requirements from workspaceObj's label selector
 	labelRequirements := make([]v1.LabelSelectorRequirement, 0, len(workspaceObj.Resource.LabelSelector.MatchLabels))
@@ -82,7 +118,7 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 			Values:   []string{value},
 		})
 	}
-	return &appsv1.StatefulSet{
+	ss := &appsv1.StatefulSet{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      workspaceObj.Name,
 			Namespace: workspaceObj.Namespace,
@@ -136,6 +172,10 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 			},
 		},
 	}
+	if useHeadlessService {
+		ss.Spec.ServiceName = fmt.Sprintf("%s-headless", workspaceObj.Name)
+	}
+	return ss
 }
 
 func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imageName string,

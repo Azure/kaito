@@ -93,7 +93,8 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 		return reconcile.Result{}, err
 	}
 
-	if err := c.ensureService(ctx, wObj); err != nil {
+	useHeadlessService := *(wObj.Resource.Count) > 1 && strings.Contains(string(wObj.Inference.Preset.Name), "llama")
+	if err := c.ensureService(ctx, wObj, useHeadlessService); err != nil {
 		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
 			"workspaceFailed", err.Error()); updateErr != nil {
 			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
@@ -102,7 +103,7 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 		return reconcile.Result{}, err
 	}
 
-	if err = c.applyInference(ctx, wObj); err != nil {
+	if err = c.applyInference(ctx, wObj, useHeadlessService); err != nil {
 		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
 			"workspaceFailed", err.Error()); updateErr != nil {
 			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
@@ -378,7 +379,7 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kaito
 	}
 }
 
-func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
+func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1alpha1.Workspace, useHeadlessService bool) error {
 	serviceType := corev1.ServiceTypeClusterIP
 	wAnnotation := wObj.GetAnnotations()
 
@@ -406,6 +407,13 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 	err = resources.CreateResource(ctx, serviceObj, c.Client)
 	if err != nil {
 		return err
+	}
+	if useHeadlessService {
+		headlessService := resources.GenerateHeadlessServiceManifest(ctx, wObj)
+		err = resources.CreateResource(ctx, headlessService, c.Client)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -447,7 +455,7 @@ func (c *WorkspaceReconciler) getInferenceObjFromPreset(ctx context.Context, wOb
 }
 
 // applyInference applies inference spec.
-func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
+func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1alpha1.Workspace, useHeadlessService bool) error {
 
 	inferErr := func() error {
 		if wObj.Inference.Template != nil {
@@ -482,7 +490,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 				}
 			} else if apierrors.IsNotFound(err) {
 				// Need to create a new workload
-				workloadObj, err := inference.CreatePresetInference(ctx, wObj, inferenceObj, c.Client)
+				workloadObj, err := inference.CreatePresetInference(ctx, wObj, inferenceObj, useHeadlessService, c.Client)
 				if err != nil {
 					return err
 				}

@@ -1,5 +1,5 @@
 # Use the NVIDIA PyTorch image as a base
-FROM nvcr.io/nvidia/pytorch:23.06-py3
+FROM nvcr.io/nvidia/pytorch:23.10-py3
 
 # Set the working directory
 WORKDIR /workspace/falcon
@@ -13,6 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 ARG FALCON_MODEL_NAME
 
 # Copy the entire model to the weights directory
-COPY /home/falcon/${FALCON_MODEL_NAME} /workspace/falcon/weights
+COPY /falcon/${FALCON_MODEL_NAME} /workspace/falcon/weights
 # Copy the entire 'presets/falcon' folder to the working directory
 COPY /home/presets/falcon /workspace/falcon

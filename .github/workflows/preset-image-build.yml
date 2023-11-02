@@ -1,5 +1,4 @@
 name: Build and Push Preset Models
-
 on:
   pull_request:
     branches:
@@ -17,7 +16,7 @@ on:
       - 'presets/llama-2-chat/**'
   workflow_dispatch:
     inputs:
-      image_tag:
+      image_tag_name:
         description: 'Image Tag'
         required: true
 
@@ -48,7 +47,13 @@ jobs:
 
       - name: Get Modified files
         run: |
-          files=$(git diff --name-only HEAD^ HEAD)
+          git fetch origin main:main
+          current_branch=$(git rev-parse --abbrev-ref HEAD)
+          if [ "$current_branch" == "main" ] || [ "$current_branch" == "master" ]; then
+            files=$(git diff --name-only HEAD^ HEAD)
+          else
+              files=$(git diff --name-only main...HEAD)
+          fi
           echo "Modified files: $files"
           FILES_MODIFIED=""
           while IFS= read -r file; do
@@ -93,9 +98,9 @@ jobs:
       - name: Set Image Tag
         id: set_tag
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag }}" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag_name }}" ]]; then
             echo "Using workflow dispatch to set image tag"
-            echo "image_tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+            echo "image_tag=${{ github.event.inputs.image_tag_name }}" >> $GITHUB_OUTPUT
           else
             echo "Setting image tag based on version set"
             echo "image_tag=${{ env.VERSION }}" >> $GITHUB_OUTPUT
@@ -175,7 +180,7 @@ jobs:
       - name: 'Attach and Login to ACR'
         id: acr_login
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag }}" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag_name }}" ]]; then
             ACR_NAME="aimodelsregistry"
           else
             ACR_NAME="aimodelsregistrytest"

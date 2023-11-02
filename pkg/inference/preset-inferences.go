@@ -79,6 +79,13 @@ func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1
 			inferenceObj.TorchRunParams["master_addr"] = existingService.Spec.ClusterIP
 			inferenceObj.TorchRunParams["master_port"] = "29500"
 		}
+		if inferenceObj.TorchRunRdzvParams != nil {
+			inferenceObj.TorchRunRdzvParams["max_restarts"] = "3"
+			inferenceObj.TorchRunRdzvParams["rdzv_id"] = "job"
+			inferenceObj.TorchRunRdzvParams["rdzv_backend"] = "c10d"
+			inferenceObj.TorchRunRdzvParams["rdzv_endpoint"] =
+				fmt.Sprintf("%s-0.%s-headless.default.svc.cluster.local:29500", wObj.Name, wObj.Name)
+		}
 	} else if inferenceObj.ModelName == "Falcon" {
 		inferenceObj.TorchRunParams["config_file"] = "config.yaml"
 		inferenceObj.TorchRunParams["num_processes"] = "1"
@@ -90,7 +97,7 @@ func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1
 }
 
 func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
-	inferenceObj PresetInferenceParam, kubeClient client.Client) (client.Object, error) {
+	inferenceObj PresetInferenceParam, useHeadlessService bool, kubeClient client.Client) (client.Object, error) {
 	if inferenceObj.TorchRunParams != nil {
 		if err := setTorchParams(ctx, kubeClient, workspaceObj, inferenceObj); err != nil {
 			klog.ErrorS(err, "failed to update torch params", "workspace", workspaceObj)
@@ -105,7 +112,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	switch inferenceObj.ModelName {
 	case "LLaMa2":
 		depObj = resources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
-			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
+			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount, useHeadlessService)
 	case "Falcon":
 		depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
 			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
@@ -121,6 +128,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 
 func prepareInferenceParameters(ctx context.Context, inferenceObj PresetInferenceParam) ([]string, corev1.ResourceRequirements) {
 	torchCommand := buildCommandStr(inferenceObj.BaseCommand, inferenceObj.TorchRunParams)
+	torchCommand = buildCommandStr(torchCommand, inferenceObj.TorchRunRdzvParams)
 	modelCommand := buildCommandStr(inferenceObj.InferenceFile, inferenceObj.ModelRunParams)
 	commands := shellCommand(torchCommand + " " + modelCommand)
 
