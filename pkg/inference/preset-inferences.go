@@ -97,7 +97,7 @@ func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1
 }
 
 func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
-	inferenceObj PresetInferenceParam, createHeadlessService bool, kubeClient client.Client) (client.Object, error) {
+	inferenceObj PresetInferenceParam, useHeadlessService bool, kubeClient client.Client) (client.Object, error) {
 	if inferenceObj.TorchRunParams != nil {
 		if err := setTorchParams(ctx, kubeClient, workspaceObj, inferenceObj); err != nil {
 			klog.ErrorS(err, "failed to update torch params", "workspace", workspaceObj)
@@ -112,7 +112,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	switch inferenceObj.ModelName {
 	case "LLaMa2":
 		depObj = resources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
-			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount, createHeadlessService)
+			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount, useHeadlessService)
 	case "Falcon":
 		depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
 			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
