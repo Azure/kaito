@@ -47,12 +47,13 @@ jobs:
 
       - name: Get Modified files
         run: |
-          git fetch origin main
+          git checkout --detach
+          git fetch origin main:main
           current_branch=$(git rev-parse --abbrev-ref HEAD)
           if [ "$current_branch" == "main" ] || [ "$current_branch" == "master" ]; then
             files=$(git diff --name-only HEAD^ HEAD)
           else
-              files=$(git diff --name-only main...HEAD)
+              files=$(git diff --name-only origin/main...HEAD)
           fi
           echo "Modified files: $files"
           FILES_MODIFIED=""
