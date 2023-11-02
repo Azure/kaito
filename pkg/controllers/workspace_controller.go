@@ -456,23 +456,25 @@ func (c *WorkspaceReconciler) getInferenceObjFromPreset(ctx context.Context, wOb
 
 // applyInference applies inference spec.
 func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1alpha1.Workspace, useHeadlessService bool) error {
-
-	inferErr := func() error {
+	var err error
+	func() {
 		if wObj.Inference.Template != nil {
+			var workloadObj client.Object
 			// TODO: handle update
-			workloadObj, err := inference.CreateTemplateInference(ctx, wObj, c.Client)
+			workloadObj, err = inference.CreateTemplateInference(ctx, wObj, c.Client)
 			if err != nil {
-				return err
+				return
 			}
-			if err := resources.CheckResourceStatus(workloadObj, c.Client, time.Duration(10)*time.Minute); err != nil {
-				return err
+			if err = resources.CheckResourceStatus(workloadObj, c.Client, time.Duration(10)*time.Minute); err != nil {
+				return
 			}
 		} else if wObj.Inference.Preset != nil {
 			// TODO: we only do create if it does not exist for preset model. Need to document it.
-			inferenceObj, err := c.getInferenceObjFromPreset(ctx, wObj)
+			var inferenceObj inference.PresetInferenceParam
+			inferenceObj, err = c.getInferenceObjFromPreset(ctx, wObj)
 			if err != nil {
 				klog.ErrorS(err, "unable to retrieve inference object from preset", "workspace", klog.KObj(wObj))
-				return err
+				return
 			}
 
 			var existingObj client.Object
@@ -483,33 +485,32 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 
 			}
 
-			if err := resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
+			if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
 				klog.InfoS("An inference workload already exists for workspace", "workspace", klog.KObj(wObj))
 				if err := resources.CheckResourceStatus(existingObj, c.Client, inferenceObj.DeploymentTimeout); err != nil {
-					return err
+					return
 				}
 			} else if apierrors.IsNotFound(err) {
+				var workloadObj client.Object
 				// Need to create a new workload
-				workloadObj, err := inference.CreatePresetInference(ctx, wObj, inferenceObj, useHeadlessService, c.Client)
+				workloadObj, err = inference.CreatePresetInference(ctx, wObj, inferenceObj, useHeadlessService, c.Client)
 				if err != nil {
-					return err
+					return
 				}
 				if err := resources.CheckResourceStatus(workloadObj, c.Client, inferenceObj.DeploymentTimeout); err != nil {
-					return err
+					return
 				}
 			}
-			return err
 		}
-		return nil
 	}()
 
-	if inferErr != nil {
+	if err != nil {
 		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeInferenceStatus, metav1.ConditionFalse,
-			"WorkspaceInferenceStatusFailed", inferErr.Error()); updateErr != nil {
+			"WorkspaceInferenceStatusFailed", err.Error()); updateErr != nil {
 			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
 			return updateErr
 		} else {
-			return inferErr
+			return err
 
 		}
 	}
