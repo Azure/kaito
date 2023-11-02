@@ -140,6 +140,7 @@ jobs:
     runs-on: self-hosted
     outputs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
+      matrix_empty: ${{ steps.set_matrix.outputs.matrix_empty }}
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -152,12 +153,19 @@ jobs:
       run: |
         matrix=$(jq --arg FALCON_MODIFIED "${{ needs.setup.outputs.FALCON_MODIFIED }}" --arg LLAMA2_MODIFIED "${{ needs.setup.outputs.LLAMA2_MODIFIED }}" --arg LLAMA2_CHAT_MODIFIED "${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }}" 'map( 
             . | select((.shouldBuildFalcon == $FALCON_MODIFIED) or (.shouldBuildLlama2 == $LLAMA2_MODIFIED) or (.shouldBuildLlama2Chat == $LLAMA2_CHAT_MODIFIED))
-        )' .github/matrix-configs.json) 
+        )' .github/matrix-configs.json)
+        # Check if matrix is empty and set an output variable
+        if [[ $matrix == "[]" ]]; then
+          echo "matrix_empty=true" >> $GITHUB_OUTPUT
+        else
+          echo "matrix_empty=false" >> $GITHUB_OUTPUT
+        fi
         echo "matrix={\"include\":$(echo $matrix)}" >> $GITHUB_OUTPUT
 
   build-models: 
     needs: [setup, matrix_prep]
     runs-on: self-hosted
+    if: ${{needs.matrix_prep.outputs.matrix_empty == 'false'}}
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.matrix_prep.outputs.matrix)}}
