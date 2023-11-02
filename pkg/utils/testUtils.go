@@ -8,6 +8,7 @@ import (
 	"github.com/azure/kaito/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -20,6 +21,11 @@ var (
 		},
 		Resource: v1alpha1.ResourceSpec{
 			InstanceType: "Standard_NC12s_v3",
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"apps": "test",
+				},
+			},
 		},
 		Inference: v1alpha1.InferenceSpec{
 			Preset: &v1alpha1.PresetSpec{
@@ -68,4 +74,8 @@ func NewTestScheme() *runtime.Scheme {
 	testScheme := runtime.NewScheme()
 	_ = appsv1.AddToScheme(testScheme)
 	return testScheme
+}
+
+func NotFoundError() error {
+	return &apierrors.StatusError{ErrStatus: metav1.Status{Reason: metav1.StatusReasonNotFound}}
 }
