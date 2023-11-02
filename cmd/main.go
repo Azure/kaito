@@ -129,9 +129,11 @@ func main() {
 			ctx := webhook.WithOptions(signals.NewContext(), webhook.Options{
 				ServiceName: os.Getenv(WebhookServiceName),
 				Port:        p,
-				SecretName:  "webhook-cert",
+				SecretName:  "workspace-webhook-cert",
 			})
-			sharedmain.MainWithConfig(sharedmain.WithHealthProbesDisabled(ctx), "webhook", ctrl.GetConfigOrDie(), webhooks.NewWebhooks()...)
+			ctx = sharedmain.WithHealthProbesDisabled(ctx)
+			ctx = sharedmain.WithHADisabled(ctx)
+			sharedmain.MainWithConfig(ctx, "webhook", ctrl.GetConfigOrDie(), webhooks.NewWebhooks()...)
 		}()
 		// wait 2 seconds to allow reconciling webhookconfiguration and service endpoint.
 		time.Sleep(2 * time.Second)
