@@ -487,7 +487,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 
 			if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
 				klog.InfoS("An inference workload already exists for workspace", "workspace", klog.KObj(wObj))
-				if err := resources.CheckResourceStatus(existingObj, c.Client, inferenceObj.DeploymentTimeout); err != nil {
+				if err = resources.CheckResourceStatus(existingObj, c.Client, inferenceObj.DeploymentTimeout); err != nil {
 					return
 				}
 			} else if apierrors.IsNotFound(err) {
@@ -497,7 +497,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 				if err != nil {
 					return
 				}
-				if err := resources.CheckResourceStatus(workloadObj, c.Client, inferenceObj.DeploymentTimeout); err != nil {
+				if err = resources.CheckResourceStatus(workloadObj, c.Client, inferenceObj.DeploymentTimeout); err != nil {
 					return
 				}
 			}
