@@ -17,6 +17,7 @@ import (
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"knative.dev/pkg/apis"
 )
 
@@ -220,59 +221,38 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 }
 
 func TestCreateAndValidateNode(t *testing.T) {
-	mockClient := utils.NewClient()
-
-	mockMachine := utils.MockMachine
-
 	testcases := map[string]struct {
-		callMocks     func(c *utils.Client)
-		expectedError error
+		callMocks         func(c *utils.MockClient)
+		machineConditions apis.Conditions
+		expectedError     error
 	}{
 		"Node is not created because machine creation fails": {
-			callMocks: func(c *utils.Client) {
-				//create machine call should not return any errors
+			callMocks: func(c *utils.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
-
-				machineConditions := apis.Conditions{
-					{
-						Type:    v1alpha5.MachineLaunched,
-						Status:  corev1.ConditionFalse,
-						Message: machine.ErrorInstanceTypesUnavailable,
-					},
-				}
-
-				mockMachine.Status.Conditions = machineConditions
-
-				//insert mock machine in map so mock Get call retrieves this object
-				c.InsertObjectInMap(&mockMachine)
-
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 			},
+			machineConditions: apis.Conditions{
+				{
+					Type:    v1alpha5.MachineLaunched,
+					Status:  corev1.ConditionFalse,
+					Message: machine.ErrorInstanceTypesUnavailable,
+				},
+			},
 			expectedError: errors.New(machine.ErrorInstanceTypesUnavailable),
 		},
 		"A machine is successfully created": {
-			callMocks: func(c *utils.Client) {
-				//create machine call should not return any errors
+			callMocks: func(c *utils.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
-
-				machineConditions := apis.Conditions{
-					{
-						Type:   apis.ConditionReady,
-						Status: corev1.ConditionTrue,
-					},
-				}
-
-				mockMachine.Status.Conditions = machineConditions
-
-				//insert mock machine in map so mock Get call retrieves this object
-				c.InsertObjectInMap(&mockMachine)
-
-				//get machine call should not return any errors
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
-				//get machine call should not return any errors
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Node{}), mock.Anything).Return(nil)
+			},
+			machineConditions: apis.Conditions{
+				{
+					Type:   apis.ConditionReady,
+					Status: corev1.ConditionTrue,
+				},
 			},
 			expectedError: nil,
 		},
@@ -280,6 +260,15 @@ func TestCreateAndValidateNode(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
+			mockClient := utils.NewClient()
+			mockMachine := &v1alpha5.Machine{}
+
+			mockClient.UpdateCb = func(key types.NamespacedName) {
+				mockClient.GetObjectFromMap(mockMachine, key)
+				mockMachine.Status.Conditions = tc.machineConditions
+				mockClient.CreateOrUpdateObjectInMap(mockMachine)
+			}
+
 			tc.callMocks(mockClient)
 
 			reconciler := &WorkspaceReconciler{
