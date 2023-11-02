@@ -17,10 +17,10 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      - name: Publish Helm chart
+      - name: Publish Workspace Helm chart
         uses: stefanprodan/helm-gh-pages@v1.7.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          charts_dir: charts
-          target_dir: charts
+          charts_dir: charts/kaito/workspace
+          target_dir: charts/kaito/workspace
           linting: off

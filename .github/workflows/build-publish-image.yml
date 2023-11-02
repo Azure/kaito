@@ -14,7 +14,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   GO_VERSION: '1.20'
-  IMAGE_NAME: 'kaito'
+  IMAGE_NAME: 'workspace'
   IMG_TAG: 'latest'
 
 jobs:
@@ -85,7 +85,7 @@ jobs:
           echo "IMG_TAG=${ver#"v"}" >> $GITHUB_ENV
       - name: Build image
         run: |
-          OUTPUT_TYPE=type=docker make docker-build-kaito
+          OUTPUT_TYPE=type=registry make docker-build-kaito
         env:
           VERSION: ${{ env.IMG_TAG }}
 
@@ -102,12 +102,6 @@ jobs:
         env:
           TRIVY_USERNAME: ${{ github.actor }}
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push image
-        run: |
-          OUTPUT_TYPE=type=registry make docker-build-kaito
-        env:
-          VERSION: ${{ env.IMG_TAG }}
       - name: Save registry and tag as an artifact for other workflows that run on workflow_run to download them
         run: |
           mkdir -p /tmp/artifacts

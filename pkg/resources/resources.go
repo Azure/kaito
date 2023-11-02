@@ -4,6 +4,8 @@ package resources
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -38,4 +40,45 @@ func GetResource(ctx context.Context, name, namespace string, kubeClient client.
 	})
 
 	return err
+}
+
+func CheckResourceStatus(obj client.Object, kubeClient client.Client, timeoutDuration time.Duration) error {
+	// Use Context for timeout
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutDuration)
+	defer cancel()
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+
+		case <-ticker.C:
+			key := client.ObjectKey{
+				Name:      obj.GetName(),
+				Namespace: obj.GetNamespace(),
+			}
+			err := kubeClient.Get(ctx, key, obj)
+			if err != nil {
+				return err
+			}
+
+			switch k8sResource := obj.(type) {
+			case *appsv1.Deployment:
+				if k8sResource.Status.ReadyReplicas == *k8sResource.Spec.Replicas {
+					klog.InfoS("deployment status is ready", "deployment", k8sResource.Name)
+					return nil
+				}
+			case *appsv1.StatefulSet:
+				if k8sResource.Status.ReadyReplicas == *k8sResource.Spec.Replicas {
+					klog.InfoS("statefulset status is ready", "statefulset", k8sResource.Name)
+					return nil
+				}
+			default:
+				return fmt.Errorf("unsupported resource type")
+			}
+		}
+	}
 }
