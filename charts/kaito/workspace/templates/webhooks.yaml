@@ -1,11 +1,11 @@
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
-  name: validation.webhook.kaito.sh
+  name: validation.workspace.kaito.sh
   labels:
     {{- include "kaito.labels" . | nindent 4 }}
 webhooks:
-  - name: validation.webhook.kaito.sh
+  - name: validation.workspace.kaito.sh
     admissionReviewVersions: ["v1"]
     clientConfig:
       service:
