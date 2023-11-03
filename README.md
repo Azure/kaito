@@ -1,9 +1,9 @@
-# Kubernetes AI Toolchain Operator(KAITO)
+# Kubernetes AI Toolchain Operator (Kaito)
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/Azure/kaito)](https://goreportcard.com/report/github.com/Azure/kaito)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Azure/kaito)
 
-KAITO has been designed to simplify the workflow of launching AI workloads which run large OSS models,
+Kaito has been designed to simplify the workflow of launching AI workloads which run large OSS models,
 such as Falcon or Llama, in a Kubernetes cluster. It offers the following benefits for the users.
 - Use a controller to orchestrate the model deployment.
 - Use a node provisioner to automate the GPU machine creation.
