@@ -44,12 +44,20 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		}
 
 		// Check if instancetype exists in our SKUs map
-		if sku, exists := SupportedGPUConfigs[w.Resource.InstanceType]; exists {
-			// Validate GPU count for given SKU (if exists)
-			if count, ok := sku.Counts[string(w.Inference.Preset.Name)]; ok {
-				if *w.Resource.Count < count {
-					errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient machine count for SKU %s", w.Resource.InstanceType), "instanceType"))
+		if skuConfig, exists := SupportedGPUConfigs[w.Resource.InstanceType]; exists {
+			// Validate GPU count for given SKU
+			if presetReq, ok := PresetRequirementsMap[string(w.Inference.Preset.Name)]; ok {
+				// Check if the selected SKU meets the preset requirements
+				machineCount := *w.Resource.Count
+				totalNumGPUs := machineCount * skuConfig.GPUCount
+				totalGPUMem := machineCount * skuConfig.GPUMem * skuConfig.GPUCount
+				if totalNumGPUs < presetReq.MinGPUCount ||
+					skuConfig.GPUMem < presetReq.MinMemoryPerGPU ||
+					totalGPUMem < presetReq.MinTotalMemory {
+					errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Instance type %s does not meet the requirements for preset %s", w.Resource.InstanceType, w.Inference.Preset.Name), "instanceType"))
 				}
+			} else {
+				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", w.Inference.Preset.Name), "presetName"))
 			}
 		} else {
 			// Check for other instancetypes pattern matches
