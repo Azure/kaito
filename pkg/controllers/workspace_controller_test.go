@@ -428,3 +428,60 @@ func TestApplyInferenceWithPreset(t *testing.T) {
 		})
 	}
 }
+
+func TestApplyInferenceWithTemplate(t *testing.T) {
+	testcases := map[string]struct {
+		callMocks     func(c *utils.MockClient)
+		workspace     v1alpha1.Workspace
+		expectedError error
+	}{
+		"Fail to apply inference from workspace template": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(errors.New("Failed to create deployment"))
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+			},
+			workspace:     *utils.MockWorkspaceWithInferenceTemplate,
+			expectedError: errors.New("Failed to create deployment"),
+		},
+		"Apply inference from workspace template": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
+				c.On("Get", mock.Anything, mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+			},
+			workspace:     *utils.MockWorkspaceWithInferenceTemplate,
+			expectedError: nil,
+		},
+	}
+
+	for k, tc := range testcases {
+		t.Run(k, func(t *testing.T) {
+			mockClient := utils.NewClient()
+			depObj := &appsv1.Deployment{}
+
+			mockClient.UpdateCb = func(key types.NamespacedName) {
+				mockClient.GetObjectFromMap(depObj, key)
+				depObj.Status.ReadyReplicas = 1
+				mockClient.CreateOrUpdateObjectInMap(depObj)
+			}
+
+			tc.callMocks(mockClient)
+
+			reconciler := &WorkspaceReconciler{
+				Client: mockClient,
+				Scheme: utils.NewTestScheme(),
+			}
+			ctx := context.Background()
+
+			err := reconciler.applyInference(ctx, &tc.workspace, false)
+			if tc.expectedError == nil {
+				assert.Check(t, err == nil, "Not expected to return error")
+			} else {
+				assert.Equal(t, tc.expectedError.Error(), err.Error())
+			}
+		})
+	}
+
+}
