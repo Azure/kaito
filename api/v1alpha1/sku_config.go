@@ -70,10 +70,10 @@ var SupportedGPUConfigs = map[string]GPUConfig{
 	"standard_nc48ads_a100_v4": {SKU: "standard_nc48ads_a100_v4", GPUCount: 2, GPUMem: 160, SupportedOS: []string{"Ubuntu"}, GPUDriver: "Nvidia525CudaDriver", Counts: map[string]int{}},
 	"standard_nc96ads_a100_v4": {SKU: "standard_nc96ads_a100_v4", GPUCount: 4, GPUMem: 320, SupportedOS: []string{"Ubuntu"}, GPUDriver: "Nvidia525CudaDriver", Counts: map[string]int{}},
 	// "standard_ncads_a100_v4":   {SKU: "standard_ncads_a100_v4", GPUCount: x, GPUMem: x, SupportedOS: []string{"Ubuntu"}, GPUDriver: "Nvidia525CudaDriver", Counts: map[string]int{}},
-	/*GPU Mem based on A10-24 Spec*/
-	"standard_nc8ads_a10_v4":  {SKU: "standard_nc8ads_a10_v4", GPUCount: 1, GPUMem: 24, SupportedOS: []string{"Ubuntu"}, GPUDriver: "Nvidia510GridDriver", Counts: map[string]int{}},
-	"standard_nc16ads_a10_v4": {SKU: "standard_nc16ads_a10_v4", GPUCount: 1, GPUMem: 24, SupportedOS: []string{"Ubuntu"}, GPUDriver: "Nvidia510GridDriver", Counts: map[string]int{}},
-	"standard_nc32ads_a10_v4": {SKU: "standard_nc32ads_a10_v4", GPUCount: 2, GPUMem: 48, SupportedOS: []string{"Ubuntu"}, GPUDriver: "Nvidia510GridDriver", Counts: map[string]int{}},
+	/*GPU Mem based on A10-24 Spec - TODO: Need to confirm GPU Mem*/
+	// "standard_nc8ads_a10_v4":  {SKU: "standard_nc8ads_a10_v4", GPUCount: 1, GPUMem: 24, SupportedOS: []string{"Ubuntu"}, GPUDriver: "Nvidia510GridDriver", Counts: map[string]int{}},
+	// "standard_nc16ads_a10_v4": {SKU: "standard_nc16ads_a10_v4", GPUCount: 1, GPUMem: 24, SupportedOS: []string{"Ubuntu"}, GPUDriver: "Nvidia510GridDriver", Counts: map[string]int{}},
+	// "standard_nc32ads_a10_v4": {SKU: "standard_nc32ads_a10_v4", GPUCount: 2, GPUMem: 48, SupportedOS: []string{"Ubuntu"}, GPUDriver: "Nvidia510GridDriver", Counts: map[string]int{}},
 	/* SKUs with GPU Partition are treated as 1 GPU - https://learn.microsoft.com/en-us/azure/virtual-machines/nva10v5-series*/
 	"standard_nv6ads_a10_v5":   {SKU: "standard_nv6ads_a10_v5", GPUCount: 1, GPUMem: 4, SupportedOS: []string{"Ubuntu"}, GPUDriver: "Nvidia510GridDriver", Counts: map[string]int{}},
 	"standard_nv12ads_a10_v5":  {SKU: "standard_nv12ads_a10_v5", GPUCount: 1, GPUMem: 8, SupportedOS: []string{"Ubuntu"}, GPUDriver: "Nvidia510GridDriver", Counts: map[string]int{}},
