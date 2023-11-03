@@ -3,8 +3,30 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/Azure/kaito)](https://goreportcard.com/report/github.com/Azure/kaito)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Azure/kaito)
 
-KAITO has been designed to simplify the workflow of launching AI inference services against popular large open sourced AI models,
-such as Falcon or Llama, in a Kubernetes cluster.
+KAITO has been designed to simplify the workflow of launching AI workloads which run large OSS models,
+such as Falcon or Llama, in a Kubernetes cluster. It offers the following benefits for the users.
+- Use a controller to orchestrate the model deployment.
+- Use a node provisioner to automate the GPU machine creation.
+- Provide preset configurations for supported models ([falcon](https://huggingface.co/tiiuae) and [llama 2](https://github.com/facebookresearch/llama) for now), enabling distributed inference (if model supports), and leveraging model parallelism.
+- Provide an inference api and docker files, used to containerize OSS models.
+- Host model images in a public registry (MCR) if the model license allows (e.g., falcon-7b, falcon-40b) .
+
+With the above, Kaito aims to make running AI workloads in Kubernetes a **SIMPLE** task. 
+
+
+## Architecture
+
+Kaito follows the classic Kubernetes CRD/controller design pattern. User uses a `workspace` CR to describe the model GPU requirements and the inference specification. The controllers will automate the GPU node provisioning and workload deployment.
+<div align="left">
+  <img src="docs/img/arch.png" width=80% title="Kaito architecture">
+</div>
+
+The above figure demonstrates the Kaito architecture. The major components consist of:
+- **Workspace controller**: It reconciles the `workspace` CR, creates CRs to trigger node auto provisioning, and creates the workload based on the model preset configurations if available.
+- **Node provisioner**: It is called `gpu-provisioner` in Kaito. It uses the [`machine`](charts/kaito/gpu-provisioner/crds/karpenter.sh_machines.yaml) CRD originated from [Karpenter](https://github.com/aws/karpenter-core) to interact with the workspace controller. Note that the `gpu-provisioner` is not an open sourced component. It can be replaced by other controllers built using Karpenter-core APIs.
+
+
+---
 
 ## Installation 
 The following guidence assumes **Azure Kubernetes Service(AKS)** is used to host the Kubernetes cluster .
@@ -68,6 +90,7 @@ helm uninstall gpu-provisioner
 helm uninstall workspace
 ```
 
+---
 ## Quick start
 
 After installing Kaito, one can try following commands to start a faclon-7b inference service.
@@ -105,7 +128,7 @@ $ kubectl run -it --rm --restart=Never curl --image=curlimages/curl sh
 ~ $ curl -X POST http://<CLUSTERIP>/chat -H "accept: application/json" -H "Content-Type: application/json" -d "{\"prompt\":\"YOUR QUESTION HERE\"}"
 
 ```
-
+---
 ## Contributing
 
 [Read more](docs/contributing/readme.md)
