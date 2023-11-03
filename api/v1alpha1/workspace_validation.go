@@ -4,11 +4,17 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
+)
+
+const (
+	N_SERIES_PREFIX = "standard_n"
+	D_SERIES_PREFIX = "standard_d"
 )
 
 func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
@@ -31,6 +37,20 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		- For labelSelector, call metav1.LabelSelectorAsMap. If the method returns error, meaning unsupported expressions are found, fail the check.
 		- The preset name needs to be supported enum.
 		*/
+
+		// Check if instancetype exists in our SKUs map
+		if sku, exists := SupportedGPUConfigs[w.Resource.InstanceType]; exists {
+			// Validate GPU count for given SKU
+			if *w.Resource.Count < sku.Count {
+				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient machine count for SKU %s", w.Resource.InstanceType), "instanceType"))
+			}
+		} else {
+			// Check for other instancetypes pattern matches
+			if !strings.HasPrefix(w.Resource.InstanceType, N_SERIES_PREFIX) && !strings.HasPrefix(w.Resource.InstanceType, D_SERIES_PREFIX) {
+				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported instance type %s", w.Resource.InstanceType), "instanceType"))
+			}
+		}
+
 		errs = errs.Also(
 			w.Inference.validateCreate().ViaField("inference"),
 		)
