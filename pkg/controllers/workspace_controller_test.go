@@ -287,3 +287,54 @@ func TestCreateAndValidateNode(t *testing.T) {
 		})
 	}
 }
+
+func TestEnsureService(t *testing.T) {
+	testcases := map[string]struct {
+		callMocks     func(c *utils.MockClient)
+		expectedError error
+	}{
+		"Existing service is found for workspace": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
+			},
+			expectedError: nil,
+		},
+		"Service creation fails": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(utils.NotFoundError())
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&corev1.Service{}), mock.Anything).Return(errors.New("cannot create service"))
+			},
+			expectedError: errors.New("cannot create service"),
+		},
+		"Successfully creates a new service": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(utils.NotFoundError())
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
+			},
+			expectedError: nil,
+		},
+	}
+
+	for k, tc := range testcases {
+		t.Run(k, func(t *testing.T) {
+			mockClient := utils.NewClient()
+			mockClient.UpdateCb = func(key types.NamespacedName) {}
+
+			tc.callMocks(mockClient)
+
+			reconciler := &WorkspaceReconciler{
+				Client: mockClient,
+				Scheme: utils.NewTestScheme(),
+			}
+			ctx := context.Background()
+
+			err := reconciler.ensureService(ctx, utils.MockWorkspace, false)
+			if tc.expectedError == nil {
+				assert.Check(t, err == nil, "Not expected to return error")
+			} else {
+				assert.Equal(t, tc.expectedError.Error(), err.Error())
+			}
+		})
+	}
+
+}
