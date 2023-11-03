@@ -15,10 +15,12 @@ import (
 	"github.com/azure/kaito/pkg/utils"
 	"github.com/stretchr/testify/mock"
 	"gotest.tools/assert"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"knative.dev/pkg/apis"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestSelectWorkspaceNodes(t *testing.T) {
@@ -281,6 +283,145 @@ func TestCreateAndValidateNode(t *testing.T) {
 			if tc.expectedError == nil {
 				assert.Check(t, err == nil, "Not expected to return error")
 				assert.Check(t, node != nil, "Response node should not be nil")
+			} else {
+				assert.Equal(t, tc.expectedError.Error(), err.Error())
+			}
+		})
+	}
+}
+
+func TestEnsureService(t *testing.T) {
+	testcases := map[string]struct {
+		callMocks     func(c *utils.MockClient)
+		expectedError error
+	}{
+		"Existing service is found for workspace": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
+			},
+			expectedError: nil,
+		},
+		"Service creation fails": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(utils.NotFoundError())
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&corev1.Service{}), mock.Anything).Return(errors.New("cannot create service"))
+			},
+			expectedError: errors.New("cannot create service"),
+		},
+		"Successfully creates a new service": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(utils.NotFoundError())
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
+			},
+			expectedError: nil,
+		},
+	}
+
+	for k, tc := range testcases {
+		t.Run(k, func(t *testing.T) {
+			mockClient := utils.NewClient()
+			mockClient.UpdateCb = func(key types.NamespacedName) {}
+
+			tc.callMocks(mockClient)
+
+			reconciler := &WorkspaceReconciler{
+				Client: mockClient,
+				Scheme: utils.NewTestScheme(),
+			}
+			ctx := context.Background()
+
+			err := reconciler.ensureService(ctx, utils.MockWorkspace, false)
+			if tc.expectedError == nil {
+				assert.Check(t, err == nil, "Not expected to return error")
+			} else {
+				assert.Equal(t, tc.expectedError.Error(), err.Error())
+			}
+		})
+	}
+
+}
+
+func TestApplyInferenceWithPreset(t *testing.T) {
+	testcases := map[string]struct {
+		callMocks     func(c *utils.MockClient)
+		workspace     v1alpha1.Workspace
+		expectedError error
+	}{
+		"Fail to get inference because preset model is not supported": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+			},
+			workspace:     *utils.MockWorkspaceWithBadPreset,
+			expectedError: errors.New("preset model does-not-exist is not supported"),
+		},
+		"Fail to get inference because associated workload with workspace cannot be retrieved": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(errors.New("Failed to get resource"))
+
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+			},
+			workspace:     *utils.MockWorkspace,
+			expectedError: errors.New("Failed to get resource"),
+		},
+		"Create preset inference because inference workload did not exist": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(utils.NotFoundError()).Times(4)
+				c.On("Get", mock.Anything, mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+					depObj := &appsv1.Deployment{}
+					key := client.ObjectKey{Namespace: "kaito", Name: "testWorkspace"}
+					c.GetObjectFromMap(depObj, key)
+					depObj.Status.ReadyReplicas = 1
+					c.CreateOrUpdateObjectInMap(depObj)
+				})
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
+
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
+
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+			},
+			workspace:     *utils.MockWorkspaceWithFalconPreset,
+			expectedError: nil,
+		},
+		"Apply inference from existing workload": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.Anything, mock.Anything, mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+					depObj := &appsv1.StatefulSet{}
+					key := client.ObjectKey{Namespace: "kaito", Name: "testWorkspace"}
+					c.GetObjectFromMap(depObj, key)
+					numRep := int32(1)
+					depObj.Status.ReadyReplicas = numRep
+					depObj.Spec.Replicas = &numRep
+					c.CreateOrUpdateObjectInMap(depObj)
+				})
+
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+			},
+			workspace:     *utils.MockWorkspace,
+			expectedError: nil,
+		},
+	}
+
+	for k, tc := range testcases {
+		t.Run(k, func(t *testing.T) {
+			mockClient := utils.NewClient()
+
+			mockClient.UpdateCb = func(key types.NamespacedName) {}
+
+			tc.callMocks(mockClient)
+
+			reconciler := &WorkspaceReconciler{
+				Client: mockClient,
+				Scheme: utils.NewTestScheme(),
+			}
+			ctx := context.Background()
+
+			err := reconciler.applyInference(ctx, &tc.workspace, false)
+			if tc.expectedError == nil {
+				assert.Check(t, err == nil, "Not expected to return error")
 			} else {
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			}
