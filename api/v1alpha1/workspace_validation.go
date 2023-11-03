@@ -38,17 +38,29 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		- The preset name needs to be supported enum.
 		*/
 
+		// Validate preset name
+		if !isValidPreset(string(w.Inference.Preset.Name)) {
+			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", w.Inference.Preset.Name), "presetName"))
+		}
+
 		// Check if instancetype exists in our SKUs map
 		if sku, exists := SupportedGPUConfigs[w.Resource.InstanceType]; exists {
-			// Validate GPU count for given SKU
-			if *w.Resource.Count < sku.Count {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient machine count for SKU %s", w.Resource.InstanceType), "instanceType"))
+			// Validate GPU count for given SKU (if exists)
+			if count, ok := sku.Counts[string(w.Inference.Preset.Name)]; ok {
+				if *w.Resource.Count < count {
+					errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient machine count for SKU %s", w.Resource.InstanceType), "instanceType"))
+				}
 			}
 		} else {
 			// Check for other instancetypes pattern matches
 			if !strings.HasPrefix(w.Resource.InstanceType, N_SERIES_PREFIX) && !strings.HasPrefix(w.Resource.InstanceType, D_SERIES_PREFIX) {
 				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported instance type %s", w.Resource.InstanceType), "instanceType"))
 			}
+		}
+
+		// Validate labelSelector
+		if _, err := metav1.LabelSelectorAsMap(w.Resource.LabelSelector); err != nil {
+			errs = errs.Also(apis.ErrInvalidValue(err.Error(), "labelSelector"))
 		}
 
 		errs = errs.Also(
