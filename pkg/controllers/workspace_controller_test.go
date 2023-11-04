@@ -566,7 +566,7 @@ func TestDeleteWorkspace(t *testing.T) {
 
 				machineList := utils.MockMachineList
 				relevantMap := c.CreateMapWithType(machineList)
-				//insert node objects into the map
+				//insert machine objects into the map
 				for _, obj := range utils.MockMachineList.Items {
 					m := obj
 					objKey := client.ObjectKeyFromObject(&m)
@@ -587,7 +587,7 @@ func TestDeleteWorkspace(t *testing.T) {
 
 				machineList := utils.MockMachineList
 				relevantMap := c.CreateMapWithType(machineList)
-				//insert node objects into the map
+				//insert machine objects into the map
 				for _, obj := range utils.MockMachineList.Items {
 					m := obj
 					objKey := client.ObjectKeyFromObject(&m)
@@ -607,7 +607,7 @@ func TestDeleteWorkspace(t *testing.T) {
 
 				machineList := utils.MockMachineList
 				relevantMap := c.CreateMapWithType(machineList)
-				//insert node objects into the map
+				//insert machine objects into the map
 				for _, obj := range utils.MockMachineList.Items {
 					m := obj
 					objKey := client.ObjectKeyFromObject(&m)
