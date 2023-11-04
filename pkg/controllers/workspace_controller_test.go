@@ -711,7 +711,7 @@ func TestApplyWorkspaceResource(t *testing.T) {
 			workspace:     *utils.MockWorkspaceWithBadPreset,
 			expectedError: errors.New("preset model does-not-exist is not supported"),
 		},
-		"Sucessfully apply workspace resource": {
+		"Successfully apply workspace resource": {
 			callMocks: func(c *utils.MockClient) {
 				machineList := utils.MockMachineList
 				relevantMap := c.CreateMapWithType(machineList)
