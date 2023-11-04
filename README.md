@@ -16,7 +16,7 @@ Using Kaito, the workflow of onboarding large AI inference models in Kubernetes 
 
 ## Architecture
 
-Kaito follows the classic Kubernetes CRD/controller design pattern. User manages a `workspace` custom resource which describes the GPU requirements and the inference specification. Kaito controllers will automate the deployment by reconciling the `workspace` custom resource.
+Kaito follows the classic Kubernetes Custom Resource Definition(CRD)/controller design pattern. User manages a `workspace` custom resource which describes the GPU requirements and the inference specification. Kaito controllers will automate the deployment by reconciling the `workspace` custom resource.
 <div align="left">
   <img src="docs/img/arch.png" width=80% title="Kaito architecture">
 </div>
