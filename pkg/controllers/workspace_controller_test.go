@@ -226,6 +226,7 @@ func TestCreateAndValidateNode(t *testing.T) {
 	testcases := map[string]struct {
 		callMocks         func(c *utils.MockClient)
 		machineConditions apis.Conditions
+		workspace         v1alpha1.Workspace
 		expectedError     error
 	}{
 		"Node is not created because machine creation fails": {
@@ -242,6 +243,7 @@ func TestCreateAndValidateNode(t *testing.T) {
 					Message: machine.ErrorInstanceTypesUnavailable,
 				},
 			},
+			workspace:     *utils.MockWorkspaceWithFalconPreset,
 			expectedError: errors.New(machine.ErrorInstanceTypesUnavailable),
 		},
 		"A machine is successfully created": {
@@ -256,6 +258,7 @@ func TestCreateAndValidateNode(t *testing.T) {
 					Status: corev1.ConditionTrue,
 				},
 			},
+			workspace:     *utils.MockWorkspace,
 			expectedError: nil,
 		},
 	}
@@ -279,7 +282,7 @@ func TestCreateAndValidateNode(t *testing.T) {
 			}
 			ctx := context.Background()
 
-			node, err := reconciler.createAndValidateNode(ctx, utils.MockWorkspace)
+			node, err := reconciler.createAndValidateNode(ctx, &tc.workspace)
 			if tc.expectedError == nil {
 				assert.Check(t, err == nil, "Not expected to return error")
 				assert.Check(t, node != nil, "Response node should not be nil")
@@ -320,8 +323,6 @@ func TestEnsureService(t *testing.T) {
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
 			mockClient := utils.NewClient()
-			mockClient.UpdateCb = func(key types.NamespacedName) {}
-
 			tc.callMocks(mockClient)
 
 			reconciler := &WorkspaceReconciler{
@@ -408,9 +409,6 @@ func TestApplyInferenceWithPreset(t *testing.T) {
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
 			mockClient := utils.NewClient()
-
-			mockClient.UpdateCb = func(key types.NamespacedName) {}
-
 			tc.callMocks(mockClient)
 
 			reconciler := &WorkspaceReconciler{
@@ -624,9 +622,6 @@ func TestDeleteWorkspace(t *testing.T) {
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
 			mockClient := utils.NewClient()
-
-			mockClient.UpdateCb = func(key types.NamespacedName) {}
-
 			tc.callMocks(mockClient)
 
 			reconciler := &WorkspaceReconciler{
@@ -636,6 +631,149 @@ func TestDeleteWorkspace(t *testing.T) {
 			ctx := context.Background()
 
 			_, err := reconciler.deleteWorkspace(ctx, utils.MockWorkspace)
+			if tc.expectedError == nil {
+				assert.Check(t, err == nil, "Not expected to return error")
+			} else {
+				assert.Equal(t, tc.expectedError.Error(), err.Error())
+			}
+		})
+	}
+}
+
+func TestApplyWorkspaceResource(t *testing.T) {
+	testcases := map[string]struct {
+		callMocks     func(c *utils.MockClient)
+		expectedError error
+		workspace     v1alpha1.Workspace
+	}{
+		"Fail to apply workspace because associated machines cannot be retrieved": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1alpha5.MachineList{}), mock.Anything).Return(errors.New("Failed to retrieve machines"))
+			},
+			workspace:     *utils.MockWorkspace,
+			expectedError: errors.New("Failed to retrieve machines"),
+		},
+		"Fail to apply workspace because can't get qualified nodes": {
+			callMocks: func(c *utils.MockClient) {
+				machineList := utils.MockMachineList
+				relevantMap := c.CreateMapWithType(machineList)
+				c.CreateOrUpdateObjectInMap(&utils.MockMachine)
+
+				//insert machine objects into the map
+				for _, obj := range utils.MockMachineList.Items {
+					m := obj
+					objKey := client.ObjectKeyFromObject(&m)
+
+					relevantMap[objKey] = &m
+				}
+
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1alpha5.MachineList{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
+
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(errors.New("Failed to list nodes"))
+			},
+			workspace:     *utils.MockWorkspace,
+			expectedError: errors.New("Failed to list nodes"),
+		},
+		"Fail to apply workspace because fail to create required nodes due to bad workspace preset name": {
+			callMocks: func(c *utils.MockClient) {
+				machineList := utils.MockMachineList
+				relevantMap := c.CreateMapWithType(machineList)
+				c.CreateOrUpdateObjectInMap(&utils.MockMachine)
+
+				//insert machine objects into the map
+				for _, obj := range utils.MockMachineList.Items {
+					m := obj
+					objKey := client.ObjectKeyFromObject(&m)
+
+					relevantMap[objKey] = &m
+				}
+
+				nodeList := utils.MockNodeList
+				relevantMap = c.CreateMapWithType(nodeList)
+				//insert node objects into the map
+				for _, obj := range utils.MockNodeList.Items {
+					n := obj
+					objKey := client.ObjectKeyFromObject(&n)
+
+					relevantMap[objKey] = &n
+				}
+
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1alpha5.MachineList{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
+
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(nil)
+
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+
+			},
+			workspace:     *utils.MockWorkspaceWithBadPreset,
+			expectedError: errors.New("preset model does-not-exist is not supported"),
+		},
+		"Sucessfully apply workspace resource": {
+			callMocks: func(c *utils.MockClient) {
+				machineList := utils.MockMachineList
+				relevantMap := c.CreateMapWithType(machineList)
+				c.CreateOrUpdateObjectInMap(&utils.MockMachine)
+
+				//insert machine objects into the map
+				for _, obj := range utils.MockMachineList.Items {
+					m := obj
+					objKey := client.ObjectKeyFromObject(&m)
+
+					relevantMap[objKey] = &m
+				}
+
+				nodeList := utils.MockNodeList
+				relevantMap = c.CreateMapWithType(nodeList)
+				//insert node objects into the map
+				for _, obj := range utils.MockNodeList.Items {
+					n := obj
+					objKey := client.ObjectKeyFromObject(&n)
+
+					relevantMap[objKey] = &n
+				}
+
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1alpha5.MachineList{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
+
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(nil)
+
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+
+			},
+			workspace:     *utils.MockWorkspace,
+			expectedError: nil,
+		},
+	}
+
+	for k, tc := range testcases {
+		t.Run(k, func(t *testing.T) {
+			mockClient := utils.NewClient()
+			tc.callMocks(mockClient)
+
+			mockMachine := &v1alpha5.Machine{}
+
+			mockClient.UpdateCb = func(key types.NamespacedName) {
+				mockClient.GetObjectFromMap(mockMachine, key)
+				mockMachine.Status.Conditions = apis.Conditions{
+					{
+						Type:   apis.ConditionReady,
+						Status: corev1.ConditionTrue,
+					},
+				}
+				mockClient.CreateOrUpdateObjectInMap(mockMachine)
+			}
+
+			reconciler := &WorkspaceReconciler{
+				Client: mockClient,
+				Scheme: utils.NewTestScheme(),
+			}
+			ctx := context.Background()
+
+			err := reconciler.applyWorkspaceResource(ctx, &tc.workspace)
 			if tc.expectedError == nil {
 				assert.Check(t, err == nil, "Not expected to return error")
 			} else {
