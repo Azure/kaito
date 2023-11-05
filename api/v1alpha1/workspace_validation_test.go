@@ -4,10 +4,13 @@
 package v1alpha1
 
 import (
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Mock data for tests
@@ -183,6 +186,85 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 	}
 }
 
+func TestResourceSpecValidateUpdate(t *testing.T) {
+
+	tests := []struct {
+		name        string
+		newResource *ResourceSpec
+		oldResource *ResourceSpec
+		errContent  string // Content expected error to include, if any
+		expectErrs  bool
+	}{
+		{
+			name: "Immutable Count",
+			newResource: &ResourceSpec{
+				Count: pointerToInt(10),
+			},
+			oldResource: &ResourceSpec{
+				Count: pointerToInt(5),
+			},
+			errContent: "field is immutable",
+			expectErrs: true,
+		},
+		{
+			name: "Immutable InstanceType",
+			newResource: &ResourceSpec{
+				InstanceType: "new_type",
+			},
+			oldResource: &ResourceSpec{
+				InstanceType: "old_type",
+			},
+			errContent: "field is immutable",
+			expectErrs: true,
+		},
+		{
+			name: "Immutable LabelSelector",
+			newResource: &ResourceSpec{
+				LabelSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"key1": "value1"}},
+			},
+			oldResource: &ResourceSpec{
+				LabelSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"key2": "value2"}},
+			},
+			errContent: "field is immutable",
+			expectErrs: true,
+		},
+		{
+			name: "Valid Update",
+			newResource: &ResourceSpec{
+				Count:         pointerToInt(5),
+				InstanceType:  "same_type",
+				LabelSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"key": "value"}},
+			},
+			oldResource: &ResourceSpec{
+				Count:         pointerToInt(5),
+				InstanceType:  "same_type",
+				LabelSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"key": "value"}},
+			},
+			errContent: "",
+			expectErrs: false,
+		},
+	}
+
+	// Run the tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			errs := tc.newResource.validateUpdate(tc.oldResource)
+			hasErrs := errs != nil
+			if hasErrs != tc.expectErrs {
+				t.Errorf("validateUpdate() errors = %v, expectErrs %v", errs, tc.expectErrs)
+			}
+
+			// If there is an error and errContent is not empty, check that the error contains the expected content.
+			if hasErrs && tc.errContent != "" {
+				errMsg := errs.Error()
+				if !strings.Contains(errMsg, tc.errContent) {
+					t.Errorf("validateUpdate() error message = %v, expected to contain = %v", errMsg, tc.errContent)
+				}
+			}
+		})
+	}
+}
+
 func TestInferenceSpecValidateCreate(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -264,25 +346,106 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 	}
 }
 
+func TestInferenceSpecValidateUpdate(t *testing.T) {
+	tests := []struct {
+		name         string
+		newInference *InferenceSpec
+		oldInference *InferenceSpec
+		errContent   string // Content expected error to include, if any
+		expectErrs   bool
+	}{
+		{
+			name: "Preset Immutable",
+			newInference: &InferenceSpec{
+				Preset: &PresetSpec{
+					PresetMeta: PresetMeta{
+						Name: ModelName("new-preset"),
+					},
+				},
+			},
+			oldInference: &InferenceSpec{
+				Preset: &PresetSpec{
+					PresetMeta: PresetMeta{
+						Name: ModelName("old-preset"),
+					},
+				},
+			},
+			errContent: "field is immutable",
+			expectErrs: true,
+		},
+		{
+			name: "Template Unset",
+			newInference: &InferenceSpec{
+				Template: nil,
+			},
+			oldInference: &InferenceSpec{
+				Template: &v1.PodTemplateSpec{},
+			},
+			errContent: "field cannot be unset/set if it was set/unset",
+			expectErrs: true,
+		},
+		{
+			name: "Template Set",
+			newInference: &InferenceSpec{
+				Template: &v1.PodTemplateSpec{},
+			},
+			oldInference: &InferenceSpec{
+				Template: nil,
+			},
+			errContent: "field cannot be unset/set if it was set/unset",
+			expectErrs: true,
+		},
+		{
+			name: "Valid Update",
+			newInference: &InferenceSpec{
+				Template: &v1.PodTemplateSpec{},
+			},
+			oldInference: &InferenceSpec{
+				Template: &v1.PodTemplateSpec{},
+			},
+			errContent: "",
+			expectErrs: false,
+		},
+	}
+
+	// Run the tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			errs := tc.newInference.validateUpdate(tc.oldInference)
+			hasErrs := errs != nil
+			if hasErrs != tc.expectErrs {
+				t.Errorf("validateUpdate() errors = %v, expectErrs %v", errs, tc.expectErrs)
+			}
+
+			// If there is an error and errContent is not empty, check that the error contains the expected content.
+			if hasErrs && tc.errContent != "" {
+				errMsg := errs.Error()
+				if !strings.Contains(errMsg, tc.errContent) {
+					t.Errorf("validateUpdate() error message = %v, expected to contain = %v", errMsg, tc.errContent)
+				}
+			}
+		})
+	}
+}
+
 // TestGetSupportedSKUs tests the getSupportedSKUs function.
 func TestGetSupportedSKUs(t *testing.T) {
-	// Test cases
 	tests := []struct {
 		name           string
 		gpuConfigs     map[string]GPUConfig
-		expectedResult string
+		expectedResult []string // changed to a slice for deterministic ordering
 	}{
 		{
 			name:           "no SKUs supported",
 			gpuConfigs:     map[string]GPUConfig{},
-			expectedResult: "",
+			expectedResult: []string{""},
 		},
 		{
 			name: "one SKU supported",
 			gpuConfigs: map[string]GPUConfig{
 				"standard_nc6": {SKU: "standard_nc6"},
 			},
-			expectedResult: "standard_nc6",
+			expectedResult: []string{"standard_nc6"},
 		},
 		{
 			name: "multiple SKUs supported",
@@ -290,21 +453,25 @@ func TestGetSupportedSKUs(t *testing.T) {
 				"standard_nc6":  {SKU: "standard_nc6"},
 				"standard_nc12": {SKU: "standard_nc12"},
 			},
-			expectedResult: "standard_nc6, standard_nc12",
+			expectedResult: []string{"standard_nc6", "standard_nc12"},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Arrange
 			SupportedGPUConfigs = tc.gpuConfigs
 
-			// Act
-			result := getSupportedSKUs()
+			// Get the result and sort it
+			resultSlice := strings.Split(getSupportedSKUs(), ", ")
+			sort.Strings(resultSlice)
 
-			// Assert
-			if result != tc.expectedResult {
-				t.Errorf("getSupportedSKUs() = %v, want %v", result, tc.expectedResult)
+			// Sort the expectedResult for comparison
+			expectedResultSlice := tc.expectedResult
+			sort.Strings(expectedResultSlice)
+
+			// Compare slices instead of strings
+			if !reflect.DeepEqual(resultSlice, expectedResultSlice) {
+				t.Errorf("getSupportedSKUs() = %v, want %v", resultSlice, expectedResultSlice)
 			}
 		})
 	}
