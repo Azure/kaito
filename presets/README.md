@@ -6,17 +6,14 @@ This repository provides support to containerize open-source large language mode
 2. Building Images
    - Building Llama Model Images
    - Building Falcon Model Images
-3. Running the Models
-   - Running Llama
-   - Running Falcon
-4. API Documentation
+3. API Documentation
    - Llama Model APIs
    - Falcon Model APIs
-5. Model Parameters
+4. Model Parameters
    - Llama Model Parameters
    - Falcon Model Parameters
-6. Contributing
-7. License
+5. Contributing
+6. License
 
 
 ## Prerequisites
