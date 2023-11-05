@@ -1,8 +1,30 @@
 # Containerize LLM models
-This repo adds sufficient support to containerize OSS LLM models such as llama. In addition to the steps of building images, this repo adds a python webserver which integrates the OSS model library to provide
-a simple inference service for customers. Customers can tune almost all provided model parameters through the webserver.
+This repository provides support to containerize open-source large language models (LLMs) such as Llama and Falcon. It includes a Python webserver that integrates the model libraries to offer a simple inference service. Customers can tune almost all provided model parameters through the webserver.
 
-## Build
+## Table of Contents
+1. Prerequisites
+2. Building Images
+   - Building Llama Model Images
+   - Building Falcon Model Images
+3. Running the Models
+   - Running Llama
+   - Running Falcon
+4. API Documentation
+   - Llama Model APIs
+   - Falcon Model APIs
+5. Model Parameters
+   - Llama Model Parameters
+   - Falcon Model Parameters
+6. Contributing
+7. License
+
+
+## Prerequisites
+Each model has its own infrastructure requirements. Kaito controller performs a validation check to ensure your machine(s) has the necessary resources to run the model. For more information see [sku_configs](https://github.com/Azure/kaito/blob/main/api/v1alpha1/sku_config.go)
+
+
+## Building Images 
+
 1. Choose the Desired Model Directory: Navigate to either the llama-2 or llama-2-chat directory, based on the desired model.
 2. Build the Docker Image: ```docker build -t your-image-name:your-tag .```
 3. Deploy the Image to a Container: ```docker run --name your-container-name your-image-name:your-tag```
