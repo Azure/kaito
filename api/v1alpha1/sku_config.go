@@ -54,7 +54,7 @@ func isValidPreset(preset string) bool {
 }
 
 func getSupportedSKUs() string {
-	var skus []string
+	skus := make([]string, 0, len(SupportedGPUConfigs))
 	for sku := range SupportedGPUConfigs {
 		skus = append(skus, sku)
 	}
