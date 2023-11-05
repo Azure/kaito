@@ -37,41 +37,8 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		- For labelSelector, call metav1.LabelSelectorAsMap. If the method returns error, meaning unsupported expressions are found, fail the check.
 		- The preset name needs to be supported enum.
 		*/
-
-		// Validate preset name
-		if !isValidPreset(string(w.Inference.Preset.Name)) {
-			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", w.Inference.Preset.Name), "presetName"))
-		}
-
-		// Check if instancetype exists in our SKUs map
-		if skuConfig, exists := SupportedGPUConfigs[w.Resource.InstanceType]; exists {
-			// Validate GPU count for given SKU
-			if presetReq, ok := PresetRequirementsMap[string(w.Inference.Preset.Name)]; ok {
-				// Check if the selected SKU meets the preset requirements
-				machineCount := *w.Resource.Count
-				totalNumGPUs := machineCount * skuConfig.GPUCount
-				totalGPUMem := machineCount * skuConfig.GPUMem * skuConfig.GPUCount
-				if totalNumGPUs < presetReq.MinGPUCount ||
-					skuConfig.GPUMem < presetReq.MinMemoryPerGPU ||
-					totalGPUMem < presetReq.MinTotalMemory {
-					errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Instance type %s does not meet the requirements for preset %s", w.Resource.InstanceType, w.Inference.Preset.Name), "instanceType"))
-				}
-			} else {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", w.Inference.Preset.Name), "presetName"))
-			}
-		} else {
-			// Check for other instancetypes pattern matches
-			if !strings.HasPrefix(w.Resource.InstanceType, N_SERIES_PREFIX) && !strings.HasPrefix(w.Resource.InstanceType, D_SERIES_PREFIX) {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported instance type %s", w.Resource.InstanceType), "instanceType"))
-			}
-		}
-
-		// Validate labelSelector
-		if _, err := metav1.LabelSelectorAsMap(w.Resource.LabelSelector); err != nil {
-			errs = errs.Also(apis.ErrInvalidValue(err.Error(), "labelSelector"))
-		}
-
 		errs = errs.Also(
+			w.Resource.validateCreate(w.Inference).ViaField("resource"),
 			w.Inference.validateCreate().ViaField("inference"),
 		)
 	} else {
@@ -82,6 +49,46 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 			w.Inference.validateUpdate(&old.Inference).ViaField("inference"),
 		)
 	}
+	return errs
+}
+
+func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.FieldError) {
+	presetName := strings.ToLower(string(inference.Preset.Name))
+	instanceType := strings.ToLower(string(r.InstanceType))
+
+	// Check if instancetype exists in our SKUs map
+	if skuConfig, exists := SupportedGPUConfigs[instanceType]; exists {
+		// Validate GPU count for given SKU
+		if presetReq, ok := PresetRequirementsMap[presetName]; ok {
+			machineCount := *r.Count
+			totalNumGPUs := machineCount * skuConfig.GPUCount
+			totalGPUMem := machineCount * skuConfig.GPUMem * skuConfig.GPUCount
+
+			// Separate the checks for specific error messages
+			if totalNumGPUs < presetReq.MinGPUCount {
+				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient number of GPUs: Instance type %s provides %d, but preset %s requires at least %d", instanceType, totalNumGPUs, presetName, presetReq.MinGPUCount), "instanceType"))
+			}
+			if skuConfig.GPUMem < presetReq.MinMemoryPerGPU {
+				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient GPU memory: Instance type %s provides %d per GPU, but preset %s requires at least %d per GPU", instanceType, skuConfig.GPUMem, presetName, presetReq.MinMemoryPerGPU), "instanceType"))
+			}
+			if totalGPUMem < presetReq.MinTotalMemory {
+				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient total GPU memory: Instance type %s has a total of %d, but preset %s requires at least %d", instanceType, totalGPUMem, presetName, presetReq.MinTotalMemory), "instanceType"))
+			}
+		} else {
+			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", presetName), "presetName"))
+		}
+	} else {
+		// Check for other instancetypes pattern matches
+		if !strings.HasPrefix(instanceType, N_SERIES_PREFIX) && !strings.HasPrefix(instanceType, D_SERIES_PREFIX) {
+			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported instance type %s. Supported SKUs: %s", instanceType, getSupportedSKUs()), "instanceType"))
+		}
+	}
+
+	// Validate labelSelector
+	if _, err := metav1.LabelSelectorAsMap(r.LabelSelector); err != nil {
+		errs = errs.Also(apis.ErrInvalidValue(err.Error(), "labelSelector"))
+	}
+
 	return errs
 }
 
@@ -106,6 +113,11 @@ func (r *ResourceSpec) validateUpdate(old *ResourceSpec) (errs *apis.FieldError)
 }
 
 func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
+	presetName := strings.ToLower(string(i.Preset.Name))
+	// Validate preset name
+	if !isValidPreset(presetName) {
+		errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", presetName), "presetName"))
+	}
 	if i.Preset != nil && i.Template != nil {
 		errs = errs.Also(apis.ErrGeneric("preset and template cannot be set at the same time"))
 	}
