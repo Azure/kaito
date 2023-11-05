@@ -13,32 +13,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// Mock data for tests
-// var (
-// 	supportedGPUConfigs = map[string]GPUConfig{
-// 		"gpu-sku-1": {GPUCount: 4, GPUMem: 8},
-// 		// ... add other mock SKUs
-// 	}
-
-// 	presetRequirementsMap = map[string]PresetRequirement{
-// 		"preset-1": {MinGPUCount: 2, MinMemoryPerGPU: 4, MinTotalMemory: 16},
-// 		// ... add other mock presets
-// 	}
-
-// 	// Define a mock of isValidPreset function based on the presets in the map
-// 	isValidPreset = func(preset string) bool {
-// 		_, exists := presetRequirementsMap[preset]
-// 		return exists
-// 	}
-// )
-
 func pointerToInt(i int) *int {
 	return &i
 }
 
-// TestResourceSpecValidateCreate tests the validateCreate function.
 func TestResourceSpecValidateCreate(t *testing.T) {
-	// Arrange your test cases with different ResourceSpec and InferenceSpec configurations
 	tests := []struct {
 		name          string
 		resourceSpec  *ResourceSpec
@@ -166,7 +145,6 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		},
 	}
 
-	// Run the tests
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			errs := tc.resourceSpec.validateCreate(*tc.inferenceSpec)
@@ -326,7 +304,6 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 		},
 	}
 
-	// Run the tests
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			errs := tc.inferenceSpec.validateCreate()
@@ -408,7 +385,6 @@ func TestInferenceSpecValidateUpdate(t *testing.T) {
 		},
 	}
 
-	// Run the tests
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			errs := tc.newInference.validateUpdate(tc.oldInference)
@@ -428,7 +404,6 @@ func TestInferenceSpecValidateUpdate(t *testing.T) {
 	}
 }
 
-// TestGetSupportedSKUs tests the getSupportedSKUs function.
 func TestGetSupportedSKUs(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -461,7 +436,6 @@ func TestGetSupportedSKUs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			SupportedGPUConfigs = tc.gpuConfigs
 
-			// Get the result and sort it
 			resultSlice := strings.Split(getSupportedSKUs(), ", ")
 			sort.Strings(resultSlice)
 
@@ -469,7 +443,6 @@ func TestGetSupportedSKUs(t *testing.T) {
 			expectedResultSlice := tc.expectedResult
 			sort.Strings(expectedResultSlice)
 
-			// Compare slices instead of strings
 			if !reflect.DeepEqual(resultSlice, expectedResultSlice) {
 				t.Errorf("getSupportedSKUs() = %v, want %v", resultSlice, expectedResultSlice)
 			}
@@ -477,7 +450,6 @@ func TestGetSupportedSKUs(t *testing.T) {
 	}
 }
 
-// TestIsValidPreset tests the isValidPreset function.
 func TestIsValidPreset(t *testing.T) {
 	tests := []struct {
 		name        string
