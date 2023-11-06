@@ -43,7 +43,7 @@
             "runs_on": "self-hosted",
             "name": "llama-2-7b",
             "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_VERSION=llama-2-7b --build-arg SRC_DIR=/home/presets/llama-2"
+            "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-7b --build-arg SRC_DIR=/home/presets/llama-2"
         },
         "shouldBuildLlama2": "true"
     },
@@ -53,7 +53,7 @@
             "runs_on": "self-hosted",
             "name": "llama-2-13b",
             "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_VERSION=llama-2-13b --build-arg SRC_DIR=/home/presets/llama-2"
+            "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-13b --build-arg SRC_DIR=/home/presets/llama-2"
         },
         "shouldBuildLlama2": "true"
     },
@@ -63,7 +63,7 @@
             "runs_on": "self-hosted",
             "name": "llama-2-70b",
             "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_VERSION=llama-2-70b --build-arg SRC_DIR=/home/presets/llama-2"
+            "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-70b --build-arg SRC_DIR=/home/presets/llama-2"
         },
         "shouldBuildLlama2": "true"
     },
@@ -73,7 +73,7 @@
             "runs_on": "self-hosted",
             "name": "llama-2-7b-chat",
             "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_VERSION=llama-2-7b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
+            "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-7b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
         },
         "shouldBuildLlama2Chat": "true"
     },
@@ -83,7 +83,7 @@
             "runs_on": "self-hosted",
             "name": "llama-2-13b-chat",
             "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_VERSION=llama-2-13b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
+            "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-13b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
         },
         "shouldBuildLlama2Chat": "true"
     },
@@ -93,7 +93,7 @@
             "runs_on": "self-hosted",
             "name": "llama-2-70b-chat",
             "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_VERSION=llama-2-70b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
+            "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-70b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
         },
         "shouldBuildLlama2Chat": "true"
     }
