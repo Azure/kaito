@@ -1,11 +1,14 @@
 
 # Image URL to use all building/pushing image targets
-REGISTRY ?= ghcr.io/azure/kaito
+REGISTRY ?= mcr.microsoft.com/aks/kaito
 IMG_NAME ?= workspace
 VERSION ?= v0.0.1
 IMG_TAG ?= $(subst v,,$(VERSION))
+
+ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+BIN_DIR := $(abspath $(ROOT_DIR)/bin)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.27.2
+ENVTEST_K8S_VERSION = 1.27.3
 
 TOOLS_DIR := hack/tools
 TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/bin)
@@ -14,6 +17,12 @@ GOLANGCI_LINT_VER := v1.54.1
 GOLANGCI_LINT_BIN := golangci-lint
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN)-$(GOLANGCI_LINT_VER))
 
+E2E_TEST_BIN := e2e.test
+E2E_TEST := $(BIN_DIR)/$(E2E_TEST_BIN)
+
+GINKGO_VER := v2.9.7
+GINKGO_BIN := ginkgo
+GINKGO := $(TOOLS_BIN_DIR)/$(GINKGO_BIN)-$(GINKGO_VER)
 
 AZURE_SUBSCRIPTION_ID ?= $(AZURE_SUBSCRIPTION_ID)
 AZURE_LOCATION ?= eastus
@@ -37,6 +46,9 @@ endif
 
 $(GOLANGCI_LINT):
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/golangci/golangci-lint/cmd/golangci-lint $(GOLANGCI_LINT_BIN) $(GOLANGCI_LINT_VER)
+
+$(GINKGO):
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/onsi/ginkgo/v2/ginkgo $(GINKGO_BIN) $(GINKGO_VER)
 
 # CONTAINER_TOOL defines the container tool to be used for building images.
 # Be aware that the target commands are only tested with Docker which is
@@ -66,30 +78,26 @@ fmt: ## Run go fmt against code.
 ## --------------------------------------
 ## Tests
 ## --------------------------------------
-
-.PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
-
 .PHONY: unit-test
 unit-test: ## Run unit tests.
-	go test -v $(shell go list ./... | grep -v /vendor) -race -coverprofile=coverage.txt -covermode=atomic
+	go test -v $(shell go list ./pkg/... | grep -v /vendor) -race -coverprofile=coverage.txt -covermode=atomic
 	go tool cover -func=coverage.txt
 
-TEST_SUITE ?= "..."
-TEST_TIMEOUT ?= "1h"
+$(E2E_TEST):
+	(cd test/e2e && go test -c . -o $(E2E_TEST))
+
+# Ginkgo configurations
+GINKGO_FOCUS ?=
+GINKGO_SKIP ?=
+GINKGO_NODES ?= 1
+GINKGO_NO_COLOR ?= false
+GINKGO_TIMEOUT ?= 60m
+GINKGO_ARGS ?= -focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" -nodes=$(GINKGO_NODES) -no-color=$(GINKGO_NO_COLOR) -timeout=$(GINKGO_TIMEOUT)
+
 .PHONY: kaito-workspace-e2e-test
-kaito-workspace-e2e-test:
-	cd test && CLUSTER_NAME=${AZURE_CLUSTER_NAME} go test \
-    		-p 1 \
-    		-count 1 \
-    		-timeout ${TEST_TIMEOUT} \
-    		-v \
-    		./e2e/suite_test.go \
-    		--ginkgo.focus="${FOCUS}" \
-    		--ginkgo.timeout=${TEST_TIMEOUT} \
-    		--ginkgo.grace-period=3m \
-    		--ginkgo.vv
+kaito-workspace-e2e-test: $(E2E_TEST) $(GINKGO)
+	$(GINKGO) -v -trace $(GINKGO_ARGS) \
+	$(E2E_TEST)
 
 .PHONY: create-rg
 create-rg: ## Create resource group
@@ -137,7 +145,7 @@ QEMU_VERSION ?= 5.2.0-2
 ARCH ?= amd64,arm64
 
 .PHONY: docker-buildx
-docker-buildx: test ## Build and push docker image for the manager for cross-platform support
+docker-buildx: ## Build and push docker image for the manager for cross-platform support
 	@if ! docker buildx ls | grep $(BUILDX_BUILDER_NAME); then \
 		docker run --rm --privileged multiarch/qemu-user-static:$(QEMU_VERSION) --reset -p yes; \
 		docker buildx create --name $(BUILDX_BUILDER_NAME) --use; \
@@ -179,7 +187,7 @@ gpu-provisioner-helm:  ## Update Azure client env vars and settings in helm valu
 	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
 	$(eval IDENTITY_CLIENT_ID=$(shell az identity show --name gpuIdentity --resource-group $(AZURE_RESOURCE_GROUP) --query 'clientId' -o tsv))
 	$(eval AZURE_TENANT_ID=$(shell az account show | jq -r ".tenantId"))
-	$(eval AZURE_SUBSCRIPTION_ID=$(shell az account show | jq -r ".subscriptionId"))
+	$(eval AZURE_SUBSCRIPTION_ID=$(shell az account show | jq -r ".id"))
 
 	yq -i '(.controller.image.repository)                                              = "mcr.microsoft.com/aks/kaito/gpu-provisioner"'       ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.controller.image.tag)                                                     = "0.0.1"'                                             ./charts/kaito/gpu-provisioner/values.yaml
@@ -245,3 +253,11 @@ release-manifest:
 	git checkout -b release-${VERSION}
 	git add ./Makefile ./charts/kaito/workspace/Chart.yaml ./charts/kaito/workspace/values.yaml ./charts/kaito/workspace/README.md
 	git commit -s -m "release: update manifest and helm charts for ${VERSION}"
+
+## --------------------------------------
+## Cleanup
+## --------------------------------------
+
+.PHONY: clean
+clean:
+	@rm -rf $(BIN_DIR)
