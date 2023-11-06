@@ -7,7 +7,7 @@ const (
 	// KAITOPrefix Kubernetes Data Mining prefix.
 	KAITOPrefix = "kaito.sh/"
 
-	// AnnotationEnableLB determines whether kaito creates LoadBalancer type service.for testing.
+	// AnnotationEnableLB determines whether kaito creates LoadBalancer type service for testing.
 	AnnotationEnableLB = KAITOPrefix + "enablelb"
 
 	// LabelWorkspaceName is the label for workspace name.
