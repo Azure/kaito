@@ -10,9 +10,7 @@ This repository provides support to containerize open-source large language mode
 4. Model Parameters
    - Llama Model Parameters
    - Falcon Model Parameters
-5. Contributing
-6. License
-7. Conclusion
+5. Conclusion
 
 ## Prerequisites
 Each model has its own infrastructure requirements. Kaito controller performs a validation check to ensure your machine(s) has the necessary resources to run the model. For more information see [sku_configs](https://github.com/Azure/kaito/blob/main/api/v1alpha1/sku_config.go)
@@ -232,16 +230,58 @@ curl -X POST \
         "typical_p":1,
         "repetition_penalty":1,
         "length_penalty":1,
-        "no_repeat_ngram_size":0,"encoder_no_repeat_ngram_size":0,"bad_words_ids":null,
+        "no_repeat_ngram_size":0,
+        "encoder_no_repeat_ngram_size":0,
+        "bad_words_ids":null,
         "num_return_sequences":1,
-        "output_scores":false,"return_dict_in_generate":false,"forced_bos_token_id":null,"forced_eos_token_id":null,"remove_invalid_values":null
+        "output_scores":false,
+        "return_dict_in_generate":false,
+        "forced_bos_token_id":null,
+        "forced_eos_token_id":null,
+        "remove_invalid_values":null
         }' \
         "http://localhost:5000/chat"
 ```
 
+## Model Parameters
+
+### LLama Model Parameters
+ - `temperature`: Adjusts prediction randomness. Lower values (near 0) result in more deterministic outputs; higher values increase randomness.
+ - `max_seq_len`: Sets the limit for the length of input and output tokens combined, constrained by the model's architecture. Range: [1, 2048]. [See code] (https://github.com/facebookresearch/llama/blob/llama_v2/llama/model.py#L31)
+- `max_gen_len`: Limits the length of generated text. It's bound by max_seq_len and architecture limit. Total of max_seq_len + max_gen_len must be ≤ 2048 [See code] (https://github.com/facebookresearch/llama/blob/llama_v2/llama/generation.py#L164).
+- `max_batch_size`: Defines the number of inputs processed together during a computation pass. Larger sizes can improve training speed but consume more memory. Default: 32. (https://github.com/facebookresearch/llama/blob/llama_v2/llama/model.py#L30)
+
+### Falcon Model Parameters
+- `prompt`: The initial text provided by the user, from which the model will continue generating text.
+- `max_length`: The maximum total number of tokens in the generated text.
+- `min_length`: The minimum total number of tokens that should be generated.
+- `do_sample`: If True, sampling methods will be used for text generation, which can introduce randomness and variation.
+- `early_stopping`: If True, the generation will stop early if certain conditions are met, for example, when a satisfactory number of candidates have been found in beam search.
+- `num_beams`: The number of beams to be used in beam search. More beams can lead to better results but are more computationally expensive.
+- `num_beam_groups`: Divides the number of beams into groups to promote diversity in the generated results.
+- `diversity_penalty`: Penalizes the score of tokens that make the current generation too similar to other groups, encouraging diverse outputs.
+- `temperature`: Controls the randomness of the output by scaling the logits before sampling.
+- `top_k`: Restricts sampling to the k most likely next tokens.
+- `top_p`: Uses nucleus sampling to restrict the sampling pool to tokens comprising the top p probability mass.
+- `typical_p`: Adjusts the probability distribution to favor tokens that are "typically" likely, given the context.
+- `repetition_penalty`: Penalizes tokens that have been generated previously, aiming to reduce repetition.
+- `length_penalty`: Modifies scores based on sequence length to encourage shorter or longer outputs.
+- `no_repeat_ngram_size`: Prevents the generation of any n-gram more than once.
+- `encoder_no_repeat_ngram_size`: Similar to no_repeat_ngram_size but applies to the encoder part of encoder-decoder models.
+- `bad_words_ids`: A list of token ids that should not be generated.
+- `num_return_sequences`: The number of different sequences to generate.
+- `output_scores`: Whether to output the prediction scores.
+- `return_dict_in_generate`: If True, the method will return a dictionary containing additional information.
+- `pad_token_id`: The token ID used for padding sequences to the same length.
+- `eos_token_id`: The token ID that signifies the end of a sequence.
+- `forced_bos_token_id`: The token ID that is forcibly used as the beginning of a sequence token.
+- `forced_eos_token_id`: The token ID that is forcibly used as the end of a sequence when max_length is reached.
+- `remove_invalid_values`: If True, filters out invalid values like NaNs or infs from model outputs to prevent crashes.
+
+For a detailed explanation of each parameter and their effects on the response, consult this [reference page](https://huggingface.co/docs/transformers/main_classes/text_generation)
 
 ## Conclusion
-These APIs provide a streamlined approach to harness the capabilities of the Llama 2 model for both text generation and chat-oriented applications. Ensure the correct deployment and configuration for optimal utilization.
+These APIs provide a streamlined approach to harness the capabilities of the Llama 2 and Falcon models for text generation and chat-oriented applications. Ensure the correct deployment and configuration for optimal utilization.
 
 
 
