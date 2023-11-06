@@ -7,15 +7,12 @@ const (
 	// KAITOPrefix Kubernetes Data Mining prefix.
 	KAITOPrefix = "kaito.sh/"
 
-	// AnnotationServiceType determines whether kaito creates ClusterIP or LoadBalancer type service.
-	AnnotationServiceType = KAITOPrefix + "service-type"
+	// AnnotationEnableLB determines whether kaito creates LoadBalancer type service.for testing.
+	AnnotationEnableLB = KAITOPrefix + "enablelb"
 
 	// LabelWorkspaceName is the label for workspace name.
 	LabelWorkspaceName = KAITOPrefix + "workspace"
 
 	// LabelWorkspaceName is the label for workspace namespace.
 	LabelWorkspaceNamespace = KAITOPrefix + "workspacenamespace"
-
-	ServiceTypeClusterIP    = "cluster-ip"
-	ServiceTypeLoadBalancer = "load-balancer"
 )
