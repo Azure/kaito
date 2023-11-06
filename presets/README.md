@@ -19,15 +19,20 @@ Each model has its own infrastructure requirements. Kaito controller performs a 
 ### Building the Llama image
 1. Select Model Version: Identify the Llama model version to build, such as llama-2-7b or llama-2-7b-chat. Available models include `llama-2-7b, llama-2-13b, llama-2-70b, llama-2-7b-chat, llama-2-13b-chat and llama-2-70b-chat`.
 
-2. Local Preset Path: Point to the local path of the model presets, which are found at the [kaito/presets/llama-2](
+2. Clone Kaito Repository: Clone the kaito repository using the git command to your local machine
+```
+git clone https://github.com/Azure/kaito.git
+```
+Once cloned, the path to model presets will be a fixed one from the root of the cloned repository - [kaito/presets/llama-2](
 https://github.com/Azure/kaito/tree/main/presets/llama-2) or [kaito/presets/llama-2-chat](https://github.com/Azure/kaito/tree/main/presets/llama-2-chat) directories for text and chat models, respectively.
 
 3. Model Weights: Ensure your model weights are organized as /llama/<MODEL-VERSION> for the build process to include them in the Docker image.
 
 4. Build Command:
-Execute the Docker build command, replacing placeholders with actual values:
+Navigate to the correct folder within the cloned repository to run the Docker build command. The path should be `kaito/docker/presets/llama-2`. Then execute the Docker build command, replacing placeholders with actual values:
 
 ```
+cd kaito/docker/presets/llama-2
 docker build \
   --build-arg LLAMA_VERSION=<MODEL-VERSION> \
   --build-arg SRC_DIR=<PATH-TO-LLAMA-PRESET> \
@@ -35,9 +40,10 @@ docker build \
 ```
 For example, to build the llama-2-7b model, the command would look like this:
 ```
+cd kaito/docker/presets/llama-2
 docker build \
   --build-arg LLAMA_VERSION=llama-2-7b \
-  --build-arg SRC_DIR=/home/kaito/presets/llama-2 \
+  --build-arg SRC_DIR=../../../presets/llama-2 \
   -t llama-2-7b:latest .
 ```
 
@@ -52,7 +58,7 @@ inference:
     presetOptions:
       image: <YOUR IMAGE URL>
       imagePullSecrets: # Optional
-        - <IMAGE SECRETS>
+        - <IMAGE PULL SECRETS>
 Replace `<MODEL-VERSION>`, `<YOUR-IMAGE-URL>`, and `<IMAGE-PULL-SECRET>` with your specific details. For a reference implementation, see the example at [kaito_workspace_llama2_7b-chat.yaml](https://github.com/Azure/kaito/blob/main/examples/kaito_workspace_llama2_7b-chat.yaml)
 
 
