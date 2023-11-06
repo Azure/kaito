@@ -26,26 +26,31 @@ git clone https://github.com/Azure/kaito.git
 Once cloned, the path to model presets will be a fixed one from the root of the cloned repository - [kaito/presets/llama-2](
 https://github.com/Azure/kaito/tree/main/presets/llama-2) or [kaito/presets/llama-2-chat](https://github.com/Azure/kaito/tree/main/presets/llama-2-chat) directories for text and chat models, respectively.
 
-3. Model Weights: Ensure your model weights are organized as /llama/<MODEL-VERSION> for the build process to include them in the Docker image.
+3. Model Weights: Ensure your llama model weights are downloaded for the build process to include them in the Docker image. Llama model weights can be downloaded [here](https://github.com/facebookresearch/llama#download)
 
 4. Build Command:
-Navigate to the correct folder within the cloned repository to run the Docker build command. The path should be `kaito/docker/presets/llama-2`. Then execute the Docker build command, replacing placeholders with actual values:
+Build your Docker image using the command below, filling in the paths and names specific to your setup:
 
 ```
-cd kaito/docker/presets/llama-2
 docker build \
-  --build-arg LLAMA_VERSION=<MODEL-VERSION> \
-  --build-arg SRC_DIR=<PATH-TO-LLAMA-PRESET> \
-  -t <YOUR-IMAGE-NAME>:<YOUR-TAG> .
+  --file <DOCKERFILE-PATH> \
+  --build-arg LLAMA_WEIGHTS=<LLAMA-WEIGHTS-PATH> \
+  --build-arg SRC_DIR=<LLAMA-PRESET-PATH> \
+  -t <IMAGE-NAME>:<TAG> .
 ```
-For example, to build the llama-2-7b model, the command would look like this:
+For example, to build the llama-2-7b model image:
 ```
-cd kaito/docker/presets/llama-2
 docker build \
-  --build-arg LLAMA_VERSION=llama-2-7b \
-  --build-arg SRC_DIR=../../../presets/llama-2 \
+  --file kaito/docker/presets/llama-2/Dockerfile \
+  --build-arg LLAMA_WEIGHTS=kaito/llama/llama-2-7b/weights \
+  --build-arg SRC_DIR=kaito/presets/llama-2 \
   -t llama-2-7b:latest .
 ```
+In this example:
+- `kaito/docker/presets/llama-2/Dockerfile` is the path to the Dockerfile within the kaito repository.
+- `kaito/llama/llama-2-7b/weights` is the directory where the llama-2-7b model weights are located.
+- `kaito/presets/llama-2` is the directory containing the preset configurations for the llama-2 model.
+- `llama-2-7b:latest` is the Docker image being built, where llama-2-7b is the image name, and latest signifies the tag name.
 
 5. Check Image:
 Confirm the image creation with `docker images`.
