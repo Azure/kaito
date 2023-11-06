@@ -62,19 +62,19 @@ Replace `<MODEL-VERSION>`, `<YOUR-IMAGE-URL>`, and `<IMAGE-PULL-SECRET>` with yo
 Endpoint: ```/``` <br>
 Method: GET <br>
 Purpose: Check if the server is running. <br>
-Example: ```curl http://<SERVICE-IP>:80/```
+Example: ```curl http://<CLUSTERIP>:80/```
 
 2. Model Health Check <br>
 Endpoint: ```/healthz``` <br>
 Method: GET <br>
 Purpose: Check if the model and GPU are properly initialized. <br>
-Example: ```curl http://<SERVICE-IP>:80/healthz```
+Example: ```curl http://<CLUSTERIP>:80/healthz```
 
 3. Shutdown <br>
 Endpoint: ```/shutdown``` <br>
 Method: POST <br>
 Purpose: Shutdown server and program processes.  <br>
-Example: ```curl -X POST http://<SERVICE-IP>:80/shutdown```
+Example: ```curl -X POST http://<CLUSTERIP>:80/shutdown```
 
 4. Complete Text <br>
 Endpoint: ```/generate``` <br>
@@ -95,7 +95,7 @@ curl -X POST \
                "max_gen_len": 128
            }
          }' \
-     http://<SERVICE-IP>:80/generate
+     http://<CLUSTERIP>:80/generate
 ```
 
 ### Llama-2-chat Interaction
@@ -147,7 +147,7 @@ curl -X POST \
                ]
            }
          }' \
-     http://<SERVICE-IP>:80/chat
+     http://<CLUSTERIP>:80/chat
 ```
 ```
 curl -X POST \
@@ -176,7 +176,7 @@ curl -X POST \
                }
            }
          }' \
-     http://<SERVICE-IP>:80/chat
+     http://<CLUSTERIP>:80/chat
 ```
 ```
 curl -X POST \
@@ -197,7 +197,7 @@ curl -X POST \
                ]
            }
          }' \
-     http://<SERVICE-IP>:80/chat
+     http://<CLUSTERIP>:80/chat
 ```
 ### Falcon
 Chat Interaction <br>
@@ -207,7 +207,7 @@ Purpose: Facilitates chat-based text interactions. <br>
 
 Basic Example - Replace `YOUR_PROMPT_HERE` with your actual prompt:
 ```
-curl -X POST "http://<SERVICE-IP>:80/chat" -H "accept: application/json" -H "Content-Type: application/json" -d '{"prompt":"YOUR_PROMPT_HERE"}'
+curl -X POST "http://<CLUSTERIP>:80/chat" -H "accept: application/json" -H "Content-Type: application/json" -d '{"prompt":"YOUR_PROMPT_HERE"}'
 ```
 
 Advanced Example with Configurable Parameters:
@@ -240,7 +240,7 @@ curl -X POST \
         "forced_eos_token_id":null,
         "remove_invalid_values":null
         }' \
-        "http://<SERVICE-IP>:80/chat"
+        "http://<CLUSTERIP>:80/chat"
 ```
 
 ## Model Parameters
