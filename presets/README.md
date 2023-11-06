@@ -19,7 +19,8 @@ Each model has its own infrastructure requirements. Kaito controller performs a 
 ### Building the Llama image
 1. Select Model Version: Identify the Llama model version to build, such as llama-2-7b or llama-2-7b-chat. Available models include `llama-2-7b, llama-2-13b, llama-2-70b, llama-2-7b-chat, llama-2-13b-chat and llama-2-70b-chat`.
 
-2. Local Preset Path: Point to the local path of the model presets, which are found at the [kaito/presets/llama-2](https://github.com/Azure/kaito/tree/main/presets/llama-2) or [kaito/presets/llama-2-chat](https://github.com/Azure/kaito/tree/main/presets/llama-2-chat) directories for text and chat models, respectively.
+2. Local Preset Path: Point to the local path of the model presets, which are found at the [kaito/presets/llama-2](
+https://github.com/Azure/kaito/tree/main/presets/llama-2) or [kaito/presets/llama-2-chat](https://github.com/Azure/kaito/tree/main/presets/llama-2-chat) directories for text and chat models, respectively.
 
 3. Model Weights: Ensure your model weights are organized as /llama/<MODEL-VERSION> for the build process to include them in the Docker image.
 
