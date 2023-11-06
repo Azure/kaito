@@ -1,0 +1,2 @@
+# Notes:
+For **testing** purposes, users can add the `kaito.sh/enablelb: "True"` annotation to the workspace custom resource. As a result, a `loadbalancer` type service will be created for the inference service with a public IP being assigned. However, this is **NOT** recommended for production use. An [ingress controller](https://learn.microsoft.com/en-us/azure/aks/ingress-basic?tabs=azure-cli) is recommended to expose the service to public.

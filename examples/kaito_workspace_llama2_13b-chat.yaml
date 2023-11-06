@@ -6,7 +6,7 @@ resource:
   instanceType: "Standard_NC12s_v3"
   labelSelector:
     matchLabels:
-      apps: llama-2-13b
+      apps: llama-2-13b-chat
 inference:
   preset:
     name: "llama-2-13b-chat"

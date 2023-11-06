@@ -384,8 +384,8 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 	wAnnotation := wObj.GetAnnotations()
 
 	if len(wAnnotation) != 0 {
-		_, found := lo.FindKey(wAnnotation, kaitov1alpha1.ServiceTypeLoadBalancer)
-		if found {
+		val, found := wAnnotation[kaitov1alpha1.AnnotationEnableLB]
+		if found && val == "True" {
 			serviceType = corev1.ServiceTypeLoadBalancer
 		}
 	}
