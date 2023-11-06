@@ -3,9 +3,7 @@ This repository provides support to containerize open-source large language mode
 
 ## Table of Contents
 1. Prerequisites
-2. Building Images
-   - Building Llama Model Images
-   - Building Falcon Model Images
+2. Building Llama Model Images
 3. API Documentation
    - Llama Model APIs
    - Falcon Model APIs
@@ -14,17 +12,49 @@ This repository provides support to containerize open-source large language mode
    - Falcon Model Parameters
 5. Contributing
 6. License
-
+7. Conclusion
 
 ## Prerequisites
 Each model has its own infrastructure requirements. Kaito controller performs a validation check to ensure your machine(s) has the necessary resources to run the model. For more information see [sku_configs](https://github.com/Azure/kaito/blob/main/api/v1alpha1/sku_config.go)
 
 
-## Building Images 
+### Building the Llama image
+1. Select Model Version: Identify the Llama model version to build, such as llama-2-7b or llama-2-7b-chat. Available models include `llama-2-7b, llama-2-13b, llama-2-70b, llama-2-7b-chat, llama-2-13b-chat and llama-2-70b-chat`.
 
-1. Choose the Desired Model Directory: Navigate to either the llama-2 or llama-2-chat directory, based on the desired model.
-2. Build the Docker Image: ```docker build -t your-image-name:your-tag .```
-3. Deploy the Image to a Container: ```docker run --name your-container-name your-image-name:your-tag```
+2. Local Preset Path: Point to the local path of the model presets, which are found at the [kaito/presets/llama-2](https://github.com/Azure/kaito/tree/main/presets/llama-2) or [kaito/presets/llama-2-chat](https://github.com/Azure/kaito/tree/main/presets/llama-2-chat) directories for text and chat models, respectively.
+
+3. Model Weights: Ensure your model weights are organized as /llama/<MODEL-VERSION> for the build process to include them in the Docker image.
+
+4. Build Command:
+Execute the Docker build command, replacing placeholders with actual values:
+
+```
+docker build \
+  --build-arg LLAMA_VERSION=<MODEL-VERSION> \
+  --build-arg SRC_DIR=<PATH-TO-LLAMA-PRESET> \
+  -t <YOUR-IMAGE-NAME>:<YOUR-TAG> .
+```
+For example, to build the llama-2-7b model, the command would look like this:
+```
+docker build \
+  --build-arg LLAMA_VERSION=llama-2-7b \
+  --build-arg SRC_DIR=/home/kaito/presets/llama-2 \
+  -t llama-2-7b:latest .
+```
+
+5. Check Image:
+Confirm the image creation with `docker images`.
+
+6. Deploy Image with Kaito: With the private image ready, integrate it into the Kaito Controller by updating the inferenceSpec in the deployment YAML file:
+inference:
+  preset:
+    name: <MODEL-VERSION>
+    accessMode: private
+    presetOptions:
+      image: <YOUR IMAGE URL>
+      imagePullSecrets: # Optional
+        - <IMAGE SECRETS>
+Replace `<MODEL-VERSION>`, `<YOUR-IMAGE-URL>`, and `<IMAGE-PULL-SECRET>` with your specific details. For a reference implementation, see the example at [kaito_workspace_llama2_7b-chat.yaml](https://github.com/Azure/kaito/blob/main/examples/kaito_workspace_llama2_7b-chat.yaml)
 
 
 ## API Documentation
@@ -171,6 +201,44 @@ curl -X POST \
          }' \
      http://localhost:5000/chat
 ```
+### Falcon
+Chat Interaction <br>
+Endpoint: ```/chat``` <br>
+Method: POST <br>
+Purpose: Facilitates chat-based text interactions. <br>
+
+Basic Example - Replace `YOUR_PROMPT_HERE` with your actual prompt:
+```
+curl -X POST "http://localhost:5000/chat" -H "accept: application/json" -H "Content-Type: application/json" -d '{"prompt":"YOUR_PROMPT_HERE"}'
+```
+
+Advanced Example with Configurable Parameters:
+```
+curl -X POST \
+    -H "accept: application/json" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "prompt":"YOUR_PROMPT_HERE",
+        "max_length":200,
+        "min_length":0,
+        "do_sample":true,
+        "early_stopping":false,
+        "num_beams":1,
+        "num_beam_groups":1,
+        "diversity_penalty":0.0,
+        "temperature":1.0,
+        "top_k":10,
+        "top_p":1,
+        "typical_p":1,
+        "repetition_penalty":1,
+        "length_penalty":1,
+        "no_repeat_ngram_size":0,"encoder_no_repeat_ngram_size":0,"bad_words_ids":null,
+        "num_return_sequences":1,
+        "output_scores":false,"return_dict_in_generate":false,"forced_bos_token_id":null,"forced_eos_token_id":null,"remove_invalid_values":null
+        }' \
+        "http://localhost:5000/chat"
+```
+
 
 ## Conclusion
 These APIs provide a streamlined approach to harness the capabilities of the Llama 2 model for both text generation and chat-oriented applications. Ensure the correct deployment and configuration for optimal utilization.
