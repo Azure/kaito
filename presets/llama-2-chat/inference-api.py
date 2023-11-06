@@ -212,6 +212,8 @@ def worker_listen_tasks():
             os.killpg(os.getpgrp(), signal.SIGTERM)
         except Exception as e:
             print(f"Error in Worker Listen Task", e)
+            if 'Socket Timeout' in str(e):
+                print("A socket timeout occurred.")
             os.killpg(os.getpgrp(), signal.SIGTERM)
 
 if __name__ == "__main__":

@@ -21,6 +21,6 @@ jobs:
         uses: stefanprodan/helm-gh-pages@v1.7.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          charts_dir: charts/kaito/workspace
-          target_dir: charts/kaito/workspace
+          charts_dir: charts/kaito
+          target_dir: charts/kaito
           linting: off
