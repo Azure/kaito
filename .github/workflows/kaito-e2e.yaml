@@ -7,8 +7,10 @@ concurrency:
 on:
   push:
     branches: [main]
+    paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
   pull_request:
     branches: [main]
+    paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
 
 env:
   GO_VERSION: "1.20"
