@@ -12,19 +12,22 @@ This repository provides support to containerize open-source large language mode
    - Falcon Model Parameters
 5. Conclusion
 
+<!-- markdown-link-check-disable -->
 ## Prerequisites
 Each model has its own infrastructure requirements. Kaito controller performs a validation check to ensure your machine(s) has the necessary resources to run the model. For more information see [sku_configs](https://github.com/Azure/kaito/blob/main/api/v1alpha1/sku_config.go)
-
+<!-- markdown-link-check-enable -->
 
 ### Building the Llama image
 1. Select Model Version: Identify the Llama model version to build, such as llama-2-7b or llama-2-7b-chat. Available models include `llama-2-7b, llama-2-13b, llama-2-70b, llama-2-7b-chat, llama-2-13b-chat and llama-2-70b-chat`.
 
+<!-- markdown-link-check-disable -->
 2. Clone Kaito Repository: Clone the kaito repository using the git command to your local machine
 ```
 git clone https://github.com/Azure/kaito.git
 ```
 Once cloned, the path to model presets will be a fixed one from the root of the cloned repository - [kaito/presets/llama-2](
 https://github.com/Azure/kaito/tree/main/presets/llama-2) or [kaito/presets/llama-2-chat](https://github.com/Azure/kaito/tree/main/presets/llama-2-chat) directories for text and chat models, respectively.
+<!-- markdown-link-check-enable -->
 
 3. Model Weights: Ensure your llama model weights are downloaded for the build process to include them in the Docker image. Llama model weights can be downloaded [here](https://github.com/facebookresearch/llama#download)
 
@@ -64,8 +67,9 @@ inference:
       image: <YOUR IMAGE URL>
       imagePullSecrets: # Optional
         - <IMAGE PULL SECRETS>
+<!-- markdown-link-check-disable -->
 Replace `<MODEL-VERSION>`, `<YOUR-IMAGE-URL>`, and `<IMAGE-PULL-SECRET>` with your specific details. For a reference implementation, see the example at [kaito_workspace_llama2_7b-chat.yaml](https://github.com/Azure/kaito/blob/main/examples/kaito_workspace_llama2_7b-chat.yaml)
-
+<!-- markdown-link-check-enable -->
 
 ## API Documentation
 
@@ -259,8 +263,8 @@ curl -X POST \
 
 ### LLama Model Parameters
  - `temperature`: Adjusts prediction randomness. Lower values (near 0) result in more deterministic outputs; higher values increase randomness.
- - `max_seq_len`: Sets the limit for the length of input and output tokens combined, constrained by the model's architecture. Range: [1, 2048]. [See code] (https://github.com/facebookresearch/llama/blob/llama_v2/llama/model.py#L31)
-- `max_gen_len`: Limits the length of generated text. It's bound by max_seq_len and architecture limit. Total of max_seq_len + max_gen_len must be ≤ 2048 [See code] (https://github.com/facebookresearch/llama/blob/llama_v2/llama/generation.py#L164).
+ - `max_seq_len`: Sets the limit for the length of input and output tokens combined, constrained by the model's architecture. Range: [1, 2048]. [See code](https://github.com/facebookresearch/llama/blob/llama_v2/llama/model.py#L31)
+- `max_gen_len`: Limits the length of generated text. It's bound by max_seq_len and architecture limit. Total of max_seq_len + max_gen_len must be ≤ 2048 [See code](https://github.com/facebookresearch/llama/blob/llama_v2/llama/generation.py#L164).
 - `max_batch_size`: Defines the number of inputs processed together during a computation pass. Larger sizes can improve training speed but consume more memory. Default: 32. (https://github.com/facebookresearch/llama/blob/llama_v2/llama/model.py#L30)
 
 ### Falcon Model Parameters
