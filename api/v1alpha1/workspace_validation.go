@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	N_SERIES_PREFIX = "standard_n"
-	D_SERIES_PREFIX = "standard_d"
+	N_SERIES_PREFIX = "Standard_N"
+	D_SERIES_PREFIX = "Standard_D"
 )
 
 func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
@@ -54,7 +54,7 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 
 func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.FieldError) {
 	presetName := strings.ToLower(string(inference.Preset.Name))
-	instanceType := strings.ToLower(string(r.InstanceType))
+	instanceType := string(r.InstanceType)
 
 	// Check if instancetype exists in our SKUs map
 	if skuConfig, exists := SupportedGPUConfigs[instanceType]; exists {

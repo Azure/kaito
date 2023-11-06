@@ -28,7 +28,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Insufficient total GPU memory",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "standard_nc6",
+				InstanceType: "Standard_NC6",
 				Count:        pointerToInt(1),
 			},
 			inferenceSpec: &InferenceSpec{
@@ -45,7 +45,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Insufficient number of GPUs",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "standard_nc24ads_a100_v4",
+				InstanceType: "Standard_NC24ads_A100_v4",
 				Count:        pointerToInt(1),
 			},
 			inferenceSpec: &InferenceSpec{
@@ -62,7 +62,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Invalid SKU",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "standard_invalid_sku",
+				InstanceType: "Standard_invalid_sku",
 				Count:        pointerToInt(1),
 			},
 			inferenceSpec: &InferenceSpec{
@@ -79,7 +79,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Invalid Preset",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "standard_nv12s_v3",
+				InstanceType: "Standard_NV12s_v3",
 				Count:        pointerToInt(1),
 			},
 			inferenceSpec: &InferenceSpec{
@@ -96,7 +96,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Invalid SKU",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "standard_invalid_sku",
+				InstanceType: "Standard_invalid_sku",
 				Count:        pointerToInt(1),
 			},
 			inferenceSpec: &InferenceSpec{
@@ -113,7 +113,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "N-Prefix SKU",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "standard_nsku",
+				InstanceType: "Standard_Nsku",
 				Count:        pointerToInt(1),
 			},
 			inferenceSpec: &InferenceSpec{
@@ -130,7 +130,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "D-Prefix SKU",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "standard_dsku",
+				InstanceType: "Standard_Dsku",
 				Count:        pointerToInt(1),
 			},
 			inferenceSpec: &InferenceSpec{
@@ -418,17 +418,17 @@ func TestGetSupportedSKUs(t *testing.T) {
 		{
 			name: "one SKU supported",
 			gpuConfigs: map[string]GPUConfig{
-				"standard_nc6": {SKU: "standard_nc6"},
+				"Standard_NC6": {SKU: "Standard_NC6"},
 			},
-			expectedResult: []string{"standard_nc6"},
+			expectedResult: []string{"Standard_NC6"},
 		},
 		{
 			name: "multiple SKUs supported",
 			gpuConfigs: map[string]GPUConfig{
-				"standard_nc6":  {SKU: "standard_nc6"},
-				"standard_nc12": {SKU: "standard_nc12"},
+				"Standard_NC6":  {SKU: "Standard_NC6"},
+				"Standard_NC12": {SKU: "Standard_NC12"},
 			},
-			expectedResult: []string{"standard_nc6", "standard_nc12"},
+			expectedResult: []string{"Standard_NC6", "Standard_NC12"},
 		},
 	}
 
