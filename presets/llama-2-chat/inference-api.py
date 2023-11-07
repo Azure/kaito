@@ -234,7 +234,6 @@ if __name__ == "__main__":
 
         # Uncomment to enable worker logs
         # sys.stdout = sys.__stdout__
-
         os.setpgrp()
         try: 
             # If the current process is the locally ranked 0 (i.e., the primary process)
