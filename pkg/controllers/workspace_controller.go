@@ -422,6 +422,12 @@ func (c *WorkspaceReconciler) getInferenceObjFromPreset(ctx context.Context, wOb
 	presetName := wObj.Inference.Preset.Name
 	var inferenceObj inference.PresetInferenceParam
 	switch presetName {
+	case kaitov1alpha1.PresetLlama2AModel:
+		inferenceObj = inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2AModel]
+	case kaitov1alpha1.PresetLlama2BModel:
+		inferenceObj = inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2BModel]
+	case kaitov1alpha1.PresetLlama2CModel:
+		inferenceObj = inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2CModel]
 	case kaitov1alpha1.PresetLlama2AChat:
 		inferenceObj = inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2AChat]
 	case kaitov1alpha1.PresetLlama2BChat:
