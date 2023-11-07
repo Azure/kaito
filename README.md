@@ -121,7 +121,7 @@ Next, one can find the inference service's cluster ip and use a temporal `curl` 
 ```
 $ kubectl get svc workspace-falcon-7b
 NAME                  TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)            AGE
-workspace-falcon-7b   ClusterIP   <CLUSTERIP>           <none>        80/TCP,29500/TCP   10m
+workspace-falcon-7b   ClusterIP   <CLUSTERIP>  <none>        80/TCP,29500/TCP   10m
 
 $ kubectl run -it --rm --restart=Never curl --image=curlimages/curl sh
 ~ $ curl -X POST http://<CLUSTERIP>/chat -H "accept: application/json" -H "Content-Type: application/json" -d "{\"prompt\":\"YOUR QUESTION HERE\"}"
