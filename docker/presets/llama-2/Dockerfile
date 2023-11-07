@@ -17,7 +17,7 @@ RUN git clone https://github.com/facebookresearch/llama
 
 WORKDIR /workspace/llama
 
-RUN RUN sed -i $'/torch.distributed.init_process_group("nccl")/c\\            import datetime\\\n            torch.distributed.init_process_group("nccl", timeout=datetime.timedelta(days=365*100))' /workspace/llama/llama/generation.py
+RUN sed -i $'/torch.distributed.init_process_group("nccl")/c\\            import datetime\\\n            torch.distributed.init_process_group("nccl", timeout=datetime.timedelta(days=365*100))' /workspace/llama/llama/generation.py
 
 RUN pip install -e .
 RUN pip install fastapi pydantic
