@@ -1,102 +1,85 @@
-# Containerize LLM models
-This repository provides support to containerize open-source large language models (LLMs) such as Llama and Falcon. It includes a Python webserver that integrates the model libraries to offer a simple inference service. Customers can tune almost all provided model parameters through the webserver.
+# Kaito Preset Configurations
+The current supported models with preset configurations are listed below. For models that support distributed inference, when the node count is larger than one, [torch distributed elastic](https://pytorch.org/docs/stable/distributed.elastic.html) is configured with master/worker pods running in multiple nodes and the service endpoint is the master pod.
 
-## Table of Contents
-1. Prerequisites
-2. Building Llama Model Images
-3. API Documentation
-   - Llama Model APIs
-   - Falcon Model APIs
-4. Model Parameters
-   - Llama Model Parameters
-   - Falcon Model Parameters
-5. Conclusion
+|Name|Image source| Sample workspace|Workload|Distributed inference|
+|----|:----:|:----:|:----: |:----: |
+|falcon_7b-instruct  |public |[link](../examples/kaito_workspace_falcon_7b-instruct.yaml)|Deployment| false|
+|falcon_7b           |public |[link](../examples/kaito_workspace_falcon_7b.yaml)|Deployment| false| 
+|falcon_40b-instruct |public |[link](../examples/kaito_workspace_falcon_40b-instruct.yaml)|Deployment| false|
+|falcon_40b          |public |[link](../examples/kaito_workspace_falcon_40b.yaml)|Deployment| false|
+|llama2_7b-chat      |private|[link](../examples/kaito_workspace_llama2_7b-chat.yaml)|StatefulSet| true|
+|llama2_7b           |private|[link](../examples/kaito_workspace_llama2_7b.yaml)|StatefulSet| true|
+|llama2_13b-chat     |private|[link](../examples/kaito_workspace_llama2_13b-chat.yaml)|StatefulSet| true|
+|llama2_13b          |private|[link](../examples/kaito_workspace_llama2_13b.yaml)|StatefulSet| true|
+|llama2_70b-chat     |private|[link](../examples/kaito_workspace_llama2_70b-chat.yaml)|StatefulSet| true|
+|llama2_70b          |private|[link](../examples/kaito_workspace_llama2_70b.yaml)|StatefulSet| true|
 
-<!-- markdown-link-check-disable -->
-## Prerequisites
-Each model has its own infrastructure requirements. Kaito controller performs a validation check to ensure your machine(s) has the necessary resources to run the model. For more information see [sku_configs](https://github.com/Azure/kaito/blob/main/api/v1alpha1/sku_config.go)
-<!-- markdown-link-check-enable -->
 
-### Building the Llama image
-1. Select Model Version: Identify the Llama model version to build, such as llama-2-7b or llama-2-7b-chat. Available models include `llama-2-7b, llama-2-13b, llama-2-70b, llama-2-7b-chat, llama-2-13b-chat and llama-2-70b-chat`.
+## Validation
+Each model has its own hardware requirements in terms of GPU count and GPU memory. Kaito controller performs a validation check to whether the specified SKU and node count are sufficient to run the model or not. In case the provided SKU in not in the known list, the controller bypasses the validation check which means users need to ensure the model can run with the provided SKU. 
 
-<!-- markdown-link-check-disable -->
-2. Clone Kaito Repository: Clone the kaito repository using the git command to your local machine
+## Build private images
+Kaito has built-in images for the supported falcon models which are hosted in a public registry (MCR). For llama2 models, due to the license constraint, users need to containerize the model inference service manually. 
+
+#### 1. Clone Kaito Repository
 ```
 git clone https://github.com/Azure/kaito.git
 ```
-Once cloned, the path to model presets will be a fixed one from the root of the cloned repository - [kaito/presets/llama-2](
-https://github.com/Azure/kaito/tree/main/presets/llama-2) or [kaito/presets/llama-2-chat](https://github.com/Azure/kaito/tree/main/presets/llama-2-chat) directories for text and chat models, respectively.
-<!-- markdown-link-check-enable -->
+The sample docker files and the source code of the inference API server can be found in the repo.
 
-3. Model Weights: Ensure your llama model weights are downloaded for the build process to include them in the Docker image. Llama model weights can be downloaded [here](https://github.com/facebookresearch/llama#download)
+#### 2. Download models
 
-4. Build Command:
-Build your Docker image using the command below, filling in the paths and names specific to your setup:
+This step has to be done manually. Llama2 model weights can be downloaded by following the instructions [here](https://github.com/facebookresearch/llama#download).
+```
+export LLAMA_MODEL_NAME=<one of the supported llama2 model names listed above>
+export LLAMA_WEIGHTS_PATH=<path to your downloaded model weight files>
 
+```
+
+#### 3. Build locally
+Use the following command to build the llama2 inference service image from the root of the repo. 
 ```
 docker build \
-  --file <DOCKERFILE-PATH> \
-  --build-arg LLAMA_WEIGHTS=<LLAMA-WEIGHTS-PATH> \
-  --build-arg SRC_DIR=<LLAMA-PRESET-PATH> \
-  -t <IMAGE-NAME>:<TAG> .
+  --file docker/presets/llama-2/Dockerfile \
+  --build-arg LLAMA_WEIGHTS=$LLAMA_WEIGHTS_PATH \
+  --build-arg SRC_DIR=presets/llama-2 \
+  -t $LLAMA_MODEL_NAME:latest .
 ```
-For example, to build the llama-2-7b model image:
+Similarly, use the following command to build the llama2-chat inference service image from the root of the repo.
 ```
 docker build \
-  --file kaito/docker/presets/llama-2/Dockerfile \
-  --build-arg LLAMA_WEIGHTS=kaito/llama/llama-2-7b/weights \
-  --build-arg SRC_DIR=kaito/presets/llama-2 \
-  -t llama-2-7b:latest .
+  --file docker/presets/llama-2/Dockerfile \
+  --build-arg LLAMA_WEIGHTS=$LLAMA_WEIGHTS_PATH \
+  --build-arg SRC_DIR=presets/llama-2-chat \
+  -t $LLAMA_MODEL_NAME:latest .
 ```
-In this example:
-- `kaito/docker/presets/llama-2/Dockerfile` is the path to the Dockerfile within the kaito repository.
-- `kaito/llama/llama-2-7b/weights` is the directory where the llama-2-7b model weights are located.
-- `kaito/presets/llama-2` is the directory containing the preset configurations for the llama-2 model.
-- `llama-2-7b:latest` is the Docker image being built, where llama-2-7b is the image name, and latest signifies the tag name.
+Then `docker push` the images to your private registry.
 
-5. Check Image:
-Confirm the image creation with `docker images`.
-
-6. Deploy Image with Kaito: With the private image ready, integrate it into the Kaito Controller by updating the inferenceSpec in the deployment YAML file:
+#### 4. Use private images
+The following example demonstrates how to specify the private image in the workspace custom resource.
+```
 inference:
   preset:
-    name: <MODEL-VERSION>
+    name: $LLAMA_MODEL_NAME 
     accessMode: private
     presetOptions:
       image: <YOUR IMAGE URL>
       imagePullSecrets: # Optional
         - <IMAGE PULL SECRETS>
-<!-- markdown-link-check-disable -->
-Replace `<MODEL-VERSION>`, `<YOUR-IMAGE-URL>`, and `<IMAGE-PULL-SECRET>` with your specific details. For a reference implementation, see the example at [kaito_workspace_llama2_7b-chat.yaml](https://github.com/Azure/kaito/blob/main/examples/kaito_workspace_llama2_7b-chat.yaml)
-<!-- markdown-link-check-enable -->
+```
 
-## API Documentation
+## Use inference API servers
 
-### Llama-2 Text Completion 
-1. Server Health Check <br>
-Endpoint: ```/``` <br>
-Method: GET <br>
-Purpose: Check if the server is running. <br>
-Example: ```curl http://<CLUSTERIP>:80/```
+The inference API server uses ports 80 and exposes model health check endpoint `/healthz` and server health check endpoint `/`. The inference service is exposed by a Kubernetes service with ClusterIP type by default.
 
-2. Model Health Check <br>
-Endpoint: ```/healthz``` <br>
-Method: GET <br>
-Purpose: Check if the model and GPU are properly initialized. <br>
-Example: ```curl http://<CLUSTERIP>:80/healthz```
+### Case 1: Llama-2 models
+| Type  | Endpoint|
+|---| --- |
+| Text Completion     | POST `/generate`   |
+| Chat     | POST `/chat`   |
 
-3. Shutdown <br>
-Endpoint: ```/shutdown``` <br>
-Method: POST <br>
-Purpose: Shutdown server and program processes.  <br>
-Example: ```curl -X POST http://<CLUSTERIP>:80/shutdown```
 
-4. Complete Text <br>
-Endpoint: ```/generate``` <br>
-Method: POST <br>
-Purpose: Complete text based on a given prompt. <br>
-Example: 
+#### Text completion example
 ```
 curl -X POST \
      -H "Content-Type: application/json" \
@@ -114,14 +97,7 @@ curl -X POST \
      http://<CLUSTERIP>:80/generate
 ```
 
-### Llama-2-chat Interaction
-**Note:** Apart from the distinct chat interaction endpoint described below, all other endpoints (Server Health Check, Model Health Check, and Shutdown) for Llama-2-chat are identical to those in Llama-2.
-
-Chat Interaction <br>
-Endpoint: ```/chat``` <br>
-Method: POST <br>
-Purpose: Facilitates chat-based text interactions. <br>
-Example:
+#### Chat example
 ```
 curl -X POST \
      -H "Content-Type: application/json" \
@@ -165,68 +141,25 @@ curl -X POST \
          }' \
      http://<CLUSTERIP>:80/chat
 ```
-```
-curl -X POST \
-     -H "Content-Type: application/json" \
-     -d '{
-           "input_data": {
-               "input_string": [
-                   [
-                       {
-                           "role": "user",
-                           "content": "I am going to Paris, what should I see?"
-                       },
-                       {
-                           "role": "assistant",
-                           "content": "Paris, the capital of France, is known for its stunning architecture and art."
-                       },
-                       {
-                           "role": "user",
-                           "content": "What is so great about its art?"
-                       }
-                   ]
-               ],
-               "parameters": {
-                   "temperature": 0.6,
-                   "top_p": 0.9
-               }
-           }
-         }' \
-     http://<CLUSTERIP>:80/chat
-```
-```
-curl -X POST \
-     -H "Content-Type: application/json" \
-     -d '{
-           "input_data": {
-               "input_string": [
-                   [
-                       {
-                           "role": "system",
-                           "content": "You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe."
-                       },
-                       {
-                           "role": "user",
-                           "content": "Write a brief birthday message to John"
-                       }
-                   ]
-               ]
-           }
-         }' \
-     http://<CLUSTERIP>:80/chat
-```
-### Falcon
-Chat Interaction <br>
-Endpoint: ```/chat``` <br>
-Method: POST <br>
-Purpose: Facilitates chat-based text interactions. <br>
+#### Parameters
 
-Basic Example - Replace `YOUR_PROMPT_HERE` with your actual prompt:
+- `temperature`: Adjust prediction randomness. Lower values (near 0) result in more deterministic outputs; higher values increase randomness.
+- `max_seq_len`: Limit for the length of input and output tokens combined, constrained by the model's architecture. The value is between 1 and 2048. 
+- `max_gen_len`: Limit for the length of generated text. It's bounded by max_seq_len and model architecture. Note that `max_seq_len + max_gen_len  ≤ 2048`.
+- `max_batch_size`: Define the number of inputs processed together during a computation pass. Default: 32. 
+
+
+
+### Case 2: Falcons models
+
+The inference service endpoint is `/chat`.
+
+#### Basic example
 ```
 curl -X POST "http://<CLUSTERIP>:80/chat" -H "accept: application/json" -H "Content-Type: application/json" -d '{"prompt":"YOUR_PROMPT_HERE"}'
 ```
 
-Advanced Example with Configurable Parameters:
+#### Example with full configurable parameters
 ```
 curl -X POST \
     -H "accept: application/json" \
@@ -259,15 +192,7 @@ curl -X POST \
         "http://<CLUSTERIP>:80/chat"
 ```
 
-## Model Parameters
-
-### LLama Model Parameters
- - `temperature`: Adjusts prediction randomness. Lower values (near 0) result in more deterministic outputs; higher values increase randomness.
- - `max_seq_len`: Sets the limit for the length of input and output tokens combined, constrained by the model's architecture. Range: [1, 2048]. [See code](https://github.com/facebookresearch/llama/blob/llama_v2/llama/model.py#L31)
-- `max_gen_len`: Limits the length of generated text. It's bound by max_seq_len and architecture limit. Total of max_seq_len + max_gen_len must be ≤ 2048 [See code](https://github.com/facebookresearch/llama/blob/llama_v2/llama/generation.py#L164).
-- `max_batch_size`: Defines the number of inputs processed together during a computation pass. Larger sizes can improve training speed but consume more memory. Default: 32. (https://github.com/facebookresearch/llama/blob/llama_v2/llama/model.py#L30)
-
-### Falcon Model Parameters
+#### Parameters
 - `prompt`: The initial text provided by the user, from which the model will continue generating text.
 - `max_length`: The maximum total number of tokens in the generated text.
 - `min_length`: The minimum total number of tokens that should be generated.
@@ -294,10 +219,4 @@ curl -X POST \
 - `forced_eos_token_id`: The token ID that is forcibly used as the end of a sequence when max_length is reached.
 - `remove_invalid_values`: If True, filters out invalid values like NaNs or infs from model outputs to prevent crashes.
 
-For a detailed explanation of each parameter and their effects on the response, consult this [reference page](https://huggingface.co/docs/transformers/main_classes/text_generation)
-
-## Conclusion
-These APIs provide a streamlined approach to harness the capabilities of the Llama 2 and Falcon models for text generation and chat-oriented applications. Ensure the correct deployment and configuration for optimal utilization.
-
-
-
+For a detailed explanation of each parameter and their effects on the response, consult this [page](https://huggingface.co/docs/transformers/main_classes/text_generation).
