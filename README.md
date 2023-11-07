@@ -27,8 +27,6 @@ The above figure presents the Kaito architecture overview. Its major components 
 Note that the *gpu-provisioner* is not an open sourced component. It can be replaced by other controllers if they support Karpenter-core APIs.
 
 
----
-
 ## Installation 
 The following guidance assumes **Azure Kubernetes Service(AKS)** is used to host the Kubernetes cluster .
 
@@ -92,9 +90,7 @@ helm uninstall gpu-provisioner
 helm uninstall workspace
 ```
 
----
 ## Quick start
-
 After installing Kaito, one can try following commands to start a faclon-7b inference service.
 ```
 $ cat examples/kaito_workspace_falcon_7b.yaml
@@ -113,13 +109,14 @@ inference:
 
 $ kubectl apply -f examples/kaito_workspace_falcon_7b.yaml
 ```
+
 The workspace status can be tracked by running the following command. When the WORKSPACEREADY column becomes `True`, the model has been deployed successfully.  
 ```
 $ kubectl get workspace workspace-falcon-7b
 NAME                  INSTANCE            RESOURCEREADY   INFERENCEREADY   WORKSPACEREADY   AGE
 workspace-falcon-7b   Standard_NC12s_v3   True            True             True             10m
-
 ```
+
 Next, one can find the inference service's cluster ip and use a temporal `curl` pod to test the service endpoint in the cluster.
 ```
 $ kubectl get svc workspace-falcon-7b
@@ -128,9 +125,12 @@ workspace-falcon-7b   ClusterIP   <CLUSTERIP>           <none>        80/TCP,295
 
 $ kubectl run -it --rm --restart=Never curl --image=curlimages/curl sh
 ~ $ curl -X POST http://<CLUSTERIP>/chat -H "accept: application/json" -H "Content-Type: application/json" -d "{\"prompt\":\"YOUR QUESTION HERE\"}"
-
 ```
----
+
+## Usage
+
+The detailed usage for Kaito supported models can be found in [**HERE**](presets/README.md). In case users want to deploy their own containerized models, they can provide the pod template in the `inference` field of the workspace custom resource (please see [API definitions](api/v1alpha1/workspace_types.go) for details). The controller will create a deployment workload using all provisioned GPU nodes. Note that currently the controller does **NOT** handle automatic model upgrade. It only creates inference workloads based on the preset configurations if the workloads do not exist.
+
 ## Contributing
 
 [Read more](docs/contributing/readme.md)
