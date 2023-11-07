@@ -150,7 +150,7 @@ curl -X POST \
 
 
 
-### Case 2: Falcons models
+### Case 2: Falcon models
 
 The inference service endpoint is `/chat`.
 

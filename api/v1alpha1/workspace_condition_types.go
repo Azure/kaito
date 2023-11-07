@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 package v1alpha1
 
 // ConditionType is a valid value for Condition.Type.
