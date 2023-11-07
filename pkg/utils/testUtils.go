@@ -88,6 +88,27 @@ var (
 )
 
 var (
+	MockWorkspaceWithInferenceTemplate = &v1alpha1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testWorkspace",
+			Namespace: "kaito",
+		},
+		Resource: v1alpha1.ResourceSpec{
+			Count:        &gpuNodeCount,
+			InstanceType: "Standard_NC12s_v3",
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"apps": "test",
+				},
+			},
+		},
+		Inference: v1alpha1.InferenceSpec{
+			Template: &corev1.PodTemplateSpec{},
+		},
+	}
+)
+
+var (
 	gpuNodeCount = 1
 )
 
