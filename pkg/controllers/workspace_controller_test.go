@@ -483,5 +483,58 @@ func TestApplyInferenceWithTemplate(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestGetAllQualifiedNodes(t *testing.T) {
+	testcases := map[string]struct {
+		callMocks     func(c *utils.MockClient)
+		expectedError error
+	}{
+		"Fails to get qualified nodes because can't list nodes": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(errors.New("Failed to list nodes"))
+			},
+			expectedError: errors.New("Failed to list nodes"),
+		},
+		"Gets all qualified nodes": {
+			callMocks: func(c *utils.MockClient) {
+				nodeList := utils.MockNodeList
+				relevantMap := c.CreateMapWithType(nodeList)
+				//insert node objects into the map
+				for _, obj := range utils.MockNodeList.Items {
+					n := obj
+					objKey := client.ObjectKeyFromObject(&n)
+
+					relevantMap[objKey] = &n
+				}
+
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(nil)
+			},
+			expectedError: nil,
+		},
+	}
+
+	for k, tc := range testcases {
+		t.Run(k, func(t *testing.T) {
+			mockClient := utils.NewClient()
+			mockWorkspace := utils.MockWorkspace
+			reconciler := &WorkspaceReconciler{
+				Client: mockClient,
+				Scheme: utils.NewTestScheme(),
+			}
+			ctx := context.Background()
+
+			tc.callMocks(mockClient)
+
+			nodes, err := reconciler.getAllQualifiedNodes(ctx, mockWorkspace)
+			if tc.expectedError == nil {
+				assert.Check(t, err == nil, "Not expected to return error")
+				assert.Check(t, nodes != nil, "Response node array should not be nil")
+				assert.Check(t, len(nodes) == 1, "One out of three nodes should be qualified")
+			} else {
+				assert.Equal(t, tc.expectedError.Error(), err.Error())
+				assert.Check(t, nodes == nil, "Response node array should be nil")
+			}
+		})
+	}
 }
