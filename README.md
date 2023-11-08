@@ -31,7 +31,7 @@ Note that the *gpu-provisioner* is not an open sourced component. It can be repl
 The following guidance assumes **Azure Kubernetes Service(AKS)** is used to host the Kubernetes cluster .
 
 #### Enable Workload Identity and OIDC Issuer features
-The *gpu-povisioner* controller requires the [workload identity](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview?tabs=dotnet) feature to acquire the access token to the AKS cluster.
+The *gpu-provisioner* controller requires the [workload identity](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview?tabs=dotnet) feature to acquire the access token to the AKS cluster.
 
 ```bash
 export RESOURCE_GROUP="myResourceGroup"
@@ -40,7 +40,7 @@ az aks update -g $RESOURCE_GROUP -n $MY_CLUSTER --enable-oidc-issuer --enable-wo
 ```
 
 #### Create an identity and assign permissions
-The identity `kaitoprovisioner` is created for the *gpu-povisioner* controller. It is assigned Contributor role for the managed cluster resource to allow changing `$MY_CLUSTER` (e.g., provisioning new nodes in it).
+The identity `kaitoprovisioner` is created for the *gpu-provisioner* controller. It is assigned Contributor role for the managed cluster resource to allow changing `$MY_CLUSTER` (e.g., provisioning new nodes in it).
 ```bash
 export SUBSCRIPTION="mySubscription"
 az identity create --name kaitoprovisioner -g $RESOURCE_GROUP
@@ -91,7 +91,7 @@ helm uninstall workspace
 ```
 
 ## Quick start
-After installing Kaito, one can try following commands to start a faclon-7b inference service.
+After installing Kaito, one can try following commands to start a falcon-7b inference service.
 ```
 $ cat examples/kaito_workspace_falcon_7b.yaml
 apiVersion: kaito.sh/v1alpha1

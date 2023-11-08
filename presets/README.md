@@ -16,7 +16,7 @@ The current supported models with preset configurations are listed below. For mo
 
 
 ## Validation
-Each model has its own hardware requirements in terms of GPU count and GPU memory. Kaito controller performs a validation check to whether the specified SKU and node count are sufficient to run the model or not. In case the provided SKU in not in the known list, the controller bypasses the validation check which means users need to ensure the model can run with the provided SKU. 
+Each model has its own hardware requirements in terms of GPU count and GPU memory. Kaito controller performs a validation check of whether the specified SKU and node count are sufficient to run the model or not. In case the provided SKU is not in the known list, the controller bypasses the validation check which means users need to ensure the model can run with the provided SKU. 
 
 ## Build private images
 Kaito has built-in images for the supported falcon models which are hosted in a public registry (MCR). For llama2 models, due to the license constraint, users need to containerize the model inference service manually. 
@@ -29,7 +29,7 @@ The sample docker files and the source code of the inference API server can be f
 
 #### 2. Download models
 
-This step has to be done manually. Llama2 model weights can be downloaded by following the instructions [here](https://github.com/facebookresearch/llama#download).
+This step must be done manually. Llama2 model weights can be downloaded by following the instructions [here](https://github.com/facebookresearch/llama#download).
 ```
 export LLAMA_MODEL_NAME=<one of the supported llama2 model names listed above>
 export LLAMA_WEIGHTS_PATH=<path to your downloaded model weight files>
@@ -70,7 +70,7 @@ inference:
 
 ## Use inference API servers
 
-The inference API server uses ports 80 and exposes model health check endpoint `/healthz` and server health check endpoint `/`. The inference service is exposed by a Kubernetes service with ClusterIP type by default.
+The inference API server uses port 80 and exposes model health check endpoint `/healthz` and server health check endpoint `/`. The inference service is exposed by a Kubernetes service with ClusterIP type by default.
 
 ### Case 1: Llama-2 models
 | Type  | Endpoint|
