@@ -193,6 +193,14 @@ var (
 	}
 )
 
+var (
+	MockMachineList = &v1alpha5.MachineList{
+		Items: []v1alpha5.Machine{
+			MockMachine,
+		},
+	}
+)
+
 func NewTestScheme() *runtime.Scheme {
 	testScheme := runtime.NewScheme()
 	_ = appsv1.AddToScheme(testScheme)

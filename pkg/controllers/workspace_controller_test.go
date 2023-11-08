@@ -538,3 +538,109 @@ func TestGetAllQualifiedNodes(t *testing.T) {
 		})
 	}
 }
+
+func TestDeleteWorkspace(t *testing.T) {
+	testcases := map[string]struct {
+		callMocks     func(c *utils.MockClient)
+		expectedError error
+	}{
+		"Fails to delete workspace because workspace object cannot be retrieved": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(errors.New("Failed to get workspace"))
+			},
+			expectedError: errors.New("Failed to get workspace"),
+		},
+		"Fails to delete workspace because associated machines cannot be retrieved": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1alpha5.MachineList{}), mock.Anything).Return(errors.New("Failed to list machines"))
+			},
+			expectedError: errors.New("Failed to list machines"),
+		},
+		"Fails to delete workspace because associated machines cannot be deleted": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+
+				machineList := utils.MockMachineList
+				relevantMap := c.CreateMapWithType(machineList)
+				//insert machine objects into the map
+				for _, obj := range utils.MockMachineList.Items {
+					m := obj
+					objKey := client.ObjectKeyFromObject(&m)
+
+					relevantMap[objKey] = &m
+				}
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1alpha5.MachineList{}), mock.Anything).Return(nil)
+				c.On("Delete", mock.IsType(context.Background()), mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(errors.New("Failed to delete machine"))
+
+			},
+			expectedError: errors.New("Failed to delete machine"),
+		},
+		"Delete workspace because finalizer cannot be removed from workspace": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(errors.New("Failed to update workspace"))
+
+				machineList := utils.MockMachineList
+				relevantMap := c.CreateMapWithType(machineList)
+				//insert machine objects into the map
+				for _, obj := range utils.MockMachineList.Items {
+					m := obj
+					objKey := client.ObjectKeyFromObject(&m)
+
+					relevantMap[objKey] = &m
+				}
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1alpha5.MachineList{}), mock.Anything).Return(nil)
+				c.On("Delete", mock.IsType(context.Background()), mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
+			},
+			expectedError: errors.New("Failed to update workspace"),
+		},
+		"Successfully deletes workspace and removes finalizer associated with workspace": {
+			callMocks: func(c *utils.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+
+				machineList := utils.MockMachineList
+				relevantMap := c.CreateMapWithType(machineList)
+				//insert machine objects into the map
+				for _, obj := range utils.MockMachineList.Items {
+					m := obj
+					objKey := client.ObjectKeyFromObject(&m)
+
+					relevantMap[objKey] = &m
+				}
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1alpha5.MachineList{}), mock.Anything).Return(nil)
+				c.On("Delete", mock.IsType(context.Background()), mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
+			},
+			expectedError: nil,
+		},
+	}
+
+	for k, tc := range testcases {
+		t.Run(k, func(t *testing.T) {
+			mockClient := utils.NewClient()
+
+			mockClient.UpdateCb = func(key types.NamespacedName) {}
+
+			tc.callMocks(mockClient)
+
+			reconciler := &WorkspaceReconciler{
+				Client: mockClient,
+				Scheme: utils.NewTestScheme(),
+			}
+			ctx := context.Background()
+
+			_, err := reconciler.deleteWorkspace(ctx, utils.MockWorkspace)
+			if tc.expectedError == nil {
+				assert.Check(t, err == nil, "Not expected to return error")
+			} else {
+				assert.Equal(t, tc.expectedError.Error(), err.Error())
+			}
+		})
+	}
+}

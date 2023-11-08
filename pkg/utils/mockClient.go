@@ -7,6 +7,7 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -101,6 +102,14 @@ func (m *MockClient) getObjectListFromMap(list k8sClient.ObjectList) k8sClient.O
 			}
 		}
 		return nodeList
+	case *v1alpha5.MachineList:
+		machineList := &v1alpha5.MachineList{}
+		for _, obj := range relevantMap {
+			if m, ok := obj.(*v1alpha5.Machine); ok {
+				machineList.Items = append(machineList.Items, *m)
+			}
+		}
+		return machineList
 	}
 	//add additional object lists as needed
 	return nil
