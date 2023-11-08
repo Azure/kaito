@@ -71,7 +71,9 @@ func (m *MockClient) GetObjectFromMap(obj k8sClient.Object, key types.Namespaced
 // k8s Client interface
 func (m *MockClient) Get(ctx context.Context, key types.NamespacedName, obj k8sClient.Object, opts ...k8sClient.GetOption) error {
 	//make any necessary changes to the object
-	m.UpdateCb(key)
+	if m.UpdateCb != nil {
+		m.UpdateCb(key)
+	}
 
 	m.GetObjectFromMap(obj, key)
 
