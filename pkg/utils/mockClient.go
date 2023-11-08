@@ -8,6 +8,7 @@ import (
 	"reflect"
 
 	"github.com/stretchr/testify/mock"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -34,8 +35,7 @@ func NewClient() *MockClient {
 }
 
 // Retrieves or creates a map associated with the type of obj
-func (m *MockClient) ensureMapFor(obj k8sClient.Object) map[k8sClient.ObjectKey]k8sClient.Object {
-	t := reflect.TypeOf(obj)
+func (m *MockClient) ensureMapForType(t reflect.Type) map[k8sClient.ObjectKey]k8sClient.Object {
 	if _, ok := m.ObjectMap[t]; !ok {
 		//create a new map with the object key if it doesn't exist
 		m.ObjectMap[t] = map[k8sClient.ObjectKey]k8sClient.Object{}
@@ -43,15 +43,23 @@ func (m *MockClient) ensureMapFor(obj k8sClient.Object) map[k8sClient.ObjectKey]
 	return m.ObjectMap[t]
 }
 
+func (m *MockClient) CreateMapWithType(t interface{}) map[k8sClient.ObjectKey]k8sClient.Object {
+	objType := reflect.TypeOf(t)
+
+	return m.ensureMapForType(objType)
+}
+
 func (m *MockClient) CreateOrUpdateObjectInMap(obj k8sClient.Object) {
-	relevantMap := m.ensureMapFor(obj)
+	t := reflect.TypeOf(obj)
+	relevantMap := m.ensureMapForType(t)
 	objKey := k8sClient.ObjectKeyFromObject(obj)
 
 	relevantMap[objKey] = obj
 }
 
 func (m *MockClient) GetObjectFromMap(obj k8sClient.Object, key types.NamespacedName) {
-	relevantMap := m.ensureMapFor(obj)
+	t := reflect.TypeOf(obj)
+	relevantMap := m.ensureMapForType(t)
 
 	if val, ok := relevantMap[key]; ok {
 		v := reflect.ValueOf(obj).Elem()
@@ -71,8 +79,31 @@ func (m *MockClient) Get(ctx context.Context, key types.NamespacedName, obj k8sC
 }
 
 func (m *MockClient) List(ctx context.Context, list k8sClient.ObjectList, opts ...k8sClient.ListOption) error {
+
+	v := reflect.ValueOf(list).Elem()
+	newList := m.getObjectListFromMap(list)
+	v.Set(reflect.ValueOf(newList).Elem())
+
 	args := m.Called(ctx, list, opts)
 	return args.Error(0)
+}
+
+func (m *MockClient) getObjectListFromMap(list k8sClient.ObjectList) k8sClient.ObjectList {
+	objType := reflect.TypeOf(list)
+	relevantMap := m.ensureMapForType(objType)
+
+	switch list.(type) {
+	case *corev1.NodeList:
+		nodeList := &corev1.NodeList{}
+		for _, obj := range relevantMap {
+			if node, ok := obj.(*corev1.Node); ok {
+				nodeList.Items = append(nodeList.Items, *node)
+			}
+		}
+		return nodeList
+	}
+	//add additional object lists as needed
+	return nil
 }
 
 func (m *MockClient) Create(ctx context.Context, obj k8sClient.Object, opts ...k8sClient.CreateOption) error {

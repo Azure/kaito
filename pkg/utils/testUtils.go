@@ -109,6 +109,54 @@ var (
 )
 
 var (
+	MockNodeList = &corev1.NodeList{
+		Items: nodes,
+	}
+)
+
+var (
+	nodes = []corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node1",
+				Labels: map[string]string{
+					corev1.LabelInstanceTypeStable: "Standard_NC12s_v3",
+				},
+			},
+			Status: corev1.NodeStatus{
+				Conditions: []corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionTrue,
+					},
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node2",
+				Labels: map[string]string{
+					corev1.LabelInstanceTypeStable: "Wrong_Instance_Type",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node3",
+			},
+			Status: corev1.NodeStatus{
+				Conditions: []corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionFalse,
+					},
+				},
+			},
+		},
+	}
+)
+
+var (
 	gpuNodeCount = 1
 )
 
