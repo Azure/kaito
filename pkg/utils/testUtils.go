@@ -6,9 +6,11 @@ package utils
 import (
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -45,6 +47,7 @@ var (
 			Namespace: "kaito",
 		},
 		Resource: v1alpha1.ResourceSpec{
+			Count:        &gpuNodeCount2,
 			InstanceType: "Standard_NC12s_v3",
 			LabelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
@@ -121,6 +124,7 @@ var (
 				Name: "node1",
 				Labels: map[string]string{
 					corev1.LabelInstanceTypeStable: "Standard_NC12s_v3",
+					resources.LabelKeyNvidia:       resources.LabelValueNvidia,
 				},
 			},
 			Status: corev1.NodeStatus{
@@ -129,6 +133,9 @@ var (
 						Type:   corev1.NodeReady,
 						Status: corev1.ConditionTrue,
 					},
+				},
+				Capacity: corev1.ResourceList{
+					resources.CapacityNvidiaGPU: resource.MustParse("1"),
 				},
 			},
 		},
@@ -158,6 +165,8 @@ var (
 
 var (
 	gpuNodeCount = 1
+
+	gpuNodeCount2 = 2
 )
 
 var (
