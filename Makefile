@@ -91,7 +91,7 @@ GINKGO_FOCUS ?=
 GINKGO_SKIP ?=
 GINKGO_NODES ?= 1
 GINKGO_NO_COLOR ?= false
-GINKGO_TIMEOUT ?= 60m
+GINKGO_TIMEOUT ?= 150m
 GINKGO_ARGS ?= -focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" -nodes=$(GINKGO_NODES) -no-color=$(GINKGO_NO_COLOR) -timeout=$(GINKGO_TIMEOUT)
 
 .PHONY: kaito-workspace-e2e-test
@@ -190,7 +190,7 @@ gpu-provisioner-helm:  ## Update Azure client env vars and settings in helm valu
 	$(eval AZURE_SUBSCRIPTION_ID=$(shell az account show | jq -r ".id"))
 
 	yq -i '(.controller.image.repository)                                              = "mcr.microsoft.com/aks/kaito/gpu-provisioner"'       ./charts/kaito/gpu-provisioner/values.yaml
-	yq -i '(.controller.image.tag)                                                     = "0.0.1"'                                             ./charts/kaito/gpu-provisioner/values.yaml
+	yq -i '(.controller.image.tag)                                                     = "0.1.0"'                                             ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.controller.env[] | select(.name=="ARM_SUBSCRIPTION_ID"))           .value = "$(AZURE_SUBSCRIPTION_ID)"'                          ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.controller.env[] | select(.name=="LOCATION"))                      .value = "$(AZURE_LOCATION)"'                                 ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.controller.env[] | select(.name=="ARM_RESOURCE_GROUP"))            .value = "$(AZURE_RESOURCE_GROUP)"'                           ./charts/kaito/gpu-provisioner/values.yaml
