@@ -82,9 +82,11 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				InstanceType: "Standard_NV12s_v3",
 				Count:        pointerToInt(1),
 			},
-			inferenceSpec: &InferenceSpec{},
-			errContent:    "",
-			expectErrs:    false,
+			inferenceSpec: &InferenceSpec{
+				Template: &v1.PodTemplateSpec{}, // Assuming a non-nil TemplateSpec implies it's set
+			},
+			errContent: "",
+			expectErrs: false,
 		},
 		{
 			name: "Invalid Preset",
