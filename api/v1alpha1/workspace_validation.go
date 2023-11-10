@@ -123,12 +123,12 @@ func (r *ResourceSpec) validateUpdate(old *ResourceSpec) (errs *apis.FieldError)
 func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
 	// Check if both Preset and Template are not set
 	if i.Preset == nil && i.Template == nil {
-		return errs.Also(apis.ErrMissingField("Preset or Template must be specified"))
+		errs = errs.Also(apis.ErrMissingField("Preset or Template must be specified"))
 	}
 
 	// Check if both Preset and Template are set at the same time
 	if i.Preset != nil && i.Template != nil {
-		return errs.Also(apis.ErrGeneric("Preset and Template cannot be set at the same time"))
+		errs = errs.Also(apis.ErrGeneric("Preset and Template cannot be set at the same time"))
 	}
 
 	var presetName string
