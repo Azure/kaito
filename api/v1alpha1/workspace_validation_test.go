@@ -75,7 +75,18 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			errContent: "Unsupported instance",
 			expectErrs: true,
 		},
-
+		{
+			name: "Only Template set",
+			resourceSpec: &ResourceSpec{
+				InstanceType: "Standard_NV12s_v3",
+				Count:        pointerToInt(1),
+			},
+			inferenceSpec: &InferenceSpec{
+				Template: &v1.PodTemplateSpec{}, // Assuming a non-nil TemplateSpec implies it's set
+			},
+			errContent: "",
+			expectErrs: false,
+		},
 		{
 			name: "Invalid Preset",
 			resourceSpec: &ResourceSpec{
@@ -263,6 +274,20 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			expectErrs: true,
 		},
 		{
+			name: "Only Template set",
+			inferenceSpec: &InferenceSpec{
+				Template: &v1.PodTemplateSpec{}, // Assuming a non-nil TemplateSpec implies it's set
+			},
+			errContent: "",
+			expectErrs: false,
+		},
+		{
+			name:          "Preset and Template Unset",
+			inferenceSpec: &InferenceSpec{},
+			errContent:    "Preset or Template must be specified",
+			expectErrs:    true,
+		},
+		{
 			name: "Preset and Template Set",
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
@@ -272,7 +297,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 				},
 				Template: &v1.PodTemplateSpec{}, // Assuming a non-nil TemplateSpec implies it's set
 			},
-			errContent: "preset and template cannot be set at the same time",
+			errContent: "Preset and Template cannot be set at the same time",
 			expectErrs: true,
 		},
 		{
