@@ -86,7 +86,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			expectErrs:    true,
 		},
 		{
-			name: "Preset Unset",
+			name: "Only Template set",
 			resourceSpec: &ResourceSpec{
 				InstanceType: "Standard_NV12s_v3",
 				Count:        pointerToInt(1),
