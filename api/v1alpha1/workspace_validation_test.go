@@ -263,6 +263,12 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			expectErrs: true,
 		},
 		{
+			name:          "Preset and Template Unset",
+			inferenceSpec: &InferenceSpec{},
+			errContent:    "Preset or Template must be specified",
+			expectErrs:    true,
+		},
+		{
 			name: "Preset and Template Set",
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
@@ -272,7 +278,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 				},
 				Template: &v1.PodTemplateSpec{}, // Assuming a non-nil TemplateSpec implies it's set
 			},
-			errContent: "preset and template cannot be set at the same time",
+			errContent: "Preset and Template cannot be set at the same time",
 			expectErrs: true,
 		},
 		{
