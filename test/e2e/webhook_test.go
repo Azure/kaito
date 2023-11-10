@@ -30,12 +30,6 @@ var _ = Describe("Workspace Validation Webhook", func() {
 			}, 20*time.Minute, utils.PollInterval).
 				Should(HaveOccurred(), "Failed to create workspace %s", workspaceObj.Name)
 		})
-
-		// delete	workspace
-		Eventually(func() error {
-			return TestingCluster.KubeClient.Delete(ctx, workspaceObj, &client.DeleteOptions{})
-		}, utils.PollTimeout, utils.PollInterval).Should(Succeed(), "Failed to delete workspace")
-
 	})
 
 	It("should validate the workspace inference spec at creation ", func() {
@@ -51,12 +45,6 @@ var _ = Describe("Workspace Validation Webhook", func() {
 			}, utils.PollTimeout, utils.PollInterval).
 				Should(HaveOccurred(), "Failed to create workspace %s", workspaceObj.Name)
 		})
-
-		// delete	workspace
-		Eventually(func() error {
-			return TestingCluster.KubeClient.Delete(ctx, workspaceObj, &client.DeleteOptions{})
-		}, utils.PollTimeout, utils.PollInterval).Should(Succeed(), "Failed to delete workspace")
-
 	})
 
 	//TODO preset private mode
