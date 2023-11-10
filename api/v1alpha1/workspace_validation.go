@@ -41,8 +41,8 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		- The preset name needs to be supported enum.
 		*/
 		errs = errs.Also(
-			w.Resource.validateCreate(w.Inference).ViaField("resource"),
 			w.Inference.validateCreate().ViaField("inference"),
+			w.Resource.validateCreate(w.Inference).ViaField("resource"),
 		)
 	} else {
 		klog.InfoS("Validate update", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
@@ -56,34 +56,34 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 }
 
 func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.FieldError) {
-	if inference.Preset == nil && inference.Template == nil {
-		return errs.Also(apis.ErrMissingField("Preset or Template must be specified"))
-	} else if inference.Preset == nil && inference.Template != nil {
-		return errs
+	var presetName string
+	if inference.Preset != nil {
+		presetName = strings.ToLower(string(inference.Preset.Name))
 	}
-	presetName := strings.ToLower(string(inference.Preset.Name))
 	instanceType := string(r.InstanceType)
 
 	// Check if instancetype exists in our SKUs map
 	if skuConfig, exists := SupportedGPUConfigs[instanceType]; exists {
-		// Validate GPU count for given SKU
-		if presetReq, ok := PresetRequirementsMap[presetName]; ok {
-			machineCount := *r.Count
-			totalNumGPUs := machineCount * skuConfig.GPUCount
-			totalGPUMem := machineCount * skuConfig.GPUMem * skuConfig.GPUCount
+		if inference.Preset != nil {
+			// Validate GPU count for given SKU
+			if presetReq, ok := PresetRequirementsMap[presetName]; ok {
+				machineCount := *r.Count
+				totalNumGPUs := machineCount * skuConfig.GPUCount
+				totalGPUMem := machineCount * skuConfig.GPUMem * skuConfig.GPUCount
 
-			// Separate the checks for specific error messages
-			if totalNumGPUs < presetReq.MinGPUCount {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient number of GPUs: Instance type %s provides %d, but preset %s requires at least %d", instanceType, totalNumGPUs, presetName, presetReq.MinGPUCount), "instanceType"))
+				// Separate the checks for specific error messages
+				if totalNumGPUs < presetReq.MinGPUCount {
+					errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient number of GPUs: Instance type %s provides %d, but preset %s requires at least %d", instanceType, totalNumGPUs, presetName, presetReq.MinGPUCount), "instanceType"))
+				}
+				if skuConfig.GPUMem < presetReq.MinMemoryPerGPU {
+					errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient GPU memory: Instance type %s provides %d per GPU, but preset %s requires at least %d per GPU", instanceType, skuConfig.GPUMem, presetName, presetReq.MinMemoryPerGPU), "instanceType"))
+				}
+				if totalGPUMem < presetReq.MinTotalMemory {
+					errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient total GPU memory: Instance type %s has a total of %d, but preset %s requires at least %d", instanceType, totalGPUMem, presetName, presetReq.MinTotalMemory), "instanceType"))
+				}
+			} else {
+				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", presetName), "presetName"))
 			}
-			if skuConfig.GPUMem < presetReq.MinMemoryPerGPU {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient GPU memory: Instance type %s provides %d per GPU, but preset %s requires at least %d per GPU", instanceType, skuConfig.GPUMem, presetName, presetReq.MinMemoryPerGPU), "instanceType"))
-			}
-			if totalGPUMem < presetReq.MinTotalMemory {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient total GPU memory: Instance type %s has a total of %d, but preset %s requires at least %d", instanceType, totalGPUMem, presetName, presetReq.MinTotalMemory), "instanceType"))
-			}
-		} else {
-			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", presetName), "presetName"))
 		}
 	} else {
 		// Check for other instancetypes pattern matches
@@ -121,18 +121,29 @@ func (r *ResourceSpec) validateUpdate(old *ResourceSpec) (errs *apis.FieldError)
 }
 
 func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
-	presetName := strings.ToLower(string(i.Preset.Name))
-	// Validate preset name
-	if !isValidPreset(presetName) {
-		errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", presetName), "presetName"))
+	// Check if both Preset and Template are not set
+	if i.Preset == nil && i.Template == nil {
+		return errs.Also(apis.ErrMissingField("Preset or Template must be specified"))
 	}
+
+	// Check if both Preset and Template are set at the same time
 	if i.Preset != nil && i.Template != nil {
-		errs = errs.Also(apis.ErrGeneric("preset and template cannot be set at the same time"))
+		return errs.Also(apis.ErrGeneric("Preset and Template cannot be set at the same time"))
 	}
-	if i.Preset != nil && i.Preset.PresetMeta.AccessMode == "private" && i.Preset.PresetOptions.Image == "" {
-		errs = errs.Also(apis.ErrGeneric("When AccessMode is private, an image must be provided in PresetOptions"))
+
+	var presetName string
+	if i.Preset != nil {
+		presetName = strings.ToLower(string(i.Preset.Name))
+		// Validate preset name
+		if !isValidPreset(presetName) {
+			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", presetName), "presetName"))
+		}
+		// Additional validations for Preset
+		if i.Preset.PresetMeta.AccessMode == "private" && i.Preset.PresetOptions.Image == "" {
+			errs = errs.Also(apis.ErrGeneric("When AccessMode is private, an image must be provided in PresetOptions"))
+		}
+		// Note: we don't enforce private access mode to have image secrets, in case anonymous pulling is enabled
 	}
-	// Note: we don't enforce private access mode to have image secrets, incase anonymous pulling is enabled
 	return errs
 }
 
