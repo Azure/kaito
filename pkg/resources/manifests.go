@@ -259,7 +259,7 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 	}
 }
 
-func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) *appsv1.Deployment {
+func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, tolerations []corev1.Toleration) *appsv1.Deployment {
 	nodeRequirements := make([]corev1.NodeSelectorRequirement, 0, len(workspaceObj.Resource.LabelSelector.MatchLabels))
 	for key, value := range workspaceObj.Resource.LabelSelector.MatchLabels {
 		nodeRequirements = append(nodeRequirements, corev1.NodeSelectorRequirement{
@@ -292,7 +292,13 @@ func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj
 		},
 	}
 
-	controller := true
+	// append tolerations
+	if templateCopy.Spec.Tolerations == nil {
+		templateCopy.Spec.Tolerations = tolerations
+	} else {
+		templateCopy.Spec.Tolerations = append(templateCopy.Spec.Tolerations, tolerations...)
+	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      workspaceObj.Name,

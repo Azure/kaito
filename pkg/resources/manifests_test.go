@@ -108,7 +108,7 @@ func TestGenerateDeploymentManifestWithPodTemplate(t *testing.T) {
 
 		workspace := utils.MockWorkspaceWithInferenceTemplate
 
-		obj := GenerateDeploymentManifestWithPodTemplate(context.TODO(), workspace)
+		obj := GenerateDeploymentManifestWithPodTemplate(context.TODO(), workspace, nil)
 
 		appSelector := map[string]string{
 			kaitov1alpha1.LabelWorkspaceName: workspace.Name,
