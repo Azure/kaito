@@ -56,9 +56,6 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 }
 
 func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.FieldError) {
-	if inference.Preset == nil && inference.Template == nil {
-		errs = errs.Also(apis.ErrMissingField("Preset or Template must be specified"))
-	}
 	var presetName string
 	if inference.Preset != nil {
 		presetName = strings.ToLower(string(inference.Preset.Name))
