@@ -22,30 +22,50 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Workspace Preset", func() {
+func createWorkspaceWithPresetPublicMode() *kaitov1alpha1.Workspace {
+	workspaceObj := &kaitov1alpha1.Workspace{}
+	By("Creating a workspace CR with Falcon 7B preset public mode", func() {
+		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
+		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "", 1, "Standard_NC12s_v3",
+			&metav1.LabelSelector{
+				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test"},
+			}, nil, kaitov1alpha1.PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
 
-	It("should create a workspace with preset public mode successfully", func() {
-		workspaceObj := &kaitov1alpha1.Workspace{}
-		machineObj := v1alpha5.Machine{}
-		By("Creating a workspace CR with Falcon 7B preset public mode", func() {
-			workspaceObj = utils.GenerateWorkspaceManifest(fmt.Sprint("preset-", rand.Intn(1000)), namespaceName, "", 1, "Standard_NC12s_v3",
-				&metav1.LabelSelector{
-					MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test"},
-				}, nil, kaitov1alpha1.PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
+		createAndValidateWorkspace(workspaceObj)
+	})
+	return workspaceObj
+}
 
-			// Create workspace
-			Eventually(func() error {
-				return TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
-			}, utils.PollTimeout, utils.PollInterval).
-				Should(Succeed(), "Failed to create workspace %s", workspaceObj.Name)
+func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
+	By("Creating workspace", func() {
+		Eventually(func() error {
+			return TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
+		}, utils.PollTimeout, utils.PollInterval).
+			Should(Succeed(), "Failed to create workspace %s", workspaceObj.Name)
 
-			// Get workspace
+		By("Validating workspace creation", func() {
 			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, workspaceObj, &client.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 		})
+	})
+}
+
+func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace) {
+	// Existing logic to validate machine creation
+}
+
+var _ = Describe("Workspace Preset", func() {
+
+	It("should create a workspace with preset public mode successfully", func() {
+		workspaceObj := createWorkspaceWithPresetPublicMode()
+		// defer cleanupResources(workspaceObj)
+
+		validateMachineCreation(workspaceObj)
+
+		machineObj := v1alpha5.Machine{}
 
 		time.Sleep(30 * time.Second)
 
