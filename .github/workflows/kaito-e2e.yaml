@@ -137,6 +137,10 @@ jobs:
           REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
           VERSION: ${{ env.VERSION }}
       
+      - name: Login to Private Presets ACR
+        run: |
+          az acr login --name ${{secrets.DOCKER_SERVER}}
+
       - name: Add Secret Credentials
         run: |
           kubectl create secret docker-registry ${{secrets.DOCKER_REGISTRY}} \
