@@ -73,6 +73,7 @@ func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
 func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace, machineObj *v1alpha5.Machine) {
 	By("Checking machine created by the workspace CR", func() {
 		machineList := &v1alpha5.MachineList{}
+		fmt.Println("info", workspaceObj.Name, workspaceObj.Namespace)
 		ls := labels.Set{
 			kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
 			kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
@@ -81,9 +82,11 @@ func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace, machineObj *
 		Eventually(func() bool {
 			merr := TestingCluster.KubeClient.List(ctx, machineList, &client.MatchingLabelsSelector{Selector: ls.AsSelector()})
 			if merr != nil {
+				fmt.Println("ERROR here", merr)
 				return false
 			}
 			if len(machineList.Items) != 1 {
+				fmt.Println("ERROR not machine list", len(machineList.Items))
 				return false
 			}
 
@@ -133,7 +136,8 @@ func validateInferenceDeployment(workspaceObj *kaitov1alpha1.Workspace) {
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, inferenceDep, &client.GetOptions{})
-
+			describePod(workspaceObj.Namespace, "llama-2-7b-chat-0")
+			describePod("default", "llama-2-7b-chat-0")
 			if err != nil {
 				GinkgoWriter.Printf("Error fetching deployment: %v\n", err)
 				return false
@@ -144,8 +148,6 @@ func validateInferenceDeployment(workspaceObj *kaitov1alpha1.Workspace) {
 			}
 
 			GinkgoWriter.Printf("Deployment '%s' not ready. Status: %+v\n", inferenceDep.Name, inferenceDep.Status)
-			describePod(workspaceObj.Namespace, "llama-2-7b-chat-0")
-			describePod("default", "llama-2-7b-chat-0")
 			return false
 		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for inference deployment to be ready")
 	})
