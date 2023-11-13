@@ -147,10 +147,10 @@ jobs:
           --docker-server=${{secrets.DOCKER_SERVER}} \
           --docker-username=${{secrets.DOCKER_USERNAME}} \
           --docker-password=${{secrets.DOCKER_PASSWORD}}
+      
       - name: Log kaito-workspace
         run: |
           kubectl get pods -n kaito-workspace -o name | grep "^pod/kaito-workspace" | sed 's/^pod\///' | xargs -I {} kubectl logs -n kaito-workspace {}
-
 
       - name: Run e2e test
         run: |

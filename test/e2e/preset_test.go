@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"knative.dev/pkg/apis"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -143,9 +144,46 @@ func validateInferenceDeployment(workspaceObj *kaitov1alpha1.Workspace) {
 			}
 
 			GinkgoWriter.Printf("Deployment '%s' not ready. Status: %+v\n", inferenceDep.Name, inferenceDep.Status)
+			describePod(workspaceObj.Namespace, "llama-2-7b-chat-0")
+			describePod("default", "llama-2-7b-chat-0")
 			return false
 		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for inference deployment to be ready")
 	})
+}
+
+func describePod(namespace, podName string) {
+	pod := &v1.Pod{}
+	err := TestingCluster.KubeClient.Get(ctx, types.NamespacedName{
+		Namespace: namespace,
+		Name:      podName,
+	}, pod)
+	if err != nil {
+		GinkgoWriter.Printf("Error fetching pod %s: %v\n", podName, err)
+		return
+	}
+
+	// Print basic pod details
+	GinkgoWriter.Printf("Pod Name: %s, Namespace: %s, Status: %s\n", pod.Name, pod.Namespace, pod.Status.Phase)
+
+	// Optionally, list and print events related to the Pod
+	printPodEvents(namespace, podName)
+}
+
+func printPodEvents(namespace, podName string) {
+	eventList := &v1.EventList{}
+	listOpts := client.ListOptions{Namespace: namespace}
+	err := TestingCluster.KubeClient.List(ctx, eventList, &listOpts)
+	if err != nil {
+		GinkgoWriter.Printf("Error fetching events for namespace %s: %v\n", namespace, err)
+		return
+	}
+
+	GinkgoWriter.Printf("Events for Pod %s:\n", podName)
+	for _, event := range eventList.Items {
+		if event.InvolvedObject.Kind == "Pod" && event.InvolvedObject.Name == podName {
+			GinkgoWriter.Printf("Time: %v, Reason: %s, Message: %s\n", event.LastTimestamp, event.Reason, event.Message)
+		}
+	}
 }
 
 // Logic to validate workspace readiness
