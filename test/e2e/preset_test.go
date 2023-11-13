@@ -16,6 +16,7 @@ import (
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"knative.dev/pkg/apis"
@@ -30,6 +31,20 @@ func createWorkspaceWithPresetPublicMode() *kaitov1alpha1.Workspace {
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test"},
 			}, nil, kaitov1alpha1.PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
+
+		createAndValidateWorkspace(workspaceObj)
+	})
+	return workspaceObj
+}
+
+func createLlamaWorkspaceWithPresetPrivateMode() *kaitov1alpha1.Workspace {
+	workspaceObj := &kaitov1alpha1.Workspace{}
+	By("Creating a workspace CR with Llama 7B Chat preset private mode", func() {
+		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
+		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "aimodelsregistry.azurecr.io/llama-2-7b-chat:0.0.1",
+			1, "Standard_NC12s_v3", &metav1.LabelSelector{
+				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
+			}, nil, kaitov1alpha1.PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{"aimodelsregistrysecret"}, nil)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
@@ -53,109 +68,210 @@ func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
 	})
 }
 
-func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace) {
-	// Existing logic to validate machine creation
+// Logic to validate machine creation
+func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace, machineObj *v1alpha5.Machine) {
+	By("Checking machine created by the workspace CR", func() {
+		machineList := &v1alpha5.MachineList{}
+		ls := labels.Set{
+			kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
+			kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
+		}
+
+		Eventually(func() bool {
+			merr := TestingCluster.KubeClient.List(ctx, machineList, &client.MatchingLabelsSelector{Selector: ls.AsSelector()})
+			if merr != nil {
+				return false
+			}
+			if len(machineList.Items) != 1 {
+				return false
+			}
+
+			machineObj = &machineList.Items[0]
+			_, conditionFound := lo.Find(machineObj.GetConditions(), func(condition apis.Condition) bool {
+				return condition.Type == apis.ConditionReady && condition.Status == v1.ConditionTrue
+			})
+			return conditionFound
+		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for machine to be ready")
+	})
+}
+
+// Logic to validate resource status
+func validateResourceStatus(workspaceObj *kaitov1alpha1.Workspace) {
+	By("Checking the resource status", func() {
+		Eventually(func() bool {
+			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: workspaceObj.Namespace,
+				Name:      workspaceObj.Name,
+			}, workspaceObj, &client.GetOptions{})
+
+			if err != nil {
+				return false
+			}
+
+			_, conditionFound := lo.Find(workspaceObj.Status.Conditions, func(condition metav1.Condition) bool {
+				return condition.Type == string(kaitov1alpha1.WorkspaceConditionTypeResourceStatus) &&
+					condition.Status == metav1.ConditionTrue
+			})
+			return conditionFound
+		}, 10*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for resource status to be ready")
+	})
+}
+
+// Logic to validate inference deployment
+func validateInferenceDeployment(workspaceObj *kaitov1alpha1.Workspace) {
+	By("Checking the inference deployment", func() {
+		inferenceDep := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      workspaceObj.Name,
+				Namespace: workspaceObj.Namespace,
+			},
+		}
+
+		Eventually(func() bool {
+			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: workspaceObj.Namespace,
+				Name:      workspaceObj.Name,
+			}, inferenceDep, &client.GetOptions{})
+
+			if err != nil {
+				return false
+			}
+
+			return inferenceDep.Status.ReadyReplicas == 1
+		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for inference deployment to be ready")
+	})
+}
+
+// Logic to validate workspace readiness
+func validateWorkspaceReadiness(workspaceObj *kaitov1alpha1.Workspace) {
+	By("Checking the workspace status is ready", func() {
+		Eventually(func() bool {
+			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: workspaceObj.Namespace,
+				Name:      workspaceObj.Name,
+			}, workspaceObj, &client.GetOptions{})
+
+			if err != nil {
+				return false
+			}
+
+			_, conditionFound := lo.Find(workspaceObj.Status.Conditions, func(condition metav1.Condition) bool {
+				return condition.Type == string(kaitov1alpha1.WorkspaceConditionTypeReady) &&
+					condition.Status == metav1.ConditionTrue
+			})
+			return conditionFound
+		}, 10*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for workspace to be ready")
+	})
+}
+
+func cleanupResources(workspaceObj *kaitov1alpha1.Workspace, machineObj *v1alpha5.Machine) {
+	By("Cleaning up resources", func() {
+		// delete workspace
+		err := deleteWorkspace(workspaceObj)
+		Expect(err).NotTo(HaveOccurred(), "Failed to delete workspace")
+
+		// delete machine, if it's valid
+		if machineObj != nil && machineObj.Name != "" {
+			err = deleteMachine(machineObj)
+			Expect(err).NotTo(HaveOccurred(), "Failed to delete machine")
+		}
+	})
+}
+
+func deleteWorkspace(workspaceObj *kaitov1alpha1.Workspace) error {
+	By("Deleting workspace", func() {
+		Eventually(func() error {
+			// Check if the workspace exists
+			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: workspaceObj.Namespace,
+				Name:      workspaceObj.Name,
+			}, workspaceObj)
+
+			if errors.IsNotFound(err) {
+				GinkgoWriter.Printf("Workspace %s does not exist, no need to delete\n", workspaceObj.Name)
+				return nil
+			}
+			if err != nil {
+				return fmt.Errorf("error checking if workspace %s exists: %v", workspaceObj.Name, err)
+			}
+
+			err = TestingCluster.KubeClient.Delete(ctx, workspaceObj, &client.DeleteOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to delete workspace %s: %v", workspaceObj.Name, err)
+			}
+			return nil
+		}, utils.PollTimeout, utils.PollInterval).Should(Succeed(), "Failed to delete workspace")
+	})
+
+	return nil
+}
+
+func deleteMachine(machineObj *v1alpha5.Machine) error {
+	By("Deleting machine", func() {
+		Eventually(func() error {
+			// Check if the machine exists
+			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: machineObj.Namespace,
+				Name:      machineObj.Name,
+			}, machineObj)
+
+			if errors.IsNotFound(err) {
+				GinkgoWriter.Printf("Machine %s does not exist, no need to delete\n", machineObj.Name)
+				return nil
+			}
+
+			if err != nil {
+				return fmt.Errorf("error checking if machine %s exists: %v", machineObj.Name, err)
+			}
+
+			// Delete the machine
+			err = TestingCluster.KubeClient.Delete(ctx, machineObj, &client.DeleteOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to delete machine %s: %v", machineObj.Name, err)
+			}
+			return nil
+		}, utils.PollTimeout, utils.PollInterval).Should(Succeed(), "Failed to delete machine")
+	})
+
+	return nil
 }
 
 var _ = Describe("Workspace Preset", func() {
 
 	It("should create a workspace with preset public mode successfully", func() {
 		workspaceObj := createWorkspaceWithPresetPublicMode()
-		// defer cleanupResources(workspaceObj)
-
-		validateMachineCreation(workspaceObj)
-
 		machineObj := v1alpha5.Machine{}
 
-		time.Sleep(30 * time.Second)
-
-		By("Checking machine created by the workspace CR", func() {
-			// get machine
-			machineList := &v1alpha5.MachineList{}
-			ls := labels.Set{
-				kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
-				kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
-			}
-
-			Eventually(func() bool {
-				merr := TestingCluster.KubeClient.List(ctx, machineList, &client.MatchingLabelsSelector{Selector: ls.AsSelector()})
-				Expect(merr).NotTo(HaveOccurred())
-				Expect(len(machineList.Items)).To(Equal(1))
-
-				machineObj = machineList.Items[0]
-
-				_, conditionFound := lo.Find(machineObj.GetConditions(), func(condition apis.Condition) bool {
-					return condition.Type == apis.ConditionReady &&
-						condition.Status == v1.ConditionTrue
-				})
-				return conditionFound
-			}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for machine to be ready")
-		})
-		By("Checking the resource status", func() {
-			Eventually(func() bool {
-				err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
-					Namespace: workspaceObj.Namespace,
-					Name:      workspaceObj.Name,
-				}, workspaceObj, &client.GetOptions{})
-
-				Expect(err).NotTo(HaveOccurred())
-
-				_, conditionFound := lo.Find(workspaceObj.Status.Conditions, func(condition metav1.Condition) bool {
-					return condition.Type == string(kaitov1alpha1.WorkspaceConditionTypeResourceStatus) &&
-						condition.Status == metav1.ConditionTrue
-				})
-				return conditionFound
-			}, 10*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for resource status to be ready")
-		})
+		defer cleanupResources(workspaceObj, &machineObj)
 
 		time.Sleep(30 * time.Second)
 
-		By("Checking the inference deployment", func() {
-			inferenceDep := &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      workspaceObj.Name,
-					Namespace: workspaceObj.Namespace,
-				},
-			}
+		validateMachineCreation(workspaceObj, &machineObj)
+		validateResourceStatus(workspaceObj)
 
-			Eventually(func() bool {
-				ierr := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
-					Namespace: workspaceObj.Namespace,
-					Name:      workspaceObj.Name,
-				}, inferenceDep, &client.GetOptions{})
+		time.Sleep(30 * time.Second)
 
-				Expect(ierr).NotTo(HaveOccurred())
+		validateInferenceDeployment(workspaceObj)
 
-				return inferenceDep.Status.ReadyReplicas == 1
-			}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for inference deployment to be ready")
-		})
+		validateWorkspaceReadiness(workspaceObj)
+	})
 
-		By("Checking the workspace status is ready", func() {
-			Eventually(func() bool {
-				err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
-					Namespace: workspaceObj.Namespace,
-					Name:      workspaceObj.Name,
-				}, workspaceObj, &client.GetOptions{})
+	It("should create a llama workspace with preset private mode successfully", func() {
+		workspaceObj := createLlamaWorkspaceWithPresetPrivateMode()
+		machineObj := v1alpha5.Machine{}
 
-				Expect(err).NotTo(HaveOccurred())
+		defer cleanupResources(workspaceObj, &machineObj)
 
-				_, conditionFound := lo.Find(workspaceObj.Status.Conditions, func(condition metav1.Condition) bool {
-					return condition.Type == string(kaitov1alpha1.WorkspaceConditionTypeReady) &&
-						condition.Status == metav1.ConditionTrue
-				})
-				return conditionFound
-			}, 10*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for workspace to be ready")
-		})
+		time.Sleep(30 * time.Second)
 
-		// delete	workspace
-		Eventually(func() error {
-			return TestingCluster.KubeClient.Delete(ctx, workspaceObj, &client.DeleteOptions{})
-		}, utils.PollTimeout, utils.PollInterval).Should(Succeed(), "Failed to delete workspace")
-		// delete machine
-		Eventually(func() error {
-			return TestingCluster.KubeClient.Delete(ctx, &machineObj, &client.DeleteOptions{})
-		}, utils.PollTimeout, utils.PollInterval).Should(Succeed(), "Failed to delete machine")
+		validateMachineCreation(workspaceObj, &machineObj)
+		validateResourceStatus(workspaceObj)
 
+		time.Sleep(30 * time.Second)
+
+		validateInferenceDeployment(workspaceObj)
+
+		validateWorkspaceReadiness(workspaceObj)
 	})
 
 })
