@@ -143,6 +143,7 @@ jobs:
           --docker-server=${{secrets.DOCKER_SERVER}} \
           --docker-username=${{secrets.DOCKER_USERNAME}} \
           --docker-password=${{secrets.DOCKER_PASSWORD}}
+
       - name: Run e2e test
         run: |
           make kaito-workspace-e2e-test

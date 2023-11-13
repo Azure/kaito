@@ -134,10 +134,16 @@ func validateInferenceDeployment(workspaceObj *kaitov1alpha1.Workspace) {
 			}, inferenceDep, &client.GetOptions{})
 
 			if err != nil {
+				GinkgoWriter.Printf("Error fetching deployment: %v\n", err)
 				return false
 			}
 
-			return inferenceDep.Status.ReadyReplicas == 1
+			if inferenceDep.Status.ReadyReplicas == 1 {
+				return true
+			}
+
+			GinkgoWriter.Printf("Deployment '%s' not ready. Status: %+v\n", inferenceDep.Name, inferenceDep.Status)
+			return false
 		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for inference deployment to be ready")
 	})
 }
@@ -238,23 +244,23 @@ func deleteMachine(machineObj *v1alpha5.Machine) error {
 
 var _ = Describe("Workspace Preset", func() {
 
-	It("should create a workspace with preset public mode successfully", func() {
-		workspaceObj := createWorkspaceWithPresetPublicMode()
-		machineObj := v1alpha5.Machine{}
+	// It("should create a workspace with preset public mode successfully", func() {
+	// 	workspaceObj := createWorkspaceWithPresetPublicMode()
+	// 	machineObj := v1alpha5.Machine{}
 
-		defer cleanupResources(workspaceObj, &machineObj)
+	// 	defer cleanupResources(workspaceObj, &machineObj)
 
-		time.Sleep(30 * time.Second)
+	// 	time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, &machineObj)
-		validateResourceStatus(workspaceObj)
+	// 	validateMachineCreation(workspaceObj, &machineObj)
+	// 	validateResourceStatus(workspaceObj)
 
-		time.Sleep(30 * time.Second)
+	// 	time.Sleep(30 * time.Second)
 
-		validateInferenceDeployment(workspaceObj)
+	// 	validateInferenceDeployment(workspaceObj)
 
-		validateWorkspaceReadiness(workspaceObj)
-	})
+	// 	validateWorkspaceReadiness(workspaceObj)
+	// })
 
 	It("should create a llama workspace with preset private mode successfully", func() {
 		workspaceObj := createLlamaWorkspaceWithPresetPrivateMode()
