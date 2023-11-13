@@ -47,6 +47,10 @@ func TestCreateTemplateInference(t *testing.T) {
 			if tc.expectedError == nil {
 				assert.Check(t, err == nil, "Not expected to return error")
 				assert.Check(t, obj != nil, "Return object should not be nil")
+
+				deploymentObj, ok := obj.(*v1.Deployment)
+				assert.Check(t, ok, "Returned object should be of type *v1.Deployment")
+				assert.Check(t, deploymentObj != nil, "Returned object should not be nil")
 			} else {
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			}
