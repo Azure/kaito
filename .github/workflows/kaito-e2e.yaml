@@ -140,7 +140,7 @@ jobs:
       - name: Login to Private Presets ACR
         run: |
           az acr login --name ${{secrets.DOCKER_SERVER}}
-          az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} --attach-acr ${{secrets.DOCKER_SERVER}} 
+          az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} --attach-acr AIMODELSREGISTRY
 
       - name: Add Secret Credentials
         run: |
