@@ -136,7 +136,13 @@ jobs:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
           VERSION: ${{ env.VERSION }}
-
+      
+      - name: Add Secret Credentials
+        run: |
+          kubectl create secret docker-registry ${{secrets.DOCKER_REGISTRY}} \
+          --docker-server=${{secrets.DOCKER_SERVER}} \
+          --docker-username=${{secrets.DOCKER_USERNAME}} \
+          --docker-password=${{secrets.DOCKER_PASSWORD}}
       - name: Run e2e test
         run: |
           make kaito-workspace-e2e-test
