@@ -136,8 +136,8 @@ func validateInferenceDeployment(workspaceObj *kaitov1alpha1.Workspace) {
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, inferenceDep, &client.GetOptions{})
-			describePod(workspaceObj.Namespace, "llama-2-7b-chat-0")
-			describePod("default", "llama-2-7b-chat-0")
+			describeDeployment(workspaceObj.Namespace, workspaceObj.Name)
+			// describePod("default", inferenceDep.Name)
 			if err != nil {
 				GinkgoWriter.Printf("Error fetching deployment: %v\n", err)
 				return false
@@ -153,25 +153,25 @@ func validateInferenceDeployment(workspaceObj *kaitov1alpha1.Workspace) {
 	})
 }
 
-func describePod(namespace, podName string) {
-	pod := &v1.Pod{}
+func describeDeployment(namespace, deploymentName string) {
+	deployment := &appsv1.Deployment{}
 	err := TestingCluster.KubeClient.Get(ctx, types.NamespacedName{
 		Namespace: namespace,
-		Name:      podName,
-	}, pod)
+		Name:      deploymentName,
+	}, deployment)
 	if err != nil {
-		GinkgoWriter.Printf("Error fetching pod %s: %v\n", podName, err)
+		GinkgoWriter.Printf("Error fetching deployment %s: %v\n", deploymentName, err)
 		return
 	}
 
-	// Print basic pod details
-	GinkgoWriter.Printf("Pod Name: %s, Namespace: %s, Status: %s\n", pod.Name, pod.Namespace, pod.Status.Phase)
+	// Print basic deployment details
+	GinkgoWriter.Printf("Deployment Name: %s, Namespace: %s, Replicas: %d\n", deployment.Name, deployment.Namespace, *deployment.Spec.Replicas)
 
-	// Optionally, list and print events related to the Pod
-	printPodEvents(namespace, podName)
+	// List and print events related to the Deployment
+	printDeploymentEvents(namespace, deploymentName)
 }
 
-func printPodEvents(namespace, podName string) {
+func printDeploymentEvents(namespace, deploymentName string) {
 	eventList := &v1.EventList{}
 	listOpts := client.ListOptions{Namespace: namespace}
 	err := TestingCluster.KubeClient.List(ctx, eventList, &listOpts)
@@ -180,9 +180,9 @@ func printPodEvents(namespace, podName string) {
 		return
 	}
 
-	GinkgoWriter.Printf("Events for Pod %s:\n", podName)
+	GinkgoWriter.Printf("Events for Deployment %s:\n", deploymentName)
 	for _, event := range eventList.Items {
-		if event.InvolvedObject.Kind == "Pod" && event.InvolvedObject.Name == podName {
+		if event.InvolvedObject.Kind == "Deployment" && event.InvolvedObject.Name == deploymentName {
 			GinkgoWriter.Printf("Time: %v, Reason: %s, Message: %s\n", event.LastTimestamp, event.Reason, event.Message)
 		}
 	}
