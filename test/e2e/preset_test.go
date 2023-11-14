@@ -25,11 +25,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func createFalconWorkspaceWithPresetPublicMode() *kaitov1alpha1.Workspace {
+func createFalconWorkspaceWithPresetPublicMode(numOfNode int) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Falcon 7B preset public mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "", 1, "Standard_NC12s_v3",
+		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC12s_v3",
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test"},
 			}, nil, kaitov1alpha1.PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
@@ -39,12 +39,12 @@ func createFalconWorkspaceWithPresetPublicMode() *kaitov1alpha1.Workspace {
 	return workspaceObj
 }
 
-func createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret string) *kaitov1alpha1.Workspace {
+func createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret string, numOfNode int) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Llama 7B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
 		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "aimodelsregistry.azurecr.io/llama-2-7b-chat:0.0.1",
-			1, "Standard_NC12s_v3", &metav1.LabelSelector{
+			numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
 			}, nil, kaitov1alpha1.PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{aiModelsRegistrySecret}, nil)
 
@@ -53,12 +53,12 @@ func createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret string) 
 	return workspaceObj
 }
 
-func createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret string) *kaitov1alpha1.Workspace {
+func createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret string, numOfNode int) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Llama 13B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
 		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "aimodelsregistry.azurecr.io/llama-2-13b-chat:0.0.1",
-			2, "Standard_NC12s_v3", &metav1.LabelSelector{
+			numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
 			}, nil, kaitov1alpha1.PresetLlama2BChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{aiModelsRegistrySecret}, nil)
 
@@ -303,10 +303,10 @@ var _ = Describe("Workspace Preset", func() {
 	})
 
 	It("should create a workspace with preset public mode successfully", func() {
-		workspaceObj := createFalconWorkspaceWithPresetPublicMode()
+		numOfNode := 1
+		workspaceObj := createFalconWorkspaceWithPresetPublicMode(numOfNode)
 
 		defer cleanupResources(workspaceObj)
-		numOfNode := 1
 		time.Sleep(30 * time.Second)
 
 		validateMachineCreation(workspaceObj, numOfNode)
@@ -322,10 +322,10 @@ var _ = Describe("Workspace Preset", func() {
 	})
 
 	It("should create a llama 7b workspace with preset private mode successfully", func() {
-		workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret)
+		numOfNode := 1
+		workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret, numOfNode)
 
 		defer cleanupResources(workspaceObj)
-		numOfNode := 1
 		time.Sleep(30 * time.Second)
 
 		validateMachineCreation(workspaceObj, numOfNode)
@@ -344,13 +344,12 @@ var _ = Describe("Workspace Preset", func() {
 		if !runLlama13B {
 			Skip("Skipping llama 13b workspace test")
 		}
-
-		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret)
+		numOfNode := 2
+		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret, numOfNode)
 
 		defer cleanupResources(workspaceObj)
 
 		time.Sleep(30 * time.Second)
-		numOfNode := 2
 		validateMachineCreation(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
