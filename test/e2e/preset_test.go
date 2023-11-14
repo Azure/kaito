@@ -121,35 +121,105 @@ func validateResourceStatus(workspaceObj *kaitov1alpha1.Workspace) {
 }
 
 // Logic to validate inference deployment
-func validateInferenceDeployment(workspaceObj *kaitov1alpha1.Workspace) {
-	By("Checking the inference deployment", func() {
-		inferenceDep := &appsv1.StatefulSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      workspaceObj.Name,
-				Namespace: workspaceObj.Namespace,
-			},
-		}
-
+func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, isStatefulSet bool) {
+	By("Checking the inference resource", func() {
 		Eventually(func() bool {
-			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
-				Namespace: workspaceObj.Namespace,
-				Name:      workspaceObj.Name,
-			}, inferenceDep, &client.GetOptions{})
-			// describeDeployment(workspaceObj.Namespace, workspaceObj.Name)
-			// describePod("default", inferenceDep.Name)
+			var err error
+			var readyReplicas int32
+			var podList *v1.PodList
+
+			if isStatefulSet {
+				sts := &appsv1.StatefulSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      workspaceObj.Name,
+						Namespace: workspaceObj.Namespace,
+					},
+				}
+				err = TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+					Namespace: workspaceObj.Namespace,
+					Name:      workspaceObj.Name,
+				}, sts)
+				readyReplicas = sts.Status.ReadyReplicas
+
+				podList, err = getPodsForStatefulSet(workspaceObj.Namespace, sts)
+				if err != nil {
+					GinkgoWriter.Printf("Error fetching pods for StatefulSet: %v\n", err)
+				}
+
+			} else {
+				dep := &appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      workspaceObj.Name,
+						Namespace: workspaceObj.Namespace,
+					},
+				}
+				err = TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+					Namespace: workspaceObj.Namespace,
+					Name:      workspaceObj.Name,
+				}, dep)
+				readyReplicas = dep.Status.ReadyReplicas
+			}
+
 			if err != nil {
-				GinkgoWriter.Printf("Error fetching deployment: %v\n", err)
+				GinkgoWriter.Printf("Error fetching resource: %v\n", err)
 				return false
 			}
 
-			if inferenceDep.Status.ReadyReplicas == 1 {
+			// Log the status of each pod
+			if podList != nil {
+				for _, pod := range podList.Items {
+					GinkgoWriter.Printf("Pod '%s' status: %s\n", pod.Name, pod.Status.Phase)
+					// if pod.Status.Phase == v1.PodPending || v1.PodFailed {
+					printPodEvents(workspaceObj.Namespace, pod.Name)
+					// }
+				}
+			} else {
+				GinkgoWriter.Printf("Pod List is Nil")
+			}
+
+			if readyReplicas == 1 {
 				return true
 			}
 
-			GinkgoWriter.Printf("Deployment '%s' not ready. Status: %+v\n", inferenceDep.Name, inferenceDep.Status)
+			GinkgoWriter.Printf("Resource '%s' not ready. Ready replicas: %d\n", workspaceObj.Name, readyReplicas)
 			return false
-		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for inference deployment to be ready")
+		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for inference resource to be ready")
 	})
+}
+
+func getPodsForStatefulSet(namespace string, sts *appsv1.StatefulSet) (*v1.PodList, error) {
+	podList := &v1.PodList{}
+	listOpts := []client.ListOption{
+		client.InNamespace(namespace),
+		client.MatchingLabels(sts.Spec.Selector.MatchLabels),
+	}
+
+	err := TestingCluster.KubeClient.List(ctx, podList, listOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return podList, nil
+}
+
+func printPodEvents(namespace, podName string) {
+	eventList := &v1.EventList{}
+	listOpts := []client.ListOption{
+		client.InNamespace(namespace),
+	}
+
+	err := TestingCluster.KubeClient.List(ctx, eventList, listOpts...)
+	if err != nil {
+		GinkgoWriter.Printf("Error fetching events for namespace %s: %v\n", namespace, err)
+		return
+	}
+
+	GinkgoWriter.Printf("Events for Pod %s:\n", podName)
+	for _, event := range eventList.Items {
+		if event.InvolvedObject.Kind == "Pod" && event.InvolvedObject.Name == podName {
+			GinkgoWriter.Printf("Time: %v, Reason: %s, Message: %s\n", event.LastTimestamp, event.Reason, event.Message)
+		}
+	}
 }
 
 // func describeStatefulSet(namespace, statefulSetName string) {
@@ -332,7 +402,7 @@ var _ = Describe("Workspace Preset", func() {
 
 		time.Sleep(30 * time.Second)
 
-		validateInferenceDeployment(workspaceObj)
+		validateInferenceResource(workspaceObj, true)
 
 		validateWorkspaceReadiness(workspaceObj)
 	})
