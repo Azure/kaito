@@ -120,6 +120,31 @@ func validateResourceStatus(workspaceObj *kaitov1alpha1.Workspace) {
 	})
 }
 
+func validateAssociatedServices(namespace string) {
+	By("Checking associated services", func() {
+		serviceList := &v1.ServiceList{}
+		listOpts := []client.ListOption{
+			client.InNamespace(namespace),
+		}
+
+		err := TestingCluster.KubeClient.List(ctx, serviceList, listOpts...)
+		if err != nil {
+			GinkgoWriter.Printf("Error fetching services in namespace %s: %v\n", namespace, err)
+			return
+		}
+
+		foundServices := false
+		for _, service := range serviceList.Items {
+			GinkgoWriter.Printf("Found service: %s\n", service.Name)
+			foundServices = true
+		}
+
+		if !foundServices {
+			GinkgoWriter.Printf("No associated services found\n")
+		}
+	})
+}
+
 // Logic to validate inference deployment
 func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, isStatefulSet bool) {
 	By("Checking the inference resource", func() {
@@ -401,6 +426,11 @@ var _ = Describe("Workspace Preset", func() {
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
+
+		fmt.Println("Workspace services")
+		validateAssociatedServices(workspaceObj.Namespace)
+		fmt.Println("default services")
+		validateAssociatedServices("default")
 
 		validateInferenceResource(workspaceObj, true)
 
