@@ -157,7 +157,7 @@ func validateAssociatedServices(namespace string) {
 }
 
 // Logic to validate inference deployment
-func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, isStatefulSet bool) {
+func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, expectedReplicas int32, isStatefulSet bool) {
 	By("Checking the inference resource", func() {
 		Eventually(func() bool {
 			var err error
@@ -195,7 +195,7 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, isStateful
 				return false
 			}
 
-			if readyReplicas == 1 {
+			if readyReplicas == expectedReplicas {
 				return true
 			}
 
@@ -351,7 +351,7 @@ var _ = Describe("Workspace Preset", func() {
 		fmt.Println("Workspace services")
 		validateAssociatedServices(workspaceObj.Namespace)
 
-		validateInferenceResource(workspaceObj, true)
+		validateInferenceResource(workspaceObj, 1, true)
 
 		validateWorkspaceReadiness(workspaceObj)
 	})
@@ -371,7 +371,7 @@ var _ = Describe("Workspace Preset", func() {
 	// 	fmt.Println("Workspace services")
 	// 	validateAssociatedServices(workspaceObj.Namespace)
 
-	// 	validateInferenceResource(workspaceObj, true)
+	// 	validateInferenceResource(workspaceObj, 1, true)
 
 	// 	validateWorkspaceReadiness(workspaceObj)
 	// })
