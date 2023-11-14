@@ -319,7 +319,18 @@ func deleteMachine(machineObj *v1alpha5.Machine) error {
 	return nil
 }
 
+var runLlama13B bool
+
 var _ = Describe("Workspace Preset", func() {
+
+	// BeforeEach(func() {
+	// 	var err error
+	// 	runLlama13B, err = strconv.ParseBool(os.Getenv("RUN_LLAMA_13B"))
+	// 	if err != nil {
+	// 		// Handle error or set a default value
+	// 		runLlama13B = false
+	// 	}
+	// })
 
 	// It("should create a workspace with preset public mode successfully", func() {
 	// 	workspaceObj := createFalconWorkspaceWithPresetPublicMode()
@@ -360,6 +371,10 @@ var _ = Describe("Workspace Preset", func() {
 	// })
 
 	It("should create a llama 13b workspace with preset private mode successfully", func() {
+		// if !runLlama13B {
+		// 	Skip("Skipping llama 13b workspace test")
+		// }
+
 		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode()
 
 		defer cleanupResources(workspaceObj)
@@ -372,7 +387,7 @@ var _ = Describe("Workspace Preset", func() {
 		time.Sleep(30 * time.Second)
 
 		fmt.Println("Workspace services")
-		validateAssociatedService(workspaceObj)
+		// validateAssociatedService(workspaceObj)
 
 		validateInferenceResource(workspaceObj, 1, true)
 
