@@ -199,7 +199,7 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, expectedRe
 				return true
 			}
 
-			GinkgoWriter.Printf("Resource '%s' not ready. Ready replicas: %d\n", workspaceObj.Name, readyReplicas)
+			// GinkgoWriter.Printf("Resource '%s' not ready. Ready replicas: %d\n", workspaceObj.Name, readyReplicas)
 			return false
 		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for inference resource to be ready")
 	})
@@ -336,34 +336,14 @@ var _ = Describe("Workspace Preset", func() {
 	// 	validateWorkspaceReadiness(workspaceObj)
 	// })
 
-	It("should create a llama 7b workspace with preset private mode successfully", func() {
-		workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode()
-
-		defer cleanupResources(workspaceObj)
-
-		time.Sleep(30 * time.Second)
-
-		validateMachineCreation(workspaceObj, 1)
-		validateResourceStatus(workspaceObj)
-
-		time.Sleep(30 * time.Second)
-
-		fmt.Println("Workspace services")
-		validateAssociatedServices(workspaceObj.Namespace)
-
-		validateInferenceResource(workspaceObj, 1, true)
-
-		validateWorkspaceReadiness(workspaceObj)
-	})
-
-	// It("should create a llama 13b workspace with preset private mode successfully", func() {
-	// 	workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode()
+	// It("should create a llama 7b workspace with preset private mode successfully", func() {
+	// 	workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode()
 
 	// 	defer cleanupResources(workspaceObj)
 
 	// 	time.Sleep(30 * time.Second)
 
-	// 	validateMachineCreation(workspaceObj, 2)
+	// 	validateMachineCreation(workspaceObj, 1)
 	// 	validateResourceStatus(workspaceObj)
 
 	// 	time.Sleep(30 * time.Second)
@@ -375,5 +355,25 @@ var _ = Describe("Workspace Preset", func() {
 
 	// 	validateWorkspaceReadiness(workspaceObj)
 	// })
+
+	It("should create a llama 13b workspace with preset private mode successfully", func() {
+		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode()
+
+		defer cleanupResources(workspaceObj)
+
+		time.Sleep(30 * time.Second)
+
+		validateMachineCreation(workspaceObj, 2)
+		validateResourceStatus(workspaceObj)
+
+		time.Sleep(30 * time.Second)
+
+		fmt.Println("Workspace services")
+		validateAssociatedServices(workspaceObj.Namespace)
+
+		validateInferenceResource(workspaceObj, 1, true)
+
+		validateWorkspaceReadiness(workspaceObj)
+	})
 
 })
