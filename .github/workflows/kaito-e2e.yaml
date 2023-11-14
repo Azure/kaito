@@ -49,7 +49,7 @@ jobs:
 
           echo "VERSION=${rand}" >> $GITHUB_ENV
           echo "CLUSTER_NAME=kaito${rand}" >> $GITHUB_ENV
-          echo "RUN_LLAMA_13B=true" >> $GITHUB_ENV
+          echo "RUN_LLAMA_13B=false" >> $GITHUB_ENV
 
       - uses: azure/login@v1.4.6
         with:
