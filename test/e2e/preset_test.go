@@ -88,7 +88,7 @@ func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace, expectedCoun
 		Eventually(func() bool {
 			machineList, err := getAllValidMachines(workspaceObj)
 			if err != nil {
-				fmt.Errorf("Failed to get all valid machines", err)
+				fmt.Printf("Failed to get all valid machines: %v", err)
 				return false
 			}
 
