@@ -39,28 +39,28 @@ func createFalconWorkspaceWithPresetPublicMode() *kaitov1alpha1.Workspace {
 	return workspaceObj
 }
 
-func createLlama7BWorkspaceWithPresetPrivateMode() *kaitov1alpha1.Workspace {
+func createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret string) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Llama 7B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
 		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "aimodelsregistry.azurecr.io/llama-2-7b-chat:0.0.1",
 			1, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
-			}, nil, kaitov1alpha1.PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{"aimodelsregistrysecret"}, nil)
+			}, nil, kaitov1alpha1.PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{aiModelsRegistrySecret}, nil)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
 	return workspaceObj
 }
 
-func createLlama13BWorkspaceWithPresetPrivateMode() *kaitov1alpha1.Workspace {
+func createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret string) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Llama 13B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
 		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "aimodelsregistry.azurecr.io/llama-2-13b-chat:0.0.1",
 			2, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
-			}, nil, kaitov1alpha1.PresetLlama2BChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{"aimodelsregistrysecret"}, nil)
+			}, nil, kaitov1alpha1.PresetLlama2BChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{aiModelsRegistrySecret}, nil)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
@@ -82,6 +82,20 @@ func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
+}
+
+func getAllValidMachines(workspaceObj *kaitov1alpha1.Workspace) (*v1alpha5.MachineList, error) {
+	machineList := &v1alpha5.MachineList{}
+	ls := labels.Set{
+		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
+		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
+	}
+
+	err := TestingCluster.KubeClient.List(ctx, machineList, &client.MatchingLabelsSelector{Selector: ls.AsSelector()})
+	if err != nil {
+		return nil, err
+	}
+	return machineList, nil
 }
 
 // Logic to validate machine creation
@@ -232,34 +246,11 @@ func validateWorkspaceReadiness(workspaceObj *kaitov1alpha1.Workspace) {
 	})
 }
 
-func getAllValidMachines(workspaceObj *kaitov1alpha1.Workspace) (*v1alpha5.MachineList, error) {
-	machineList := &v1alpha5.MachineList{}
-	ls := labels.Set{
-		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
-		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
-	}
-
-	err := TestingCluster.KubeClient.List(ctx, machineList, &client.MatchingLabelsSelector{Selector: ls.AsSelector()})
-	if err != nil {
-		return nil, err
-	}
-	return machineList, nil
-}
-
 func cleanupResources(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Cleaning up resources", func() {
 		// delete workspace
 		err := deleteWorkspace(workspaceObj)
 		Expect(err).NotTo(HaveOccurred(), "Failed to delete workspace")
-
-		machineList, err := getAllValidMachines(workspaceObj)
-		Expect(err).NotTo(HaveOccurred(), "Failed to get all valid machines")
-
-		for _, machineObj := range machineList.Items {
-			// delete machine
-			err = deleteMachine(&machineObj)
-			Expect(err).NotTo(HaveOccurred(), "Failed to delete machine")
-		}
 	})
 }
 
@@ -291,37 +282,8 @@ func deleteWorkspace(workspaceObj *kaitov1alpha1.Workspace) error {
 	return nil
 }
 
-func deleteMachine(machineObj *v1alpha5.Machine) error {
-	By("Deleting machine", func() {
-		Eventually(func() error {
-			// Check if the machine exists
-			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
-				Namespace: machineObj.Namespace,
-				Name:      machineObj.Name,
-			}, machineObj)
-
-			if errors.IsNotFound(err) {
-				GinkgoWriter.Printf("Machine %s does not exist, no need to delete\n", machineObj.Name)
-				return nil
-			}
-
-			if err != nil {
-				return fmt.Errorf("error checking if machine %s exists: %v", machineObj.Name, err)
-			}
-
-			// Delete the machine
-			err = TestingCluster.KubeClient.Delete(ctx, machineObj, &client.DeleteOptions{})
-			if err != nil {
-				return fmt.Errorf("failed to delete machine %s: %v", machineObj.Name, err)
-			}
-			return nil
-		}, utils.PollTimeout, utils.PollInterval).Should(Succeed(), "Failed to delete machine")
-	})
-
-	return nil
-}
-
 var runLlama13B bool
+var aiModelsRegistrySecret string
 
 var _ = Describe("Workspace Preset", func() {
 
@@ -333,42 +295,47 @@ var _ = Describe("Workspace Preset", func() {
 			fmt.Print("Error: RUN_LLAMA_13B ENV Variable not set")
 			runLlama13B = false
 		}
+
+		aiModelsRegistrySecret = os.Getenv("AI_MODELS_REGISTRY_SECRET")
+		if aiModelsRegistrySecret == "" {
+			fmt.Println("AI_MODELS_REGISTRY_SECRET is not set or is empty")
+		}
 	})
 
 	It("should create a workspace with preset public mode successfully", func() {
 		workspaceObj := createFalconWorkspaceWithPresetPublicMode()
 
 		defer cleanupResources(workspaceObj)
-
+		numOfNode := 1
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, 1)
+		validateMachineCreation(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
 
 		validateAssociatedService(workspaceObj)
 
-		validateInferenceResource(workspaceObj, 1, false)
+		validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
 		validateWorkspaceReadiness(workspaceObj)
 	})
 
 	It("should create a llama 7b workspace with preset private mode successfully", func() {
-		workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode()
+		workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret)
 
 		defer cleanupResources(workspaceObj)
-
+		numOfNode := 1
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, 1)
+		validateMachineCreation(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
 
 		validateAssociatedService(workspaceObj)
 
-		validateInferenceResource(workspaceObj, 1, true)
+		validateInferenceResource(workspaceObj, int32(numOfNode), true)
 
 		validateWorkspaceReadiness(workspaceObj)
 	})
@@ -378,20 +345,20 @@ var _ = Describe("Workspace Preset", func() {
 			Skip("Skipping llama 13b workspace test")
 		}
 
-		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode()
+		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret)
 
 		defer cleanupResources(workspaceObj)
 
 		time.Sleep(30 * time.Second)
-
-		validateMachineCreation(workspaceObj, 2)
+		numOfNode := 2
+		validateMachineCreation(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
 
 		validateAssociatedService(workspaceObj)
 
-		validateInferenceResource(workspaceObj, 2, true)
+		validateInferenceResource(workspaceObj, int32(numOfNode), true)
 
 		validateWorkspaceReadiness(workspaceObj)
 	})

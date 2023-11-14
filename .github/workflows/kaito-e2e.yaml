@@ -141,7 +141,7 @@ jobs:
       - name: Login to Private Presets ACR
         run: |
           az acr login --name ${{secrets.DOCKER_SERVER}}
-          az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} --attach-acr AIMODELSREGISTRY
+          # az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} --attach-acr AIMODELSREGISTRY
 
       - name: Add Secret Credentials
         run: |
@@ -160,6 +160,7 @@ jobs:
         env:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           RUN_LLAMA_13B: ${{ env.RUN_LLAMA_13B }}
+          AI_MODELS_REGISTRY_SECRET: ${{ secrets.DOCKER_REGISTRY }}
 
       - name: Cleanup e2e resources
         if: ${{ always() }}
