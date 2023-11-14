@@ -58,7 +58,7 @@ func createLlama13BWorkspaceWithPresetPrivateMode() *kaitov1alpha1.Workspace {
 		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "aimodelsregistry.azurecr.io/llama-2-13b-chat:0.0.1",
 			2, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
-			}, nil, kaitov1alpha1.PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{"aimodelsregistrysecret"}, nil)
+			}, nil, kaitov1alpha1.PresetLlama2BChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{"aimodelsregistrysecret"}, nil)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
@@ -131,28 +131,31 @@ func validateResourceStatus(workspaceObj *kaitov1alpha1.Workspace) {
 	})
 }
 
-func validateAssociatedServices(namespace string) {
-	By("Checking associated services", func() {
-		serviceList := &v1.ServiceList{}
-		listOpts := []client.ListOption{
-			client.InNamespace(namespace),
-		}
+func validateAssociatedService(workspaceObj *kaitov1alpha1.Workspace) {
+	serviceName := workspaceObj.Name
+	serviceNamespace := workspaceObj.Namespace
 
-		err := TestingCluster.KubeClient.List(ctx, serviceList, listOpts...)
-		if err != nil {
-			GinkgoWriter.Printf("Error fetching services in namespace %s: %v\n", namespace, err)
-			return
-		}
+	By(fmt.Sprintf("Checking for service %s in namespace %s", serviceName, serviceNamespace), func() {
+		service := &v1.Service{}
 
-		foundServices := false
-		for _, service := range serviceList.Items {
-			GinkgoWriter.Printf("Found service: %s\n", service.Name)
-			foundServices = true
-		}
+		Eventually(func() bool {
+			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: serviceName,
+				Name:      serviceNamespace,
+			}, service)
 
-		if !foundServices {
-			GinkgoWriter.Printf("No associated services found\n")
-		}
+			if err != nil {
+				if errors.IsNotFound(err) {
+					GinkgoWriter.Printf("Service %s not found in namespace %s\n", serviceName, serviceNamespace)
+				} else {
+					GinkgoWriter.Printf("Error fetching service %s in namespace %s: %v\n", serviceName, serviceNamespace, err)
+				}
+				return false
+			}
+
+			GinkgoWriter.Printf("Found service: %s in namespace %s\n", serviceName, serviceNamespace)
+			return true
+		}, 10*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for service to be created")
 	})
 }
 
@@ -349,7 +352,7 @@ var _ = Describe("Workspace Preset", func() {
 	// 	time.Sleep(30 * time.Second)
 
 	// 	fmt.Println("Workspace services")
-	// 	validateAssociatedServices(workspaceObj.Namespace)
+	// 	validateAssociatedService(workspaceObj)
 
 	// 	validateInferenceResource(workspaceObj, 1, true)
 
@@ -369,7 +372,7 @@ var _ = Describe("Workspace Preset", func() {
 		time.Sleep(30 * time.Second)
 
 		fmt.Println("Workspace services")
-		validateAssociatedServices(workspaceObj.Namespace)
+		validateAssociatedService(workspaceObj)
 
 		validateInferenceResource(workspaceObj, 1, true)
 
