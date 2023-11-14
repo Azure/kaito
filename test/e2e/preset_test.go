@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func createWorkspaceWithPresetPublicMode() *kaitov1alpha1.Workspace {
+func createFalconWorkspaceWithPresetPublicMode() *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Falcon 7B preset public mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
@@ -37,12 +37,26 @@ func createWorkspaceWithPresetPublicMode() *kaitov1alpha1.Workspace {
 	return workspaceObj
 }
 
-func createLlamaWorkspaceWithPresetPrivateMode() *kaitov1alpha1.Workspace {
+func createLlama7BWorkspaceWithPresetPrivateMode() *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Llama 7B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
 		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "aimodelsregistry.azurecr.io/llama-2-7b-chat:0.0.1",
 			1, "Standard_NC12s_v3", &metav1.LabelSelector{
+				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
+			}, nil, kaitov1alpha1.PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{"aimodelsregistrysecret"}, nil)
+
+		createAndValidateWorkspace(workspaceObj)
+	})
+	return workspaceObj
+}
+
+func createLlama13BWorkspaceWithPresetPrivateMode() *kaitov1alpha1.Workspace {
+	workspaceObj := &kaitov1alpha1.Workspace{}
+	By("Creating a workspace CR with Llama 13B Chat preset private mode", func() {
+		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
+		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "aimodelsregistry.azurecr.io/llama-2-13b-chat:0.0.1",
+			2, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
 			}, nil, kaitov1alpha1.PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{"aimodelsregistrysecret"}, nil)
 
@@ -69,31 +83,28 @@ func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
 }
 
 // Logic to validate machine creation
-func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace, machineObj *v1alpha5.Machine) {
+func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace, expectedCount int) {
 	By("Checking machine created by the workspace CR", func() {
-		machineList := &v1alpha5.MachineList{}
-		fmt.Println("info", workspaceObj.Name, workspaceObj.Namespace)
-		ls := labels.Set{
-			kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
-			kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
-		}
-
 		Eventually(func() bool {
-			merr := TestingCluster.KubeClient.List(ctx, machineList, &client.MatchingLabelsSelector{Selector: ls.AsSelector()})
-			if merr != nil {
-				fmt.Println("ERROR here", merr)
-				return false
-			}
-			if len(machineList.Items) != 1 {
-				fmt.Println("ERROR not machine list", len(machineList.Items))
+			machineList, err := getAllValidMachines(workspaceObj)
+			if err != nil {
+				fmt.Errorf("Failed to get all valid machines", err)
 				return false
 			}
 
-			machineObj = &machineList.Items[0]
-			_, conditionFound := lo.Find(machineObj.GetConditions(), func(condition apis.Condition) bool {
-				return condition.Type == apis.ConditionReady && condition.Status == v1.ConditionTrue
-			})
-			return conditionFound
+			if len(machineList.Items) != expectedCount {
+				return false
+			}
+
+			for _, machine := range machineList.Items {
+				_, conditionFound := lo.Find(machine.GetConditions(), func(condition apis.Condition) bool {
+					return condition.Type == apis.ConditionReady && condition.Status == v1.ConditionTrue
+				})
+				if !conditionFound {
+					return false
+				}
+			}
+			return true
 		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for machine to be ready")
 	})
 }
@@ -216,15 +227,32 @@ func validateWorkspaceReadiness(workspaceObj *kaitov1alpha1.Workspace) {
 	})
 }
 
-func cleanupResources(workspaceObj *kaitov1alpha1.Workspace, machineObj *v1alpha5.Machine) {
+func getAllValidMachines(workspaceObj *kaitov1alpha1.Workspace) (*v1alpha5.MachineList, error) {
+	machineList := &v1alpha5.MachineList{}
+	ls := labels.Set{
+		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
+		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
+	}
+
+	err := TestingCluster.KubeClient.List(ctx, machineList, &client.MatchingLabelsSelector{Selector: ls.AsSelector()})
+	if err != nil {
+		return nil, err
+	}
+	return machineList, nil
+}
+
+func cleanupResources(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Cleaning up resources", func() {
 		// delete workspace
 		err := deleteWorkspace(workspaceObj)
 		Expect(err).NotTo(HaveOccurred(), "Failed to delete workspace")
 
-		// delete machine, if it's valid
-		if machineObj != nil && machineObj.Name != "" {
-			err = deleteMachine(machineObj)
+		machineList, err := getAllValidMachines(workspaceObj)
+		Expect(err).NotTo(HaveOccurred(), "Failed to get all valid machines")
+
+		for _, machineObj := range machineList.Items {
+			// delete machine
+			err = deleteMachine(&machineObj)
 			Expect(err).NotTo(HaveOccurred(), "Failed to delete machine")
 		}
 	})
@@ -291,44 +319,61 @@ func deleteMachine(machineObj *v1alpha5.Machine) error {
 var _ = Describe("Workspace Preset", func() {
 
 	// It("should create a workspace with preset public mode successfully", func() {
-	// 	workspaceObj := createWorkspaceWithPresetPublicMode()
+	// 	workspaceObj := createFalconWorkspaceWithPresetPublicMode()
 	// 	machineObj := v1alpha5.Machine{}
 
 	// 	defer cleanupResources(workspaceObj, &machineObj)
 
 	// 	time.Sleep(30 * time.Second)
 
-	// 	validateMachineCreation(workspaceObj, &machineObj)
+	// 	validateMachineCreation(workspaceObj, 1)
 	// 	validateResourceStatus(workspaceObj)
 
 	// 	time.Sleep(30 * time.Second)
 
-	// 	validateInferenceDeployment(workspaceObj)
+	// 	validateInferenceResource(workspaceObj, true)
 
 	// 	validateWorkspaceReadiness(workspaceObj)
 	// })
 
-	It("should create a llama workspace with preset private mode successfully", func() {
-		workspaceObj := createLlamaWorkspaceWithPresetPrivateMode()
-		machineObj := v1alpha5.Machine{}
+	It("should create a llama 7b workspace with preset private mode successfully", func() {
+		workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode()
 
-		defer cleanupResources(workspaceObj, &machineObj)
+		defer cleanupResources(workspaceObj)
 
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, &machineObj)
+		validateMachineCreation(workspaceObj, 1)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
 
 		fmt.Println("Workspace services")
 		validateAssociatedServices(workspaceObj.Namespace)
-		// fmt.Println("default services")
-		// validateAssociatedServices("default")
 
 		validateInferenceResource(workspaceObj, true)
 
 		validateWorkspaceReadiness(workspaceObj)
 	})
+
+	// It("should create a llama 13b workspace with preset private mode successfully", func() {
+	// 	workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode()
+
+	// 	defer cleanupResources(workspaceObj)
+
+	// 	time.Sleep(30 * time.Second)
+
+	// 	validateMachineCreation(workspaceObj, 2)
+	// 	validateResourceStatus(workspaceObj)
+
+	// 	time.Sleep(30 * time.Second)
+
+	// 	fmt.Println("Workspace services")
+	// 	validateAssociatedServices(workspaceObj.Namespace)
+
+	// 	validateInferenceResource(workspaceObj, true)
+
+	// 	validateWorkspaceReadiness(workspaceObj)
+	// })
 
 })
