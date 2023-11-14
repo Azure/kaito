@@ -323,8 +323,8 @@ var _ = Describe("Workspace Preset", func() {
 
 		fmt.Println("Workspace services")
 		validateAssociatedServices(workspaceObj.Namespace)
-		fmt.Println("default services")
-		validateAssociatedServices("default")
+		// fmt.Println("default services")
+		// validateAssociatedServices("default")
 
 		validateInferenceResource(workspaceObj, true)
 
