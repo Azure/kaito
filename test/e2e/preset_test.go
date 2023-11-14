@@ -151,7 +151,6 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, isStateful
 		Eventually(func() bool {
 			var err error
 			var readyReplicas int32
-			var podList *v1.PodList
 
 			if isStatefulSet {
 				sts := &appsv1.StatefulSet{
@@ -165,11 +164,6 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, isStateful
 					Name:      workspaceObj.Name,
 				}, sts)
 				readyReplicas = sts.Status.ReadyReplicas
-
-				podList, err = getPodsForStatefulSet(workspaceObj.Namespace, sts)
-				if err != nil {
-					GinkgoWriter.Printf("Error fetching pods for StatefulSet: %v\n", err)
-				}
 
 			} else {
 				dep := &appsv1.Deployment{
@@ -190,18 +184,6 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, isStateful
 				return false
 			}
 
-			// Log the status of each pod
-			if podList != nil {
-				for _, pod := range podList.Items {
-					GinkgoWriter.Printf("Pod '%s' status: %s\n", pod.Name, pod.Status.Phase)
-					// if pod.Status.Phase == v1.PodPending || v1.PodFailed {
-					printPodEvents(workspaceObj.Namespace, pod.Name)
-					// }
-				}
-			} else {
-				GinkgoWriter.Printf("Pod List is Nil")
-			}
-
 			if readyReplicas == 1 {
 				return true
 			}
@@ -211,94 +193,6 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, isStateful
 		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for inference resource to be ready")
 	})
 }
-
-func getPodsForStatefulSet(namespace string, sts *appsv1.StatefulSet) (*v1.PodList, error) {
-	podList := &v1.PodList{}
-	listOpts := []client.ListOption{
-		client.InNamespace(namespace),
-		client.MatchingLabels(sts.Spec.Selector.MatchLabels),
-	}
-
-	err := TestingCluster.KubeClient.List(ctx, podList, listOpts...)
-	if err != nil {
-		return nil, err
-	}
-
-	return podList, nil
-}
-
-func printPodEvents(namespace, podName string) {
-	eventList := &v1.EventList{}
-	listOpts := []client.ListOption{
-		client.InNamespace(namespace),
-	}
-
-	err := TestingCluster.KubeClient.List(ctx, eventList, listOpts...)
-	if err != nil {
-		GinkgoWriter.Printf("Error fetching events for namespace %s: %v\n", namespace, err)
-		return
-	}
-
-	GinkgoWriter.Printf("Events for Pod %s:\n", podName)
-	for _, event := range eventList.Items {
-		if event.InvolvedObject.Kind == "Pod" && event.InvolvedObject.Name == podName {
-			GinkgoWriter.Printf("Time: %v, Reason: %s, Message: %s\n", event.LastTimestamp, event.Reason, event.Message)
-		}
-	}
-}
-
-// func describeStatefulSet(namespace, statefulSetName string) {
-// 	sts := &appsv1.StatefulSet{}
-// 	err := TestingCluster.KubeClient.Get(ctx, types.NamespacedName{
-// 		Namespace: namespace,
-// 		Name:      statefulSetName,
-// 	}, sts)
-// 	if err != nil {
-// 		GinkgoWriter.Printf("Error fetching statefulset %s: %v\n", statefulSetName, err)
-// 		return
-// 	}
-
-// 	// Print basic statefulset details
-// 	GinkgoWriter.Printf("StatefulSet Name: %s, Namespace: %s, Replicas: %d\n", sts.Name, sts.Namespace, *sts.Spec.Replicas)
-
-// 	// Optionally, list and print events related to the StatefulSet
-// 	printStatefulSetEvents(namespace, statefulSetName)
-// }
-
-// func describeDeployment(namespace, deploymentName string) {
-// 	deployment := &appsv1.Deployment{}
-// 	err := TestingCluster.KubeClient.Get(ctx, types.NamespacedName{
-// 		Namespace: namespace,
-// 		Name:      deploymentName,
-// 	}, deployment)
-// 	if err != nil {
-// 		GinkgoWriter.Printf("Error fetching deployment %s: %v\n", deploymentName, err)
-// 		return
-// 	}
-
-// 	// Print basic deployment details
-// 	GinkgoWriter.Printf("Deployment Name: %s, Namespace: %s, Replicas: %d\n", deployment.Name, deployment.Namespace, *deployment.Spec.Replicas)
-
-// 	// List and print events related to the Deployment
-// 	printDeploymentEvents(namespace, deploymentName)
-// }
-
-// func printDeploymentEvents(namespace, deploymentName string) {
-// 	eventList := &v1.EventList{}
-// 	listOpts := client.ListOptions{Namespace: namespace}
-// 	err := TestingCluster.KubeClient.List(ctx, eventList, &listOpts)
-// 	if err != nil {
-// 		GinkgoWriter.Printf("Error fetching events for namespace %s: %v\n", namespace, err)
-// 		return
-// 	}
-
-// 	GinkgoWriter.Printf("Events for Deployment %s:\n", deploymentName)
-// 	for _, event := range eventList.Items {
-// 		if event.InvolvedObject.Kind == "Deployment" && event.InvolvedObject.Name == deploymentName {
-// 			GinkgoWriter.Printf("Time: %v, Reason: %s, Message: %s\n", event.LastTimestamp, event.Reason, event.Message)
-// 		}
-// 	}
-// }
 
 // Logic to validate workspace readiness
 func validateWorkspaceReadiness(workspaceObj *kaitov1alpha1.Workspace) {
