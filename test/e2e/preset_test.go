@@ -377,7 +377,7 @@ var _ = Describe("Workspace Preset", func() {
 
 		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode()
 
-		defer cleanupResources(workspaceObj)
+		// defer cleanupResources(workspaceObj)
 
 		time.Sleep(30 * time.Second)
 
