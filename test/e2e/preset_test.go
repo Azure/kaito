@@ -6,6 +6,8 @@ package e2e
 import (
 	"fmt"
 	"math/rand"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -140,8 +142,8 @@ func validateAssociatedService(workspaceObj *kaitov1alpha1.Workspace) {
 
 		Eventually(func() bool {
 			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
-				Namespace: serviceName,
-				Name:      serviceNamespace,
+				Namespace: serviceNamespace,
+				Name:      serviceName,
 			}, service)
 
 			if err != nil {
@@ -323,61 +325,62 @@ var runLlama13B bool
 
 var _ = Describe("Workspace Preset", func() {
 
-	// BeforeEach(func() {
-	// 	var err error
-	// 	runLlama13B, err = strconv.ParseBool(os.Getenv("RUN_LLAMA_13B"))
-	// 	if err != nil {
-	// 		// Handle error or set a default value
-	// 		runLlama13B = false
-	// 	}
-	// })
+	BeforeEach(func() {
+		var err error
+		runLlama13B, err = strconv.ParseBool(os.Getenv("RUN_LLAMA_13B"))
+		if err != nil {
+			// Handle error or set a default value
+			fmt.Print("Error: RUN_LLAMA_13B ENV Variable not set")
+			runLlama13B = false
+		}
+	})
 
-	// It("should create a workspace with preset public mode successfully", func() {
-	// 	workspaceObj := createFalconWorkspaceWithPresetPublicMode()
-	// 	machineObj := v1alpha5.Machine{}
+	It("should create a workspace with preset public mode successfully", func() {
+		workspaceObj := createFalconWorkspaceWithPresetPublicMode()
 
-	// 	defer cleanupResources(workspaceObj, &machineObj)
+		defer cleanupResources(workspaceObj)
 
-	// 	time.Sleep(30 * time.Second)
+		time.Sleep(30 * time.Second)
 
-	// 	validateMachineCreation(workspaceObj, 1)
-	// 	validateResourceStatus(workspaceObj)
+		validateMachineCreation(workspaceObj, 1)
+		validateResourceStatus(workspaceObj)
 
-	// 	time.Sleep(30 * time.Second)
+		time.Sleep(30 * time.Second)
 
-	// 	validateInferenceResource(workspaceObj, true)
+		validateAssociatedService(workspaceObj)
 
-	// 	validateWorkspaceReadiness(workspaceObj)
-	// })
+		validateInferenceResource(workspaceObj, 1, false)
 
-	// It("should create a llama 7b workspace with preset private mode successfully", func() {
-	// 	workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode()
+		validateWorkspaceReadiness(workspaceObj)
+	})
 
-	// 	defer cleanupResources(workspaceObj)
+	It("should create a llama 7b workspace with preset private mode successfully", func() {
+		workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode()
 
-	// 	time.Sleep(30 * time.Second)
+		defer cleanupResources(workspaceObj)
 
-	// 	validateMachineCreation(workspaceObj, 1)
-	// 	validateResourceStatus(workspaceObj)
+		time.Sleep(30 * time.Second)
 
-	// 	time.Sleep(30 * time.Second)
+		validateMachineCreation(workspaceObj, 1)
+		validateResourceStatus(workspaceObj)
 
-	// 	fmt.Println("Workspace services")
-	// 	validateAssociatedService(workspaceObj)
+		time.Sleep(30 * time.Second)
 
-	// 	validateInferenceResource(workspaceObj, 1, true)
+		validateAssociatedService(workspaceObj)
 
-	// 	validateWorkspaceReadiness(workspaceObj)
-	// })
+		validateInferenceResource(workspaceObj, 1, true)
+
+		validateWorkspaceReadiness(workspaceObj)
+	})
 
 	It("should create a llama 13b workspace with preset private mode successfully", func() {
-		// if !runLlama13B {
-		// 	Skip("Skipping llama 13b workspace test")
-		// }
+		if !runLlama13B {
+			Skip("Skipping llama 13b workspace test")
+		}
 
 		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode()
 
-		// defer cleanupResources(workspaceObj)
+		defer cleanupResources(workspaceObj)
 
 		time.Sleep(30 * time.Second)
 
@@ -386,10 +389,9 @@ var _ = Describe("Workspace Preset", func() {
 
 		time.Sleep(30 * time.Second)
 
-		fmt.Println("Workspace services")
-		// validateAssociatedService(workspaceObj)
+		validateAssociatedService(workspaceObj)
 
-		validateInferenceResource(workspaceObj, 1, true)
+		validateInferenceResource(workspaceObj, 2, true)
 
 		validateWorkspaceReadiness(workspaceObj)
 	})
