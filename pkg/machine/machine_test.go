@@ -25,6 +25,12 @@ func TestCreateMachine(t *testing.T) {
 	}{
 		"Machine creation fails": {
 			callMocks: func(c *utils.MockClient) {
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(errors.New("Failed to create machine"))
+			},
+			expectedError: errors.New("Failed to create machine"),
+		},
+		"Machine creation fails because SKU is not available": {
+			callMocks: func(c *utils.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
 			},
@@ -155,4 +161,15 @@ func TestWaitForPendingMachines(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGenerateMachineManifiest(t *testing.T) {
+	t.Run("Should generate a machine object from the given workspace", func(t *testing.T) {
+		mockWorkspace := utils.MockWorkspace
+
+		machine := GenerateMachineManifest(context.Background(), "0", mockWorkspace)
+
+		assert.Check(t, machine != nil, "Machine must not be nil")
+		assert.Equal(t, machine.Namespace, mockWorkspace.Namespace, "Machine must have same namespace as workspace")
+	})
 }
