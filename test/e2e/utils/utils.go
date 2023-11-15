@@ -4,6 +4,8 @@
 package utils
 
 import (
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -22,6 +24,15 @@ var (
 	// PollTimeout defines the time after which the poll operation times out.
 	PollTimeout = 60 * time.Second
 )
+
+func GetEnv(envVar string) string {
+	env := os.Getenv(envVar)
+	if env == "" {
+		fmt.Printf("%s is not set or is empty", envVar)
+		return ""
+	}
+	return env
+}
 
 func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount int, instanceType string,
 	labelSelector *metav1.LabelSelector, preferredNodes []string, presetName kaitov1alpha1.ModelName,

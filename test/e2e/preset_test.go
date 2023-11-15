@@ -39,28 +39,28 @@ func createFalconWorkspaceWithPresetPublicMode(numOfNode int) *kaitov1alpha1.Wor
 	return workspaceObj
 }
 
-func createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret string, numOfNode int) *kaitov1alpha1.Workspace {
+func createLlama7BWorkspaceWithPresetPrivateMode(registry, registrySecret, imageVersion string, numOfNode int) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Llama 7B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "aimodelsregistry.azurecr.io/llama-2-7b-chat:0.0.1",
+		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, kaitov1alpha1.PresetLlama2AChat, imageVersion),
 			numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
-			}, nil, kaitov1alpha1.PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{aiModelsRegistrySecret}, nil)
+			}, nil, kaitov1alpha1.PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
 	return workspaceObj
 }
 
-func createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret string, numOfNode int) *kaitov1alpha1.Workspace {
+func createLlama13BWorkspaceWithPresetPrivateMode(registry, registrySecret, imageVersion string, numOfNode int) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Llama 13B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "aimodelsregistry.azurecr.io/llama-2-13b-chat:0.0.1",
+		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, kaitov1alpha1.PresetLlama2BChat, imageVersion),
 			numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
-			}, nil, kaitov1alpha1.PresetLlama2BChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{aiModelsRegistrySecret}, nil)
+			}, nil, kaitov1alpha1.PresetLlama2BChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
@@ -283,7 +283,9 @@ func deleteWorkspace(workspaceObj *kaitov1alpha1.Workspace) error {
 }
 
 var runLlama13B bool
+var aiModelsRegistry string
 var aiModelsRegistrySecret string
+var aiModelsImageVersion string
 
 var _ = Describe("Workspace Preset", func() {
 
@@ -296,10 +298,9 @@ var _ = Describe("Workspace Preset", func() {
 			runLlama13B = false
 		}
 
-		aiModelsRegistrySecret = os.Getenv("AI_MODELS_REGISTRY_SECRET")
-		if aiModelsRegistrySecret == "" {
-			fmt.Println("AI_MODELS_REGISTRY_SECRET is not set or is empty")
-		}
+		aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
+		aiModelsRegistrySecret = utils.GetEnv("AI_MODELS_REGISTRY_SECRET")
+		aiModelsImageVersion = utils.GetEnv("AI_MODELS_IMAGE_VERSION")
 	})
 
 	It("should create a workspace with preset public mode successfully", func() {
@@ -323,7 +324,7 @@ var _ = Describe("Workspace Preset", func() {
 
 	It("should create a llama 7b workspace with preset private mode successfully", func() {
 		numOfNode := 1
-		workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret, numOfNode)
+		workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, aiModelsImageVersion, numOfNode)
 
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
@@ -345,7 +346,7 @@ var _ = Describe("Workspace Preset", func() {
 			Skip("Skipping llama 13b workspace test")
 		}
 		numOfNode := 2
-		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistrySecret, numOfNode)
+		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, aiModelsImageVersion, numOfNode)
 
 		defer cleanupResources(workspaceObj)
 

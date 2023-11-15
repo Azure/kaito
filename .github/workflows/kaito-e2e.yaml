@@ -50,6 +50,7 @@ jobs:
           echo "VERSION=${rand}" >> $GITHUB_ENV
           echo "CLUSTER_NAME=kaito${rand}" >> $GITHUB_ENV
           echo "RUN_LLAMA_13B=false" >> $GITHUB_ENV
+          echo "AI_MODELS_IMAGE_VERSION=0.0.1" >> $GITHUB_ENV 
 
       - uses: azure/login@v1.4.6
         with:
@@ -160,7 +161,9 @@ jobs:
         env:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           RUN_LLAMA_13B: ${{ env.RUN_LLAMA_13B }}
+          AI_MODELS_REGISTRY: ${{secrets.DOCKER_SERVER}}
           AI_MODELS_REGISTRY_SECRET: ${{ secrets.DOCKER_REGISTRY }}
+          AI_MODELS_IMAGE_VERSION: ${{ env.AI_MODELS_IMAGE_VERSION }}
 
       - name: Cleanup e2e resources
         if: ${{ always() }}
