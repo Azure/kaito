@@ -72,9 +72,9 @@ func createCustomWorkspaceWithPresetCustomMode(imageName string, numOfNode int) 
 	By("Creating a workspace CR with custom workspace mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
 		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "",
-			numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
+			numOfNode, "Standard_D4s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
-			}, nil, "", utils.InferenceModeCustomTemplate, nil, utils.GeneratePodTemplate(workspaceObj.Name, workspaceObj.Namespace, imageName, nil))
+			}, nil, "", utils.InferenceModeCustomTemplate, nil, utils.GeneratePodTemplate(uniqueID, namespaceName, imageName, nil))
 
 		createAndValidateWorkspace(workspaceObj)
 	})
