@@ -3,6 +3,10 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/Azure/kaito)](https://goreportcard.com/report/github.com/Azure/kaito)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Azure/kaito)
 
+| ![notification](docs/img/bell.svg) What is NEW!|
+|---------------------------------------------------------------------------------------------|
+| First Release: Nov 15th, 2023. Kaito v0.1.0.                                               |
+
 Kaito is an operator that automates the AI/ML inference model deployment in a Kubernetes cluster.
 The target models are popular large open sourced inference models such as [falcon](https://huggingface.co/tiiuae) and [llama 2](https://github.com/facebookresearch/llama).
 Kaito has the following key differentiations compared to most of the mainstream model deployment methodologies built on top of virtual machine infrastructures.
