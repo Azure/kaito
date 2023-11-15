@@ -49,6 +49,7 @@ jobs:
 
           echo "VERSION=${rand}" >> $GITHUB_ENV
           echo "CLUSTER_NAME=kaito${rand}" >> $GITHUB_ENV
+          echo "RUN_LLAMA_13B=false" >> $GITHUB_ENV
 
       - uses: azure/login@v1.4.6
         with:
@@ -136,12 +137,30 @@ jobs:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
           VERSION: ${{ env.VERSION }}
+      
+      - name: Login to Private Presets ACR
+        run: |
+          az acr login --name ${{secrets.DOCKER_SERVER}}
+          az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} --attach-acr ${{secrets.ACR_AIMODELSREGISTRY}}
+
+      - name: Add Secret Credentials
+        run: |
+          kubectl create secret docker-registry ${{secrets.DOCKER_REGISTRY}} \
+          --docker-server=${{secrets.DOCKER_SERVER}} \
+          --docker-username=${{secrets.DOCKER_USERNAME}} \
+          --docker-password=${{secrets.DOCKER_PASSWORD}}
+      
+      - name: Log kaito-workspace
+        run: |
+          kubectl get pods -n kaito-workspace -o name | grep "^pod/kaito-workspace" | sed 's/^pod\///' | xargs -I {} kubectl logs -n kaito-workspace {}
 
       - name: Run e2e test
         run: |
           make kaito-workspace-e2e-test
         env:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
+          RUN_LLAMA_13B: ${{ env.RUN_LLAMA_13B }}
+          AI_MODELS_REGISTRY_SECRET: ${{ secrets.DOCKER_REGISTRY }}
 
       - name: Cleanup e2e resources
         if: ${{ always() }}

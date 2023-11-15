@@ -93,7 +93,7 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 		return reconcile.Result{}, err
 	}
 
-	useHeadlessService := *(wObj.Resource.Count) > 1 && strings.Contains(string(wObj.Inference.Preset.Name), "llama")
+	useHeadlessService := strings.Contains(string(wObj.Inference.Preset.Name), "llama")
 	if err := c.ensureService(ctx, wObj, useHeadlessService); err != nil {
 		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
 			"workspaceFailed", err.Error()); updateErr != nil {
