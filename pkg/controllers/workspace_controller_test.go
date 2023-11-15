@@ -34,12 +34,12 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 	}{
 		"two qualified nodes, need one": {
 			qualified: []*corev1.Node{
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node2",
 					},
 				},
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node1",
 					},
@@ -53,17 +53,17 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 
 		"three qualified nodes, prefer two of them": {
 			qualified: []*corev1.Node{
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node1",
 					},
 				},
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node2",
 					},
 				},
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 					},
@@ -77,17 +77,17 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 
 		"three qualified nodes, two of them are selected previously, need two": {
 			qualified: []*corev1.Node{
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node1",
 					},
 				},
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node2",
 					},
 				},
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 					},
@@ -101,17 +101,17 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 
 		"three qualified nodes, one preferred, one previous, need two": {
 			qualified: []*corev1.Node{
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node1",
 					},
 				},
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node2",
 					},
 				},
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 					},
@@ -125,17 +125,17 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 
 		"three qualified nodes, one preferred, one previous, need one": {
 			qualified: []*corev1.Node{
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node1",
 					},
 				},
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node2",
 					},
 				},
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 					},
@@ -149,17 +149,17 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 
 		"three qualified nodes, one is created by kaito, need one": {
 			qualified: []*corev1.Node{
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node1",
 					},
 				},
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node2",
 					},
 				},
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
@@ -175,17 +175,17 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 		},
 		"three qualified nodes, one is created by kaito, one is preferred, one is previous, need two": {
 			qualified: []*corev1.Node{
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node1",
 					},
 				},
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node2",
 					},
 				},
-				&corev1.Node{
+				{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
