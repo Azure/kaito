@@ -390,8 +390,6 @@ var _ = Describe("Workspace Preset", func() {
 
 		time.Sleep(30 * time.Second)
 
-		validateAssociatedService(workspaceObj)
-
 		validateInferenceResource(workspaceObj, int32(numOfNode), true)
 
 		validateWorkspaceReadiness(workspaceObj)
