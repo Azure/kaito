@@ -298,7 +298,7 @@ var _ = Describe("Workspace Preset", func() {
 			runLlama13B = false
 		}
 
-		aiModelsRegistry = utils.GetEnv("DOCKER_SERVER")
+		aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
 		aiModelsRegistrySecret = utils.GetEnv("AI_MODELS_REGISTRY_SECRET")
 		aiModelsImageVersion = utils.GetEnv("AI_MODELS_IMAGE_VERSION")
 	})

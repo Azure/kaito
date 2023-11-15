@@ -161,7 +161,7 @@ jobs:
         env:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           RUN_LLAMA_13B: ${{ env.RUN_LLAMA_13B }}
-          DOCKER_SERVER: ${{secrets.DOCKER_SERVER}}
+          AI_MODELS_REGISTRY: ${{secrets.DOCKER_SERVER}}
           AI_MODELS_REGISTRY_SECRET: ${{ secrets.DOCKER_REGISTRY }}
           AI_MODELS_IMAGE_VERSION: ${{ env.AI_MODELS_IMAGE_VERSION }}
 
