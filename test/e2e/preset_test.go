@@ -67,6 +67,20 @@ func createLlama13BWorkspaceWithPresetPrivateMode(registry, registrySecret, imag
 	return workspaceObj
 }
 
+func createCustomWorkspaceWithPresetCustomMode(imageName string, numOfNode int) *kaitov1alpha1.Workspace {
+	workspaceObj := &kaitov1alpha1.Workspace{}
+	By("Creating a workspace CR with custom workspace mode", func() {
+		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
+		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "",
+			numOfNode, "Standard_D4s_v3", &metav1.LabelSelector{
+				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
+			}, nil, "", utils.InferenceModeCustomTemplate, nil, utils.GeneratePodTemplate(uniqueID, namespaceName, imageName, nil))
+
+		createAndValidateWorkspace(workspaceObj)
+	})
+	return workspaceObj
+}
+
 func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Creating workspace", func() {
 		Eventually(func() error {
@@ -359,6 +373,24 @@ var _ = Describe("Workspace Preset", func() {
 		validateAssociatedService(workspaceObj)
 
 		validateInferenceResource(workspaceObj, int32(numOfNode), true)
+
+		validateWorkspaceReadiness(workspaceObj)
+	})
+
+	It("should create a custom template workspace successfully", func() {
+		numOfNode := 1
+		imageName := "nginx:latest"
+		workspaceObj := createCustomWorkspaceWithPresetCustomMode(imageName, numOfNode)
+
+		defer cleanupResources(workspaceObj)
+
+		time.Sleep(30 * time.Second)
+		validateMachineCreation(workspaceObj, numOfNode)
+		validateResourceStatus(workspaceObj)
+
+		time.Sleep(30 * time.Second)
+
+		validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
 		validateWorkspaceReadiness(workspaceObj)
 	})

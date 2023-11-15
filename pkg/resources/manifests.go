@@ -270,6 +270,7 @@ func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj
 	}
 
 	templateCopy := workspaceObj.Inference.Template.DeepCopy()
+
 	if templateCopy.ObjectMeta.Labels == nil {
 		templateCopy.ObjectMeta.Labels = make(map[string]string)
 	}
