@@ -224,3 +224,7 @@ func NewTestScheme() *runtime.Scheme {
 func NotFoundError() error {
 	return &apierrors.StatusError{ErrStatus: metav1.Status{Reason: metav1.StatusReasonNotFound}}
 }
+
+func IsAlreadyExistsError() error {
+	return &apierrors.StatusError{ErrStatus: metav1.Status{Reason: metav1.StatusReasonAlreadyExists}}
+}
