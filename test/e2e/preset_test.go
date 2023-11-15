@@ -317,65 +317,65 @@ var _ = Describe("Workspace Preset", func() {
 		aiModelsImageVersion = utils.GetEnv("AI_MODELS_IMAGE_VERSION")
 	})
 
-	// It("should create a workspace with preset public mode successfully", func() {
-	// 	numOfNode := 1
-	// 	workspaceObj := createFalconWorkspaceWithPresetPublicMode(numOfNode)
+	It("should create a workspace with preset public mode successfully", func() {
+		numOfNode := 1
+		workspaceObj := createFalconWorkspaceWithPresetPublicMode(numOfNode)
 
-	// 	defer cleanupResources(workspaceObj)
-	// 	time.Sleep(30 * time.Second)
+		defer cleanupResources(workspaceObj)
+		time.Sleep(30 * time.Second)
 
-	// 	validateMachineCreation(workspaceObj, numOfNode)
-	// 	validateResourceStatus(workspaceObj)
+		validateMachineCreation(workspaceObj, numOfNode)
+		validateResourceStatus(workspaceObj)
 
-	// 	time.Sleep(30 * time.Second)
+		time.Sleep(30 * time.Second)
 
-	// 	validateAssociatedService(workspaceObj)
+		validateAssociatedService(workspaceObj)
 
-	// 	validateInferenceResource(workspaceObj, int32(numOfNode), false)
+		validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
-	// 	validateWorkspaceReadiness(workspaceObj)
-	// })
+		validateWorkspaceReadiness(workspaceObj)
+	})
 
-	// It("should create a llama 7b workspace with preset private mode successfully", func() {
-	// 	numOfNode := 1
-	// 	workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, aiModelsImageVersion, numOfNode)
+	It("should create a llama 7b workspace with preset private mode successfully", func() {
+		numOfNode := 1
+		workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, aiModelsImageVersion, numOfNode)
 
-	// 	defer cleanupResources(workspaceObj)
-	// 	time.Sleep(30 * time.Second)
+		defer cleanupResources(workspaceObj)
+		time.Sleep(30 * time.Second)
 
-	// 	validateMachineCreation(workspaceObj, numOfNode)
-	// 	validateResourceStatus(workspaceObj)
+		validateMachineCreation(workspaceObj, numOfNode)
+		validateResourceStatus(workspaceObj)
 
-	// 	time.Sleep(30 * time.Second)
+		time.Sleep(30 * time.Second)
 
-	// 	validateAssociatedService(workspaceObj)
+		validateAssociatedService(workspaceObj)
 
-	// 	validateInferenceResource(workspaceObj, int32(numOfNode), true)
+		validateInferenceResource(workspaceObj, int32(numOfNode), true)
 
-	// 	validateWorkspaceReadiness(workspaceObj)
-	// })
+		validateWorkspaceReadiness(workspaceObj)
+	})
 
-	// It("should create a llama 13b workspace with preset private mode successfully", func() {
-	// 	if !runLlama13B {
-	// 		Skip("Skipping llama 13b workspace test")
-	// 	}
-	// 	numOfNode := 2
-	// 	workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, aiModelsImageVersion, numOfNode)
+	It("should create a llama 13b workspace with preset private mode successfully", func() {
+		if !runLlama13B {
+			Skip("Skipping llama 13b workspace test")
+		}
+		numOfNode := 2
+		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, aiModelsImageVersion, numOfNode)
 
-	// 	defer cleanupResources(workspaceObj)
+		defer cleanupResources(workspaceObj)
 
-	// 	time.Sleep(30 * time.Second)
-	// 	validateMachineCreation(workspaceObj, numOfNode)
-	// 	validateResourceStatus(workspaceObj)
+		time.Sleep(30 * time.Second)
+		validateMachineCreation(workspaceObj, numOfNode)
+		validateResourceStatus(workspaceObj)
 
-	// 	time.Sleep(30 * time.Second)
+		time.Sleep(30 * time.Second)
 
-	// 	validateAssociatedService(workspaceObj)
+		validateAssociatedService(workspaceObj)
 
-	// 	validateInferenceResource(workspaceObj, int32(numOfNode), true)
+		validateInferenceResource(workspaceObj, int32(numOfNode), true)
 
-	// 	validateWorkspaceReadiness(workspaceObj)
-	// })
+		validateWorkspaceReadiness(workspaceObj)
+	})
 
 	It("should create a custom template workspace successfully", func() {
 		numOfNode := 1
