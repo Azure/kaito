@@ -390,7 +390,7 @@ var _ = Describe("Workspace Preset", func() {
 
 		time.Sleep(30 * time.Second)
 
-		validateInferenceResource(workspaceObj, int32(numOfNode), true)
+		validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
 		validateWorkspaceReadiness(workspaceObj)
 	})
