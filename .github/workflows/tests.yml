@@ -45,3 +45,5 @@ jobs:
         with:
           ## Comma-separated list of files to upload
           files: ./coverage.txt
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
