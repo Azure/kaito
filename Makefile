@@ -2,7 +2,7 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= mcr.microsoft.com/aks/kaito
 IMG_NAME ?= workspace
-VERSION ?= v0.0.1
+VERSION ?= v0.1.0
 IMG_TAG ?= $(subst v,,$(VERSION))
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))

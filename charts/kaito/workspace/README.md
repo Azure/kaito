@@ -5,7 +5,7 @@
 ```bash
 export REGISTRY=<your_docker_registry>
 export IMG_NAME=workspace
-export IMG_TAG=0.0.1
+export IMG_TAG=0.1.0
 helm install workspace ./charts/kaito/workspace  --set image.repository=${REGISTRY}/$(IMG_NAME) --set image.tag=$(IMG_TAG)
 ```
 
@@ -16,7 +16,7 @@ helm install workspace ./charts/kaito/workspace  --set image.repository=${REGIST
 | affinity                                 | object | `{}`                              |             |
 | image.pullPolicy                         | string | `"IfNotPresent"`                  |             |
 | image.repository                         | string | `"ghcr.io/azure/kaito/workspace"` |             |
-| image.tag                                | string | `"0.0.1"`                         |             |
+| image.tag                                | string | `"0.1.0"`                         |             |
 | imagePullSecrets                         | list   | `[]`                              |             |
 | nodeSelector                             | object | `{}`                              |             |
 | podAnnotations                           | object | `{}`                              |             |
