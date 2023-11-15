@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -270,6 +271,18 @@ func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj
 	}
 
 	templateCopy := workspaceObj.Inference.Template.DeepCopy()
+	yamlData, err := yaml.Marshal(templateCopy)
+	if err != nil {
+		fmt.Printf("Error marshalling pod template to YAML: %v\n", err)
+	} else {
+		fmt.Printf("Pod Template YAML:\n%s\n", string(yamlData))
+	}
+	// // Ensure the pod template has at least one container with a name
+	// if len(templateCopy.Spec.Containers) == 0 || templateCopy.Spec.Containers[0].Name == "" {
+	// 	fmt.Printf("Error: No containers defined or first container has no name in the pod template.")
+	// 	return nil
+	// }
+
 	if templateCopy.ObjectMeta.Labels == nil {
 		templateCopy.ObjectMeta.Labels = make(map[string]string)
 	}
