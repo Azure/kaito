@@ -182,6 +182,7 @@ jobs:
           client-id: ${{ secrets.AZURE_KDM_PRESET_SELF_RUNNER_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
+          auth-type: IDENTITY
   
       - name: 'Set subscription'
         run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
