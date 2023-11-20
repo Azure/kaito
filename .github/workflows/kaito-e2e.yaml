@@ -52,18 +52,24 @@ jobs:
           echo "RUN_LLAMA_13B=false" >> $GITHUB_ENV
           echo "AI_MODELS_IMAGE_VERSION=0.0.1" >> $GITHUB_ENV 
 
+      - name: Install Azure CLI latest
+        run: |
+            if ! which az > /dev/null; then
+                echo "Azure CLI not found. Installing..."
+                curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+            else
+                echo "Azure CLI already installed."
+            fi
+
       - uses: azure/login@v1.5.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
-
-      - name: Install Azure CLI latest
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
+    
+      - name: 'Set subscription'
+        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
+      
       - uses: azure/setup-helm@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
