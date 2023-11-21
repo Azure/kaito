@@ -6,7 +6,7 @@ import argparse
 
 # API
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException
 import uvicorn
 
@@ -16,33 +16,46 @@ import transformers
 import torch
 # import torch.distributed as dist
 
-parser = argparse.ArgumentParser(description='Falcon Model Configuration')
+parser = argparse.ArgumentParser(description='Model Configuration')
+parser.add_argument('--model_id', required=True, type=str, help='The model ID for the pre-trained model')
+parser.add_argument('--pipeline', required=True, type=str, help='The model pipeline for the pre-trained model')
 parser.add_argument('--load_in_8bit', default=False, action='store_true', help='Load model in 8-bit mode')
-parser.add_argument('--disable_trust_remote_code', default=False, action='store_true', help='Disable trusting remote code when loading the model')
-# parser.add_argument('--model_id', required=True, type=str, help='The Falcon ID for the pre-trained model')
+parser.add_argument('--trust_remote_code', default=False, action='store_true', help='Disable trusting remote code when loading the model')
+parser.add_argument('--torch_dtype', default=torch.bfloat16, type=torch.Tensor, help='The torch dtype for the pre-trained model')
+parser.add_argument('--device_map', default="auto", type=str, help='The device map for the pre-trained model')
+
 args = parser.parse_args()
 
 app = FastAPI()
 
-tokenizer = AutoTokenizer.from_pretrained("/workspace/falcon/weights")
+supported_pipelines = {"conversational", "text-generation"}
+tokenizer = AutoTokenizer.from_pretrained(args.model_id) # replace with model weights path
 model = AutoModelForCausalLM.from_pretrained(
-    "/workspace/falcon/weights", # args.model_id,
-    device_map="auto",
-    torch_dtype=torch.bfloat16,
-    trust_remote_code=not args.disable_trust_remote_code, # Use NOT since our flag disables the trust
-    load_in_8bit=args.load_in_8bit,
-    # offload_folder="offload",
-    # offload_state_dict = True
+    args.model_id, # replace with model weights path
+    device_map = args.device_map
 )
 
-pipeline = transformers.pipeline(
-    "text-generation",
-    model=model,
-    tokenizer=tokenizer,
-    torch_dtype=torch.bfloat16,
-    trust_remote_code=True,
-    device_map="auto",
-)
+if args.pipeline not in supported_pipelines: 
+    raise HTTPException(status_code=400, detail="Invalid pipeline specified")
+
+pipeline = None
+if args.pipeline == "text-generation":
+    pipeline = transformers.pipeline(
+        args.pipeline,
+        model=model,
+        tokenizer=tokenizer,
+        torch_dtype=args.torch_dtype,
+        trust_remote_code=args.trust_remote_code,
+        device_map=args.device_map,
+        load_in_8bit=args.load_in_8bit,
+    )
+elif args.pipeline == "conversational":
+    pipeline = transformers.pipeline(
+        args.pipeline,
+        model=model,
+        tokenizer=tokenizer,
+        # device=args.device
+    )
 
 @app.get('/')
 def home():
@@ -58,69 +71,85 @@ def health_check():
         raise HTTPException(status_code=500, detail="Falcon pipeline not initialized")
     return {"status": "Healthy"}
 
-class GenerationParams(BaseModel):
-    prompt: str
-    max_length: int = 200
-    min_length: int = 0
-    do_sample: bool = True
-    early_stopping: bool = False
-    num_beams: int = 1
-    num_beam_groups: int = 1
-    diversity_penalty: float = 0.0
-    temperature: float = 1.0
-    top_k: int = 10
-    top_p: float = 1
-    typical_p: float = 1
-    repetition_penalty: float = 1
-    length_penalty: float = 1
-    no_repeat_ngram_size: int = 0
-    encoder_no_repeat_ngram_size: int = 0
-    bad_words_ids: List[int] = None
-    num_return_sequences: int = 1
-    output_scores: bool = False
-    return_dict_in_generate: bool = False
-    pad_token_id: Optional[int] = tokenizer.pad_token_id
-    eos_token_id: Optional[int] = tokenizer.eos_token_id
-    forced_bos_token_id: Optional[int] = None
-    forced_eos_token_id: Optional[int] = None
-    remove_invalid_values: Optional[bool] = None
+class UnifiedRequestModel(BaseModel):
+    # Fields for text generation
+    prompt: Optional[str] = Field(None, description="Prompt for text generation")
+    max_length: Optional[int] = Field(200, description="Maximum length for generated text")
+    min_length: Optional[int] = Field(0, description="Minimum length for generated text")
+    do_sample: Optional[bool] = Field(True, description="Whether to use sampling; set to False to use greedy decoding")
+    early_stopping: Optional[bool] = Field(False, description="Whether to stop the model when it produces the EOS token")
+    num_beams: Optional[int] = Field(1, description="Number of beams for beam search")
+    num_beam_groups: Optional[int] = Field(1, description="Number of groups for diverse beam search")
+    diversity_penalty: Optional[float] = Field(0.0, description="Diversity penalty for diverse beam search")
+    temperature: Optional[float] = Field(1.0, description="Temperature for sampling distribution")
+    top_k: Optional[int] = Field(10, description="The number of highest probability vocabulary tokens to keep for top-k-filtering")
+    top_p: Optional[float] = Field(1.0, description="Nucleus filtering (top-p) threshold")
+    typical_p: Optional[float] = Field(1.0, description="Typical (set to 1 to ignore typical_p sampling)")
+    repetition_penalty: Optional[float] = Field(1.0, description="Parameter for repetition penalty")
+    length_penalty: Optional[float] = Field(1.0, description="Exponential penalty to the length")
+    no_repeat_ngram_size: Optional[int] = Field(0, description="Size of the no repeat n-gram")
+    encoder_no_repeat_ngram_size: Optional[int] = Field(0, description="Size of the no repeat n-gram in the encoder")
+    bad_words_ids: Optional[List[int]] = Field(None, description="List of token ids that are not allowed to be generated")
+    num_return_sequences: Optional[int] = Field(1, description="Number of sequences to return")
+    output_scores: Optional[bool] = Field(False, description="Whether to return the model's output scores")
+    return_dict_in_generate: Optional[bool] = Field(False, description="Whether to return a dictionary instead of a list")
+    pad_token_id: Optional[int] = Field(None, description="Pad token id")
+    eos_token_id: Optional[int] = Field(None, description="End of sentence token id")
+    forced_bos_token_id: Optional[int] = Field(None, description="Forced beginning of sentence token id")
+    forced_eos_token_id: Optional[int] = Field(None, description="Forced end of sentence token id")
+    remove_invalid_values: Optional[bool] = Field(None, description="Whether to remove invalid values")
 
+    # Field for conversational model
+    messages: Optional[List[dict]] = Field(None, description="Messages for conversational model")
 
 @app.post("/chat")
-def generate_text(params: GenerationParams):
-    sequences = pipeline(
-        params.prompt,
-        max_length=params.max_length,
-        min_length=params.min_length,
-        do_sample=params.do_sample,
-        early_stopping=params.early_stopping,
-        num_beams=params.num_beams,
-        num_beam_groups=params.num_beam_groups,
-        diversity_penalty=params.diversity_penalty,
-        temperature=params.temperature,
-        top_k=params.top_k,
-        top_p=params.top_p,
-        typical_p=params.typical_p,
-        repetition_penalty=params.repetition_penalty,
-        length_penalty=params.length_penalty,
-        no_repeat_ngram_size=params.no_repeat_ngram_size,
-        encoder_no_repeat_ngram_size=params.encoder_no_repeat_ngram_size,
-        bad_words_ids=params.bad_words_ids,
-        num_return_sequences=params.num_return_sequences,
-        output_scores=params.output_scores,
-        return_dict_in_generate=params.return_dict_in_generate,
-        forced_bos_token_id=params.forced_bos_token_id,
-        forced_eos_token_id=params.forced_eos_token_id,
-        eos_token_id=params.eos_token_id,
-        remove_invalid_values=params.remove_invalid_values
-    )
+def generate_text(request_model: UnifiedRequestModel):
+    if args.pipeline == "text-generation":
+        if not request_model.prompt:
+            raise HTTPException(status_code=400, detail="Text generation parameter prompt required")
+        sequences = pipeline(
+            request_model.prompt,
+            max_length=request_model.max_length,
+            min_length=request_model.min_length,
+            do_sample=request_model.do_sample,
+            early_stopping=request_model.early_stopping,
+            num_beams=request_model.num_beams,
+            num_beam_groups=request_model.num_beam_groups,
+            diversity_penalty=request_model.diversity_penalty,
+            temperature=request_model.temperature,
+            top_k=request_model.top_k,
+            top_p=request_model.top_p,
+            typical_p=request_model.typical_p,
+            repetition_penalty=request_model.repetition_penalty,
+            length_penalty=request_model.length_penalty,
+            no_repeat_ngram_size=request_model.no_repeat_ngram_size,
+            encoder_no_repeat_ngram_size=request_model.encoder_no_repeat_ngram_size,
+            bad_words_ids=request_model.bad_words_ids,
+            num_return_sequences=request_model.num_return_sequences,
+            output_scores=request_model.output_scores,
+            return_dict_in_generate=request_model.return_dict_in_generate,
+            forced_bos_token_id=request_model.forced_bos_token_id,
+            forced_eos_token_id=request_model.forced_eos_token_id,
+            eos_token_id=request_model.eos_token_id,
+            remove_invalid_values=request_model.remove_invalid_values
+        )
 
-    result = ""
-    for seq in sequences:
-        print(f"Result: {seq['generated_text']}")
-        result += seq['generated_text']
+        result = ""
+        for seq in sequences:
+            print(f"Result: {seq['generated_text']}")
+            result += seq['generated_text']
 
-    return {"Result": result}
+        return {"Result": result}
+    
+    elif args.pipeline == "conversational": 
+        if not request_model.messages:
+            raise HTTPException(status_code=400, detail="Conversational parameter messages required")
+        
+        response = pipeline(request_model.messages)
+        return {"Result": str(response[-1])}
+    
+    else:
+        raise HTTPException(status_code=400, detail="Invalid pipeline type")
 
 
 if __name__ == "__main__":
