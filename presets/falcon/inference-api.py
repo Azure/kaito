@@ -29,33 +29,33 @@ args = parser.parse_args()
 app = FastAPI()
 
 supported_pipelines = {"conversational", "text-generation"}
-tokenizer = AutoTokenizer.from_pretrained(args.model_id) # replace with model weights path
-model = AutoModelForCausalLM.from_pretrained(
-    args.model_id, # replace with model weights path
-    device_map = args.device_map
-)
-
 if args.pipeline not in supported_pipelines: 
     raise HTTPException(status_code=400, detail="Invalid pipeline specified")
 
-pipeline = None
-if args.pipeline == "text-generation":
-    pipeline = transformers.pipeline(
-        args.pipeline,
-        model=model,
-        tokenizer=tokenizer,
-        torch_dtype=args.torch_dtype,
-        trust_remote_code=args.trust_remote_code,
-        device_map=args.device_map,
-        load_in_8bit=args.load_in_8bit,
-    )
-elif args.pipeline == "conversational":
-    pipeline = transformers.pipeline(
-        args.pipeline,
-        model=model,
-        tokenizer=tokenizer,
-        # device=args.device
-    )
+model_kwargs = {
+    "torch_dtype": args.torch_dtype, 
+    "device_map": args.device_map, 
+}
+
+if args.load_in_8bit:
+    model_kwargs["load_in_8bit"] = args.load_in_8bit
+
+tokenizer = AutoTokenizer.from_pretrained(args.model_id) # replace with model weights path
+model = AutoModelForCausalLM.from_pretrained(
+    args.model_id, # replace with model weights path
+    **model_kwargs
+)
+
+pipeline_kwargs = {
+    "trust_remote_code": args.trust_remote_code,
+}
+
+pipeline = transformers.pipeline(
+    args.pipeline,
+    model=model,
+    tokenizer=tokenizer,
+    **pipeline_kwargs
+)
 
 @app.get('/')
 def home():
