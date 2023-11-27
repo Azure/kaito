@@ -70,7 +70,7 @@ jobs:
     
       - name: 'Set subscription'
         run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
-      
+
       - uses: azure/setup-helm@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
