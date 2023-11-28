@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@1b05615854632b887b69ae1be8cbefe72d3ae423 # v2.6.0
+        uses: step-security/harden-runner@eb238b55efaa70779f274895e782ed17c84f2895 # v2.6.1
         with:
           egress-policy: audit
       - name: Set up Go ${{ env.GO_VERSION }}
@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
           submodules: true
       - name: Download tag artifact
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.KDM_ACCESS_TOKEN_READ }}
           script: |
