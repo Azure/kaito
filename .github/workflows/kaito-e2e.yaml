@@ -7,22 +7,23 @@ concurrency:
 on:
   push:
     branches: [main]
-    paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
+    paths-ignore: [ 'docs/**', '**.md', '**.mdx', '**.png', '**.jpg' ]
   pull_request:
     branches: [main]
-    paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
+    paths-ignore: [ 'docs/**', '**.md', '**.mdx', '**.png', '**.jpg' ]
 
 env:
-  GO_VERSION: "1.20"
+  GO_VERSION: '1.20'
+  E2E_IMG_TAG: 'kaito-e2e'
 
 permissions:
   id-token: write # This is required for requesting the JWT
   contents: read # This is required for actions/checkout
+
 jobs:
-  e2e-tests:
-    env:
-      E2E_IMG_TAG: "kaito-e2e"
+  e2e-test:
     runs-on: ubuntu-latest
+    environment: e2e-test
     steps:
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v4
@@ -54,21 +55,18 @@ jobs:
 
       - name: Install Azure CLI latest
         run: |
-            if ! which az > /dev/null; then
-                echo "Azure CLI not found. Installing..."
-                curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-            else
-                echo "Azure CLI already installed."
-            fi
+          if ! which az > /dev/null; then
+              echo "Azure CLI not found. Installing..."
+              curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          else
+              echo "Azure CLI already installed."
+          fi
 
-      - uses: azure/login@v1.4.6
+      - uses: azure/login@v1.5.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
-    
-      - name: 'Set subscription'
-        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       
       - uses: azure/setup-helm@v3
         with:
@@ -115,7 +113,7 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
 
-      - uses: azure/login@v1.4.6
+      - uses: azure/login@v1.5.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}

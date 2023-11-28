@@ -30,6 +30,7 @@ env:
 jobs:
   setup:
     runs-on: [self-hosted, 'username:runner-0']
+    environment: e2e-test
     outputs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
       FALCON_MODIFIED: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}
@@ -138,6 +139,7 @@ jobs:
   matrix_prep:
     needs: setup
     runs-on: self-hosted
+    environment: e2e-test
     outputs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
       matrix_empty: ${{ steps.set_matrix.outputs.matrix_empty }}
@@ -165,6 +167,7 @@ jobs:
   build-models: 
     needs: [setup, matrix_prep]
     runs-on: self-hosted
+    environment: e2e-test
     if: ${{needs.matrix_prep.outputs.matrix_empty == 'false'}}
     strategy:
       fail-fast: false
@@ -177,14 +180,11 @@ jobs:
           fetch-depth: 0
 
       - name: 'Az CLI login'
-        uses: azure/login@v1.4.6
+        uses: azure/login@v1.5.0
         with:
           client-id: ${{ secrets.AZURE_KDM_PRESET_SELF_RUNNER_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
-  
-      - name: 'Set subscription'
-        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
+          subscription-id: ${{secrets.AZURE_SUBSCRIPTION_ID}}
 
       - name: 'Attach and Login to ACR'
         id: acr_login
