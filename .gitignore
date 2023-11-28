@@ -33,4 +33,4 @@ hack/tools/bin/*
 
 presets/llama-2/weights
 presets/llama-2-chat/weights
-presets/falcon/weights
+presets/tfs/weights

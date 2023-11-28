@@ -22,8 +22,8 @@ spec:
           mountPath: /home
         - name: llama-volume
           mountPath: /llama
-        - name: falcon-volume
-          mountPath: /falcon
+        - name: tfs-volume
+          mountPath: /tfs
       volumes:
       - name: host-volume
         hostPath:
@@ -33,9 +33,9 @@ spec:
         hostPath: 
           path: /llama
           type: Directory
-      - name: falcon-volume
+      - name: tfs-volume
         hostPath:
-          path: /falcon
+          path: /tfs
           type: Directory
       nodeSelector:
         kubernetes.io/hostname: aks-llamserver-28588359-vmss000000

@@ -1,5 +1,5 @@
 # Dependencies for Falcon
-transformers==4.33.3
+transformers==4.35.2
 torch==2.1.0a0+4136153
 accelerate==0.23.0
 fastapi==0.103.2

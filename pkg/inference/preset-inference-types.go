@@ -35,6 +35,11 @@ const (
 	DefaultGPUIds       = "all"
 )
 
+const (
+	DefaultModelId = "MODEL_ID"
+	DefaultPipeline = "text-generation"
+)
+
 var (
 	registryName = os.Getenv("PRESET_REGISTRY_NAME")
 
@@ -44,6 +49,9 @@ var (
 	presetFalcon40bImage         = registryName + fmt.Sprintf("/kaito-%s:0.0.1", kaitov1alpha1.PresetFalcon40BModel)
 	presetFalcon40bInstructImage = registryName + fmt.Sprintf("/kaito-%s:0.0.1", kaitov1alpha1.PresetFalcon40BInstructModel)
 
+	presetMistral7bImage = registryName + fmt.Sprintf("/kaito-%s:0.0.1", kaitov1alpha1.PresetMistral7BModel)
+	presetMistral7bInstructImage = registryName + fmt.Sprintf("/kaito-%s:0.0.1", kaitov1alpha1.PresetMistral7BInstructModel)
+
 	baseCommandPresetLlama = "cd /workspace/llama/llama-2 && torchrun"
 	// llamaTextInferenceFile       = "inference-api.py" TODO: To support Text Generation Llama Models
 	llamaChatInferenceFile = "inference-api.py"
@@ -52,9 +60,12 @@ var (
 		"max_batch_size": "8",
 	}
 
-	baseCommandPresetFalcon = "accelerate launch --use_deepspeed"
-	falconInferenceFile     = "inference-api.py"
-	falconRunParams         = map[string]string{}
+	baseCommandPresetTsf = "accelerate launch --use_deepspeed"
+	tsfInferenceFile     = "inference-api.py"
+	tsfRunParams         = map[string]string{
+		"model_id": DefaultModelId, 
+		"pipeline": DefaultPipeline
+	}
 
 	defaultTorchRunParams = map[string]string{
 		"nnodes":         DefaultNnodes,
@@ -86,6 +97,7 @@ var (
 // PresetInferenceParam defines the preset inference.
 type PresetInferenceParam struct {
 	ModelName              string
+	ModelId				   string
 	Image                  string
 	ImagePullSecrets       []corev1.LocalObjectReference
 	AccessMode             string
@@ -219,6 +231,7 @@ var (
 	FalconPresetInferences = map[kaitov1alpha1.ModelName]PresetInferenceParam{
 		kaitov1alpha1.PresetFalcon7BModel: {
 			ModelName:              "Falcon",
+			ModelId: 				"tiiuae/falcon-7b",
 			Image:                  presetFalcon7bImage,
 			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
@@ -226,14 +239,15 @@ var (
 			GPURequirement:         "1",
 			GPUMemoryRequirement:   "14Gi",
 			TorchRunParams:         defaultAccelerateParams,
-			ModelRunParams:         falconRunParams,
-			InferenceFile:          falconInferenceFile,
+			ModelRunParams:         tsfRunParams,
+			InferenceFile:          tsfInferenceFile,
 			DeploymentTimeout:      time.Duration(30) * time.Minute,
-			BaseCommand:            baseCommandPresetFalcon,
+			BaseCommand:            baseCommandPresetTsf,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
 		kaitov1alpha1.PresetFalcon7BInstructModel: {
 			ModelName:              "Falcon",
+			ModelId: 				"tiiuae/falcon-7b-instruct",
 			Image:                  presetFalcon7bInstructImage,
 			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
@@ -241,15 +255,16 @@ var (
 			GPURequirement:         "1",
 			GPUMemoryRequirement:   "14Gi",
 			TorchRunParams:         defaultAccelerateParams,
-			ModelRunParams:         falconRunParams,
-			InferenceFile:          falconInferenceFile,
+			ModelRunParams:         tsfRunParams,
+			InferenceFile:          tsfInferenceFile,
 			DeploymentTimeout:      time.Duration(30) * time.Minute,
-			BaseCommand:            baseCommandPresetFalcon,
+			BaseCommand:            baseCommandPresetTsf,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
 
 		kaitov1alpha1.PresetFalcon40BModel: {
 			ModelName:              "Falcon",
+			ModelId:				"tiiuae/falcon-40b",
 			Image:                  presetFalcon40bImage,
 			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
@@ -257,15 +272,16 @@ var (
 			GPURequirement:         "2",
 			GPUMemoryRequirement:   "90Gi",
 			TorchRunParams:         defaultAccelerateParams,
-			ModelRunParams:         falconRunParams,
-			InferenceFile:          falconInferenceFile,
+			ModelRunParams:         tsfRunParams,
+			InferenceFile:          tsfInferenceFile,
 			DeploymentTimeout:      time.Duration(30) * time.Minute,
-			BaseCommand:            baseCommandPresetFalcon,
+			BaseCommand:            baseCommandPresetTsf,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
 
 		kaitov1alpha1.PresetFalcon40BInstructModel: {
 			ModelName:              "Falcon",
+			ModelId: 				"tiiuae/falcon-40b-instruct",
 			Image:                  presetFalcon40bInstructImage,
 			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
@@ -273,10 +289,46 @@ var (
 			GPURequirement:         "2",
 			GPUMemoryRequirement:   "90Gi",
 			TorchRunParams:         defaultAccelerateParams,
-			ModelRunParams:         falconRunParams,
-			InferenceFile:          falconInferenceFile,
+			ModelRunParams:         tsfRunParams,
+			InferenceFile:          tsfInferenceFile,
 			DeploymentTimeout:      time.Duration(30) * time.Minute,
-			BaseCommand:            baseCommandPresetFalcon,
+			BaseCommand:            baseCommandPresetTsf,
+			DefaultVolumeMountPath: "/dev/shm",
+		},
+	},
+
+	// MistralPresetInferences defines the preset inferences for Mistral.
+	MistralPresetInferences = map[kaitov1alpha1.ModelName]PresetInferenceParam{
+		kaitov1alpha1.PresetMistral7BModel: {
+			ModelName:              "Mistral",
+			ModelId: 				"mistralai/Mistral-7B-v0.1",
+			Image:                  presetMistral7bImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
+			AccessMode:             defaultAccessMode,
+			DiskStorageRequirement: "50Gi",
+			GPURequirement:         "1",
+			GPUMemoryRequirement:   "16Gi",
+			TorchRunParams:         defaultAccelerateParams,
+			ModelRunParams:         tsfRunParams,
+			InferenceFile:          tsfInferenceFile,
+			DeploymentTimeout:      time.Duration(30) * time.Minute,
+			BaseCommand:            baseCommandPresetTsf,
+			DefaultVolumeMountPath: "/dev/shm",
+		},
+		kaitov1alpha1.PresetMistral7BInstructModel: {
+			ModelName:              "Mistral",
+			ModelId: 				"mistralai/Mistral-7B-Instruct-v0.1",
+			Image:                  presetMistral7bInstructImage,
+			ImagePullSecrets:       defaultImagePullSecrets,
+			AccessMode:             defaultAccessMode,
+			DiskStorageRequirement: "50Gi",
+			GPURequirement:         "1",
+			GPUMemoryRequirement:   "16Gi",
+			TorchRunParams:         defaultAccelerateParams,
+			ModelRunParams:         tsfRunParams,
+			InferenceFile:          tsfInferenceFile,
+			DeploymentTimeout:      time.Duration(30) * time.Minute,
+			BaseCommand:            baseCommandPresetTsf,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
 	}

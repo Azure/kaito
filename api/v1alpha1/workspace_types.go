@@ -21,6 +21,9 @@ const (
 	PresetFalcon7BInstructModel            = PresetFalcon7BModel + "-instruct"
 	PresetFalcon40BInstructModel           = PresetFalcon40BModel + "-instruct"
 
+	PresetMistral7BModel ModelName = "Mistral-7B"
+	PresetMistral7BInstructModel ModelName = "Mistral-7B-Instruct"
+
 	ModelImageAccessModePublic  ModelImageAccessMode = "public"
 	ModelImageAccessModePrivate ModelImageAccessMode = "private"
 )

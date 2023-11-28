@@ -4,14 +4,14 @@ on:
     branches:
       - main
     paths:
-      - 'presets/falcon/**'
+      - 'presets/tfs/**'
       - 'presets/llama-2/**'
       - 'presets/llama-2-chat/**'
   push:
     branches:
       - main
     paths:
-      - 'presets/falcon/**'
+      - 'presets/tfs/**'
       - 'presets/llama-2/**'
       - 'presets/llama-2-chat/**'
   workflow_dispatch:
@@ -73,7 +73,7 @@ jobs:
           IFS=';' read -ra ADDR <<< "$FILES_MODIFIED"
           for file in "${ADDR[@]}"; do
             echo "Checking file: $file"
-            if [[ "$file" == presets/falcon/* ]] && [[ "$FALCON_MODIFIED" == false ]]; then
+            if [[ "$file" == presets/tfs/* ]] && [[ "$FALCON_MODIFIED" == false ]]; then
               echo "File matches falcon path: $file"
               FALCON_MODIFIED=true
             elif [[ "$file" == presets/llama-2/* ]] && [[ "$LLAMA2_MODIFIED" == false ]]; then
