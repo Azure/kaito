@@ -14,15 +14,18 @@ import uvicorn
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import transformers
 import torch
-# import torch.distributed as dist
+
+# ONNX
+from optimum.onnxruntime import ORTModelForCausalLM
 
 parser = argparse.ArgumentParser(description='Model Configuration')
 parser.add_argument('--model_id', required=True, type=str, help='The model ID for the pre-trained model')
 parser.add_argument('--pipeline', required=True, type=str, help='The model pipeline for the pre-trained model')
 parser.add_argument('--load_in_8bit', default=False, action='store_true', help='Load model in 8-bit mode')
-parser.add_argument('--trust_remote_code', default=False, action='store_true', help='Disable trusting remote code when loading the model')
+parser.add_argument('--trust_remote_code', default=False, action='store_true', help='Trust remote code when loading the model')
 parser.add_argument('--torch_dtype', default=torch.bfloat16, type=torch.Tensor, help='The torch dtype for the pre-trained model')
 parser.add_argument('--device_map', default="auto", type=str, help='The device map for the pre-trained model')
+parser.add_argument('--use_flash_attention_2', default=False, action='store_true', help='Use Flash Attention 2')
 
 args = parser.parse_args()
 
@@ -39,9 +42,11 @@ model_kwargs = {
 
 if args.load_in_8bit:
     model_kwargs["load_in_8bit"] = args.load_in_8bit
+if args.use_flash_attention_2:
+    model_kwargs["use_flash_attention_2"] = args.use_flash_attention_2
 
 tokenizer = AutoTokenizer.from_pretrained(args.model_id) # replace with model weights path
-model = AutoModelForCausalLM.from_pretrained(
+model = ORTModelForCausalLM.from_pretrained(
     args.model_id, # replace with model weights path
     **model_kwargs
 )
