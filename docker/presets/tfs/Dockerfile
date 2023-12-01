@@ -1,6 +1,8 @@
 # Use the NVIDIA PyTorch image as a base
 FROM nvcr.io/nvidia/pytorch:23.10-py3
 
+ARG MODEL_NAME
+
 # Set the working directory
 WORKDIR /workspace/tfs
 
@@ -10,7 +12,8 @@ WORKDIR /workspace/tfs
 COPY /home/presets/tfs/requirements.txt /workspace/tfs/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-ARG MODEL_NAME
+# Convert to ONNX Runtime
+RUN python convert_to_onnx.py ${MODEL_NAME}
 
 # Copy the entire model to the weights directory
 COPY /tfs/${MODEL_NAME} /workspace/tfs/weights

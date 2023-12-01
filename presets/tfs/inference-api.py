@@ -26,6 +26,8 @@ parser.add_argument('--trust_remote_code', default=False, action='store_true', h
 parser.add_argument('--torch_dtype', default=torch.bfloat16, type=torch.Tensor, help='The torch dtype for the pre-trained model')
 parser.add_argument('--device_map', default="auto", type=str, help='The device map for the pre-trained model')
 parser.add_argument('--use_flash_attention_2', default=False, action='store_true', help='Use Flash Attention 2')
+parser.add_argument('--use_cache', default=False, action='store_true', help='Use the ONNX runtime cache')
+parser.add_argument('--use_io_binding', default=False, action='store_true', help='Use the ONNX IO binding')
 
 args = parser.parse_args()
 
@@ -38,6 +40,8 @@ if args.pipeline not in supported_pipelines:
 model_kwargs = {
     "torch_dtype": args.torch_dtype, 
     "device_map": args.device_map, 
+    "use_cache": args.use_cache,
+    "use_io_binding": args.use_io_binding,
 }
 
 if args.load_in_8bit:
@@ -47,7 +51,8 @@ if args.use_flash_attention_2:
 
 tokenizer = AutoTokenizer.from_pretrained(args.model_id) # replace with model weights path
 model = ORTModelForCausalLM.from_pretrained(
-    args.model_id, # replace with model weights path
+    f"/workspace/tfs/{args.model_id}", # replace with model weights path
+    local_files_only=True,
     **model_kwargs
 )
 
