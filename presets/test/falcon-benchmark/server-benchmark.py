@@ -71,7 +71,7 @@ def sync_inference(prompts, writer, args):
         data = {"inputs": request}
 
         # Make the HTTP POST request
-        response = requests.post('http://127.0.0.1:8080/generate', json=data, headers={'Content-Type': 'application/json'})
+        response = requests.post('http://0.0.0.0:5000/chat', json=data, headers={'Content-Type': 'application/json'})
 
         end_time = time.time()
         inference_time = end_time - start_time
@@ -99,7 +99,16 @@ def sync_inference(prompts, writer, args):
 with open("../common-gpt-questions.csv", "r") as f:
     prompts = [line.strip() for line in f.readlines()]
 
-async def main():
+
+def sync_main(): 
+    fieldnames = ["model", "num_nodes", "num_processes", "num_gpus", "num_prompts", "prompt_len", "model_parallelism", "data_parallelism", "quantization", "machine", "inference_time", "request_id", "timestamp"]
+
+    with open("results.csv", "a", newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        sync_inference(prompts, writer, args)
+
+async def async_main():
     args = get_args()
     fieldnames = ["model", "num_nodes", "num_processes", "num_gpus", "num_prompts", "prompt_len", "model_parallelism", "data_parallelism", "quantization", "machine", "inference_time", "request_id", "timestamp"]
 
@@ -109,4 +118,5 @@ async def main():
         await async_inference(prompts, writer, args)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sync_main()
+    # asyncio.run(async_main())

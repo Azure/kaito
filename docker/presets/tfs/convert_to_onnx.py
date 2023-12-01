@@ -40,19 +40,15 @@ def download_and_convert_optimum_cli(repo_name):
 def download_and_convert(repo_name):
     # Try converting to ONNX first with caching, if fails, retry with disabled caching mechanism
     # export=True flag specifies converting from pytorch to ONNX format
-    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-    for provider in providers:
+    try:
+        model = ORTModelForCausalLM().from_pretrained(repo_name, export=True, provider="CUDAExecutionProvider")
+    except Exception as e:
         try:
-            model = ORTModelForCausalLM().from_pretrained(repo_name, export=True, provider=provider)
-        except Exception as e:
-            try:
-                model = ORTModelForCausalLM.from_pretrained(repo_name, use_cache=False, export=True, provider=provider)
-            # Lastly try using CLI
-            except Exception as e: 
-                print(f"Failed to load model with provider {provider}", e)
-    
-    if model == None:
-        model = download_and_convert_optimum_cli(repo_name)
+            model = ORTModelForCausalLM.from_pretrained(repo_name, use_cache=False, export=True, provider="CUDAExecutionProvider")
+        # Lastly try using CLI
+        except Exception as e: 
+            print(f"Failed to load model with provider {provider}", e)
+            model = download_and_convert_optimum_cli(repo_name)
     return model
 
 def onnx_optimize_model(repo_name, model):

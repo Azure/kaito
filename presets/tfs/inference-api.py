@@ -49,9 +49,13 @@ if args.load_in_8bit:
 if args.use_flash_attention_2:
     model_kwargs["use_flash_attention_2"] = args.use_flash_attention_2
 
-tokenizer = AutoTokenizer.from_pretrained(args.model_id) # replace with model weights path
+tokenizer = AutoTokenizer.from_pretrained(
+    # args.model_id, # replace with model weights path
+    "/home/azureuser/tiiuae/falcon-7b-instruct"
+)
 model = ORTModelForCausalLM.from_pretrained(
-    f"/workspace/tfs/{args.model_id}", # replace with model weights path
+    "/home/azureuser/tiiuae/falcon-7b-instruct",
+    # f"/workspace/tfs/{args.model_id}", # replace with model weights path
     local_files_only=True,
     **model_kwargs
 )
@@ -161,7 +165,6 @@ def generate_text(request_model: UnifiedRequestModel):
     
     else:
         raise HTTPException(status_code=400, detail="Invalid pipeline type")
-
 
 if __name__ == "__main__":
     local_rank = int(os.environ.get("LOCAL_RANK", 0)) # Default to 0 if not set
