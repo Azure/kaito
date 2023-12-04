@@ -1,5 +1,5 @@
-# Use the NVIDIA PyTorch image as a base
-FROM nvcr.io/nvidia/pytorch:23.10-py3
+# Use the MCR PyTorch image as a base
+FROM mcr.microsoft.com/aifx/acpt/stable-ubuntu2004-cu118-py38-torch211
 
 ARG MODEL_NAME
 

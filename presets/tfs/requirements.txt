@@ -9,7 +9,5 @@ bitsandbytes==0.41.1
 deepspeed==0.11.1
 protobuf==4.25.1
 Pillow==10.1.0
-onnxruntime==1.16.3
-onnxruntime-gpu==1.16.3
-onnxruntime-tools==1.7.0
-optimum[exporters,onnxruntime]==1.14.1
+onnx==1.15.0
+optimum==1.14.1
