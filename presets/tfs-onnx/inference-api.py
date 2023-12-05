@@ -15,34 +15,48 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import transformers
 import torch
 
+# ONNX
+from optimum.onnxruntime import ORTModelForCausalLM
+
 parser = argparse.ArgumentParser(description='Model Configuration')
 parser.add_argument('--model_id', required=True, type=str, help='The model ID for the pre-trained model')
 parser.add_argument('--pipeline', required=True, type=str, help='The model pipeline for the pre-trained model')
 parser.add_argument('--load_in_8bit', default=False, action='store_true', help='Load model in 8-bit mode')
-parser.add_argument('--trust_remote_code', default=False, action='store_true', help='Disable trusting remote code when loading the model')
+parser.add_argument('--trust_remote_code', default=False, action='store_true', help='Trust remote code when loading the model')
 parser.add_argument('--torch_dtype', default=torch.bfloat16, type=torch.Tensor, help='The torch dtype for the pre-trained model')
 parser.add_argument('--device_map', default="auto", type=str, help='The device map for the pre-trained model')
+parser.add_argument('--use_flash_attention_2', default=False, action='store_true', help='Use Flash Attention 2')
+parser.add_argument('--use_cache', default=False, action='store_true', help='Use the ONNX runtime cache')
+parser.add_argument('--use_io_binding', default=False, action='store_true', help='Use the ONNX IO binding')
 
 args = parser.parse_args()
 
 app = FastAPI()
 
 supported_pipelines = {"conversational", "text-generation"}
-if args.pipeline not in supported_pipelines:
+if args.pipeline not in supported_pipelines: 
     raise HTTPException(status_code=400, detail="Invalid pipeline specified")
 
 model_kwargs = {
-    "torch_dtype": args.torch_dtype,
-    "device_map": args.device_map,
-    "trust_remote_code": args.trust_remote_code,
+    "torch_dtype": args.torch_dtype, 
+    "device_map": args.device_map, 
+    "use_cache": args.use_cache,
+    "use_io_binding": args.use_io_binding,
 }
 
 if args.load_in_8bit:
     model_kwargs["load_in_8bit"] = args.load_in_8bit
+if args.use_flash_attention_2:
+    model_kwargs["use_flash_attention_2"] = args.use_flash_attention_2
 
-tokenizer = AutoTokenizer.from_pretrained(args.model_id) # replace with model weights path
-model = AutoModelForCausalLM.from_pretrained(
-    args.model_id, # replace with model weights path
+tokenizer = AutoTokenizer.from_pretrained(
+    # args.model_id, # replace with model weights path
+    "/home/azureuser/tiiuae/falcon-7b-instruct"
+)
+model = ORTModelForCausalLM.from_pretrained(
+    "/home/azureuser/tiiuae/falcon-7b-instruct",
+    # f"/workspace/tfs/{args.model_id}", # replace with model weights path
+    local_files_only=True,
     **model_kwargs
 )
 
@@ -93,8 +107,8 @@ class UnifiedRequestModel(BaseModel):
     num_return_sequences: Optional[int] = Field(1, description="Number of sequences to return")
     output_scores: Optional[bool] = Field(False, description="Whether to return the model's output scores")
     return_dict_in_generate: Optional[bool] = Field(False, description="Whether to return a dictionary instead of a list")
-    pad_token_id: Optional[int] = Field(None, description="Pad token id")
-    eos_token_id: Optional[int] = Field(None, description="End of sentence token id")
+    pad_token_id: Optional[int] = Field(tokenizer.pad_token_id, description="Pad token id")
+    eos_token_id: Optional[int] = Field(tokenizer.eos_token_id, description="End of sentence token id")
     forced_bos_token_id: Optional[int] = Field(None, description="Forced beginning of sentence token id")
     forced_eos_token_id: Optional[int] = Field(None, description="Forced end of sentence token id")
     remove_invalid_values: Optional[bool] = Field(None, description="Whether to remove invalid values")
@@ -128,9 +142,10 @@ def generate_text(request_model: UnifiedRequestModel):
             num_return_sequences=request_model.num_return_sequences,
             output_scores=request_model.output_scores,
             return_dict_in_generate=request_model.return_dict_in_generate,
+            pad_token_id=request_model.pad_token_id,
+            eos_token_id=request_model.eos_token_id,
             forced_bos_token_id=request_model.forced_bos_token_id,
             forced_eos_token_id=request_model.forced_eos_token_id,
-            eos_token_id=request_model.eos_token_id,
             remove_invalid_values=request_model.remove_invalid_values
         )
 
@@ -145,12 +160,11 @@ def generate_text(request_model: UnifiedRequestModel):
         if not request_model.messages:
             raise HTTPException(status_code=400, detail="Conversational parameter messages required")
         
-        response = pipeline(request_model.messages)
+        response = pipeline(request_model.messages, pad_token_id=tokenizer.eos_token_id)
         return {"Result": str(response[-1])}
     
     else:
         raise HTTPException(status_code=400, detail="Invalid pipeline type")
-
 
 if __name__ == "__main__":
     local_rank = int(os.environ.get("LOCAL_RANK", 0)) # Default to 0 if not set
