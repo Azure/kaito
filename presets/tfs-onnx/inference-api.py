@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException
 import uvicorn
 
 # ML
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer
 import transformers
 import torch
 
@@ -49,14 +49,11 @@ if args.load_in_8bit:
 if args.use_flash_attention_2:
     model_kwargs["use_flash_attention_2"] = args.use_flash_attention_2
 
-tokenizer = AutoTokenizer.from_pretrained(
-    # args.model_id, # replace with model weights path
-    "/home/azureuser/tiiuae/falcon-7b-instruct"
-)
+tokenizer = AutoTokenizer.from_pretrained("/workspace/tfs/weights")
 model = ORTModelForCausalLM.from_pretrained(
-    "/home/azureuser/tiiuae/falcon-7b-instruct",
-    # f"/workspace/tfs/{args.model_id}", # replace with model weights path
+    "/workspace/tfs/weights",
     local_files_only=True,
+    provider="CUDAExecutionProvider"
     **model_kwargs
 )
 
@@ -68,6 +65,7 @@ pipeline = transformers.pipeline(
     args.pipeline,
     model=model,
     tokenizer=tokenizer,
+    device=model.device,
     **pipeline_kwargs
 )
 
@@ -121,6 +119,7 @@ def generate_text(request_model: UnifiedRequestModel):
     if args.pipeline == "text-generation":
         if not request_model.prompt:
             raise HTTPException(status_code=400, detail="Text generation parameter prompt required")
+        
         sequences = pipeline(
             request_model.prompt,
             max_length=request_model.max_length,
@@ -146,7 +145,7 @@ def generate_text(request_model: UnifiedRequestModel):
             eos_token_id=request_model.eos_token_id,
             forced_bos_token_id=request_model.forced_bos_token_id,
             forced_eos_token_id=request_model.forced_eos_token_id,
-            remove_invalid_values=request_model.remove_invalid_values
+            remove_invalid_values=request_model.remove_invalid_values,
         )
 
         result = ""
@@ -160,7 +159,10 @@ def generate_text(request_model: UnifiedRequestModel):
         if not request_model.messages:
             raise HTTPException(status_code=400, detail="Conversational parameter messages required")
         
-        response = pipeline(request_model.messages, pad_token_id=tokenizer.eos_token_id)
+        response = pipeline(
+            request_model.messages, 
+            pad_token_id=tokenizer.eos_token_id,
+        )
         return {"Result": str(response[-1])}
     
     else:

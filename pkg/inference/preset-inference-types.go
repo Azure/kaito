@@ -63,8 +63,8 @@ var (
 	baseCommandPresetTsf = "accelerate launch --use_deepspeed"
 	tsfInferenceFile     = "inference-api.py"
 	tsfRunParams         = map[string]string{
-		"model_id": DefaultModelId, 
-		"pipeline": DefaultPipeline
+		"model_id": DefaultModelId,
+		"pipeline": DefaultPipeline,
 	}
 
 	defaultTorchRunParams = map[string]string{

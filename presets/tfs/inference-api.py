@@ -40,9 +40,9 @@ model_kwargs = {
 if args.load_in_8bit:
     model_kwargs["load_in_8bit"] = args.load_in_8bit
 
-tokenizer = AutoTokenizer.from_pretrained(args.model_id) # replace with model weights path
+tokenizer = AutoTokenizer.from_pretrained("/workspace/tfs/weights")
 model = AutoModelForCausalLM.from_pretrained(
-    args.model_id, # replace with model weights path
+    "/workspace/tfs/weights",
     **model_kwargs
 )
 
@@ -128,6 +128,7 @@ def generate_text(request_model: UnifiedRequestModel):
             num_return_sequences=request_model.num_return_sequences,
             output_scores=request_model.output_scores,
             return_dict_in_generate=request_model.return_dict_in_generate,
+            pad_token_id=request_model.pad_token_id,
             forced_bos_token_id=request_model.forced_bos_token_id,
             forced_eos_token_id=request_model.forced_eos_token_id,
             eos_token_id=request_model.eos_token_id,

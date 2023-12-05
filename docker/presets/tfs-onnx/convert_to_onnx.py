@@ -19,17 +19,17 @@ def download_and_convert(repo_name):
         return None
 
     # Search for .onnx files in the current and subdirectories
-    onnx_files = glob.glob('**/*.onnx', recursive=True)
+    # onnx_files = glob.glob('**/*.onnx', recursive=True)
 
-    # If an ONNX file is found, use it
-    if onnx_files:
-        file_path = onnx_files[0]
-        try:
-            model = ORTModelForCausalLM.from_pretrained(file_path)
-            print(f"Loaded local ONNX model from {file_path}")
-            return model
-        except Exception as e:
-            print(f"Loading local ONNX model from {file_path} failed: {e}")
+    # # If an ONNX file is found, use it
+    # if onnx_files:
+    #     file_path = onnx_files[0]
+    #     try:
+    #         model = ORTModelForCausalLM.from_pretrained(file_path)
+    #         print(f"Loaded local ONNX model from {file_path}")
+    #         return model
+    #     except Exception as e:
+    #         print(f"Loading local ONNX model from {file_path} failed: {e}")
 
     # Try converting to ONNX with caching, then without if fails
     try:

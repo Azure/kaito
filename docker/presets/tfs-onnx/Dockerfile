@@ -16,6 +16,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN python convert_to_onnx.py ${MODEL_NAME}
 
 # Copy the entire onnx model to the weights directory
-COPY ./${MODEL_NAME} /workspace/tfs/weights
+COPY /tfs/${MODEL_NAME} /workspace/tfs/weights
 # Copy the entire 'presets/tfs-onnx' folder to the working directory
 COPY /home/presets/tfs-onnx /workspace/tfs
