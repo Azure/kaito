@@ -186,48 +186,25 @@ jobs:
       - name: 'Set subscription'
         run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
 
-      - name: 'Attach and Login to ACR'
-        id: acr_login
+      - name: 'Get ACR Name'
+        id: acr_name
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag_name }}" ]]; then
             ACR_NAME="aimodelsregistry"
           else
             ACR_NAME="aimodelsregistrytest"
           fi
-          
-          CHECK_ACR_OUTPUT=$(az aks check-acr -g llm-test -n GitRunner --acr $ACR_NAME)
-          if [[ ! $CHECK_ACR_OUTPUT =~ "Your cluster can pull images from $ACR_NAME.azurecr.io!" ]]; then
-            az aks update -n GitRunner -g llm-test --attach-acr $ACR_NAME
-          fi
-          az acr login -n $ACR_NAME --expose-token
           echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
 
-      - name: Get Context
-        run: az aks get-credentials -n GitRunner -g llm-test
-
-      - name: Check if Docker Pod is Running (if not run it)
-        run: |
-          DEPLOYMENT=$(kubectl get deployment docker-deployment -o=jsonpath='{.metadata.name}' --ignore-not-found)
-          if [ -z "$DEPLOYMENT" ]; then
-            # Apply the deployment if it does not exist
-            kubectl apply -f presets/test/docker.yaml
-          fi
-          kubectl wait --for=condition=ready pod -l app=docker --timeout=300s
-        
-      - name: Get Deployment Pod Name
-        id: get_pod_name
-        run: |
-          POD_NAME=$(kubectl get pod -l app=docker -o=jsonpath='{.items[0].metadata.name}')
-          echo "POD_NAME=$POD_NAME" >> $GITHUB_OUTPUT
-        
       - name: Docker login
         run: |
-          if [[ "${{ steps.acr_login.outputs.ACR_NAME }}" == "aimodelsregistry" ]]; then
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
-            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password ${{ secrets.ACR_AMR_PASSWORD }}
+          # Echo the current working directory
+          echo "Current Working Directory:"
+          pwd
+          if [[ "${{ steps.acr_name.outputs.ACR_NAME }}" == "aimodelsregistry" ]]; then
+            docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password ${{ secrets.ACR_AMR_PASSWORD }}
           else
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
-            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password ${{ secrets.ACR_AMRT_PASSWORD }}
+            docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password ${{ secrets.ACR_AMRT_PASSWORD }}
           fi
       
       - name: Build model (with retries)
@@ -238,11 +215,9 @@ jobs:
 
             echo "Docker BUILD_ARGS: $BUILD_ARGS"
 
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
-            docker build \
-            $BUILD_ARGS \
-            -t ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
-            -f /home/${{ matrix.model.dockerfile }} \
+            docker build $BUILD_ARGS \
+            -t ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
+            -f /home/kaito/${{ matrix.model.dockerfile }} \
             . && break
             retries=$((retries-1))
             sleep 15
@@ -258,8 +233,7 @@ jobs:
           retries=3
           while [ $retries -gt 0 ]; do
             # Push the Docker image to ACR
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
-            docker push ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }}
+            docker push ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }}
             
             # Check if the push was successful
             if [ $? -eq 0 ]; then

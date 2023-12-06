@@ -17,7 +17,15 @@
         },
         "shouldBuildFalcon": "true"
     },
-
+    {
+        "model": {
+            "runs_on": "self-hosted",
+            "name": "falcon-7b-instruct",
+            "dockerfile": "docker/presets/tfs-onnx/Dockerfile",
+            "build_args": "--build-arg MODEL_NAME=tiiuae/falcon-7b-instruct"
+        },
+        "shouldBuildFalcon": "true"
+    },
     {
         "model": {
             "runs_on": "self-hosted",
