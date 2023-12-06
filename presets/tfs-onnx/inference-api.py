@@ -53,7 +53,7 @@ tokenizer = AutoTokenizer.from_pretrained("/workspace/tfs/weights")
 model = ORTModelForCausalLM.from_pretrained(
     "/workspace/tfs/weights",
     local_files_only=True,
-    provider="CUDAExecutionProvider"
+    provider="CUDAExecutionProvider",
     **model_kwargs
 )
 

@@ -2,13 +2,14 @@
 # Licensed under the MIT license.
 import csv
 import argparse
-from transformers import AutoTokenizer, AutoModelForCausalLM
 import requests
 from datetime import datetime
 import time
 import uuid
 import asyncio
 import aiohttp
+import sys
+import time
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -24,21 +25,33 @@ def get_args():
     parser.add_argument("--use_accelerator", action='store_true', help="Use the Accelerator for parallel processing.")
     return parser.parse_args()
 
+args = get_args()
+
+
 async def async_request(session, request):
-    start_time = time.time()
-    print("START REQ")
-    timeout = aiohttp.ClientTimeout(total=30000000) # Arbitrary large number
-    async with session.post('http://127.0.0.1:8080/generate', json={"inputs": request}, headers={'Content-Type': 'application/json'}, timeout=timeout) as response:
-        response_text = await response.text()
-        print(response_text)
-        end_time = time.time()
+    try:
+        start_time = time.time()
+        timeout = aiohttp.ClientTimeout(total=600)
+        print("MADE REQUEST")
+        async with session.post('http://20.84.13.124:5000/chat', json={"prompt": request}, headers={'Content-Type': 'application/json'}, timeout=timeout) as response:
+            response_text = await response.text()
+            end_time = time.time()
+        return response_text, end_time - start_time, len(request)
+    except Exception as e:
+        print(f"Request failed: {e}")
+        return "Error", 0, len(request)
 
-    return response_text, end_time - start_time, len(request)
-
-async def async_inference(prompts, writer, args):
+async def async_inference(prompts, writer, args, file):
     async with aiohttp.ClientSession() as session:
-        tasks = [async_request(session, prompt) for prompt in prompts]
-        responses = await asyncio.gather(*tasks)
+        tasks = [async_request(session, prompts[i]) for i in range(0, len(prompts))]
+        time.sleep(1)
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+        # Execute tasks with a slight delay between each
+        # responses = []
+        # for task in tasks:
+        #     response = await task
+        #     responses.append(response)
+            # await asyncio.sleep(0.1)  # Adds a 0.1-second delay between requests
 
     for response_text, inference_time, req_len in responses:
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -61,6 +74,7 @@ async def async_inference(prompts, writer, args):
             "timestamp": timestamp
         }
         writer.writerow(result)
+        file.flush()
 
 
 def sync_inference(prompts, writer, args):
@@ -68,10 +82,10 @@ def sync_inference(prompts, writer, args):
         start_time = time.time()
 
         # Prepare the data for the POST request
-        data = {"inputs": request}
+        data = {"prompt": request}
 
         # Make the HTTP POST request
-        response = requests.post('http://0.0.0.0:5000/chat', json=data, headers={'Content-Type': 'application/json'})
+        response = requests.post('http://20.84.13.124:5000/chat', json=data, headers={'Content-Type': 'application/json'})
 
         end_time = time.time()
         inference_time = end_time - start_time
@@ -103,19 +117,18 @@ with open("../common-gpt-questions.csv", "r") as f:
 def sync_main(): 
     fieldnames = ["model", "num_nodes", "num_processes", "num_gpus", "num_prompts", "prompt_len", "model_parallelism", "data_parallelism", "quantization", "machine", "inference_time", "request_id", "timestamp"]
 
-    with open("results.csv", "a", newline='') as f:
+    with open("/Users/ishaansehgal/Documents/kaito-ishaansehgal99/presets/test/falcon-benchmark/results/pytorch/sync-one-gpu-V100-ds.csv", "a", newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         sync_inference(prompts, writer, args)
 
 async def async_main():
-    args = get_args()
     fieldnames = ["model", "num_nodes", "num_processes", "num_gpus", "num_prompts", "prompt_len", "model_parallelism", "data_parallelism", "quantization", "machine", "inference_time", "request_id", "timestamp"]
 
-    with open("results.csv", "a", newline='') as f:
+    with open("/Users/ishaansehgal/Documents/kaito-ishaansehgal99/presets/test/falcon-benchmark/results/pytorch/async-one-gpu.csv", "a", newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        await async_inference(prompts, writer, args)
+        await async_inference(prompts, writer, args, f)
 
 if __name__ == "__main__":
     sync_main()
