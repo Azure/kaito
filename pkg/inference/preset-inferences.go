@@ -96,6 +96,7 @@ func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1
 		inferenceObj.ModelRunParams["model_id"] = inferenceObj.ModelId
 		inferenceObj.ModelRunParams["pipeline"] = "text-generation"
 		inferenceObj.ModelRunParams["trust_remote_code"] = "true"
+		inferenceObj.ModelRunParams["torch_dtype"] = "bfloat16"
 
 	} else if inferenceObj.ModelName == "Mistral" {
 		inferenceObj.TorchRunParams["config_file"] = "config.yaml"
@@ -105,6 +106,7 @@ func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1
 		inferenceObj.TorchRunParams["gpu_ids"] = "all"
 
 		inferenceObj.ModelRunParams["model_id"] = inferenceObj.ModelId
+		inferenceObj.ModelRunParams["torch_dtype"] = "float16"
 		if inferenceObj.ModelId == "mistralai/Mistral-7B-v0.1" {
 			inferenceObj.ModelRunParams["pipeline"] = "text-generation"
 		} else {

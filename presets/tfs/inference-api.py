@@ -15,12 +15,18 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import transformers
 import torch
 
+def dtype_type(string):
+    if hasattr(torch, string):
+        return getattr(torch, string)
+    else:
+        raise ValueError(f"Invalid torch dtype: {string}")
+
 parser = argparse.ArgumentParser(description='Model Configuration')
 parser.add_argument('--model_id', required=True, type=str, help='The model ID for the pre-trained model')
 parser.add_argument('--pipeline', required=True, type=str, help='The model pipeline for the pre-trained model')
 parser.add_argument('--load_in_8bit', default=False, action='store_true', help='Load model in 8-bit mode')
 parser.add_argument('--trust_remote_code', default=False, action='store_true', help='Disable trusting remote code when loading the model')
-parser.add_argument('--torch_dtype', default=torch.bfloat16, type=torch.Tensor, help='The torch dtype for the pre-trained model')
+parser.add_argument('--torch_dtype', default=None, type=dtype_type, help='The torch dtype for the pre-trained model')
 parser.add_argument('--device_map', default="auto", type=str, help='The device map for the pre-trained model')
 
 args = parser.parse_args()
@@ -32,13 +38,14 @@ if args.pipeline not in supported_pipelines:
     raise HTTPException(status_code=400, detail="Invalid pipeline specified")
 
 model_kwargs = {
-    "torch_dtype": args.torch_dtype,
     "device_map": args.device_map,
     "trust_remote_code": args.trust_remote_code,
 }
 
 if args.load_in_8bit:
     model_kwargs["load_in_8bit"] = args.load_in_8bit
+if args.torch_dtype:
+    model_kwargs["torch_dtype"] = args.torch_dtype
 
 tokenizer = AutoTokenizer.from_pretrained("/workspace/tfs/weights")
 model = AutoModelForCausalLM.from_pretrained(

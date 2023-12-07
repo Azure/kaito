@@ -18,12 +18,18 @@ import torch
 # ONNX
 from optimum.onnxruntime import ORTModelForCausalLM
 
+def dtype_type(string):
+    if hasattr(torch, string):
+        return getattr(torch, string)
+    else:
+        raise ValueError(f"Invalid torch dtype: {string}")
+
 parser = argparse.ArgumentParser(description='Model Configuration')
 parser.add_argument('--model_id', required=True, type=str, help='The model ID for the pre-trained model')
 parser.add_argument('--pipeline', required=True, type=str, help='The model pipeline for the pre-trained model')
 parser.add_argument('--load_in_8bit', default=False, action='store_true', help='Load model in 8-bit mode')
 parser.add_argument('--trust_remote_code', default=False, action='store_true', help='Trust remote code when loading the model')
-parser.add_argument('--torch_dtype', default=torch.bfloat16, type=torch.Tensor, help='The torch dtype for the pre-trained model')
+parser.add_argument('--torch_dtype', default=None, type=dtype_type, help='The torch dtype for the pre-trained model')
 parser.add_argument('--device_map', default="auto", type=str, help='The device map for the pre-trained model')
 parser.add_argument('--use_flash_attention_2', default=False, action='store_true', help='Use Flash Attention 2')
 parser.add_argument('--use_cache', default=False, action='store_true', help='Use the ONNX runtime cache')
@@ -38,7 +44,6 @@ if args.pipeline not in supported_pipelines:
     raise HTTPException(status_code=400, detail="Invalid pipeline specified")
 
 model_kwargs = {
-    "torch_dtype": args.torch_dtype, 
     "device_map": args.device_map, 
     "use_cache": args.use_cache,
     "use_io_binding": args.use_io_binding,
@@ -48,6 +53,8 @@ if args.load_in_8bit:
     model_kwargs["load_in_8bit"] = args.load_in_8bit
 if args.use_flash_attention_2:
     model_kwargs["use_flash_attention_2"] = args.use_flash_attention_2
+if args.torch_dtype:
+    model_kwargs["torch_dtype"] = args.torch_dtype
 
 tokenizer = AutoTokenizer.from_pretrained("/workspace/tfs/weights")
 model = ORTModelForCausalLM.from_pretrained(
