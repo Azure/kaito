@@ -196,7 +196,8 @@ jobs:
           fi
           echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
 
-      - name: Docker login
+      - uses: actions/checkout@v4
+      - name: Docker login  
         run: |
           # Echo the current working directory
           echo "Current Working Directory:"
