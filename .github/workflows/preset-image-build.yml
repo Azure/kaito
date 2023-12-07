@@ -202,9 +202,9 @@ jobs:
           echo "Current Working Directory:"
           pwd
           if [[ "${{ steps.acr_name.outputs.ACR_NAME }}" == "aimodelsregistry" ]]; then
-            sudo docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password ${{ secrets.ACR_AMR_PASSWORD }}
+            echo ${{ secrets.ACR_AMR_PASSWORD }} | sudo docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password-stdin
           else
-            sudo docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password ${{ secrets.ACR_AMRT_PASSWORD }}
+            echo ${{ secrets.ACR_AMRT_PASSWORD }} | sudo docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password-stdin
           fi
       
       - name: Build model (with retries)
