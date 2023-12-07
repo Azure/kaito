@@ -202,9 +202,9 @@ jobs:
           echo "Current Working Directory:"
           pwd
           if [[ "${{ steps.acr_name.outputs.ACR_NAME }}" == "aimodelsregistry" ]]; then
-            docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password ${{ secrets.ACR_AMR_PASSWORD }}
+            sudo docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password ${{ secrets.ACR_AMR_PASSWORD }}
           else
-            docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password ${{ secrets.ACR_AMRT_PASSWORD }}
+            sudo docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password ${{ secrets.ACR_AMRT_PASSWORD }}
           fi
       
       - name: Build model (with retries)
@@ -215,7 +215,7 @@ jobs:
 
             echo "Docker BUILD_ARGS: $BUILD_ARGS"
 
-            docker build $BUILD_ARGS \
+            sudo docker build $BUILD_ARGS \
             -t ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
             -f /home/kaito/${{ matrix.model.dockerfile }} \
             . && break
@@ -233,7 +233,7 @@ jobs:
           retries=3
           while [ $retries -gt 0 ]; do
             # Push the Docker image to ACR
-            docker push ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }}
+            sudo docker push ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }}
             
             # Check if the push was successful
             if [ $? -eq 0 ]; then
