@@ -175,7 +175,8 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
-
+      
+      # TODO: Include once merged to main
       # - name: 'Az CLI login'
       #   uses: azure/login@v1.4.6
       #   with:
@@ -202,22 +203,13 @@ jobs:
           echo "ACR_CLIENT_ID=$ACR_CLIENT_ID" >> $GITHUB_OUTPUT
           echo "ACR_CLIENT_SECRET=$ACR_CLIENT_SECRET" >> $GITHUB_OUTPUT
       
-      - name: Docker login
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io
-          username: ${{ secrets.ACR_AMRT_USERNAME }}
-          password: ${{ secrets.ACR_AMRT_PASSWORD }}
+      # TODO: Include once merged to main
       # - name: Docker login
-      #   run: |
-      #     # Echo the current working directory
-      #     echo "Current Working Directory:"
-      #     pwd
-      #     if [[ "${{ steps.acr_name.outputs.ACR_NAME }}" == "aimodelsregistry" ]]; then
-      #       echo ${{ secrets.ACR_AMR_PASSWORD }} | sudo docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password-stdin
-      #     else
-      #       echo ${{ secrets.ACR_AMRT_PASSWORD }} | sudo docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password-stdin
-      #     fi
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io
+      #     username: ${{ secrets.ACR_CLIENT_ID }}
+      #     password: ${{ secrets.ACR_CLIENT_SECRET }}
       
       - name: Build model (with retries)
         run: |
