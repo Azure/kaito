@@ -218,8 +218,8 @@ jobs:
             pwd
 
             # Copy checked out git files into docker build context
-            cp docker/presets/${{ matrix.model.preset }}/Dockerfile ${{ matrix.model.build_context }}
-            cp -r presets/${{ matrix.model.preset }}/* ${{ matrix.model.build_context }}/presets
+            sudo cp docker/presets/${{ matrix.model.preset }}/Dockerfile ${{ matrix.model.build_context }}
+            sudo cp -r presets/${{ matrix.model.preset }}/* ${{ matrix.model.build_context }}/presets
 
             BUILD_ARGS="${{ matrix.model.build_args }}"
 
