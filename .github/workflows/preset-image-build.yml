@@ -206,8 +206,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io
-          username: ${{ secrets.ACR_AMRT_USERNAME }}
-          password: ${{ secrets.ACR_AMRT_PASSWORD }}
+          username: ${{ steps.acr_name.outputs.ACR_CLIENT_ID }}
+          password: ${{ steps.acr_name.outputs.ACR_CLIENT_SECRET }}
         # run: |
         #   # Echo the current working directory
         #   echo "Current Working Directory:"
