@@ -52,20 +52,20 @@
 	{
 		"model": {
 			"runs_on": "self-hosted",
-			"name": "mistralai/Mistral-7B-v0.1",
+			"name": "mistralai/mistral-7b-v0.1",
 			"preset": "tfs",
-			"build_args": "--build-arg MODEL_NAME=mistralai/Mistral-7B-v0.1",
-			"build_context": "/home/tfs/mistralai/Mistral-7B-v0.1"
+			"build_args": "--build-arg MODEL_NAME=mistralai/mistral-7b-v0.1",
+			"build_context": "/home/tfs/mistralai/mistral-7b-v0.1"
 		},
 		"shouldBuildTfs": "true"
 	},
 	{
 		"model": {
 			"runs_on": "self-hosted",
-			"name": "mistralai/Mistral-7B-Instruct-v0.1",
+			"name": "mistralai/mistral-7b-instruct-v0.1",
 			"preset": "tfs",
-			"build_args": "--build-arg MODEL_NAME=mistralai/Mistral-7B-Instruct-v0.1",
-			"build_context": "/home/tfs/mistralai/Mistral-7B-Instruct-v0.1"
+			"build_args": "--build-arg MODEL_NAME=mistralai/mistral-7b-instruct-v0.1",
+			"build_context": "/home/tfs/mistralai/mistral-7b-instruct-v0.1"
 		},
 		"shouldBuildTfs": "true"
 	},

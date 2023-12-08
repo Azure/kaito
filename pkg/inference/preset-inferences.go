@@ -107,7 +107,7 @@ func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1
 
 		inferenceObj.ModelRunParams["model_id"] = inferenceObj.ModelId
 		inferenceObj.ModelRunParams["torch_dtype"] = "float16"
-		if inferenceObj.ModelId == "mistralai/Mistral-7B-v0.1" {
+		if inferenceObj.ModelId == "mistralai/mistral-7b-v0.1" {
 			inferenceObj.ModelRunParams["pipeline"] = "text-generation"
 		} else {
 			inferenceObj.ModelRunParams["pipeline"] = "conversational"

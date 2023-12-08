@@ -25,8 +25,8 @@ var PresetRequirementsMap = map[string]PresetRequirements{
 	"falcon-40b":          {MinGPUCount: 2, MinMemoryPerGPU: 0, MinTotalMemory: 90},
 	"falcon-40b-instruct": {MinGPUCount: 2, MinMemoryPerGPU: 0, MinTotalMemory: 90},
 
-	"Mistral-7B-v0.1":          {MinGPUCount: 1, MinMemoryPerGPU: 0, MinTotalMemory: 16},
-	"Mistral-7B-Instruct-v0.1": {MinGPUCount: 1, MinMemoryPerGPU: 0, MinTotalMemory: 16},
+	"mistral-7b-v0.1":          {MinGPUCount: 1, MinMemoryPerGPU: 0, MinTotalMemory: 16},
+	"mistral-7b-instruct-v0.1": {MinGPUCount: 1, MinMemoryPerGPU: 0, MinTotalMemory: 16},
 
 	"llama-2-7b":  {MinGPUCount: 1, MinMemoryPerGPU: 14, MinTotalMemory: 14},
 	"llama-2-13b": {MinGPUCount: 2, MinMemoryPerGPU: 15, MinTotalMemory: 30},

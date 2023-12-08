@@ -301,7 +301,7 @@ var (
 	MistralPresetInferences = map[kaitov1alpha1.ModelName]PresetInferenceParam{
 		kaitov1alpha1.PresetMistral7BModel: {
 			ModelName:              "Mistral",
-			ModelId:                "mistralai/Mistral-7B-v0.1",
+			ModelId:                "mistralai/mistral-7b-v0.1",
 			Image:                  presetMistral7bImage,
 			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
@@ -318,7 +318,7 @@ var (
 
 		kaitov1alpha1.PresetMistral7BInstructModel: {
 			ModelName:              "Mistral",
-			ModelId:                "mistralai/Mistral-7B-Instruct-v0.1",
+			ModelId:                "mistralai/mistral-7b-instruct-v0.1",
 			Image:                  presetMistral7bInstructImage,
 			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
