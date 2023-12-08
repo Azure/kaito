@@ -202,12 +202,12 @@ jobs:
           echo "ACR_CLIENT_ID=$ACR_CLIENT_ID" >> $GITHUB_OUTPUT
           echo "ACR_CLIENT_SECRET=$ACR_CLIENT_SECRET" >> $GITHUB_OUTPUT
       
-      - name: Docker login
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io
-          username: ${{ steps.acr_name.outputs.ACR_CLIENT_ID }}
-          password: ${{ steps.acr_name.outputs.ACR_CLIENT_SECRET }}
+      # - name: Docker login
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io
+      #     username: ${{ secrets.ACR_AMRT_USERNAME }}
+      #     password: ${{ secrets.ACR_AMRT_PASSWORD }}
         # run: |
         #   # Echo the current working directory
         #   echo "Current Working Directory:"
@@ -228,7 +228,7 @@ jobs:
 
             sudo docker build $BUILD_ARGS \
             -t ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
-            -f /home/kaito/${{ matrix.model.dockerfile }} \
+            -f ${{ matrix.model.dockerfile }} \
             . && break
             retries=$((retries-1))
             sleep 15
