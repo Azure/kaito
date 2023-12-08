@@ -1,130 +1,132 @@
 [
-    {
-        "model": {
-            "runs_on": "self-hosted",
-            "name": "falcon-7b",
-            "dockerfile": "docker/presets/tfs/Dockerfile",
-            "build_args": "--build-arg MODEL_NAME=tiiuae/falcon-7b"
-        },
-        "shouldBuildTfs": "true"
-    },
-    {
-        "model": {
-            "runs_on": "self-hosted",
-            "name": "falcon-7b-instruct",
-            "dockerfile": "docker/presets/tfs/Dockerfile",
-            "build_args": "--build-arg MODEL_NAME=tiiuae/falcon-7b-instruct"
-        },
-        "shouldBuildTfs": "true"
-    },
-
-    {
-        "model": {
-            "runs_on": "self-hosted",
-            "name": "falcon-7b-instruct-onnx",
-            "dockerfile": "docker/presets/tfs-onnx/Dockerfile",
-            "build_args": "--build-arg MODEL_NAME=tiiuae/falcon-7b-instruct-onnx"
-        },
-        "shouldBuildTfs": "true"
-    },
-
-    {
-        "model": {
-            "runs_on": "self-hosted",
-            "name": "falcon-40b",
-            "dockerfile": "docker/presets/tfs/Dockerfile",
-            "build_args": "--build-arg MODEL_NAME=tiiuae/falcon-40b"
-        },
-        "shouldBuildTfs": "true"
-    },
-
-    {
-        "model": {
-            "runs_on": "self-hosted",
-            "name": "falcon-40b-instruct",
-            "dockerfile": "docker/presets/tfs/Dockerfile",
-            "build_args": "--build-arg MODEL_NAME=tiiuae/falcon-40b-instruct"
-        },
-        "shouldBuildTfs": "true"
-    },
-
-    {
-        "model": {
-            "runs_on": "self-hosted",
-            "name": "mistralai/Mistral-7B-v0.1",
-            "dockerfile": "docker/presets/tfs/Dockerfile",
-            "build_args": "--build-arg MODEL_NAME=mistralai/Mistral-7B-v0.1"
-        },
-        "shouldBuildTfs": "true"
-    },
-
-    {
-        "model": {
-            "runs_on": "self-hosted",
-            "name": "mistralai/Mistral-7B-Instruct-v0.1",
-            "dockerfile": "docker/presets/tfs/Dockerfile",
-            "build_args": "--build-arg MODEL_NAME=mistralai/Mistral-7B-Instruct-v0.1"
-        },
-        "shouldBuildTfs": "true"
-    },
-
-    {
-        "model": {
-            "runs_on": "self-hosted",
-            "name": "llama-2-7b",
-            "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-7b --build-arg SRC_DIR=/home/presets/llama-2"
-        },
-        "shouldBuildLlama2": "true"
-    },
-
-    {
-        "model": {
-            "runs_on": "self-hosted",
-            "name": "llama-2-13b",
-            "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-13b --build-arg SRC_DIR=/home/presets/llama-2"
-        },
-        "shouldBuildLlama2": "true"
-    },
-
-    {
-        "model": {
-            "runs_on": "self-hosted",
-            "name": "llama-2-70b",
-            "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-70b --build-arg SRC_DIR=/home/presets/llama-2"
-        },
-        "shouldBuildLlama2": "true"
-    },
-
-    {
-        "model": {
-            "runs_on": "self-hosted",
-            "name": "llama-2-7b-chat",
-            "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-7b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
-        },
-        "shouldBuildLlama2Chat": "true"
-    },
-
-    {
-        "model": {
-            "runs_on": "self-hosted",
-            "name": "llama-2-13b-chat",
-            "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-13b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
-        },
-        "shouldBuildLlama2Chat": "true"
-    },
-
-    {
-        "model": {
-            "runs_on": "self-hosted",
-            "name": "llama-2-70b-chat",
-            "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-70b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
-        },
-        "shouldBuildLlama2Chat": "true"
-    }
+	{
+		"model": {
+			"runs_on": "self-hosted",
+			"name": "falcon-7b",
+			"preset": "tfs",
+			"build_args": "--build-arg MODEL_NAME=tiiuae/falcon-7b",
+			"build_context": "/home/tfs/tiiuae/falcon-7b"
+		},
+		"shouldBuildTfs": "true"
+	},
+	{
+		"model": {
+			"runs_on": "self-hosted",
+			"name": "falcon-7b-instruct",
+			"preset": "tfs",
+			"build_args": "--build-arg MODEL_NAME=tiiuae/falcon-7b-instruct",
+			"build_context": "/home/tfs/tiiuae/falcon-7b-instruct"
+		},
+		"shouldBuildTfs": "true"
+	},
+	{
+		"model": {
+			"runs_on": "self-hosted",
+			"name": "falcon-7b-instruct-onnx",
+			"preset": "tfs-onnx",
+			"build_args": "--build-arg MODEL_NAME=tiiuae/falcon-7b-instruct-onnx",
+			"build_context": "/home/tfs/tiiuae/falcon-7b-instruct-onnx"
+		},
+		"shouldBuildTfs": "true"
+	},
+	{
+		"model": {
+			"runs_on": "self-hosted",
+			"name": "falcon-40b",
+			"preset": "tfs",
+			"build_args": "--build-arg MODEL_NAME=tiiuae/falcon-40b",
+			"build_context": "/home/tfs/tiiuae/falcon-40b"
+		},
+		"shouldBuildTfs": "true"
+	},
+	{
+		"model": {
+			"runs_on": "self-hosted",
+			"name": "falcon-40b-instruct",
+			"preset": "tfs",
+			"build_args": "--build-arg MODEL_NAME=tiiuae/falcon-40b-instruct",
+			"build_context": "/home/tfs/tiiuae/falcon-40b-instruct"
+		},
+		"shouldBuildTfs": "true"
+	},
+	{
+		"model": {
+			"runs_on": "self-hosted",
+			"name": "mistralai/Mistral-7B-v0.1",
+			"preset": "tfs",
+			"build_args": "--build-arg MODEL_NAME=mistralai/Mistral-7B-v0.1",
+			"build_context": "/home/tfs/mistralai/Mistral-7B-v0.1"
+		},
+		"shouldBuildTfs": "true"
+	},
+	{
+		"model": {
+			"runs_on": "self-hosted",
+			"name": "mistralai/Mistral-7B-Instruct-v0.1",
+			"preset": "tfs",
+			"build_args": "--build-arg MODEL_NAME=mistralai/Mistral-7B-Instruct-v0.1",
+			"build_context": "/home/tfs/mistralai/Mistral-7B-Instruct-v0.1"
+		},
+		"shouldBuildTfs": "true"
+	},
+	{
+		"model": {
+			"runs_on": "self-hosted",
+			"name": "llama-2-7b",
+			"preset": "llama-2",
+			"build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-7b --build-arg SRC_DIR=/home/presets/llama-2",
+			"build_context": "/home/llama/llama-2-7b"
+		},
+		"shouldBuildLlama2": "true"
+	},
+	{
+		"model": {
+			"runs_on": "self-hosted",
+			"name": "llama-2-13b",
+			"preset": "llama-2",
+			"build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-13b --build-arg SRC_DIR=/home/presets/llama-2",
+			"build_context": "/home/llama/llama-2-13b"
+		},
+		"shouldBuildLlama2": "true"
+	},
+	{
+		"model": {
+			"runs_on": "self-hosted",
+			"name": "llama-2-70b",
+			"preset": "llama-2",
+			"build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-70b --build-arg SRC_DIR=/home/presets/llama-2",
+			"build_context": "/home/llama/llama-2-70b"
+		},
+		"shouldBuildLlama2": "true"
+	},
+	{
+		"model": {
+			"runs_on": "self-hosted",
+			"name": "llama-2-7b-chat",
+			"preset": "llama-2",
+			"build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-7b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat",
+			"build_context": "/home/llama/llama-2-7b-chat"
+		},
+		"shouldBuildLlama2Chat": "true"
+	},
+	{
+		"model": {
+			"runs_on": "self-hosted",
+			"name": "llama-2-13b-chat",
+			"preset": "llama-2",
+			"build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-13b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat",
+			"build_context": "/home/llama/llama-2-13b-chat"
+		},
+		"shouldBuildLlama2Chat": "true"
+	},
+	{
+		"model": {
+			"runs_on": "self-hosted",
+			"name": "llama-2-70b-chat",
+			"preset": "llama-2",
+			"build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-70b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat",
+			"build_context": "/home/llama/llama-2-70b-chat"
+		},
+		"shouldBuildLlama2Chat": "true"
+	}
 ]
