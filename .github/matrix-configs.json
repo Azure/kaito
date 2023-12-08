@@ -6,7 +6,7 @@
             "dockerfile": "docker/presets/tfs/Dockerfile",
             "build_args": "--build-arg MODEL_NAME=tiiuae/falcon-7b"
         },
-        "shouldBuildFalcon": "true"
+        "shouldBuildTfs": "true"
     },
     {
         "model": {
@@ -15,17 +15,19 @@
             "dockerfile": "docker/presets/tfs/Dockerfile",
             "build_args": "--build-arg MODEL_NAME=tiiuae/falcon-7b-instruct"
         },
-        "shouldBuildFalcon": "true"
+        "shouldBuildTfs": "true"
     },
+
     {
         "model": {
             "runs_on": "self-hosted",
-            "name": "falcon-7b-instruct",
+            "name": "falcon-7b-instruct-onnx",
             "dockerfile": "docker/presets/tfs-onnx/Dockerfile",
-            "build_args": "--build-arg MODEL_NAME=tiiuae/falcon-7b-instruct"
+            "build_args": "--build-arg MODEL_NAME=tiiuae/falcon-7b-instruct-onnx"
         },
-        "shouldBuildFalcon": "true"
+        "shouldBuildTfs": "true"
     },
+
     {
         "model": {
             "runs_on": "self-hosted",
@@ -33,7 +35,7 @@
             "dockerfile": "docker/presets/tfs/Dockerfile",
             "build_args": "--build-arg MODEL_NAME=tiiuae/falcon-40b"
         },
-        "shouldBuildFalcon": "true"
+        "shouldBuildTfs": "true"
     },
 
     {
@@ -43,7 +45,27 @@
             "dockerfile": "docker/presets/tfs/Dockerfile",
             "build_args": "--build-arg MODEL_NAME=tiiuae/falcon-40b-instruct"
         },
-        "shouldBuildFalcon": "true"
+        "shouldBuildTfs": "true"
+    },
+
+    {
+        "model": {
+            "runs_on": "self-hosted",
+            "name": "mistralai/Mistral-7B-v0.1",
+            "dockerfile": "docker/presets/tfs/Dockerfile",
+            "build_args": "--build-arg MODEL_NAME=mistralai/Mistral-7B-v0.1"
+        },
+        "shouldBuildTfs": "true"
+    },
+
+    {
+        "model": {
+            "runs_on": "self-hosted",
+            "name": "mistralai/Mistral-7B-Instruct-v0.1",
+            "dockerfile": "docker/presets/tfs/Dockerfile",
+            "build_args": "--build-arg MODEL_NAME=mistralai/Mistral-7B-Instruct-v0.1"
+        },
+        "shouldBuildTfs": "true"
     },
 
     {
@@ -51,7 +73,7 @@
             "runs_on": "self-hosted",
             "name": "llama-2-7b",
             "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-7b --build-arg SRC_DIR=/home/presets/llama-2"
+            "build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-7b --build-arg SRC_DIR=/home/presets/llama-2"
         },
         "shouldBuildLlama2": "true"
     },
@@ -61,7 +83,7 @@
             "runs_on": "self-hosted",
             "name": "llama-2-13b",
             "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-13b --build-arg SRC_DIR=/home/presets/llama-2"
+            "build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-13b --build-arg SRC_DIR=/home/presets/llama-2"
         },
         "shouldBuildLlama2": "true"
     },
@@ -71,7 +93,7 @@
             "runs_on": "self-hosted",
             "name": "llama-2-70b",
             "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-70b --build-arg SRC_DIR=/home/presets/llama-2"
+            "build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-70b --build-arg SRC_DIR=/home/presets/llama-2"
         },
         "shouldBuildLlama2": "true"
     },
@@ -81,7 +103,7 @@
             "runs_on": "self-hosted",
             "name": "llama-2-7b-chat",
             "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-7b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
+            "build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-7b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
         },
         "shouldBuildLlama2Chat": "true"
     },
@@ -91,7 +113,7 @@
             "runs_on": "self-hosted",
             "name": "llama-2-13b-chat",
             "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-13b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
+            "build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-13b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
         },
         "shouldBuildLlama2Chat": "true"
     },
@@ -101,7 +123,7 @@
             "runs_on": "self-hosted",
             "name": "llama-2-70b-chat",
             "dockerfile": "docker/presets/llama-2/Dockerfile",
-            "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-70b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
+            "build_args": "--build-arg LLAMA_WEIGHTS=/home/llama/llama-2-70b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
         },
         "shouldBuildLlama2Chat": "true"
     }

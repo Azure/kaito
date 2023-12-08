@@ -36,7 +36,7 @@ const (
 )
 
 const (
-	DefaultModelId = "MODEL_ID"
+	DefaultModelId  = "MODEL_ID"
 	DefaultPipeline = "text-generation"
 )
 
@@ -49,7 +49,7 @@ var (
 	presetFalcon40bImage         = registryName + fmt.Sprintf("/kaito-%s:0.0.1", kaitov1alpha1.PresetFalcon40BModel)
 	presetFalcon40bInstructImage = registryName + fmt.Sprintf("/kaito-%s:0.0.1", kaitov1alpha1.PresetFalcon40BInstructModel)
 
-	presetMistral7bImage = registryName + fmt.Sprintf("/kaito-%s:0.0.1", kaitov1alpha1.PresetMistral7BModel)
+	presetMistral7bImage         = registryName + fmt.Sprintf("/kaito-%s:0.0.1", kaitov1alpha1.PresetMistral7BModel)
 	presetMistral7bInstructImage = registryName + fmt.Sprintf("/kaito-%s:0.0.1", kaitov1alpha1.PresetMistral7BInstructModel)
 
 	baseCommandPresetLlama = "cd /workspace/llama/llama-2 && torchrun"
@@ -97,7 +97,7 @@ var (
 // PresetInferenceParam defines the preset inference.
 type PresetInferenceParam struct {
 	ModelName              string
-	ModelId				   string
+	ModelId                string
 	Image                  string
 	ImagePullSecrets       []corev1.LocalObjectReference
 	AccessMode             string
@@ -231,7 +231,7 @@ var (
 	FalconPresetInferences = map[kaitov1alpha1.ModelName]PresetInferenceParam{
 		kaitov1alpha1.PresetFalcon7BModel: {
 			ModelName:              "Falcon",
-			ModelId: 				"tiiuae/falcon-7b",
+			ModelId:                "tiiuae/falcon-7b",
 			Image:                  presetFalcon7bImage,
 			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
@@ -247,7 +247,7 @@ var (
 		},
 		kaitov1alpha1.PresetFalcon7BInstructModel: {
 			ModelName:              "Falcon",
-			ModelId: 				"tiiuae/falcon-7b-instruct",
+			ModelId:                "tiiuae/falcon-7b-instruct",
 			Image:                  presetFalcon7bInstructImage,
 			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
@@ -264,7 +264,7 @@ var (
 
 		kaitov1alpha1.PresetFalcon40BModel: {
 			ModelName:              "Falcon",
-			ModelId:				"tiiuae/falcon-40b",
+			ModelId:                "tiiuae/falcon-40b",
 			Image:                  presetFalcon40bImage,
 			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
@@ -281,7 +281,7 @@ var (
 
 		kaitov1alpha1.PresetFalcon40BInstructModel: {
 			ModelName:              "Falcon",
-			ModelId: 				"tiiuae/falcon-40b-instruct",
+			ModelId:                "tiiuae/falcon-40b-instruct",
 			Image:                  presetFalcon40bInstructImage,
 			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
@@ -295,13 +295,13 @@ var (
 			BaseCommand:            baseCommandPresetTsf,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
-	},
+	}
 
 	// MistralPresetInferences defines the preset inferences for Mistral.
 	MistralPresetInferences = map[kaitov1alpha1.ModelName]PresetInferenceParam{
 		kaitov1alpha1.PresetMistral7BModel: {
 			ModelName:              "Mistral",
-			ModelId: 				"mistralai/Mistral-7B-v0.1",
+			ModelId:                "mistralai/Mistral-7B-v0.1",
 			Image:                  presetMistral7bImage,
 			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,
@@ -315,9 +315,10 @@ var (
 			BaseCommand:            baseCommandPresetTsf,
 			DefaultVolumeMountPath: "/dev/shm",
 		},
+
 		kaitov1alpha1.PresetMistral7BInstructModel: {
 			ModelName:              "Mistral",
-			ModelId: 				"mistralai/Mistral-7B-Instruct-v0.1",
+			ModelId:                "mistralai/Mistral-7B-Instruct-v0.1",
 			Image:                  presetMistral7bInstructImage,
 			ImagePullSecrets:       defaultImagePullSecrets,
 			AccessMode:             defaultAccessMode,

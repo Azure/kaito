@@ -9,13 +9,13 @@ WORKDIR /workspace/tfs
 # First, copy just the requirements.txt file and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and
 # avoid reinstalling dependencies unless the requirements file changes.
-COPY /home/presets/tfs-onnx/requirements.txt /workspace/tfs/requirements.txt
+COPY docker/presets/tfs-onnx/requirements.txt /workspace/tfs/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Convert to ONNX Runtime
-RUN python convert_to_onnx.py ${MODEL_NAME}
+# RUN python convert_to_onnx.py ${MODEL_NAME} 
 
 # Copy the entire onnx model to the weights directory
-COPY /tfs/${MODEL_NAME} /workspace/tfs/weights
+COPY /home/tfs/${MODEL_NAME} /workspace/tfs/weights
 # Copy the entire 'presets/tfs-onnx' folder to the working directory
-COPY /home/presets/tfs-onnx /workspace/tfs
+COPY docker/presets/tfs-onnx /workspace/tfs
