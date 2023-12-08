@@ -191,22 +191,32 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag_name }}" ]]; then
             ACR_NAME="aimodelsregistry"
+            ACR_CLIENT_ID=${{ secrets.AZURE_AMR_CLIENT_ID }}
+            ACR_CLIENT_SECRET=${{ secrets.AZURE_AMR_CLIENT_SECRET }}
           else
             ACR_NAME="aimodelsregistrytest"
+            ACR_CLIENT_ID=${{ secrets.AZURE_AMRT_CLIENT_ID }}
+            ACR_CLIENT_SECRET=${{ secrets.AZURE_AMRT_CLIENT_SECRET }} 
           fi
           echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
-
-      - uses: actions/checkout@v4
-      - name: Docker login  
-        run: |
-          # Echo the current working directory
-          echo "Current Working Directory:"
-          pwd
-          if [[ "${{ steps.acr_name.outputs.ACR_NAME }}" == "aimodelsregistry" ]]; then
-            echo ${{ secrets.ACR_AMR_PASSWORD }} | sudo docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password-stdin
-          else
-            echo ${{ secrets.ACR_AMRT_PASSWORD }} | sudo docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password-stdin
-          fi
+          echo "ACR_CLIENT_ID=$ACR_CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "ACR_CLIENT_SECRET=$ACR_CLIENT_SECRET" >> $GITHUB_OUTPUT
+      
+      - name: Docker login
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io
+          username: ${{ steps.acr_name.outputs.ACR_CLIENT_ID }}
+          password: ${{ steps.acr_name.outputs.ACR_CLIENT_SECRET }}
+        # run: |
+        #   # Echo the current working directory
+        #   echo "Current Working Directory:"
+        #   pwd
+        #   if [[ "${{ steps.acr_name.outputs.ACR_NAME }}" == "aimodelsregistry" ]]; then
+        #     echo ${{ secrets.ACR_AMR_PASSWORD }} | sudo docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password-stdin
+        #   else
+        #     echo ${{ secrets.ACR_AMRT_PASSWORD }} | sudo docker login ${{ steps.acr_name.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password-stdin
+        #   fi
       
       - name: Build model (with retries)
         run: |
