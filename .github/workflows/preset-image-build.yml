@@ -4,16 +4,12 @@ on:
     branches:
       - main
     paths:
-      - 'presets/falcon/**'
-      - 'presets/llama-2/**'
-      - 'presets/llama-2-chat/**'
+      - 'presets/models/**'
   push:
     branches:
       - main
     paths:
-      - 'presets/falcon/**'
-      - 'presets/llama-2/**'
-      - 'presets/llama-2-chat/**'
+      - 'presets/models/**'
   workflow_dispatch:
     inputs:
       image_tag_name:
