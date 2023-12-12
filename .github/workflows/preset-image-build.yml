@@ -69,7 +69,7 @@ jobs:
           echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
           echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
       
-      - name: Start K8s Pod to Kickoff builds
+      - name: Start K8s Pod to Kickoff Jobs
         run: |
           kubectl run initial-pod --image=initial-pod:latest \
           --env="IMAGE_TAG=${{ steps.set_tag.outputs.image_tag }}" \

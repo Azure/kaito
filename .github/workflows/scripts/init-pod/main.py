@@ -77,6 +77,9 @@ def check_modified_files(pr_branch):
     # Get modified files
     files = run_command("git diff --name-only origin/main")
 
+    # Reset back to home directory
+    os.chdir("..")
+
     print("Modified files:", files)
 
     # Paths to check

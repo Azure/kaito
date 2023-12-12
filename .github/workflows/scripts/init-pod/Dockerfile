@@ -12,5 +12,5 @@ COPY main.py /usr/src/app
 COPY build-pod.yaml /usr/src/app
 
 # Set the entrypoint to the Python script
-ENTRYPOINT ["python", "./main.py"]
+ENTRYPOINT ["python3", "main.py"]
 
