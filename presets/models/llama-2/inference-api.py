@@ -20,7 +20,7 @@ import argparse
 # Setup argparse
 parser = argparse.ArgumentParser(description="Llama API server.")
 parser.add_argument("--ckpt_dir", default="weights/", help="Checkpoint directory.")
-parser.add_argument("--tokenizer_path", default="tokenizer.model", help="Path to the tokenizer model.")
+parser.add_argument("--tokenizer_path", default="weights/tokenizer.model", help="Path to the tokenizer model.")
 parser.add_argument("--max_seq_len", type=int, default=128, help="Maximum sequence length.")
 parser.add_argument("--max_batch_size", type=int, default=4, help="Maximum batch size.")
 parser.add_argument("--model_parallel_size", type=int, default=int(os.environ.get("WORLD_SIZE", 1)), help="Model parallel size.")
@@ -50,34 +50,34 @@ def broadcast_for_shutdown():
     """Broadcasts shutdown command to worker processes."""
     dist.broadcast_object_list(["shutdown", None, None], src=0)
 
-def broadcast_for_generation(input_string, max_gen_len, temperature, top_p):
+def broadcast_for_text_generation(prompts, max_gen_len, temperature, top_p):
     """Broadcasts generation parameters to worker processes."""
-    dist.broadcast_object_list(["generate", input_string, {
+    dist.broadcast_object_list(["text_generate", prompts, {
         'max_gen_len': max_gen_len,
         'temperature': temperature,
         'top_p': top_p
     }], src=0)
 
 @timeout(180.0)
-def master_inference(input_string, max_gen_len, temperature, top_p):
+def master_inference(prompts, max_gen_len, temperature, top_p):
     if dist.get_world_size() > 1:
         try:
             # Broadcast generation params to worker processes
-            broadcast_for_generation(input_string, max_gen_len, temperature, top_p)
+            broadcast_for_text_generation(prompts, max_gen_len, temperature, top_p)
         except Exception as e:
-            print("Error in broadcast_for_generation:", str(e))
+            print("Error in broadcast_for_text_generation:", str(e))
             raise
 
     # Master's own generation
     try:
-        return generator.chat_completion(
-            input_string,
+        return generator.text_completion(
+            prompts,
             max_gen_len=max_gen_len,
             temperature=temperature,
             top_p=top_p,
         )
     except Exception as e:
-        print("Error in chat_completion:", str(e))
+        print("Error in text_completion:", str(e))
         raise
 
 def shutdown_server():
@@ -95,7 +95,7 @@ gen_params = {
 
 generator = build_generator(gen_params)
 
-def setup_main_routes(): 
+def setup_main_routes():
     @app_main.get('/')
     def home():
         return "Server is running", 200
@@ -118,19 +118,16 @@ def setup_main_routes():
         shutdown_server()
         return {}
 
-    class ChatParameters(BaseModel):
-        input_data: dict
+    class GenerationParameters(BaseModel):
+        prompts: list
         parameters: Optional[dict] = None
 
-    @app_main.post("/chat")
-    def chat_completion(params: ChatParameters):
-        input_data = params.input_data
-        if not input_data:
-            raise HTTPException(status_code=400, detail="Input data is required")
-        
-        input_string = input_data.get("input_string")
-        if not input_string:
-            raise HTTPException(status_code=400, detail="Input string is required")
+    @app_main.post("/generate")
+    def generate_text(params: GenerationParameters):
+        prompts = params.prompts
+        # Check if the prompts are provided
+        if not prompts or not isinstance(prompts, list):
+            raise HTTPException(status_code=400, detail="Prompts are required and should be an array")
 
         parameters = params.parameters if params.parameters else {}
         max_gen_len = parameters.get('max_gen_len', None)
@@ -138,7 +135,7 @@ def setup_main_routes():
         top_p = parameters.get('top_p', 0.9)
 
         try: 
-            results = master_inference(input_string, max_gen_len, temperature, top_p)
+            results = master_inference(prompts, max_gen_len, temperature, top_p)
         except Exception as e: 
             exception_type = type(e).__name__
             if exception_type == "TimeoutError": 
@@ -148,29 +145,21 @@ def setup_main_routes():
 
         if len(results) == 0:
             raise HTTPException(status_code=404, detail="No results")
-        
+
         response_data = []
-        for dialog, result in zip(input_string, results):
-            conversation = []
-            for msg in dialog:
-                print(f"{msg['role'].capitalize()}: {msg['content']}\n")
-                conversation.append({
-                    "role": msg['role'].capitalize(),
-                    "content": msg['content']
-                })
-            print(
-                f"> {result['generation']['role'].capitalize()}: {result['generation']['content']}"
-            )
-            conversation.append({
-                "role": result['generation']['role'].capitalize(),
-                "content": result['generation']['content']
-            })
-            response_data.append(conversation)
+        for prompt, result in zip(prompts, results):
+            print(prompt)
+            print(f"> {result['generation']}")
             print("\n==================================\n")
+            entry = {
+                "prompt": prompt,
+                "response": result['generation']
+            }
+            response_data.append(entry)
 
         return {"results": response_data}
 
-def setup_worker_routes():
+def setup_worker_routes(): 
     @app_worker.get("/healthz")
     def health_check():
         if not torch.cuda.is_available():
@@ -192,11 +181,11 @@ def worker_listen_tasks():
             dist.broadcast_object_list(config, src=0)
             command = config[0]
 
-            if command == "generate":
+            if command == "text_generate":
                 try:
                     input_string = config[1]
                     parameters = config[2]
-                    generator.chat_completion(
+                    generator.text_completion(
                         input_string,
                         max_gen_len=parameters.get('max_gen_len', None),
                         temperature=parameters.get('temperature', 0.6),

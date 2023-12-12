@@ -29,8 +29,3 @@ hack/tools/bin/*
 .DS_Store
 /coverage.txt
 
-# presets
-
-presets/llama-2/weights
-presets/llama-2-chat/weights
-presets/tfs/weights
