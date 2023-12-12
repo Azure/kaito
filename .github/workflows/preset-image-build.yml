@@ -4,16 +4,12 @@ on:
     branches:
       - main
     paths:
-      - 'presets/falcon/**'
-      - 'presets/llama-2/**'
-      - 'presets/llama-2-chat/**'
+      - 'presets/models/**'
   push:
     branches:
       - main
     paths:
-      - 'presets/falcon/**'
-      - 'presets/llama-2/**'
-      - 'presets/llama-2-chat/**'
+      - 'presets/models/**'
   workflow_dispatch:
     inputs:
       image_tag_name:
@@ -32,9 +28,6 @@ jobs:
     runs-on: [self-hosted, 'username:runner-0']
     outputs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
-      FALCON_MODIFIED: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}
-      LLAMA2_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_MODIFIED }}
-      LLAMA2_CHAT_MODIFIED: ${{ steps.check_modified_paths.outputs.LLAMA2_CHAT_MODIFIED }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,57 +37,6 @@ jobs:
       
       - name: Check Available Disk Space
         run: df -h
-
-      - name: Get Modified files
-        run: |
-          git checkout --detach
-          git fetch origin main:main
-          current_branch=$(git rev-parse --abbrev-ref HEAD)
-          if [ "$current_branch" == "main" ] || [ "$current_branch" == "master" ]; then
-            files=$(git diff --name-only HEAD^ HEAD)
-          else
-              files=$(git diff --name-only origin/main...HEAD)
-          fi
-          echo "Modified files: $files"
-          FILES_MODIFIED=""
-          while IFS= read -r file; do
-            trimmed_file=$(echo "$file" | tr -d '[:space:]')
-            echo "Trimmed file: $trimmed_file"
-            FILES_MODIFIED="${FILES_MODIFIED}${trimmed_file};"
-          done <<< "$files"
-          echo "FILES_MODIFIED=${FILES_MODIFIED}" >> $GITHUB_ENV
-      
-      - name: Check Modified Paths
-        id: check_modified_paths
-        run: |
-          FALCON_MODIFIED=false
-          LLAMA2_MODIFIED=false
-          LLAMA2_CHAT_MODIFIED=false
-          IFS=';' read -ra ADDR <<< "$FILES_MODIFIED"
-          for file in "${ADDR[@]}"; do
-            echo "Checking file: $file"
-            if [[ "$file" == presets/falcon/* ]] && [[ "$FALCON_MODIFIED" == false ]]; then
-              echo "File matches falcon path: $file"
-              FALCON_MODIFIED=true
-            elif [[ "$file" == presets/llama-2/* ]] && [[ "$LLAMA2_MODIFIED" == false ]]; then
-              echo "File matches llama-2 path: $file"
-              LLAMA2_MODIFIED=true
-            elif [[ "$file" == presets/llama-2-chat/* ]] && [[ "$LLAMA2_CHAT_MODIFIED" == false ]]; then
-              echo "File matches llama-2-chat path: $file"
-              LLAMA2_CHAT_MODIFIED=true
-            else
-              echo "File does not match any paths: $file"
-            fi
-          done
-          echo "FALCON_MODIFIED=$FALCON_MODIFIED" >> $GITHUB_OUTPUT
-          echo "LLAMA2_MODIFIED=$LLAMA2_MODIFIED" >> $GITHUB_OUTPUT
-          echo "LLAMA2_CHAT_MODIFIED=$LLAMA2_CHAT_MODIFIED" >> $GITHUB_OUTPUT
-
-      - name: Models to Build
-        run: |
-          echo "FALCON_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.FALCON_MODIFIED }}"
-          echo "LLAMA2_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.LLAMA2_MODIFIED }}"
-          echo "LLAMA2_CHAT_MODIFIED for this job: ${{ steps.check_modified_paths.outputs.LLAMA2_CHAT_MODIFIED }}"          
 
       - name: Set Image Tag
         id: set_tag
@@ -110,170 +52,34 @@ jobs:
       - name: Print Image Tag
         run: |
           echo "image_tag for this job: ${{ steps.set_tag.outputs.image_tag }}"
-      
-      - name: Save registry and tag as an artifact for other workflows
-        run: |
-          sudo mkdir -p /tmp/artifacts
-          sudo chmod 777 /tmp/artifacts
-          echo ${{ steps.set_tag.outputs.image_tag }} | sudo tee /tmp/artifacts/tag.txt
-          sudo chmod 666 /tmp/artifacts/tag.txt
-          # ls -l /tmp/artifacts  # Check the permissions of the directory contents
-          cat /tmp/artifacts/tag.txt
 
-      - name: Upload image tag as artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: artifacts
-          path: /tmp/artifacts
-      
-      - name: Install Azure CLI latest
-        run: |
-          if ! which az > /dev/null; then
-            echo "Azure CLI not found. Installing..."
-            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          else
-            echo "Azure CLI already installed."
-          fi
-  
-  matrix_prep:
-    needs: setup
-    runs-on: self-hosted
-    outputs:
-      matrix: ${{ steps.set_matrix.outputs.matrix }}
-      matrix_empty: ${{ steps.set_matrix.outputs.matrix_empty }}
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: true
-        fetch-depth: 0
-
-    - name: "Set matrix"
-      id: set_matrix
-      run: |
-        matrix=$(jq --arg FALCON_MODIFIED "${{ needs.setup.outputs.FALCON_MODIFIED }}" --arg LLAMA2_MODIFIED "${{ needs.setup.outputs.LLAMA2_MODIFIED }}" --arg LLAMA2_CHAT_MODIFIED "${{ needs.setup.outputs.LLAMA2_CHAT_MODIFIED }}" 'map( 
-            . | select((.shouldBuildFalcon == $FALCON_MODIFIED) or (.shouldBuildLlama2 == $LLAMA2_MODIFIED) or (.shouldBuildLlama2Chat == $LLAMA2_CHAT_MODIFIED))
-        )' .github/matrix-configs.json)
-        # Check if matrix is empty and set an output variable
-        if [[ $matrix == "[]" ]]; then
-          echo "matrix_empty=true" >> $GITHUB_OUTPUT
-        else
-          echo "matrix_empty=false" >> $GITHUB_OUTPUT
-        fi
-        echo "matrix={\"include\":$(echo $matrix)}" >> $GITHUB_OUTPUT
-
-  build-models: 
-    needs: [setup, matrix_prep]
-    runs-on: self-hosted
-    if: ${{needs.matrix_prep.outputs.matrix_empty == 'false'}}
-    strategy:
-      fail-fast: false
-      matrix: ${{fromJson(needs.matrix_prep.outputs.matrix)}}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          fetch-depth: 0
-
-      - name: 'Az CLI login'
-        uses: azure/login@v1.4.6
-        with:
-          client-id: ${{ secrets.AZURE_KDM_PRESET_SELF_RUNNER_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
-  
-      - name: 'Set subscription'
-        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
-
-      - name: 'Attach and Login to ACR'
-        id: acr_login
+      - name: 'Get ACR Info'
+        id: acr_info
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag_name }}" ]]; then
             ACR_NAME="aimodelsregistry"
+            ACR_USERNAME=${{ secrets.ACR_AMR_USERNAME }}
+            ACR_PASSWORD=${{ secrets.ACR_AMR_PASSWORD }}
           else
             ACR_NAME="aimodelsregistrytest"
+            ACR_USERNAME=${{ secrets.ACR_AMRT_USERNAME }}
+            ACR_PASSWORD=${{ secrets.ACR_AMRT_PASSWORD }} 
           fi
-          
-          CHECK_ACR_OUTPUT=$(az aks check-acr -g llm-test -n GitRunner --acr $ACR_NAME)
-          if [[ ! $CHECK_ACR_OUTPUT =~ "Your cluster can pull images from $ACR_NAME.azurecr.io!" ]]; then
-            az aks update -n GitRunner -g llm-test --attach-acr $ACR_NAME
-          fi
-          az acr login -n $ACR_NAME --expose-token
           echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
-
-      - name: Get Context
-        run: az aks get-credentials -n GitRunner -g llm-test
-
-      - name: Check if Docker Pod is Running (if not run it)
-        run: |
-          DEPLOYMENT=$(kubectl get deployment docker-deployment -o=jsonpath='{.metadata.name}' --ignore-not-found)
-          if [ -z "$DEPLOYMENT" ]; then
-            # Apply the deployment if it does not exist
-            kubectl apply -f presets/test/docker.yaml
-          fi
-          kubectl wait --for=condition=ready pod -l app=docker --timeout=300s
-        
-      - name: Get Deployment Pod Name
-        id: get_pod_name
-        run: |
-          POD_NAME=$(kubectl get pod -l app=docker -o=jsonpath='{.items[0].metadata.name}')
-          echo "POD_NAME=$POD_NAME" >> $GITHUB_OUTPUT
-        
-      - name: Docker login
-        run: |
-          if [[ "${{ steps.acr_login.outputs.ACR_NAME }}" == "aimodelsregistry" ]]; then
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
-            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMR_USERNAME }} --password ${{ secrets.ACR_AMR_PASSWORD }}
-          else
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
-            docker login ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_AMRT_USERNAME }} --password ${{ secrets.ACR_AMRT_PASSWORD }}
-          fi
+          echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
+          echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
       
-      - name: Build model (with retries)
+      - name: Start K8s Pod to Kickoff Jobs
         run: |
-          retries=3
-          while [ $retries -gt 0 ]; do
-            BUILD_ARGS="${{ matrix.model.build_args }}"
-
-            echo "Docker BUILD_ARGS: $BUILD_ARGS"
-
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
-            docker build \
-            $BUILD_ARGS \
-            -t ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }} \
-            -f /home/${{ matrix.model.dockerfile }} \
-            . && break
-            retries=$((retries-1))
-            sleep 15
-          done
-
-          if [ $retries -eq 0 ]; then
-            echo "Docker build failed after 3 retries."
-            exit 1
-          fi
-
-      - name: Push model to ACR (with retries)
-        run: |
-          retries=3
-          while [ $retries -gt 0 ]; do
-            # Push the Docker image to ACR
-            kubectl exec ${{ steps.get_pod_name.outputs.POD_NAME }} -- \
-            docker push ${{ steps.acr_login.outputs.ACR_NAME }}.azurecr.io/${{ matrix.model.name }}:${{ needs.setup.outputs.image_tag }}
-            
-            # Check if the push was successful
-            if [ $? -eq 0 ]; then
-              echo "Docker push successful!"
-              break
-            else
-              echo "Docker push failed. Retrying..."
-              retries=$((retries-1))
-              sleep 15
-            fi
-          done
-
-          if [ $retries -eq 0 ]; then
-            echo "Docker push failed after 3 retries."
-            exit 1
-          fi
+          kubectl run initial-pod --image=initial-pod:latest \
+          --env="IMAGE_TAG=${{ steps.set_tag.outputs.image_tag }}" \
+          --env="PR_BRANCH=${{ github.head_ref }}" \
+          --env="ACR_NAME=${{ steps.acr_info.outputs.ACR_NAME }}" \
+          --env="ACR_USERNAME=${{ steps.acr_info.outputs.ACR_USERNAME }}" \
+          --env="ACR_PASSWORD=${{ steps.acr_info.outputs.ACR_PASSWORD }}"
       
+      - name: Wait for Pod to Complete
+        run: |
+          # Implement logic to wait for the pod to complete its task
+
+          

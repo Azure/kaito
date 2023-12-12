@@ -92,6 +92,26 @@ func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1
 		inferenceObj.TorchRunParams["num_machines"] = "1"
 		inferenceObj.TorchRunParams["machine_rank"] = "0"
 		inferenceObj.TorchRunParams["gpu_ids"] = "all"
+
+		inferenceObj.ModelRunParams["model_id"] = inferenceObj.ModelId
+		inferenceObj.ModelRunParams["pipeline"] = "text-generation"
+		inferenceObj.ModelRunParams["trust_remote_code"] = "true"
+		inferenceObj.ModelRunParams["torch_dtype"] = "bfloat16"
+
+	} else if inferenceObj.ModelName == "Mistral" {
+		inferenceObj.TorchRunParams["config_file"] = "config.yaml"
+		inferenceObj.TorchRunParams["num_processes"] = "1"
+		inferenceObj.TorchRunParams["num_machines"] = "1"
+		inferenceObj.TorchRunParams["machine_rank"] = "0"
+		inferenceObj.TorchRunParams["gpu_ids"] = "all"
+
+		inferenceObj.ModelRunParams["model_id"] = inferenceObj.ModelId
+		inferenceObj.ModelRunParams["torch_dtype"] = "float16"
+		if inferenceObj.ModelId == "mistralai/mistral-7b-v0.1" {
+			inferenceObj.ModelRunParams["pipeline"] = "text-generation"
+		} else {
+			inferenceObj.ModelRunParams["pipeline"] = "conversational"
+		}
 	}
 	return nil
 }
