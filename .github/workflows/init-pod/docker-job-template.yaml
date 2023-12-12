@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: docker-build-job-{{JOB_ID}}
+spec:
+  template:
+    spec:
+      containers:
+      - name: docker
+        image: docker:dind
+        securityContext:
+          privileged: true
+        command: ["sh", "-c"]
+        args:
+          - |
+            dockerd &  # Start the Docker daemon in the background
+            sleep 20  # Give some time for the daemon to start
+            echo 'Docker daemon started'
+            echo $ACR_PASSWORD | docker login $ACR_NAME.azurecr.io -u $ACR_USERNAME --password-stdin
+            docker build -t $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG .
+            docker push $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG
+        env:
+          - name: ACR_USERNAME
+            value: "{{ACR_USERNAME}}"
+          - name: ACR_PASSWORD
+            value: "{{ACR_PASSWORD}}"
+          - name: ACR_NAME
+            value: "{{ACR_NAME}}"
+          - name: IMAGE_TAG
+            value: "{{IMAGE_TAG}}"
+          - name: IMAGE_NAME
+            value: "{{IMAGE_NAME}}"
+      restartPolicy: Never
