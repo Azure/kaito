@@ -83,6 +83,35 @@ var (
 	defaultImagePullSecrets = []corev1.LocalObjectReference{}
 )
 
+// TODO: remove the above local variables starting with lower cases.
+var (
+	DefaultTorchRunParams = map[string]string{
+		"nnodes":         DefaultNnodes,
+		"nproc_per_node": DefaultNprocPerNode,
+		"node_rank":      DefaultNodeRank,
+		"master_addr":    DefaultMasterAddr,
+		"master_port":    DefaultMasterPort,
+	}
+
+	DefaultTorchRunRdzvParams = map[string]string{
+		"max_restarts":  DefaultMaxRestarts,
+		"rdzv_id":       DefaultRdzvId,
+		"rdzv_backend":  DefaultRdzvBackend,
+		"rdzv_endpoint": DefaultRdzvEndpoint,
+	}
+
+	DefaultAccelerateParams = map[string]string{
+		"config_file":   DefaultConfigFile,
+		"num_processes": DefaultNumProcesses,
+		"num_machines":  DefaultNumMachines,
+		"machine_rank":  DefaultMachineRank,
+		"gpu_ids":       DefaultGPUIds,
+	}
+
+	DefaultAccessMode       = "public"
+	DefaultImagePullSecrets = []corev1.LocalObjectReference{}
+)
+
 // PresetInferenceParam defines the preset inference.
 type PresetInferenceParam struct {
 	ModelName              string
