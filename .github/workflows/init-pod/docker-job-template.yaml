@@ -21,7 +21,7 @@ spec:
             
             # Additional setup
             apk add --no-cache git
-            rm -rf kaito
+            rm -rf kaito # Just to be safe, technically new job should not have any cloned files
             git clone -b $PR_BRANCH https://github.com/Azure/kaito.git
 
             # Login to Docker registry
