@@ -145,8 +145,6 @@ var (
 
 var (
 	gpuNodeCount = 1
-
-	gpuNodeCount2 = 2
 )
 
 var (
