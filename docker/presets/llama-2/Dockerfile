@@ -23,8 +23,8 @@ RUN pip install -e .
 RUN pip install fastapi pydantic
 RUN pip install 'uvicorn[standard]'
 
-ARG LLAMA_WEIGHTS
-ARG SRC_DIR
+ARG WEIGHTS_PATH
+ARG MODEL_PRESET_PATH
 
-ADD ${LLAMA_WEIGHTS} /workspace/llama/llama-2/weights
-ADD ${SRC_DIR} /workspace/llama/llama-2
+ADD ${WEIGHTS_PATH} /workspace/llama/llama-2/weights
+ADD ${MODEL_PRESET_PATH} /workspace/llama/llama-2

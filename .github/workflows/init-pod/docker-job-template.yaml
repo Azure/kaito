@@ -13,11 +13,20 @@ spec:
         command: ["sh", "-c"]
         args:
           - |
-            dockerd &  # Start the Docker daemon in the background
+            # Start the Docker daemon in the background
+            dockerd & 
             sleep 20  # Give some time for the daemon to start
             echo 'Docker daemon started'
+            
+            # Additional setup
+            apk add --no-cache git
+            git clone -b $PR_BRANCH https://github.com/Azure/kaito.git
+
+            # Login to Docker registry
             echo $ACR_PASSWORD | docker login $ACR_NAME.azurecr.io -u $ACR_USERNAME --password-stdin
-            docker build -t $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG .
+            
+            # Build and push the Docker image
+            docker build -t $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG -f kaito/docker/presets/$MODEL_TYPE/Dockerfile .
             docker push $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG
         env:
           - name: ACR_USERNAME
@@ -30,4 +39,15 @@ spec:
             value: "{{IMAGE_TAG}}"
           - name: IMAGE_NAME
             value: "{{IMAGE_NAME}}"
+          - name: PR_BRANCH
+            value: "{{PR_BRANCH}}"
+          - name: MODEL_TYPE
+            value: "{{MODEL_TYPE}}"
+        volumeMounts:
+          - name: weight-volume
+            mountPath: /weights
+      volumes:
+        - name: weight-volume
+          hostPath:
+            path: "{{HOST_WEIGHTS_PATH}}"
       restartPolicy: Never
