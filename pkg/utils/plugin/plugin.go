@@ -48,7 +48,7 @@ func (reg *ModelRegister) ListModelNames() []string {
 	reg.Lock()
 	defer reg.Unlock()
 	n := []string{}
-	for k, _ := range reg.models {
+	for k := range reg.models {
 		n = append(n, k)
 	}
 	return n
