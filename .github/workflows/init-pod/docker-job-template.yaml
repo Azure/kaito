@@ -26,7 +26,7 @@ spec:
             echo $ACR_PASSWORD | docker login $ACR_NAME.azurecr.io -u $ACR_USERNAME --password-stdin
             
             # Build and push the Docker image
-            docker build -t $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG -f kaito/docker/presets/$MODEL_TYPE/Dockerfile .
+            docker build -t $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG -f $DOCKERFILE_PATH .
             docker push $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG
         env:
           - name: ACR_USERNAME
@@ -41,8 +41,8 @@ spec:
             value: "{{IMAGE_NAME}}"
           - name: PR_BRANCH
             value: "{{PR_BRANCH}}"
-          - name: MODEL_TYPE
-            value: "{{MODEL_TYPE}}"
+          - name: DOCKERFILE_PATH
+            value: "{{DOCKERFILE_PATH}}"
         volumeMounts:
           - name: weight-volume
             mountPath: /weights

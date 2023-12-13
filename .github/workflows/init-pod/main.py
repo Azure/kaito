@@ -49,25 +49,25 @@ REPO_PRESET_PATHS = {
 }
 
 
-MODEL_TYPE = {
+REPO_DOCKERFILE_PATHS = {
     # TFS Types
-    "falcon-7b": "tfs",
-    "falcon-7b-instruct": "tfs",
-    "falcon-40b": "tfs",
-    "falcon-40b-instruct": "tfs",
-    "mistral-7b-v01": "tfs",
-    "mistral-7b-instruct-v0.1": "tfs",
+    "falcon-7b": "docker/presets/tfs/Dockerfile",
+    "falcon-7b-instruct": "docker/presets/tfs/Dockerfile",
+    "falcon-40b": "docker/presets/tfs/Dockerfile",
+    "falcon-40b-instruct": "docker/presets/tfs/Dockerfile",
+    "mistral-7b-v01": "docker/presets/tfs/Dockerfile",
+    "mistral-7b-instruct-v0.1": "docker/presets/tfs/Dockerfile",
 
     # TFS Onnx Presets
-    "falcon-7b-instruct-onnx": "tfs-onnx",
+    "falcon-7b-instruct-onnx": "docker/presets/tfs-onnx/Dockerfile",
 
     # Llama Presets
-    "llama-2-7b": "llama-2",
-    "llama-2-7b-chat": "llama-2",
-    "llama-2-13b": "llama-2",
-    "llama-2-13b-chat": "llama-2",
-    "llama-2-70b": "llama-2",
-    "llama-2-70b-chat": "llama-2"
+    "llama-2-7b": "docker/presets/llama-2/Dockerfile",
+    "llama-2-7b-chat": "docker/presets/llama-2/Dockerfile",
+    "llama-2-13b": "docker/presets/llama-2/Dockerfile",
+    "llama-2-13b-chat": "docker/presets/llama-2/Dockerfile",
+    "llama-2-70b": "docker/presets/llama-2/Dockerfile",
+    "llama-2-70b-chat": "docker/presets/llama-2/Dockerfile"
 }
 
 def run_command(command):
@@ -97,9 +97,9 @@ def run_build_pods(pr_branch, img_tag, mod_models):
     for model, modified in mod_models.items(): 
         if modified:
             image_name = model
-            model_type = MODEL_TYPE[model]
+            dockerfile_path = REPO_DOCKERFILE_PATHS[model]
 
-            job_yaml = populate_job_template(image_name, img_tag, acr_name, acr_username, acr_password, pr_branch, model_type)
+            job_yaml = populate_job_template(image_name, img_tag, acr_name, acr_username, acr_password, pr_branch, dockerfile_path)
 
             with open(f"{image_name}-job.yaml", "w") as file: 
                 file.write(job_yaml)
@@ -107,7 +107,7 @@ def run_build_pods(pr_branch, img_tag, mod_models):
             run_command(f"kubectl apply -f {image_name}-job.yaml")
 
 
-def populate_job_template(image_name, img_tag, acr_name, acr_username, acr_password, pr_branch, model_type):
+def populate_job_template(image_name, img_tag, acr_name, acr_username, acr_password, pr_branch, dockerfile_path):
     with open("docker-job-template.yaml", "r") as file:
         job_template = file.read()
 
@@ -119,7 +119,7 @@ def populate_job_template(image_name, img_tag, acr_name, acr_username, acr_passw
     job_template = job_template.replace("{{ACR_USERNAME}}", acr_username)
     job_template = job_template.replace("{{ACR_PASSWORD}}", acr_password)
     job_template = job_template.replace("{{PR_BRANCH}}", pr_branch)
-    job_template = job_template.replace("{{MODEL_TYPE}}", model_type)
+    job_template = job_template.replace("{{DOCKERFILE_PATH}}", dockerfile_path)
     job_template = job_template.replace("{{HOST_WEIGHTS_PATH}}", HOST_WEIGHTS_PATHS[image_name])
 
     return job_template
