@@ -3,6 +3,7 @@ kind: Job
 metadata:
   name: docker-build-job-{{JOB_ID}}
 spec:
+  backoffLimit: 3  # Number of retries before marking the job as failed
   template:
     spec:
       containers:
@@ -20,13 +21,17 @@ spec:
             
             # Additional setup
             apk add --no-cache git
+            rm -rf kaito
             git clone -b $PR_BRANCH https://github.com/Azure/kaito.git
 
             # Login to Docker registry
             echo $ACR_PASSWORD | docker login $ACR_NAME.azurecr.io -u $ACR_USERNAME --password-stdin
             
             # Build and push the Docker image
-            docker build -t $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG -f $DOCKERFILE_PATH .
+            docker build -t $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG \
+                         --build-arg WEIGHTS_PATH=/weights \
+                         --build-arg MODEL_PRESET_PATH=$MODEL_PRESET_PATH \
+                         -f $DOCKERFILE_PATH .
             docker push $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG
         env:
           - name: ACR_USERNAME
@@ -41,6 +46,8 @@ spec:
             value: "{{IMAGE_NAME}}"
           - name: PR_BRANCH
             value: "{{PR_BRANCH}}"
+          - name: MODEL_PRESET_PATH
+            value: "{{MODEL_PRESET_PATH}}"
           - name: DOCKERFILE_PATH
             value: "{{DOCKERFILE_PATH}}"
         volumeMounts:
