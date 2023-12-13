@@ -71,10 +71,7 @@ func (*falcon7b) GetInferenceParameters() *inference.PresetInferenceParam {
 	}
 
 }
-func (*falcon7b) NeedStatefulSet() bool {
-	return false
-}
-func (*falcon7b) NeedHeadlessService() bool {
+func (*falcon7b) SupportDistributedInference() bool {
 	return false
 }
 
@@ -100,10 +97,7 @@ func (*falcon7bInst) GetInferenceParameters() *inference.PresetInferenceParam {
 	}
 
 }
-func (*falcon7bInst) NeedStatefulSet() bool {
-	return false
-}
-func (*falcon7bInst) NeedHeadlessService() bool {
+func (*falcon7bInst) SupportDistributedInference() bool {
 	return false
 }
 
@@ -129,10 +123,7 @@ func (*falcon40b) GetInferenceParameters() *inference.PresetInferenceParam {
 	}
 
 }
-func (*falcon40b) NeedStatefulSet() bool {
-	return false
-}
-func (*falcon40b) NeedHeadlessService() bool {
+func (*falcon40b) SupportDistributedInference() bool {
 	return false
 }
 
@@ -158,9 +149,6 @@ func (*falcon40bInst) GetInferenceParameters() *inference.PresetInferenceParam {
 	}
 
 }
-func (*falcon40bInst) NeedStatefulSet() bool {
-	return false
-}
-func (*falcon40bInst) NeedHeadlessService() bool {
+func (*falcon40bInst) SupportDistributedInference() bool {
 	return false
 }

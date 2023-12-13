@@ -132,7 +132,7 @@ func TestCreatePresetInference(t *testing.T) {
 			mockClient := utils.NewClient()
 			tc.callMocks(mockClient)
 
-			workspace := utils.MockWorkspace
+			workspace := utils.MockWorkspaceWithPreset
 			workspace.Resource.Count = &tc.nodeCount
 
 			useHeadlessSvc := false
@@ -155,7 +155,7 @@ func TestCreatePresetInference(t *testing.T) {
 			}
 			mockClient.CreateOrUpdateObjectInMap(svc)
 
-			createdObject, _ := CreatePresetInference(context.TODO(), workspace, inferenceObj, useHeadlessSvc, mockClient)
+			createdObject, _ := CreatePresetInference(context.TODO(), workspace, &inferenceObj, useHeadlessSvc, mockClient)
 			createdWorkload := ""
 			switch createdObject.(type) {
 			case *appsv1.Deployment:

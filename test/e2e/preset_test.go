@@ -350,7 +350,7 @@ var _ = Describe("Workspace Preset", func() {
 
 		validateAssociatedService(workspaceObj)
 
-		validateInferenceResource(workspaceObj, int32(numOfNode), true)
+		validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
 		validateWorkspaceReadiness(workspaceObj)
 	})
