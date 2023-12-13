@@ -393,18 +393,20 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 		return nil
 	}
 
-	presetName := string(wObj.Inference.Preset.Name)
-	model := plugin.KaitoModelRegister.MustGet(presetName)
-	serviceObj := resources.GenerateServiceManifest(ctx, wObj, serviceType, model.SupportDistributedInference())
-	err = resources.CreateResource(ctx, serviceObj, c.Client)
-	if err != nil {
-		return err
-	}
-	if model.SupportDistributedInference() {
-		headlessService := resources.GenerateHeadlessServiceManifest(ctx, wObj)
-		err = resources.CreateResource(ctx, headlessService, c.Client)
+	if wObj.Inference.Preset != nil {
+		presetName := string(wObj.Inference.Preset.Name)
+		model := plugin.KaitoModelRegister.MustGet(presetName)
+		serviceObj := resources.GenerateServiceManifest(ctx, wObj, serviceType, model.SupportDistributedInference())
+		err = resources.CreateResource(ctx, serviceObj, c.Client)
 		if err != nil {
 			return err
+		}
+		if model.SupportDistributedInference() {
+			headlessService := resources.GenerateHeadlessServiceManifest(ctx, wObj)
+			err = resources.CreateResource(ctx, headlessService, c.Client)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
