@@ -18,6 +18,7 @@ import (
 	"github.com/azure/kaito/pkg/machine"
 	"github.com/azure/kaito/pkg/resources"
 	"github.com/azure/kaito/pkg/utils"
+	"github.com/azure/kaito/pkg/utils/plugin"
 	"github.com/go-logr/logr"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
@@ -92,12 +93,8 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 		}
 		return reconcile.Result{}, err
 	}
-	useHeadlessService := false
-	if wObj.Inference.Preset != nil && strings.Contains(string(wObj.Inference.Preset.Name), "llama") {
-		useHeadlessService = true
-	}
 
-	if err := c.ensureService(ctx, wObj, useHeadlessService); err != nil {
+	if err := c.ensureService(ctx, wObj); err != nil {
 		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
 			"workspaceFailed", err.Error()); updateErr != nil {
 			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
@@ -106,7 +103,7 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 		return reconcile.Result{}, err
 	}
 
-	if err = c.applyInference(ctx, wObj, useHeadlessService); err != nil {
+	if err = c.applyInference(ctx, wObj); err != nil {
 		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
 			"workspaceFailed", err.Error()); updateErr != nil {
 			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
@@ -301,15 +298,8 @@ func (c *WorkspaceReconciler) validateNodeInstanceType(ctx context.Context, wObj
 func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *kaitov1alpha1.Workspace) (*corev1.Node, error) {
 	var machineOSDiskSize string
 	if wObj.Inference.Preset != nil && wObj.Inference.Preset.Name != "" {
-		presetName := wObj.Inference.Preset.Name
-		if _, exists := inference.Llama2PresetInferences[presetName]; exists {
-			machineOSDiskSize = inference.Llama2PresetInferences[presetName].DiskStorageRequirement
-		} else if _, exists := inference.FalconPresetInferences[presetName]; exists {
-			machineOSDiskSize = inference.FalconPresetInferences[presetName].DiskStorageRequirement
-		} else {
-			err := fmt.Errorf("preset model %s is not supported", presetName)
-			return nil, err
-		}
+		presetName := string(wObj.Inference.Preset.Name)
+		machineOSDiskSize = plugin.KaitoModelRegister.MustGet(presetName).GetInferenceParameters().DiskStorageRequirement
 	}
 	if machineOSDiskSize == "" {
 		machineOSDiskSize = "0" // The default OS size is used
@@ -382,7 +372,7 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kaito
 	}
 }
 
-func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1alpha1.Workspace, useHeadlessService bool) error {
+func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
 	serviceType := corev1.ServiceTypeClusterIP
 	wAnnotation := wObj.GetAnnotations()
 
@@ -402,69 +392,41 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 	} else {
 		return nil
 	}
-	var isStatefulSet bool
+
 	if wObj.Inference.Preset != nil {
-		isStatefulSet = strings.Contains(string(wObj.Inference.Preset.Name), "llama")
-	}
-	serviceObj := resources.GenerateServiceManifest(ctx, wObj, serviceType, isStatefulSet)
-	err = resources.CreateResource(ctx, serviceObj, c.Client)
-	if err != nil {
-		return err
-	}
-	if useHeadlessService {
-		headlessService := resources.GenerateHeadlessServiceManifest(ctx, wObj)
-		err = resources.CreateResource(ctx, headlessService, c.Client)
+		presetName := string(wObj.Inference.Preset.Name)
+		model := plugin.KaitoModelRegister.MustGet(presetName)
+		serviceObj := resources.GenerateServiceManifest(ctx, wObj, serviceType, model.SupportDistributedInference())
+		err = resources.CreateResource(ctx, serviceObj, c.Client)
 		if err != nil {
 			return err
+		}
+		if model.SupportDistributedInference() {
+			headlessService := resources.GenerateHeadlessServiceManifest(ctx, wObj)
+			err = resources.CreateResource(ctx, headlessService, c.Client)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func (c *WorkspaceReconciler) getInferenceObjFromPreset(ctx context.Context, wObj *kaitov1alpha1.Workspace) (inference.PresetInferenceParam, error) {
-	presetName := wObj.Inference.Preset.Name
-	var inferenceObj inference.PresetInferenceParam
-	switch presetName {
-	case kaitov1alpha1.PresetLlama2AModel:
-		inferenceObj = inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2AModel]
-	case kaitov1alpha1.PresetLlama2BModel:
-		inferenceObj = inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2BModel]
-	case kaitov1alpha1.PresetLlama2CModel:
-		inferenceObj = inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2CModel]
-	case kaitov1alpha1.PresetLlama2AChat:
-		inferenceObj = inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2AChat]
-	case kaitov1alpha1.PresetLlama2BChat:
-		inferenceObj = inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2BChat]
-	case kaitov1alpha1.PresetLlama2CChat:
-		inferenceObj = inference.Llama2PresetInferences[kaitov1alpha1.PresetLlama2CChat]
-	case kaitov1alpha1.PresetFalcon7BModel:
-		inferenceObj = inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BModel]
-	case kaitov1alpha1.PresetFalcon7BInstructModel:
-		inferenceObj = inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon7BInstructModel]
-	case kaitov1alpha1.PresetFalcon40BModel:
-		inferenceObj = inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon40BModel]
-	case kaitov1alpha1.PresetFalcon40BInstructModel:
-		inferenceObj = inference.FalconPresetInferences[kaitov1alpha1.PresetFalcon40BInstructModel]
-	default:
-		err := fmt.Errorf("preset model %s is not supported", presetName)
-		return inference.PresetInferenceParam{}, err
-	}
-
-	inferenceObj.AccessMode = string(wObj.Inference.Preset.PresetMeta.AccessMode)
-	if inferenceObj.AccessMode == "private" && wObj.Inference.Preset.PresetOptions.Image != "" {
-		inferenceObj.Image = wObj.Inference.Preset.PresetOptions.Image
+func (c *WorkspaceReconciler) updateInferenceParamFromWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace, inferenceParam *inference.PresetInferenceParam) {
+	inferenceParam.AccessMode = string(wObj.Inference.Preset.PresetMeta.AccessMode)
+	if inferenceParam.AccessMode == "private" && wObj.Inference.Preset.PresetOptions.Image != "" {
+		inferenceParam.Image = wObj.Inference.Preset.PresetOptions.Image
 
 		imagePullSecretRefs := []corev1.LocalObjectReference{}
 		for _, secretName := range wObj.Inference.Preset.PresetOptions.ImagePullSecrets {
 			imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
 		}
-		inferenceObj.ImagePullSecrets = imagePullSecretRefs
+		inferenceParam.ImagePullSecrets = imagePullSecretRefs
 	}
-	return inferenceObj, nil
 }
 
 // applyInference applies inference spec.
-func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1alpha1.Workspace, useHeadlessService bool) error {
+func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
 	var err error
 	func() {
 		if wObj.Inference.Template != nil {
@@ -478,16 +440,16 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 				return
 			}
 		} else if wObj.Inference.Preset != nil {
+			presetName := string(wObj.Inference.Preset.Name)
+			model := plugin.KaitoModelRegister.MustGet(presetName)
+
+			inferenceParam := model.GetInferenceParameters()
+
+			c.updateInferenceParamFromWorkspace(ctx, wObj, inferenceParam)
 			// TODO: we only do create if it does not exist for preset model. Need to document it.
-			var inferenceObj inference.PresetInferenceParam
-			inferenceObj, err = c.getInferenceObjFromPreset(ctx, wObj)
-			if err != nil {
-				klog.ErrorS(err, "unable to retrieve inference object from preset", "workspace", klog.KObj(wObj))
-				return
-			}
 
 			var existingObj client.Object
-			if inferenceObj.ModelName == "LLaMa2" {
+			if model.SupportDistributedInference() {
 				existingObj = &appsv1.StatefulSet{}
 			} else {
 				existingObj = &appsv1.Deployment{}
@@ -496,17 +458,17 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 
 			if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
 				klog.InfoS("An inference workload already exists for workspace", "workspace", klog.KObj(wObj))
-				if err = resources.CheckResourceStatus(existingObj, c.Client, inferenceObj.DeploymentTimeout); err != nil {
+				if err = resources.CheckResourceStatus(existingObj, c.Client, inferenceParam.DeploymentTimeout); err != nil {
 					return
 				}
 			} else if apierrors.IsNotFound(err) {
 				var workloadObj client.Object
 				// Need to create a new workload
-				workloadObj, err = inference.CreatePresetInference(ctx, wObj, inferenceObj, useHeadlessService, c.Client)
+				workloadObj, err = inference.CreatePresetInference(ctx, wObj, inferenceParam, model.SupportDistributedInference(), c.Client)
 				if err != nil {
 					return
 				}
-				if err = resources.CheckResourceStatus(workloadObj, c.Client, inferenceObj.DeploymentTimeout); err != nil {
+				if err = resources.CheckResourceStatus(workloadObj, c.Client, inferenceParam.DeploymentTimeout); err != nil {
 					return
 				}
 			}

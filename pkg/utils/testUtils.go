@@ -21,7 +21,7 @@ const (
 )
 
 var (
-	MockWorkspace = &v1alpha1.Workspace{
+	MockWorkspaceDistributedModel = &v1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testWorkspace",
 			Namespace: "kaito",
@@ -38,7 +38,7 @@ var (
 		Inference: v1alpha1.InferenceSpec{
 			Preset: &v1alpha1.PresetSpec{
 				PresetMeta: v1alpha1.PresetMeta{
-					Name: "llama-2-7b-chat",
+					Name: "test-distributed-model",
 				},
 			},
 		},
@@ -46,32 +46,7 @@ var (
 )
 
 var (
-	MockWorkspaceWithBadPreset = &v1alpha1.Workspace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testWorkspace",
-			Namespace: "kaito",
-		},
-		Resource: v1alpha1.ResourceSpec{
-			Count:        &gpuNodeCount2,
-			InstanceType: "Standard_NC12s_v3",
-			LabelSelector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"apps": "test",
-				},
-			},
-		},
-		Inference: v1alpha1.InferenceSpec{
-			Preset: &v1alpha1.PresetSpec{
-				PresetMeta: v1alpha1.PresetMeta{
-					Name: "does-not-exist",
-				},
-			},
-		},
-	}
-)
-
-var (
-	MockWorkspaceWithFalconPreset = &v1alpha1.Workspace{
+	MockWorkspaceWithPreset = &v1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testWorkspace",
 			Namespace: "kaito",
@@ -88,7 +63,7 @@ var (
 		Inference: v1alpha1.InferenceSpec{
 			Preset: &v1alpha1.PresetSpec{
 				PresetMeta: v1alpha1.PresetMeta{
-					Name: "falcon-7b",
+					Name: "test-model",
 				},
 			},
 		},
@@ -170,8 +145,6 @@ var (
 
 var (
 	gpuNodeCount = 1
-
-	gpuNodeCount2 = 2
 )
 
 var (
