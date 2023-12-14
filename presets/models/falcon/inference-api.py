@@ -24,9 +24,9 @@ args = parser.parse_args()
 
 app = FastAPI()
 
-tokenizer = AutoTokenizer.from_pretrained("/workspace/falcon/weights")
+tokenizer = AutoTokenizer.from_pretrained("/workspace/tfs/weights")
 model = AutoModelForCausalLM.from_pretrained(
-    "/workspace/falcon/weights", # args.model_id,
+    "/workspace/tfs/weights", # args.model_id,
     device_map="auto",
     torch_dtype=torch.bfloat16,
     trust_remote_code=not args.disable_trust_remote_code, # Use NOT since our flag disables the trust
