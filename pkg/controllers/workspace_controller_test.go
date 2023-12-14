@@ -12,8 +12,8 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/inference"
 	"github.com/azure/kaito/pkg/machine"
+	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/plugin"
 	"github.com/stretchr/testify/mock"
@@ -28,10 +28,10 @@ import (
 
 type testModel struct{}
 
-func (*testModel) GetInferenceParameters() *inference.PresetInferenceParam {
-	return &inference.PresetInferenceParam{
-		GPURequirement:    "1",
-		DeploymentTimeout: time.Duration(30) * time.Minute,
+func (*testModel) GetInferenceParameters() *model.PresetInferenceParam {
+	return &model.PresetInferenceParam{
+		GPUCountRequirement: "1",
+		DeploymentTimeout:   time.Duration(30) * time.Minute,
 	}
 }
 func (*testModel) SupportDistributedInference() bool {
@@ -40,10 +40,10 @@ func (*testModel) SupportDistributedInference() bool {
 
 type testDistributedModel struct{}
 
-func (*testDistributedModel) GetInferenceParameters() *inference.PresetInferenceParam {
-	return &inference.PresetInferenceParam{
-		GPURequirement:    "1",
-		DeploymentTimeout: time.Duration(30) * time.Minute,
+func (*testDistributedModel) GetInferenceParameters() *model.PresetInferenceParam {
+	return &model.PresetInferenceParam{
+		GPUCountRequirement: "1",
+		DeploymentTimeout:   time.Duration(30) * time.Minute,
 	}
 }
 func (*testDistributedModel) SupportDistributedInference() bool {
