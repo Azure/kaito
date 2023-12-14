@@ -9,18 +9,6 @@ import (
 )
 
 const (
-	PresetLlama2AModel ModelName = "llama-2-7b"
-	PresetLlama2BModel ModelName = "llama-2-13b"
-	PresetLlama2CModel ModelName = "llama-2-70b"
-	PresetLlama2AChat            = PresetLlama2AModel + "-chat"
-	PresetLlama2BChat            = PresetLlama2BModel + "-chat"
-	PresetLlama2CChat            = PresetLlama2CModel + "-chat"
-
-	PresetFalcon7BModel          ModelName = "falcon-7b"
-	PresetFalcon40BModel         ModelName = "falcon-40b"
-	PresetFalcon7BInstructModel            = PresetFalcon7BModel + "-instruct"
-	PresetFalcon40BInstructModel           = PresetFalcon40BModel + "-instruct"
-
 	ModelImageAccessModePublic  ModelImageAccessMode = "public"
 	ModelImageAccessModePrivate ModelImageAccessMode = "private"
 )

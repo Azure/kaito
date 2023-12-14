@@ -106,7 +106,7 @@ func GenerateServiceManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Wo
 func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imageName string,
 	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements,
-	tolerations []corev1.Toleration, volumes []corev1.Volume, volumeMount []corev1.VolumeMount, useHeadlessService bool) *appsv1.StatefulSet {
+	tolerations []corev1.Toleration, volumes []corev1.Volume, volumeMount []corev1.VolumeMount) *appsv1.StatefulSet {
 
 	nodeRequirements := make([]corev1.NodeSelectorRequirement, 0, len(workspaceObj.Resource.LabelSelector.MatchLabels))
 	for key, value := range workspaceObj.Resource.LabelSelector.MatchLabels {
@@ -178,9 +178,7 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 			},
 		},
 	}
-	if useHeadlessService {
-		ss.Spec.ServiceName = fmt.Sprintf("%s-headless", workspaceObj.Name)
-	}
+	ss.Spec.ServiceName = fmt.Sprintf("%s-headless", workspaceObj.Name)
 	return ss
 }
 

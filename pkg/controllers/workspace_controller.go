@@ -16,6 +16,7 @@ import (
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/inference"
 	"github.com/azure/kaito/pkg/machine"
+	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/resources"
 	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/plugin"
@@ -72,6 +73,12 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 					"workspace", klog.KObj(updateCopy))
 				return ctrl.Result{}, updateErr
 			}
+		}
+	}
+
+	if workspaceObj.Inference.Preset != nil {
+		if !plugin.KaitoModelRegister.Has(string(workspaceObj.Inference.Preset.Name)) {
+			return reconcile.Result{}, fmt.Errorf("The preset model name %s is not registered for workspace %s/%s", string(workspaceObj.Inference.Preset.Name), workspaceObj.Namespace, workspaceObj.Name)
 		}
 	}
 
@@ -412,7 +419,7 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 	return nil
 }
 
-func (c *WorkspaceReconciler) updateInferenceParamFromWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace, inferenceParam *inference.PresetInferenceParam) {
+func (c *WorkspaceReconciler) updateInferenceParamFromWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace, inferenceParam *model.PresetInferenceParam) {
 	inferenceParam.AccessMode = string(wObj.Inference.Preset.PresetMeta.AccessMode)
 	if inferenceParam.AccessMode == "private" && wObj.Inference.Preset.PresetOptions.Image != "" {
 		inferenceParam.Image = wObj.Inference.Preset.PresetOptions.Image

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/azure/kaito/pkg/inference"
+	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils/plugin"
 )
 
@@ -53,21 +54,22 @@ var falconA falcon7b
 
 type falcon7b struct{}
 
-func (*falcon7b) GetInferenceParameters() *inference.PresetInferenceParam {
-	return &inference.PresetInferenceParam{
-		ModelName:              "Falcon",
-		Image:                  presetFalcon7bImage,
-		ImagePullSecrets:       inference.DefaultImagePullSecrets,
-		AccessMode:             inference.DefaultAccessMode,
-		DiskStorageRequirement: "50Gi",
-		GPURequirement:         "1",
-		GPUMemoryRequirement:   "14Gi",
-		TorchRunParams:         inference.DefaultAccelerateParams,
-		ModelRunParams:         falconRunParams,
-		InferenceFile:          falconInferenceFile,
-		DeploymentTimeout:      time.Duration(30) * time.Minute,
-		BaseCommand:            baseCommandPresetFalcon,
-		DefaultVolumeMountPath: "/dev/shm",
+func (*falcon7b) GetInferenceParameters() *model.PresetInferenceParam {
+	return &model.PresetInferenceParam{
+		ModelName:                 "Falcon",
+		Image:                     presetFalcon7bImage,
+		ImagePullSecrets:          inference.DefaultImagePullSecrets,
+		AccessMode:                inference.DefaultAccessMode,
+		DiskStorageRequirement:    "50Gi",
+		GPUCountRequirement:       "1",
+		TotalGPUMemoryRequirement: "14Gi",
+		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
+		TorchRunParams:            inference.DefaultAccelerateParams,
+		ModelRunParams:            falconRunParams,
+		InferenceFile:             falconInferenceFile,
+		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		BaseCommand:               baseCommandPresetFalcon,
+		DefaultVolumeMountPath:    "/dev/shm",
 	}
 
 }
@@ -79,21 +81,22 @@ var falconB falcon7bInst
 
 type falcon7bInst struct{}
 
-func (*falcon7bInst) GetInferenceParameters() *inference.PresetInferenceParam {
-	return &inference.PresetInferenceParam{
-		ModelName:              "Falcon",
-		Image:                  presetFalcon7bInstructImage,
-		ImagePullSecrets:       inference.DefaultImagePullSecrets,
-		AccessMode:             inference.DefaultAccessMode,
-		DiskStorageRequirement: "50Gi",
-		GPURequirement:         "1",
-		GPUMemoryRequirement:   "14Gi",
-		TorchRunParams:         inference.DefaultAccelerateParams,
-		ModelRunParams:         falconRunParams,
-		InferenceFile:          falconInferenceFile,
-		DeploymentTimeout:      time.Duration(30) * time.Minute,
-		BaseCommand:            baseCommandPresetFalcon,
-		DefaultVolumeMountPath: "/dev/shm",
+func (*falcon7bInst) GetInferenceParameters() *model.PresetInferenceParam {
+	return &model.PresetInferenceParam{
+		ModelName:                 "Falcon",
+		Image:                     presetFalcon7bInstructImage,
+		ImagePullSecrets:          inference.DefaultImagePullSecrets,
+		AccessMode:                inference.DefaultAccessMode,
+		DiskStorageRequirement:    "50Gi",
+		GPUCountRequirement:       "1",
+		TotalGPUMemoryRequirement: "14Gi",
+		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
+		TorchRunParams:            inference.DefaultAccelerateParams,
+		ModelRunParams:            falconRunParams,
+		InferenceFile:             falconInferenceFile,
+		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		BaseCommand:               baseCommandPresetFalcon,
+		DefaultVolumeMountPath:    "/dev/shm",
 	}
 
 }
@@ -105,21 +108,22 @@ var falconC falcon40b
 
 type falcon40b struct{}
 
-func (*falcon40b) GetInferenceParameters() *inference.PresetInferenceParam {
-	return &inference.PresetInferenceParam{
-		ModelName:              "Falcon",
-		Image:                  presetFalcon40bImage,
-		ImagePullSecrets:       inference.DefaultImagePullSecrets,
-		AccessMode:             inference.DefaultAccessMode,
-		DiskStorageRequirement: "400",
-		GPURequirement:         "2",
-		GPUMemoryRequirement:   "90Gi",
-		TorchRunParams:         inference.DefaultAccelerateParams,
-		ModelRunParams:         falconRunParams,
-		InferenceFile:          falconInferenceFile,
-		DeploymentTimeout:      time.Duration(30) * time.Minute,
-		BaseCommand:            baseCommandPresetFalcon,
-		DefaultVolumeMountPath: "/dev/shm",
+func (*falcon40b) GetInferenceParameters() *model.PresetInferenceParam {
+	return &model.PresetInferenceParam{
+		ModelName:                 "Falcon",
+		Image:                     presetFalcon40bImage,
+		ImagePullSecrets:          inference.DefaultImagePullSecrets,
+		AccessMode:                inference.DefaultAccessMode,
+		DiskStorageRequirement:    "400",
+		GPUCountRequirement:       "2",
+		TotalGPUMemoryRequirement: "90Gi",
+		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
+		TorchRunParams:            inference.DefaultAccelerateParams,
+		ModelRunParams:            falconRunParams,
+		InferenceFile:             falconInferenceFile,
+		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		BaseCommand:               baseCommandPresetFalcon,
+		DefaultVolumeMountPath:    "/dev/shm",
 	}
 
 }
@@ -131,21 +135,22 @@ var falconD falcon40bInst
 
 type falcon40bInst struct{}
 
-func (*falcon40bInst) GetInferenceParameters() *inference.PresetInferenceParam {
-	return &inference.PresetInferenceParam{
-		ModelName:              "Falcon",
-		Image:                  presetFalcon40bInstructImage,
-		ImagePullSecrets:       inference.DefaultImagePullSecrets,
-		AccessMode:             inference.DefaultAccessMode,
-		DiskStorageRequirement: "400",
-		GPURequirement:         "2",
-		GPUMemoryRequirement:   "90Gi",
-		TorchRunParams:         inference.DefaultAccelerateParams,
-		ModelRunParams:         falconRunParams,
-		InferenceFile:          falconInferenceFile,
-		DeploymentTimeout:      time.Duration(30) * time.Minute,
-		BaseCommand:            baseCommandPresetFalcon,
-		DefaultVolumeMountPath: "/dev/shm",
+func (*falcon40bInst) GetInferenceParameters() *model.PresetInferenceParam {
+	return &model.PresetInferenceParam{
+		ModelName:                 "Falcon",
+		Image:                     presetFalcon40bInstructImage,
+		ImagePullSecrets:          inference.DefaultImagePullSecrets,
+		AccessMode:                inference.DefaultAccessMode,
+		DiskStorageRequirement:    "400",
+		GPUCountRequirement:       "2",
+		TotalGPUMemoryRequirement: "90Gi",
+		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
+		TorchRunParams:            inference.DefaultAccelerateParams,
+		ModelRunParams:            falconRunParams,
+		InferenceFile:             falconInferenceFile,
+		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		BaseCommand:               baseCommandPresetFalcon,
+		DefaultVolumeMountPath:    "/dev/shm",
 	}
 
 }

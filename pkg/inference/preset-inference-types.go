@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/model"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -35,14 +35,28 @@ const (
 	DefaultGPUIds       = "all"
 )
 
+const (
+	PresetLlama2AModel = "llama-2-7b"
+	PresetLlama2BModel = "llama-2-13b"
+	PresetLlama2CModel = "llama-2-70b"
+	PresetLlama2AChat  = PresetLlama2AModel + "-chat"
+	PresetLlama2BChat  = PresetLlama2BModel + "-chat"
+	PresetLlama2CChat  = PresetLlama2CModel + "-chat"
+
+	PresetFalcon7BModel          = "falcon-7b"
+	PresetFalcon40BModel         = "falcon-40b"
+	PresetFalcon7BInstructModel  = PresetFalcon7BModel + "-instruct"
+	PresetFalcon40BInstructModel = PresetFalcon40BModel + "-instruct"
+)
+
 var (
 	registryName = os.Getenv("PRESET_REGISTRY_NAME")
 
-	presetFalcon7bImage         = registryName + fmt.Sprintf("/kaito-%s:0.0.1", kaitov1alpha1.PresetFalcon7BModel)
-	presetFalcon7bInstructImage = registryName + fmt.Sprintf("/kaito-%s:0.0.1", kaitov1alpha1.PresetFalcon7BInstructModel)
+	presetFalcon7bImage         = registryName + fmt.Sprintf("/kaito-%s:0.0.1", PresetFalcon7BModel)
+	presetFalcon7bInstructImage = registryName + fmt.Sprintf("/kaito-%s:0.0.1", PresetFalcon7BInstructModel)
 
-	presetFalcon40bImage         = registryName + fmt.Sprintf("/kaito-%s:0.0.1", kaitov1alpha1.PresetFalcon40BModel)
-	presetFalcon40bInstructImage = registryName + fmt.Sprintf("/kaito-%s:0.0.1", kaitov1alpha1.PresetFalcon40BInstructModel)
+	presetFalcon40bImage         = registryName + fmt.Sprintf("/kaito-%s:0.0.1", PresetFalcon40BModel)
+	presetFalcon40bInstructImage = registryName + fmt.Sprintf("/kaito-%s:0.0.1", PresetFalcon40BInstructModel)
 
 	baseCommandPresetLlama = "cd /workspace/llama/llama-2 && torchrun"
 	// llamaTextInferenceFile       = "inference-api.py" TODO: To support Text Generation Llama Models
@@ -112,201 +126,178 @@ var (
 	DefaultImagePullSecrets = []corev1.LocalObjectReference{}
 )
 
-// PresetInferenceParam defines the preset inference.
-type PresetInferenceParam struct {
-	ModelName              string
-	Image                  string
-	ImagePullSecrets       []corev1.LocalObjectReference
-	AccessMode             string
-	DiskStorageRequirement string
-	GPURequirement         string
-	GPUMemoryRequirement   string
-	TorchRunParams         map[string]string
-	TorchRunRdzvParams     map[string]string
-	ModelRunParams         map[string]string
-	InferenceFile          string
-	// DeploymentTimeout defines the maximum duration for pulling the Preset image.
-	// This timeout accommodates the size of PresetX, ensuring pull completion
-	// even under slower network conditions or unforeseen delays.
-	DeploymentTimeout time.Duration
-	BaseCommand       string
-	// WorldSize defines num of processes required for inference
-	WorldSize              int
-	DefaultVolumeMountPath string
-}
-
 var (
 
 	// Llama2PresetInferences defines the preset inferences for LLaMa2.
-	Llama2PresetInferences = map[kaitov1alpha1.ModelName]PresetInferenceParam{
+	Llama2PresetInferences = map[string]model.PresetInferenceParam{
 
-		kaitov1alpha1.PresetLlama2AChat: {
-			ModelName:              "LLaMa2",
-			Image:                  "",
-			ImagePullSecrets:       defaultImagePullSecrets,
-			AccessMode:             defaultAccessMode,
-			DiskStorageRequirement: "34Gi",
-			GPURequirement:         "1",
-			GPUMemoryRequirement:   "16Gi",
-			TorchRunParams:         defaultTorchRunParams,
-			TorchRunRdzvParams:     defaultTorchRunRdzvParams,
-			ModelRunParams:         llamaRunParams,
-			InferenceFile:          llamaChatInferenceFile,
-			DeploymentTimeout:      time.Duration(10) * time.Minute,
-			BaseCommand:            baseCommandPresetLlama,
-			WorldSize:              1,
-			DefaultVolumeMountPath: "/dev/shm",
+		PresetLlama2AChat: {
+			ModelName:                 "LLaMa2",
+			Image:                     "",
+			ImagePullSecrets:          defaultImagePullSecrets,
+			AccessMode:                defaultAccessMode,
+			DiskStorageRequirement:    "34Gi",
+			GPUCountRequirement:       "1",
+			TotalGPUMemoryRequirement: "16Gi",
+			TorchRunParams:            defaultTorchRunParams,
+			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
+			ModelRunParams:            llamaRunParams,
+			InferenceFile:             llamaChatInferenceFile,
+			DeploymentTimeout:         time.Duration(10) * time.Minute,
+			BaseCommand:               baseCommandPresetLlama,
+			WorldSize:                 1,
+			DefaultVolumeMountPath:    "/dev/shm",
 		},
-		kaitov1alpha1.PresetLlama2AModel: {
-			ModelName:              "LLaMa2",
-			Image:                  "",
-			ImagePullSecrets:       defaultImagePullSecrets,
-			AccessMode:             defaultAccessMode,
-			DiskStorageRequirement: "34Gi",
-			GPURequirement:         "1",
-			GPUMemoryRequirement:   "16Gi",
-			TorchRunParams:         defaultTorchRunParams,
-			TorchRunRdzvParams:     defaultTorchRunRdzvParams,
-			ModelRunParams:         llamaRunParams,
-			InferenceFile:          llamaChatInferenceFile,
-			DeploymentTimeout:      time.Duration(10) * time.Minute,
-			BaseCommand:            baseCommandPresetLlama,
-			WorldSize:              1,
-			DefaultVolumeMountPath: "/dev/shm",
+		PresetLlama2AModel: {
+			ModelName:                 "LLaMa2",
+			Image:                     "",
+			ImagePullSecrets:          defaultImagePullSecrets,
+			AccessMode:                defaultAccessMode,
+			DiskStorageRequirement:    "34Gi",
+			GPUCountRequirement:       "1",
+			TotalGPUMemoryRequirement: "16Gi",
+			TorchRunParams:            defaultTorchRunParams,
+			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
+			ModelRunParams:            llamaRunParams,
+			InferenceFile:             llamaChatInferenceFile,
+			DeploymentTimeout:         time.Duration(10) * time.Minute,
+			BaseCommand:               baseCommandPresetLlama,
+			WorldSize:                 1,
+			DefaultVolumeMountPath:    "/dev/shm",
 		},
-		kaitov1alpha1.PresetLlama2BChat: {
-			ModelName:              "LLaMa2",
-			Image:                  "",
-			ImagePullSecrets:       defaultImagePullSecrets,
-			AccessMode:             defaultAccessMode,
-			DiskStorageRequirement: "46Gi",
-			GPURequirement:         "2",
-			GPUMemoryRequirement:   "16Gi",
-			TorchRunParams:         defaultTorchRunParams,
-			TorchRunRdzvParams:     defaultTorchRunRdzvParams,
-			ModelRunParams:         llamaRunParams,
-			InferenceFile:          llamaChatInferenceFile,
-			DeploymentTimeout:      time.Duration(20) * time.Minute,
-			BaseCommand:            baseCommandPresetLlama,
-			WorldSize:              2,
-			DefaultVolumeMountPath: "/dev/shm",
+		PresetLlama2BChat: {
+			ModelName:                 "LLaMa2",
+			Image:                     "",
+			ImagePullSecrets:          defaultImagePullSecrets,
+			AccessMode:                defaultAccessMode,
+			DiskStorageRequirement:    "46Gi",
+			GPUCountRequirement:       "2",
+			TotalGPUMemoryRequirement: "16Gi",
+			TorchRunParams:            defaultTorchRunParams,
+			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
+			ModelRunParams:            llamaRunParams,
+			InferenceFile:             llamaChatInferenceFile,
+			DeploymentTimeout:         time.Duration(20) * time.Minute,
+			BaseCommand:               baseCommandPresetLlama,
+			WorldSize:                 2,
+			DefaultVolumeMountPath:    "/dev/shm",
 		},
-		kaitov1alpha1.PresetLlama2BModel: {
-			ModelName:              "LLaMa2",
-			Image:                  "",
-			ImagePullSecrets:       defaultImagePullSecrets,
-			AccessMode:             defaultAccessMode,
-			DiskStorageRequirement: "46Gi",
-			GPURequirement:         "2",
-			GPUMemoryRequirement:   "16Gi",
-			TorchRunParams:         defaultTorchRunParams,
-			TorchRunRdzvParams:     defaultTorchRunRdzvParams,
-			ModelRunParams:         llamaRunParams,
-			InferenceFile:          llamaChatInferenceFile,
-			DeploymentTimeout:      time.Duration(20) * time.Minute,
-			BaseCommand:            baseCommandPresetLlama,
-			WorldSize:              2,
-			DefaultVolumeMountPath: "/dev/shm",
+		PresetLlama2BModel: {
+			ModelName:                 "LLaMa2",
+			Image:                     "",
+			ImagePullSecrets:          defaultImagePullSecrets,
+			AccessMode:                defaultAccessMode,
+			DiskStorageRequirement:    "46Gi",
+			GPUCountRequirement:       "2",
+			TotalGPUMemoryRequirement: "16Gi",
+			TorchRunParams:            defaultTorchRunParams,
+			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
+			ModelRunParams:            llamaRunParams,
+			InferenceFile:             llamaChatInferenceFile,
+			DeploymentTimeout:         time.Duration(20) * time.Minute,
+			BaseCommand:               baseCommandPresetLlama,
+			WorldSize:                 2,
+			DefaultVolumeMountPath:    "/dev/shm",
 		},
-		kaitov1alpha1.PresetLlama2CChat: {
-			ModelName:              "LLaMa2",
-			Image:                  "",
-			ImagePullSecrets:       defaultImagePullSecrets,
-			AccessMode:             defaultAccessMode,
-			DiskStorageRequirement: "158Gi",
-			GPURequirement:         "8",
-			GPUMemoryRequirement:   "19Gi",
-			TorchRunParams:         defaultTorchRunParams,
-			TorchRunRdzvParams:     defaultTorchRunRdzvParams,
-			ModelRunParams:         llamaRunParams,
-			InferenceFile:          llamaChatInferenceFile,
-			DeploymentTimeout:      time.Duration(30) * time.Minute,
-			BaseCommand:            baseCommandPresetLlama,
-			WorldSize:              8,
-			DefaultVolumeMountPath: "/dev/shm",
+		PresetLlama2CChat: {
+			ModelName:                 "LLaMa2",
+			Image:                     "",
+			ImagePullSecrets:          defaultImagePullSecrets,
+			AccessMode:                defaultAccessMode,
+			DiskStorageRequirement:    "158Gi",
+			GPUCountRequirement:       "8",
+			TotalGPUMemoryRequirement: "19Gi",
+			TorchRunParams:            defaultTorchRunParams,
+			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
+			ModelRunParams:            llamaRunParams,
+			InferenceFile:             llamaChatInferenceFile,
+			DeploymentTimeout:         time.Duration(30) * time.Minute,
+			BaseCommand:               baseCommandPresetLlama,
+			WorldSize:                 8,
+			DefaultVolumeMountPath:    "/dev/shm",
 		},
-		kaitov1alpha1.PresetLlama2CModel: {
-			ModelName:              "LLaMa2",
-			Image:                  "",
-			ImagePullSecrets:       defaultImagePullSecrets,
-			AccessMode:             defaultAccessMode,
-			DiskStorageRequirement: "158Gi",
-			GPURequirement:         "8",
-			GPUMemoryRequirement:   "19Gi",
-			TorchRunParams:         defaultTorchRunParams,
-			TorchRunRdzvParams:     defaultTorchRunRdzvParams,
-			ModelRunParams:         llamaRunParams,
-			InferenceFile:          llamaChatInferenceFile,
-			DeploymentTimeout:      time.Duration(30) * time.Minute,
-			BaseCommand:            baseCommandPresetLlama,
-			WorldSize:              8,
-			DefaultVolumeMountPath: "/dev/shm",
+		PresetLlama2CModel: {
+			ModelName:                 "LLaMa2",
+			Image:                     "",
+			ImagePullSecrets:          defaultImagePullSecrets,
+			AccessMode:                defaultAccessMode,
+			DiskStorageRequirement:    "158Gi",
+			GPUCountRequirement:       "8",
+			TotalGPUMemoryRequirement: "19Gi",
+			TorchRunParams:            defaultTorchRunParams,
+			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
+			ModelRunParams:            llamaRunParams,
+			InferenceFile:             llamaChatInferenceFile,
+			DeploymentTimeout:         time.Duration(30) * time.Minute,
+			BaseCommand:               baseCommandPresetLlama,
+			WorldSize:                 8,
+			DefaultVolumeMountPath:    "/dev/shm",
 		},
 	}
 
 	// FalconPresetInferences defines the preset inferences for Falcon.
-	FalconPresetInferences = map[kaitov1alpha1.ModelName]PresetInferenceParam{
-		kaitov1alpha1.PresetFalcon7BModel: {
-			ModelName:              "Falcon",
-			Image:                  presetFalcon7bImage,
-			ImagePullSecrets:       defaultImagePullSecrets,
-			AccessMode:             defaultAccessMode,
-			DiskStorageRequirement: "50Gi",
-			GPURequirement:         "1",
-			GPUMemoryRequirement:   "14Gi",
-			TorchRunParams:         defaultAccelerateParams,
-			ModelRunParams:         falconRunParams,
-			InferenceFile:          falconInferenceFile,
-			DeploymentTimeout:      time.Duration(30) * time.Minute,
-			BaseCommand:            baseCommandPresetFalcon,
-			DefaultVolumeMountPath: "/dev/shm",
+	FalconPresetInferences = map[string]model.PresetInferenceParam{
+		PresetFalcon7BModel: {
+			ModelName:                 "Falcon",
+			Image:                     presetFalcon7bImage,
+			ImagePullSecrets:          defaultImagePullSecrets,
+			AccessMode:                defaultAccessMode,
+			DiskStorageRequirement:    "50Gi",
+			GPUCountRequirement:       "1",
+			TotalGPUMemoryRequirement: "14Gi",
+			TorchRunParams:            defaultAccelerateParams,
+			ModelRunParams:            falconRunParams,
+			InferenceFile:             falconInferenceFile,
+			DeploymentTimeout:         time.Duration(30) * time.Minute,
+			BaseCommand:               baseCommandPresetFalcon,
+			DefaultVolumeMountPath:    "/dev/shm",
 		},
-		kaitov1alpha1.PresetFalcon7BInstructModel: {
-			ModelName:              "Falcon",
-			Image:                  presetFalcon7bInstructImage,
-			ImagePullSecrets:       defaultImagePullSecrets,
-			AccessMode:             defaultAccessMode,
-			DiskStorageRequirement: "50Gi",
-			GPURequirement:         "1",
-			GPUMemoryRequirement:   "14Gi",
-			TorchRunParams:         defaultAccelerateParams,
-			ModelRunParams:         falconRunParams,
-			InferenceFile:          falconInferenceFile,
-			DeploymentTimeout:      time.Duration(30) * time.Minute,
-			BaseCommand:            baseCommandPresetFalcon,
-			DefaultVolumeMountPath: "/dev/shm",
-		},
-
-		kaitov1alpha1.PresetFalcon40BModel: {
-			ModelName:              "Falcon",
-			Image:                  presetFalcon40bImage,
-			ImagePullSecrets:       defaultImagePullSecrets,
-			AccessMode:             defaultAccessMode,
-			DiskStorageRequirement: "400",
-			GPURequirement:         "2",
-			GPUMemoryRequirement:   "90Gi",
-			TorchRunParams:         defaultAccelerateParams,
-			ModelRunParams:         falconRunParams,
-			InferenceFile:          falconInferenceFile,
-			DeploymentTimeout:      time.Duration(30) * time.Minute,
-			BaseCommand:            baseCommandPresetFalcon,
-			DefaultVolumeMountPath: "/dev/shm",
+		PresetFalcon7BInstructModel: {
+			ModelName:                 "Falcon",
+			Image:                     presetFalcon7bInstructImage,
+			ImagePullSecrets:          defaultImagePullSecrets,
+			AccessMode:                defaultAccessMode,
+			DiskStorageRequirement:    "50Gi",
+			GPUCountRequirement:       "1",
+			TotalGPUMemoryRequirement: "14Gi",
+			TorchRunParams:            defaultAccelerateParams,
+			ModelRunParams:            falconRunParams,
+			InferenceFile:             falconInferenceFile,
+			DeploymentTimeout:         time.Duration(30) * time.Minute,
+			BaseCommand:               baseCommandPresetFalcon,
+			DefaultVolumeMountPath:    "/dev/shm",
 		},
 
-		kaitov1alpha1.PresetFalcon40BInstructModel: {
-			ModelName:              "Falcon",
-			Image:                  presetFalcon40bInstructImage,
-			ImagePullSecrets:       defaultImagePullSecrets,
-			AccessMode:             defaultAccessMode,
-			DiskStorageRequirement: "400",
-			GPURequirement:         "2",
-			GPUMemoryRequirement:   "90Gi",
-			TorchRunParams:         defaultAccelerateParams,
-			ModelRunParams:         falconRunParams,
-			InferenceFile:          falconInferenceFile,
-			DeploymentTimeout:      time.Duration(30) * time.Minute,
-			BaseCommand:            baseCommandPresetFalcon,
-			DefaultVolumeMountPath: "/dev/shm",
+		PresetFalcon40BModel: {
+			ModelName:                 "Falcon",
+			Image:                     presetFalcon40bImage,
+			ImagePullSecrets:          defaultImagePullSecrets,
+			AccessMode:                defaultAccessMode,
+			DiskStorageRequirement:    "400",
+			GPUCountRequirement:       "2",
+			TotalGPUMemoryRequirement: "90Gi",
+			TorchRunParams:            defaultAccelerateParams,
+			ModelRunParams:            falconRunParams,
+			InferenceFile:             falconInferenceFile,
+			DeploymentTimeout:         time.Duration(30) * time.Minute,
+			BaseCommand:               baseCommandPresetFalcon,
+			DefaultVolumeMountPath:    "/dev/shm",
+		},
+
+		PresetFalcon40BInstructModel: {
+			ModelName:                 "Falcon",
+			Image:                     presetFalcon40bInstructImage,
+			ImagePullSecrets:          defaultImagePullSecrets,
+			AccessMode:                defaultAccessMode,
+			DiskStorageRequirement:    "400",
+			GPUCountRequirement:       "2",
+			TotalGPUMemoryRequirement: "90Gi",
+			TorchRunParams:            defaultAccelerateParams,
+			ModelRunParams:            falconRunParams,
+			InferenceFile:             falconInferenceFile,
+			DeploymentTimeout:         time.Duration(30) * time.Minute,
+			BaseCommand:               baseCommandPresetFalcon,
+			DefaultVolumeMountPath:    "/dev/shm",
 		},
 	}
 )

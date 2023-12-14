@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/resources"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -63,7 +64,7 @@ var (
 	}
 )
 
-func updateTorchParamsForDistributedInference(ctx context.Context, kubeClient client.Client, wObj *kaitov1alpha1.Workspace, inferenceObj *PresetInferenceParam) error {
+func updateTorchParamsForDistributedInference(ctx context.Context, kubeClient client.Client, wObj *kaitov1alpha1.Workspace, inferenceObj *model.PresetInferenceParam) error {
 	existingService := &corev1.Service{}
 	err := resources.GetResource(ctx, wObj.Name, wObj.Namespace, kubeClient, existingService)
 	if err != nil {
@@ -89,7 +90,7 @@ func updateTorchParamsForDistributedInference(ctx context.Context, kubeClient cl
 }
 
 func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
-	inferenceObj *PresetInferenceParam, supportDistributedInference bool, kubeClient client.Client) (client.Object, error) {
+	inferenceObj *model.PresetInferenceParam, supportDistributedInference bool, kubeClient client.Client) (client.Object, error) {
 	if inferenceObj.TorchRunParams != nil && supportDistributedInference {
 		if err := updateTorchParamsForDistributedInference(ctx, kubeClient, workspaceObj, inferenceObj); err != nil {
 			klog.ErrorS(err, "failed to update torch params", "workspace", workspaceObj)
@@ -103,7 +104,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	var depObj client.Object
 	if supportDistributedInference {
 		depObj = resources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
-			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount, supportDistributedInference)
+			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
 	} else {
 		depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
 			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
@@ -115,7 +116,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	return depObj, nil
 }
 
-func prepareInferenceParameters(ctx context.Context, inferenceObj *PresetInferenceParam) ([]string, corev1.ResourceRequirements) {
+func prepareInferenceParameters(ctx context.Context, inferenceObj *model.PresetInferenceParam) ([]string, corev1.ResourceRequirements) {
 	torchCommand := buildCommandStr(inferenceObj.BaseCommand, inferenceObj.TorchRunParams)
 	torchCommand = buildCommandStr(torchCommand, inferenceObj.TorchRunRdzvParams)
 	modelCommand := buildCommandStr(inferenceObj.InferenceFile, inferenceObj.ModelRunParams)
@@ -123,17 +124,17 @@ func prepareInferenceParameters(ctx context.Context, inferenceObj *PresetInferen
 
 	resourceRequirements := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(inferenceObj.GPURequirement),
+			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(inferenceObj.GPUCountRequirement),
 		},
 		Limits: corev1.ResourceList{
-			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(inferenceObj.GPURequirement),
+			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(inferenceObj.GPUCountRequirement),
 		},
 	}
 
 	return commands, resourceRequirements
 }
 
-func configVolume(wObj *kaitov1alpha1.Workspace, inferenceObj *PresetInferenceParam) ([]corev1.Volume, []corev1.VolumeMount) {
+func configVolume(wObj *kaitov1alpha1.Workspace, inferenceObj *model.PresetInferenceParam) ([]corev1.Volume, []corev1.VolumeMount) {
 	volume := []corev1.Volume{}
 	volumeMount := []corev1.VolumeMount{}
 

@@ -25,6 +25,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	PresetLlama2AChat    = "llama-2-7b-chat"
+	PresetLlama2BChat    = "llama-2-13b-chat"
+	PresetFalcon7BModel  = "falcon-7b"
+	PresetFalcon40BModel = "falcon-40b"
+)
+
 func createFalconWorkspaceWithPresetPublicMode(numOfNode int) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Falcon 7B preset public mode", func() {
@@ -32,7 +39,7 @@ func createFalconWorkspaceWithPresetPublicMode(numOfNode int) *kaitov1alpha1.Wor
 		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC12s_v3",
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test"},
-			}, nil, kaitov1alpha1.PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
+			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
@@ -43,10 +50,10 @@ func createLlama7BWorkspaceWithPresetPrivateMode(registry, registrySecret, image
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Llama 7B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, kaitov1alpha1.PresetLlama2AChat, imageVersion),
+		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetLlama2AChat, imageVersion),
 			numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
-			}, nil, kaitov1alpha1.PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
+			}, nil, PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
@@ -57,10 +64,10 @@ func createLlama13BWorkspaceWithPresetPrivateMode(registry, registrySecret, imag
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Llama 13B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, kaitov1alpha1.PresetLlama2BChat, imageVersion),
+		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetLlama2BChat, imageVersion),
 			numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
-			}, nil, kaitov1alpha1.PresetLlama2BChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
+			}, nil, PresetLlama2BChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
