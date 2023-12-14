@@ -25,7 +25,7 @@ env:
 
 jobs:
   setup:
-    runs-on: [self-hosted, 'username:runner-0']
+    runs-on: [self-hosted, 'username:runner-2']
     outputs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
     steps:
@@ -69,15 +69,23 @@ jobs:
           echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
           echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
       
-      - name: Start K8s Pod to Kickoff Jobs
+      - name: Launch Python Script to Kickoff Build Jobs
+        id: launch_script
         run: |
-          kubectl run init-pod --image=init-pod:latest \
-          --env="IMAGE_TAG=${{ steps.set_tag.outputs.image_tag }}" \
-          --env="PR_BRANCH=${{ github.head_ref }}" \
-          --env="ACR_NAME=${{ steps.acr_info.outputs.ACR_NAME }}" \
-          --env="ACR_USERNAME=${{ steps.acr_info.outputs.ACR_USERNAME }}" \
-          --env="ACR_PASSWORD=${{ steps.acr_info.outputs.ACR_PASSWORD }}"
+          IMAGE_TAG=${{ steps.set_tag.outputs.image_tag }} \
+          PR_BRANCH=${{ github.head_ref }} \
+          ACR_NAME=${{ steps.acr_info.outputs.ACR_NAME }} \
+          ACR_USERNAME=${{ steps.acr_info.outputs.ACR_USERNAME }} \
+          ACR_PASSWORD=${{ steps.acr_info.outputs.ACR_PASSWORD }} \
+          python3 .github/workflows/kind-cluster/main.py
       
-      - name: Wait for Pod to Complete
+      # Check the exit status of the Python script
+      - name: Check Python Script Status
+        if: ${{ always() }}
         run: |
-          # Implement logic to wait for the pod to complete its task
+          if [ "${{ steps.launch_script.outcome }}" != "success" ]; then
+            echo "Python script failed to execute successfully."
+            exit 1  # Fail the job
+          else
+            echo "Python script executed successfully."
+          fi

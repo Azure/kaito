@@ -14,15 +14,25 @@ spec:
         command: ["sh", "-c"]
         args:
           - |
+            cd / # Ensure in Workdir
             # Start the Docker daemon in the background
-            dockerd & 
-            sleep 20  # Give some time for the daemon to start
+            dockerd &
+            # Wait for the Docker daemon to be ready
+            while ! docker info > /dev/null 2>&1; do
+              echo "Waiting for Docker daemon to start..."
+              sleep 1
+            done
             echo 'Docker daemon started'
-            
+
             # Additional setup
             apk add --no-cache git
-            rm -rf kaito # Just to be safe, technically new job should not have any cloned files
             git clone -b $PR_BRANCH https://github.com/Azure/kaito.git
+
+            # Ensure the repo is fully cloned before proceeding
+            if [ ! -d "kaito" ]; then
+              echo "Git repository not cloned. Exiting."
+              exit 1
+            fi
 
             # Login to Docker registry
             echo $ACR_PASSWORD | docker login $ACR_NAME.azurecr.io -u $ACR_USERNAME --password-stdin
@@ -31,7 +41,7 @@ spec:
             docker build -t $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG \
                          --build-arg WEIGHTS_PATH=/weights \
                          --build-arg MODEL_PRESET_PATH=$MODEL_PRESET_PATH \
-                         -f $DOCKERFILE_PATH .
+                         -f $DOCKERFILE_PATH /
             docker push $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG
         env:
           - name: ACR_USERNAME
