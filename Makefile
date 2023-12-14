@@ -1,6 +1,6 @@
 
 # Image URL to use all building/pushing image targets
-REGISTRY ?= mcr.microsoft.com/aks/kaito
+REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
 VERSION ?= v0.1.0
 IMG_TAG ?= $(subst v,,$(VERSION))
@@ -132,7 +132,7 @@ az-patch-install-helm: ## Update Azure client env vars and settings in helm valu
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+	go build -o bin/manager cmd/*.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

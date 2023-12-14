@@ -21,7 +21,7 @@ func TestGenerateStatefulSetManifest(t *testing.T) {
 	for _, useHeadlessSvc := range options {
 		t.Run(fmt.Sprintf("generate statefulset with headlessSvc %v", useHeadlessSvc), func(t *testing.T) {
 
-			workspace := utils.MockWorkspace
+			workspace := utils.MockWorkspaceWithPreset
 
 			obj := GenerateStatefulSetManifest(context.TODO(), workspace,
 				"",  //imageName
@@ -66,7 +66,7 @@ func TestGenerateStatefulSetManifest(t *testing.T) {
 func TestGenerateDeploymentManifest(t *testing.T) {
 	t.Run("generate deployment", func(t *testing.T) {
 
-		workspace := utils.MockWorkspace
+		workspace := utils.MockWorkspaceWithPreset
 
 		obj := GenerateDeploymentManifest(context.TODO(), workspace,
 			"",  //imageName
@@ -145,7 +145,7 @@ func TestGenerateServiceManifest(t *testing.T) {
 
 	for _, isStatefulSet := range options {
 		t.Run(fmt.Sprintf("generate service, isStatefulSet %v", isStatefulSet), func(t *testing.T) {
-			workspace := utils.MockWorkspace
+			workspace := utils.MockWorkspaceWithPreset
 			obj := GenerateServiceManifest(context.TODO(), workspace, v1.ServiceTypeClusterIP, isStatefulSet)
 
 			svcSelector := map[string]string{
@@ -164,7 +164,7 @@ func TestGenerateServiceManifest(t *testing.T) {
 func TestGenerateHeadlessServiceManifest(t *testing.T) {
 
 	t.Run("generate headless service", func(t *testing.T) {
-		workspace := utils.MockWorkspace
+		workspace := utils.MockWorkspaceWithPreset
 		obj := GenerateHeadlessServiceManifest(context.TODO(), workspace)
 
 		svcSelector := map[string]string{

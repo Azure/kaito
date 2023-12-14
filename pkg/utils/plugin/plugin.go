@@ -43,3 +43,13 @@ func (reg *ModelRegister) MustGet(name string) inference.Model {
 	}
 	panic("model is not registered")
 }
+
+func (reg *ModelRegister) ListModelNames() []string {
+	reg.Lock()
+	defer reg.Unlock()
+	n := []string{}
+	for k := range reg.models {
+		n = append(n, k)
+	}
+	return n
+}

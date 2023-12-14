@@ -57,10 +57,7 @@ func (*llama2Chat7b) GetInferenceParameters() *inference.PresetInferenceParam {
 	}
 
 }
-func (*llama2Chat7b) NeedStatefulSet() bool {
-	return true
-}
-func (*llama2Chat7b) NeedHeadlessService() bool {
+func (*llama2Chat7b) SupportDistributedInference() bool {
 	return false
 }
 
@@ -87,10 +84,7 @@ func (*llama2Chat13b) GetInferenceParameters() *inference.PresetInferenceParam {
 		DefaultVolumeMountPath: "/dev/shm",
 	}
 }
-func (*llama2Chat13b) NeedStatefulSet() bool {
-	return true
-}
-func (*llama2Chat13b) NeedHeadlessService() bool {
+func (*llama2Chat13b) SupportDistributedInference() bool {
 	return true
 }
 
@@ -117,9 +111,6 @@ func (*llama2Chat70b) GetInferenceParameters() *inference.PresetInferenceParam {
 		DefaultVolumeMountPath: "/dev/shm",
 	}
 }
-func (*llama2Chat70b) NeedStatefulSet() bool {
-	return true
-}
-func (*llama2Chat70b) NeedHeadlessService() bool {
+func (*llama2Chat70b) SupportDistributedInference() bool {
 	return true
 }

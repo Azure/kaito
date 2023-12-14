@@ -63,43 +63,35 @@ var (
 	}
 )
 
-func setTorchParams(ctx context.Context, kubeClient client.Client, wObj *kaitov1alpha1.Workspace, inferenceObj PresetInferenceParam) error {
-	if inferenceObj.ModelName == "LLaMa2" {
-		existingService := &corev1.Service{}
-		err := resources.GetResource(ctx, wObj.Name, wObj.Namespace, kubeClient, existingService)
-		if err != nil {
-			return err
-		}
+func updateTorchParamsForDistributedInference(ctx context.Context, kubeClient client.Client, wObj *kaitov1alpha1.Workspace, inferenceObj *PresetInferenceParam) error {
+	existingService := &corev1.Service{}
+	err := resources.GetResource(ctx, wObj.Name, wObj.Namespace, kubeClient, existingService)
+	if err != nil {
+		return err
+	}
 
-		nodes := *wObj.Resource.Count
-		inferenceObj.TorchRunParams["nnodes"] = strconv.Itoa(nodes)
-		inferenceObj.TorchRunParams["nproc_per_node"] = strconv.Itoa(inferenceObj.WorldSize / nodes)
-		if nodes > 1 {
-			inferenceObj.TorchRunParams["node_rank"] = "$(echo $HOSTNAME | grep -o '[^-]*$')"
-			inferenceObj.TorchRunParams["master_addr"] = existingService.Spec.ClusterIP
-			inferenceObj.TorchRunParams["master_port"] = "29500"
-		}
-		if inferenceObj.TorchRunRdzvParams != nil {
-			inferenceObj.TorchRunRdzvParams["max_restarts"] = "3"
-			inferenceObj.TorchRunRdzvParams["rdzv_id"] = "job"
-			inferenceObj.TorchRunRdzvParams["rdzv_backend"] = "c10d"
-			inferenceObj.TorchRunRdzvParams["rdzv_endpoint"] =
-				fmt.Sprintf("%s-0.%s-headless.%s.svc.cluster.local:29500", wObj.Name, wObj.Name, wObj.Namespace)
-		}
-	} else if inferenceObj.ModelName == "Falcon" {
-		inferenceObj.TorchRunParams["config_file"] = "config.yaml"
-		inferenceObj.TorchRunParams["num_processes"] = "1"
-		inferenceObj.TorchRunParams["num_machines"] = "1"
-		inferenceObj.TorchRunParams["machine_rank"] = "0"
-		inferenceObj.TorchRunParams["gpu_ids"] = "all"
+	nodes := *wObj.Resource.Count
+	inferenceObj.TorchRunParams["nnodes"] = strconv.Itoa(nodes)
+	inferenceObj.TorchRunParams["nproc_per_node"] = strconv.Itoa(inferenceObj.WorldSize / nodes)
+	if nodes > 1 {
+		inferenceObj.TorchRunParams["node_rank"] = "$(echo $HOSTNAME | grep -o '[^-]*$')"
+		inferenceObj.TorchRunParams["master_addr"] = existingService.Spec.ClusterIP
+		inferenceObj.TorchRunParams["master_port"] = "29500"
+	}
+	if inferenceObj.TorchRunRdzvParams != nil {
+		inferenceObj.TorchRunRdzvParams["max_restarts"] = "3"
+		inferenceObj.TorchRunRdzvParams["rdzv_id"] = "job"
+		inferenceObj.TorchRunRdzvParams["rdzv_backend"] = "c10d"
+		inferenceObj.TorchRunRdzvParams["rdzv_endpoint"] =
+			fmt.Sprintf("%s-0.%s-headless.%s.svc.cluster.local:29500", wObj.Name, wObj.Name, wObj.Namespace)
 	}
 	return nil
 }
 
 func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
-	inferenceObj PresetInferenceParam, useHeadlessService bool, kubeClient client.Client) (client.Object, error) {
-	if inferenceObj.TorchRunParams != nil {
-		if err := setTorchParams(ctx, kubeClient, workspaceObj, inferenceObj); err != nil {
+	inferenceObj *PresetInferenceParam, supportDistributedInference bool, kubeClient client.Client) (client.Object, error) {
+	if inferenceObj.TorchRunParams != nil && supportDistributedInference {
+		if err := updateTorchParamsForDistributedInference(ctx, kubeClient, workspaceObj, inferenceObj); err != nil {
 			klog.ErrorS(err, "failed to update torch params", "workspace", workspaceObj)
 			return nil, err
 		}
@@ -109,15 +101,12 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj)
 
 	var depObj client.Object
-	switch inferenceObj.ModelName {
-	case "LLaMa2":
+	if supportDistributedInference {
 		depObj = resources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
-			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount, useHeadlessService)
-	case "Falcon":
+			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount, supportDistributedInference)
+	} else {
 		depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
 			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
-	default:
-		return nil, fmt.Errorf("Model not recognized: %s", inferenceObj.ModelName)
 	}
 	err := resources.CreateResource(ctx, depObj, kubeClient)
 	if client.IgnoreAlreadyExists(err) != nil {
@@ -126,7 +115,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	return depObj, nil
 }
 
-func prepareInferenceParameters(ctx context.Context, inferenceObj PresetInferenceParam) ([]string, corev1.ResourceRequirements) {
+func prepareInferenceParameters(ctx context.Context, inferenceObj *PresetInferenceParam) ([]string, corev1.ResourceRequirements) {
 	torchCommand := buildCommandStr(inferenceObj.BaseCommand, inferenceObj.TorchRunParams)
 	torchCommand = buildCommandStr(torchCommand, inferenceObj.TorchRunRdzvParams)
 	modelCommand := buildCommandStr(inferenceObj.InferenceFile, inferenceObj.ModelRunParams)
@@ -144,7 +133,7 @@ func prepareInferenceParameters(ctx context.Context, inferenceObj PresetInferenc
 	return commands, resourceRequirements
 }
 
-func configVolume(wObj *kaitov1alpha1.Workspace, inferenceObj PresetInferenceParam) ([]corev1.Volume, []corev1.VolumeMount) {
+func configVolume(wObj *kaitov1alpha1.Workspace, inferenceObj *PresetInferenceParam) ([]corev1.Volume, []corev1.VolumeMount) {
 	volume := []corev1.Volume{}
 	volumeMount := []corev1.VolumeMount{}
 

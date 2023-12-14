@@ -153,7 +153,7 @@ func TestWaitForPendingMachines(t *testing.T) {
 				mockClient.CreateOrUpdateObjectInMap(mockMachine)
 			}
 
-			err := WaitForPendingMachines(context.Background(), utils.MockWorkspace, mockClient)
+			err := WaitForPendingMachines(context.Background(), utils.MockWorkspaceWithPreset, mockClient)
 			if tc.expectedError == nil {
 				assert.Check(t, err == nil, "Not expected to return error")
 			} else {
@@ -165,7 +165,7 @@ func TestWaitForPendingMachines(t *testing.T) {
 
 func TestGenerateMachineManifiest(t *testing.T) {
 	t.Run("Should generate a machine object from the given workspace", func(t *testing.T) {
-		mockWorkspace := utils.MockWorkspace
+		mockWorkspace := utils.MockWorkspaceWithPreset
 
 		machine := GenerateMachineManifest(context.Background(), "0", mockWorkspace)
 
