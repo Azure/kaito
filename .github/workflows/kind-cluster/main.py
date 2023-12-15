@@ -8,71 +8,51 @@ import string
 
 KAITO_REPO_URL = "https://github.com/Azure/kaito.git"
 
-HOST_WEIGHTS_PATHS = {
-    # TFS Weights
-    "falcon-7b": "/home/tfs/tiiuae/falcon-7b/weights",
-    "falcon-7b-instruct": "/home/tfs/tiiuae/falcon-7b-instruct/weights",
-    "falcon-40b": "/home/tfs/tiiuae/falcon-40b/weights",
-    "falcon-40b-instruct": "/home/tfs/tiiuae/falcon-40b-instruct/weights",
-    "mistral-7b-v01": "/home/tfs/mistralai/mistral-7b-v0.1/weights",
-    "mistral-7b-instruct-v0.1": "/home/tfs/mistralai/mistral-7b-instruct-v0.1/weights",
+MODELS = set(
+    [
+        # TFS Models
+        "falcon-7b", 
+        "falcon-7b-instruct", 
+        "falcon-40b",
+        "falcon-40b-instruct",
+        "mistral-7b-v01",
+        "mistral-7b-instruct-v0.1",
 
-    # TFS Onnx Weights
-    "falcon-7b-instruct-onnx": "/home/tfs/tiiuae/falcon-7b-instruct-onnx/weights",
+        # TFS Onnx Models
+        "falcon-7b-instruct-onnx",
 
-    # Llama Weights (Mounted on /datadrive drive)
-    "llama-2-7b": "/datadrive/llama/llama-2-7b",
-    "llama-2-7b-chat": "/datadrive/llama/llama-2-7b-chat",
-    "llama-2-13b": "/datadrive/llama/llama-2-13b",
-    "llama-2-13b-chat": "/datadrive/llama/llama-2-13b-chat",
-    "llama-2-70b": "/datadrive/llama/llama-2-70b",
-    "llama-2-70b-chat": "/datadrive/llama/llama-2-70b-chat"
-}
+        # Llama Models (Mounted on /datadrive drive)
+        "llama-2-7b",
+        "llama-2-7b-chat",
+        "llama-2-13b",
+        "llama-2-13b-chat",
+        "llama-2-70b",
+        "llama-2-70b-chat"
+    ]
+)
 
-REPO_PRESET_PATHS = {
-    # Falcon Presets
-    "falcon-7b": "/kaito/presets/models/falcon",
-    "falcon-7b-instruct": "/kaito/presets/models/falcon",
-    "falcon-40b": "/kaito/presets/models/falcon",
-    "falcon-40b-instruct": "/kaito/presets/models/falcon",
+def get_model_type(model_name): 
+    model_type = "tfs"
+    if "llama" in model_name: 
+        model_type = "llama-2"
+    elif "onnx" in model_name: 
+        model_type = "tfs-onnx"
+    return model_type
 
-    # Mistral Presets
-    "mistral-7b-v01": "/kaito/presets/models/mistral",
-    "mistral-7b-instruct-v0.1": "/kaito/presets/models/mistral",
+def get_weights_path(model_name): 
+    return f"/home/models/{model_name}/weights"
 
-    # TFS Onnx Presets
-    "falcon-7b-instruct-onnx": "/kaito/presets/models/falcon",
+def get_preset_path(model_name): 
+    preset_name = model_name.split("-")[0]
+    if preset_name == "llama":
+        preset_name += "2"
+        if model_name.endswith("chat"):
+            preset_name += "chat"
+    return f"/kaito/presets/models/{preset_name}"
 
-    # Llama Presets
-    "llama-2-7b": "/kaito/presets/models/llama2",
-    "llama-2-7b-chat": "/kaito/presets/models/llama2chat",
-    "llama-2-13b": "/kaito/presets/models/llama2",
-    "llama-2-13b-chat": "/kaito/presets/models/llama2chat",
-    "llama-2-70b": "/kaito/presets/models/llama2",
-    "llama-2-70b-chat": "/kaito/presets/models/llama2chat"
-}
-
-
-REPO_DOCKERFILE_PATHS = {
-    # TFS Presets
-    "falcon-7b": "/kaito/docker/presets/tfs/Dockerfile",
-    "falcon-7b-instruct": "/kaito/docker/presets/tfs/Dockerfile",
-    "falcon-40b": "/kaito/docker/presets/tfs/Dockerfile",
-    "falcon-40b-instruct": "/kaito/docker/presets/tfs/Dockerfile",
-    "mistral-7b-v01": "/kaito/docker/presets/tfs/Dockerfile",
-    "mistral-7b-instruct-v0.1": "/kaito/docker/presets/tfs/Dockerfile",
-
-    # TFS Onnx Presets
-    "falcon-7b-instruct-onnx": "/kaito/docker/presets/tfs-onnx/Dockerfile",
-
-    # Llama Presets
-    "llama-2-7b": "/kaito/docker/presets/llama-2/Dockerfile",
-    "llama-2-7b-chat": "/kaito/docker/presets/llama-2/Dockerfile",
-    "llama-2-13b": "/kaito/docker/presets/llama-2/Dockerfile",
-    "llama-2-13b-chat": "/kaito/docker/presets/llama-2/Dockerfile",
-    "llama-2-70b": "/kaito/docker/presets/llama-2/Dockerfile",
-    "llama-2-70b-chat": "/kaito/docker/presets/llama-2/Dockerfile"
-}
+def get_dockerfile_path(model_name): 
+    model_type = get_model_type(model_name)
+    return f"/kaito/docker/presets/{model_type}/Dockerfile"
 
 def generate_unique_id():
     """Generate a unique identifier for a job."""
@@ -130,9 +110,9 @@ def populate_job_template(model, img_tag, job_name, env_vars):
             "{{ACR_USERNAME}}": env_vars["ACR_USERNAME"],
             "{{ACR_PASSWORD}}": env_vars["ACR_PASSWORD"],
             "{{PR_BRANCH}}": env_vars["PR_BRANCH"],
-            "{{HOST_WEIGHTS_PATH}}": HOST_WEIGHTS_PATHS[model],
-            "{{MODEL_PRESET_PATH}}": REPO_PRESET_PATHS[model],
-            "{{DOCKERFILE_PATH}}": REPO_DOCKERFILE_PATHS[model]
+            "{{HOST_WEIGHTS_PATH}}": get_weights_path(model),
+            "{{MODEL_PRESET_PATH}}": get_preset_path(model),
+            "{{DOCKERFILE_PATH}}": get_dockerfile_path(model)
         }
 
         for key, value in replacements.items():
@@ -161,7 +141,7 @@ def check_modified_models(pr_branch):
     files = run_command("git diff --name-only origin/main")
     os.chdir(Path.cwd().parent)
 
-    modified_models = {model: preset_path in files for model, preset_path in REPO_PRESET_PATHS.items()}
+    modified_models = {model: get_preset_path(model) in files for model in MODELS}
 
     return modified_models
 
