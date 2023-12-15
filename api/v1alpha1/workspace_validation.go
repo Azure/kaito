@@ -75,7 +75,7 @@ func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.Field
 			}
 			skuPerGPUMemory := skuConfig.GPUMem / skuConfig.GPUCount
 			if int64(skuPerGPUMemory) < modelPerGPUMemory.ScaledValue(resource.Giga) {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient GPU memory: Instance type %s provides %d per GPU, but preset %s requires at least %d per GPU", instanceType, skuPerGPUMemory, presetName, modelPerGPUMemory.ScaledValue(resource.Giga)), "instanceType"))
+				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient per GPU memory: Instance type %s provides %d per GPU, but preset %s requires at least %d per GPU", instanceType, skuPerGPUMemory, presetName, modelPerGPUMemory.ScaledValue(resource.Giga)), "instanceType"))
 			}
 			if int64(totalGPUMem) < modelTotalGPUMemory.ScaledValue(resource.Giga) {
 				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient total GPU memory: Instance type %s has a total of %d, but preset %s requires at least %d", instanceType, totalGPUMem, presetName, modelTotalGPUMemory.ScaledValue(resource.Giga)), "instanceType"))
