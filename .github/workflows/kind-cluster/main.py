@@ -5,31 +5,17 @@ from pathlib import Path
 import time
 import random
 import string
+import yaml
 
 KAITO_REPO_URL = "https://github.com/Azure/kaito.git"
 
-MODELS = set(
-    [
-        # TFS Models
-        "falcon-7b", 
-        "falcon-7b-instruct", 
-        "falcon-40b",
-        "falcon-40b-instruct",
-        "mistral-7b-v01",
-        "mistral-7b-instruct-v0.1",
+def read_models_from_yaml(file_path):
+    with open(file_path, 'r') as file:
+        data = yaml.safe_load(file)
+        return set(data['models'])
 
-        # TFS Onnx Models
-        "falcon-7b-instruct-onnx",
-
-        # Llama Models (Mounted on /datadrive drive)
-        "llama-2-7b",
-        "llama-2-7b-chat",
-        "llama-2-13b",
-        "llama-2-13b-chat",
-        "llama-2-70b",
-        "llama-2-70b-chat"
-    ]
-)
+yaml_file_path = 'presets/models/supported_models.yaml'
+MODELS = read_models_from_yaml(yaml_file_path)
 
 def get_model_type(model_name): 
     model_type = "tfs"
