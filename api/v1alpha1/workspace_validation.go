@@ -9,7 +9,9 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/azure/kaito/pkg/utils/plugin"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
@@ -32,14 +34,6 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 	base := apis.GetBaseline(ctx)
 	if base == nil {
 		klog.InfoS("Validate creation", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
-		/* TODO
-		Add the following checks when creating a new workspace:
-		- For instancetype, check againt a hardcode list with existing GPU skus that we support. For these skus,
-		  validate if the total GPU count is sufficient to run the preset workload if any.
-		- For other instancetypes, do pattern matches and for N, D series, we let it pass. Otherwise, fail the check.
-		- For labelSelector, call metav1.LabelSelectorAsMap. If the method returns error, meaning unsupported expressions are found, fail the check.
-		- The preset name needs to be supported enum.
-		*/
 		errs = errs.Also(
 			w.Inference.validateCreate().ViaField("inference"),
 			w.Resource.validateCreate(w.Inference).ViaField("resource"),
@@ -65,24 +59,26 @@ func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.Field
 	// Check if instancetype exists in our SKUs map
 	if skuConfig, exists := SupportedGPUConfigs[instanceType]; exists {
 		if inference.Preset != nil {
+			model := plugin.KaitoModelRegister.MustGet(presetName) // InferenceSpec has been validated so the name is valid.
 			// Validate GPU count for given SKU
-			if presetReq, ok := PresetRequirementsMap[presetName]; ok {
-				machineCount := *r.Count
-				totalNumGPUs := machineCount * skuConfig.GPUCount
-				totalGPUMem := machineCount * skuConfig.GPUMem * skuConfig.GPUCount
+			machineCount := *r.Count
+			totalNumGPUs := machineCount * skuConfig.GPUCount
+			totalGPUMem := machineCount * skuConfig.GPUMem * skuConfig.GPUCount
 
-				// Separate the checks for specific error messages
-				if totalNumGPUs < presetReq.MinGPUCount {
-					errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient number of GPUs: Instance type %s provides %d, but preset %s requires at least %d", instanceType, totalNumGPUs, presetName, presetReq.MinGPUCount), "instanceType"))
-				}
-				if skuConfig.GPUMem < presetReq.MinMemoryPerGPU {
-					errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient GPU memory: Instance type %s provides %d per GPU, but preset %s requires at least %d per GPU", instanceType, skuConfig.GPUMem, presetName, presetReq.MinMemoryPerGPU), "instanceType"))
-				}
-				if totalGPUMem < presetReq.MinTotalMemory {
-					errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient total GPU memory: Instance type %s has a total of %d, but preset %s requires at least %d", instanceType, totalGPUMem, presetName, presetReq.MinTotalMemory), "instanceType"))
-				}
-			} else {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", presetName), "presetName"))
+			modelGPUCount := resource.MustParse(model.GetInferenceParameters().GPUCountRequirement)
+			modelPerGPUMemory := resource.MustParse(model.GetInferenceParameters().PerGPUMemoryRequirement)
+			modelTotalGPUMemory := resource.MustParse(model.GetInferenceParameters().TotalGPUMemoryRequirement)
+
+			// Separate the checks for specific error messages
+			if int64(totalNumGPUs) < modelGPUCount.Value() {
+				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient number of GPUs: Instance type %s provides %d, but preset %s requires at least %d", instanceType, totalNumGPUs, presetName, modelGPUCount.Value()), "instanceType"))
+			}
+			skuPerGPUMemory := skuConfig.GPUMem / skuConfig.GPUCount
+			if int64(skuPerGPUMemory) < modelPerGPUMemory.ScaledValue(resource.Giga) {
+				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient per GPU memory: Instance type %s provides %d per GPU, but preset %s requires at least %d per GPU", instanceType, skuPerGPUMemory, presetName, modelPerGPUMemory.ScaledValue(resource.Giga)), "instanceType"))
+			}
+			if int64(totalGPUMem) < modelTotalGPUMemory.ScaledValue(resource.Giga) {
+				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient total GPU memory: Instance type %s has a total of %d, but preset %s requires at least %d", instanceType, totalGPUMem, presetName, modelTotalGPUMemory.ScaledValue(resource.Giga)), "instanceType"))
 			}
 		}
 	} else {
@@ -131,9 +127,8 @@ func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
 		errs = errs.Also(apis.ErrGeneric("Preset and Template cannot be set at the same time"))
 	}
 
-	var presetName string
 	if i.Preset != nil {
-		presetName = strings.ToLower(string(i.Preset.Name))
+		presetName := string(i.Preset.Name)
 		// Validate preset name
 		if !isValidPreset(presetName) {
 			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", presetName), "presetName"))

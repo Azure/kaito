@@ -9,13 +9,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils"
 	"github.com/stretchr/testify/mock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 )
 
 func TestCreatePresetInference(t *testing.T) {
@@ -136,12 +135,12 @@ func TestCreatePresetInference(t *testing.T) {
 			workspace.Resource.Count = &tc.nodeCount
 
 			useHeadlessSvc := false
-			var inferenceObj PresetInferenceParam
+			var inferenceObj model.PresetInferenceParam
 			if strings.HasPrefix(tc.modelName, "llama") {
-				inferenceObj = Llama2PresetInferences[kaitov1alpha1.ModelName(tc.modelName)]
+				inferenceObj = Llama2PresetInferences[tc.modelName]
 				useHeadlessSvc = true
 			} else {
-				inferenceObj = FalconPresetInferences[kaitov1alpha1.ModelName(tc.modelName)]
+				inferenceObj = FalconPresetInferences[tc.modelName]
 			}
 
 			svc := &corev1.Service{

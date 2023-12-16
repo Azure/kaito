@@ -80,7 +80,7 @@ fmt: ## Run go fmt against code.
 ## --------------------------------------
 .PHONY: unit-test
 unit-test: ## Run unit tests.
-	go test -v $(shell go list ./pkg/... | grep -v /vendor) -race -coverprofile=coverage.txt -covermode=atomic
+	go test -v $(shell go list ./pkg/... ./api/... | grep -v /vendor) -race -coverprofile=coverage.txt -covermode=atomic
 	go tool cover -func=coverage.txt
 
 $(E2E_TEST):

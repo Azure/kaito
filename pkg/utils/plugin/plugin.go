@@ -5,12 +5,12 @@ package plugin
 import (
 	"sync"
 
-	"github.com/azure/kaito/pkg/inference"
+	"github.com/azure/kaito/pkg/model"
 )
 
 type Registration struct {
 	Name     string
-	Instance inference.Model
+	Instance model.Model
 }
 
 type ModelRegister struct {
@@ -35,7 +35,7 @@ func (reg *ModelRegister) Register(r *Registration) {
 	reg.models[r.Name] = r
 }
 
-func (reg *ModelRegister) MustGet(name string) inference.Model {
+func (reg *ModelRegister) MustGet(name string) model.Model {
 	reg.Lock()
 	defer reg.Unlock()
 	if _, ok := reg.models[name]; ok {
@@ -52,4 +52,11 @@ func (reg *ModelRegister) ListModelNames() []string {
 		n = append(n, k)
 	}
 	return n
+}
+
+func (reg *ModelRegister) Has(name string) bool {
+	reg.Lock()
+	defer reg.Unlock()
+	_, ok := reg.models[name]
+	return ok
 }

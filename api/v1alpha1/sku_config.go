@@ -3,7 +3,11 @@
 
 package v1alpha1
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/azure/kaito/pkg/utils/plugin"
+)
 
 type GPUConfig struct {
 	SKU         string
@@ -13,31 +17,8 @@ type GPUConfig struct {
 	GPUMem      int
 }
 
-type PresetRequirements struct {
-	MinGPUCount     int
-	MinMemoryPerGPU int // in GB
-	MinTotalMemory  int // in GB
-}
-
-var PresetRequirementsMap = map[string]PresetRequirements{
-	"falcon-7b":           {MinGPUCount: 1, MinMemoryPerGPU: 0, MinTotalMemory: 15},
-	"falcon-7b-instruct":  {MinGPUCount: 1, MinMemoryPerGPU: 0, MinTotalMemory: 15},
-	"falcon-40b":          {MinGPUCount: 2, MinMemoryPerGPU: 0, MinTotalMemory: 90},
-	"falcon-40b-instruct": {MinGPUCount: 2, MinMemoryPerGPU: 0, MinTotalMemory: 90},
-
-	"llama-2-7b":  {MinGPUCount: 1, MinMemoryPerGPU: 14, MinTotalMemory: 14},
-	"llama-2-13b": {MinGPUCount: 2, MinMemoryPerGPU: 15, MinTotalMemory: 30},
-	"llama-2-70b": {MinGPUCount: 8, MinMemoryPerGPU: 19, MinTotalMemory: 152},
-
-	"llama-2-7b-chat":  {MinGPUCount: 1, MinMemoryPerGPU: 14, MinTotalMemory: 14},
-	"llama-2-13b-chat": {MinGPUCount: 2, MinMemoryPerGPU: 15, MinTotalMemory: 30},
-	"llama-2-70b-chat": {MinGPUCount: 8, MinMemoryPerGPU: 19, MinTotalMemory: 152},
-}
-
-// Helper function to check if a preset is valid
 func isValidPreset(preset string) bool {
-	_, exists := PresetRequirementsMap[preset]
-	return exists
+	return plugin.KaitoModelRegister.Has(preset)
 }
 
 func getSupportedSKUs() string {

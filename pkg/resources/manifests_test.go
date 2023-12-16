@@ -16,51 +16,48 @@ import (
 )
 
 func TestGenerateStatefulSetManifest(t *testing.T) {
-	options := []bool{true, false}
 
-	for _, useHeadlessSvc := range options {
-		t.Run(fmt.Sprintf("generate statefulset with headlessSvc %v", useHeadlessSvc), func(t *testing.T) {
+	t.Run("generate statefulset with headlessSvc", func(t *testing.T) {
 
-			workspace := utils.MockWorkspaceWithPreset
+		workspace := utils.MockWorkspaceWithPreset
 
-			obj := GenerateStatefulSetManifest(context.TODO(), workspace,
-				"",  //imageName
-				nil, //imagePullSecretRefs
-				*workspace.Resource.Count,
-				nil, //commands
-				nil, //containerPorts
-				nil, //livenessProbe
-				nil, //readinessProbe
-				v1.ResourceRequirements{},
-				nil, //tolerations
-				nil, //volumes
-				nil, //volumeMount
-				useHeadlessSvc)
+		obj := GenerateStatefulSetManifest(context.TODO(), workspace,
+			"",  //imageName
+			nil, //imagePullSecretRefs
+			*workspace.Resource.Count,
+			nil, //commands
+			nil, //containerPorts
+			nil, //livenessProbe
+			nil, //readinessProbe
+			v1.ResourceRequirements{},
+			nil, //tolerations
+			nil, //volumes
+			nil, //volumeMount
+		)
 
-			if useHeadlessSvc && obj.Spec.ServiceName != fmt.Sprintf("%s-headless", workspace.Name) {
-				t.Errorf("headless service name is wrong in statefullset spec")
+		if obj.Spec.ServiceName != fmt.Sprintf("%s-headless", workspace.Name) {
+			t.Errorf("headless service name is wrong in statefullset spec")
+		}
+
+		appSelector := map[string]string{
+			kaitov1alpha1.LabelWorkspaceName: workspace.Name,
+		}
+
+		if !reflect.DeepEqual(appSelector, obj.Spec.Selector.MatchLabels) {
+			t.Errorf("workload selector is wrong")
+		}
+		if !reflect.DeepEqual(appSelector, obj.Spec.Template.ObjectMeta.Labels) {
+			t.Errorf("template label is wrong")
+		}
+
+		nodeReq := obj.Spec.Template.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0].MatchExpressions
+
+		for key, value := range workspace.Resource.LabelSelector.MatchLabels {
+			if !kvInNodeRequirement(key, value, nodeReq) {
+				t.Errorf("nodel affinity is wrong")
 			}
-
-			appSelector := map[string]string{
-				kaitov1alpha1.LabelWorkspaceName: workspace.Name,
-			}
-
-			if !reflect.DeepEqual(appSelector, obj.Spec.Selector.MatchLabels) {
-				t.Errorf("workload selector is wrong")
-			}
-			if !reflect.DeepEqual(appSelector, obj.Spec.Template.ObjectMeta.Labels) {
-				t.Errorf("template label is wrong")
-			}
-
-			nodeReq := obj.Spec.Template.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0].MatchExpressions
-
-			for key, value := range workspace.Resource.LabelSelector.MatchLabels {
-				if !kvInNodeRequirement(key, value, nodeReq) {
-					t.Errorf("nodel affinity is wrong")
-				}
-			}
-		})
-	}
+		}
+	})
 }
 
 func TestGenerateDeploymentManifest(t *testing.T) {
