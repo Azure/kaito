@@ -1,7 +1,6 @@
 models:
   - falcon-7b
   - falcon-7b-instruct
-  - falcon-7b-instruct-onnx
   - falcon-40b
   - falcon-40b-instruct
   - llama-2-7b
