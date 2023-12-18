@@ -1,0 +1,11 @@
+models:
+  - falcon-7b
+  - falcon-7b-instruct
+  - falcon-40b
+  - falcon-40b-instruct
+  - llama-2-7b
+  - llama-2-7b-chat
+  - llama-2-13b
+  - llama-2-13b-chat
+  - llama-2-70b
+  - llama-2-70b-chat
