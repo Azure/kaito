@@ -26,7 +26,7 @@ def get_model_type(model_name):
     return model_type
 
 def get_weights_path(model_name): 
-    return f"/home/models/{model_name}/weights"
+    return f"/datadrive/{model_name}/weights"
 
 def get_preset_path(model_name): 
     preset_name = model_name.split("-")[0]
@@ -85,7 +85,7 @@ def write_job_file(job_yaml, job_name):
 def populate_job_template(model, img_tag, job_name, env_vars):
     """Populate the job template with provided values."""
     try:
-        with open("docker-job-template.yaml", "r") as file:
+        with open("/home/azureuser/docker-job-template.yaml", "r") as file:
             job_template = file.read()
 
         replacements = {
@@ -127,7 +127,8 @@ def check_modified_models(pr_branch):
     files = run_command("git diff --name-only origin/main")
     os.chdir(Path.cwd().parent)
 
-    modified_models = {model: get_preset_path(model) in files for model in MODELS}
+    modified_models = {model: model.split("-")[0] in files for model in MODELS}
+    print("Modified Models (Images to build): ", modified_models)
 
     return modified_models
 
@@ -160,6 +161,7 @@ def wait_for_jobs_to_complete(job_names, timeout=3600):
                 if status == "failed":
                     print(f"Job {job_name} failed.")
                     return False
+            time.sleep(5) # Wait for 5 sec between requests - prevents connection errors
         if all_completed:
             print("All jobs completed successfully.")
             return True
