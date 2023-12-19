@@ -26,7 +26,7 @@ def get_model_type(model_name):
     return model_type
 
 def get_weights_path(model_name): 
-    return f"/home/models/{model_name}/weights"
+    return f"/datadrive/{model_name}/weights"
 
 def get_preset_path(model_name): 
     preset_name = model_name.split("-")[0]
