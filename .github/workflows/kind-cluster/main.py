@@ -161,6 +161,7 @@ def wait_for_jobs_to_complete(job_names, timeout=3600):
                 if status == "failed":
                     print(f"Job {job_name} failed.")
                     return False
+            time.sleep(5) # Wait for 5 sec between requests - prevents connection errors
         if all_completed:
             print("All jobs completed successfully.")
             return True
