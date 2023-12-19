@@ -117,7 +117,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 }
 
 // prepareInferenceParameters builds a PyTorch command:
-// torchrun <TORCH_PARAMS> <RDZV_PARAMS> baseCommand <MODEL_PARAMS>
+// torchrun <TORCH_PARAMS> <OPTIONAL_RDZV_PARAMS> baseCommand <MODEL_PARAMS>
 // and sets the GPU resources required for inference.
 // Returns the command and resource configuration.
 func prepareInferenceParameters(ctx context.Context, inferenceObj *model.PresetInferenceParam) ([]string, corev1.ResourceRequirements) {
