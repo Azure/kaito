@@ -85,7 +85,7 @@ def write_job_file(job_yaml, job_name):
 def populate_job_template(model, img_tag, job_name, env_vars):
     """Populate the job template with provided values."""
     try:
-        with open("docker-job-template.yaml", "r") as file:
+        with open("/home/azureuser/docker-job-template.yaml", "r") as file:
             job_template = file.read()
 
         replacements = {
