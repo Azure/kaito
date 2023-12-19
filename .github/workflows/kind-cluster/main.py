@@ -127,7 +127,7 @@ def check_modified_models(pr_branch):
     files = run_command("git diff --name-only origin/main")
     os.chdir(Path.cwd().parent)
 
-    modified_models = {model: get_preset_path(model) in files for model in MODELS}
+    modified_models = {model: model.split("-")[0] in files for model in MODELS}
     print("Modified Models (Images to build): ", modified_models)
 
     return modified_models
