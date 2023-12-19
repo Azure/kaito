@@ -128,6 +128,7 @@ def check_modified_models(pr_branch):
     os.chdir(Path.cwd().parent)
 
     modified_models = {model: get_preset_path(model) in files for model in MODELS}
+    print("Modified Models (Images to build): ", modified_models)
 
     return modified_models
 
