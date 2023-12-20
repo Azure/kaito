@@ -40,14 +40,14 @@ type ResourceSpec struct {
 	PreferredNodes []string `json:"preferredNodes,omitempty"`
 }
 
-type ModelFamilyName string
+type ModelName string
 
 // +kubebuilder:validation:Enum=public;private
 type ModelImageAccessMode string
 
 type PresetMeta struct {
 	// Name of the supported models with preset configurations.
-	Name ModelFamilyName `json:"name"`
+	Name ModelName `json:"name"`
 	// ImageAccessMode specifies whether the containerized model image is accessible via public registry
 	// or private registry. This field defaults to "public" if not specified.
 	// If this field is "private", user needs to provide the private image information in PresetOptions.
