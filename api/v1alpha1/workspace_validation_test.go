@@ -158,7 +158,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				spec = InferenceSpec{
 					Preset: &PresetSpec{
 						PresetMeta: PresetMeta{
-							Name: ModelFamilyName("test-validation"),
+							Name: ModelName("test-validation"),
 						},
 					},
 				}
@@ -281,7 +281,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name: ModelFamilyName("Invalid-Preset-Name"),
+						Name: ModelName("Invalid-Preset-Name"),
 					},
 				},
 			},
@@ -307,7 +307,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name: ModelFamilyName("test-validation"),
+						Name: ModelName("test-validation"),
 					},
 				},
 				Template: &v1.PodTemplateSpec{}, // Assuming a non-nil TemplateSpec implies it's set
@@ -320,7 +320,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name:            ModelFamilyName("test-validation"),
+						Name:            ModelName("test-validation"),
 						ImageAccessMode: "private",
 					},
 					PresetOptions: PresetOptions{},
@@ -334,7 +334,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name:            ModelFamilyName("test-validation"),
+						Name:            ModelName("test-validation"),
 						ImageAccessMode: "public",
 					},
 				},
@@ -376,14 +376,14 @@ func TestInferenceSpecValidateUpdate(t *testing.T) {
 			newInference: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name: ModelFamilyName("new-preset"),
+						Name: ModelName("new-preset"),
 					},
 				},
 			},
 			oldInference: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name: ModelFamilyName("old-preset"),
+						Name: ModelName("old-preset"),
 					},
 				},
 			},
