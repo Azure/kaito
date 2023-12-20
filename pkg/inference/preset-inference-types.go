@@ -93,7 +93,7 @@ var (
 		"gpu_ids":       DefaultGPUIds,
 	}
 
-	defaultAccessMode       = "public"
+	defaultImageAccessMode  = "public"
 	defaultImagePullSecrets = []corev1.LocalObjectReference{}
 )
 
@@ -122,7 +122,7 @@ var (
 		"gpu_ids":       DefaultGPUIds,
 	}
 
-	DefaultAccessMode       = "public"
+	DefaultImageAccessMode  = "public"
 	DefaultImagePullSecrets = []corev1.LocalObjectReference{}
 )
 
@@ -132,10 +132,10 @@ var (
 	Llama2PresetInferences = map[string]model.PresetInferenceParam{
 
 		PresetLlama2AChat: {
-			ModelName:                 "LLaMa2",
+			ModelFamilyName:           "LLaMa2",
 			Image:                     "",
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "34Gi",
 			GPUCountRequirement:       "1",
 			TotalGPUMemoryRequirement: "16Gi",
@@ -149,10 +149,10 @@ var (
 			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2AModel: {
-			ModelName:                 "LLaMa2",
+			ModelFamilyName:           "LLaMa2",
 			Image:                     "",
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultAccessMode,
 			DiskStorageRequirement:    "34Gi",
 			GPUCountRequirement:       "1",
 			TotalGPUMemoryRequirement: "16Gi",
@@ -166,10 +166,10 @@ var (
 			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2BChat: {
-			ModelName:                 "LLaMa2",
+			ModelFamilyName:           "LLaMa2",
 			Image:                     "",
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultAccessMode,
 			DiskStorageRequirement:    "46Gi",
 			GPUCountRequirement:       "2",
 			TotalGPUMemoryRequirement: "16Gi",
@@ -183,10 +183,10 @@ var (
 			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2BModel: {
-			ModelName:                 "LLaMa2",
+			ModelFamilyName:           "LLaMa2",
 			Image:                     "",
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultAccessMode,
 			DiskStorageRequirement:    "46Gi",
 			GPUCountRequirement:       "2",
 			TotalGPUMemoryRequirement: "16Gi",
@@ -200,10 +200,10 @@ var (
 			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2CChat: {
-			ModelName:                 "LLaMa2",
+			ModelFamilyName:           "LLaMa2",
 			Image:                     "",
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultAccessMode,
 			DiskStorageRequirement:    "158Gi",
 			GPUCountRequirement:       "8",
 			TotalGPUMemoryRequirement: "19Gi",
@@ -217,10 +217,10 @@ var (
 			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2CModel: {
-			ModelName:                 "LLaMa2",
+			ModelFamilyName:           "LLaMa2",
 			Image:                     "",
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultAccessMode,
 			DiskStorageRequirement:    "158Gi",
 			GPUCountRequirement:       "8",
 			TotalGPUMemoryRequirement: "19Gi",
@@ -238,10 +238,10 @@ var (
 	// FalconPresetInferences defines the preset inferences for Falcon.
 	FalconPresetInferences = map[string]model.PresetInferenceParam{
 		PresetFalcon7BModel: {
-			ModelName:                 "Falcon",
+			ModelFamilyName:           "Falcon",
 			Image:                     presetFalcon7bImage,
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "50Gi",
 			GPUCountRequirement:       "1",
 			TotalGPUMemoryRequirement: "14Gi",
@@ -253,10 +253,10 @@ var (
 			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetFalcon7BInstructModel: {
-			ModelName:                 "Falcon",
+			ModelFamilyName:           "Falcon",
 			Image:                     presetFalcon7bInstructImage,
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "50Gi",
 			GPUCountRequirement:       "1",
 			TotalGPUMemoryRequirement: "14Gi",
@@ -269,10 +269,10 @@ var (
 		},
 
 		PresetFalcon40BModel: {
-			ModelName:                 "Falcon",
+			ModelFamilyName:           "Falcon",
 			Image:                     presetFalcon40bImage,
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "400",
 			GPUCountRequirement:       "2",
 			TotalGPUMemoryRequirement: "90Gi",
@@ -285,10 +285,10 @@ var (
 		},
 
 		PresetFalcon40BInstructModel: {
-			ModelName:                 "Falcon",
+			ModelFamilyName:           "Falcon",
 			Image:                     presetFalcon40bInstructImage,
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "400",
 			GPUCountRequirement:       "2",
 			TotalGPUMemoryRequirement: "90Gi",

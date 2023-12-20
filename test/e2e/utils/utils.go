@@ -35,7 +35,7 @@ func GetEnv(envVar string) string {
 }
 
 func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount int, instanceType string,
-	labelSelector *metav1.LabelSelector, preferredNodes []string, presetName kaitov1alpha1.ModelName,
+	labelSelector *metav1.LabelSelector, preferredNodes []string, presetName kaitov1alpha1.ModelFamilyName,
 	inferenceMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string,
 	podTemplate *corev1.PodTemplateSpec) *kaitov1alpha1.Workspace {
 
@@ -57,8 +57,8 @@ func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount 
 		inferenceMode == kaitov1alpha1.ModelImageAccessModePrivate {
 		workspaceInference.Preset = &kaitov1alpha1.PresetSpec{
 			PresetMeta: kaitov1alpha1.PresetMeta{
-				Name:       presetName,
-				AccessMode: inferenceMode,
+				Name:            presetName,
+				ImageAccessMode: inferenceMode,
 			},
 			PresetOptions: kaitov1alpha1.PresetOptions{
 				Image:            imageName,

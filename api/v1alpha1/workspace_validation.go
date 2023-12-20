@@ -134,8 +134,8 @@ func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
 			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", presetName), "presetName"))
 		}
 		// Additional validations for Preset
-		if i.Preset.PresetMeta.AccessMode == "private" && i.Preset.PresetOptions.Image == "" {
-			errs = errs.Also(apis.ErrGeneric("When AccessMode is private, an image must be provided in PresetOptions"))
+		if i.Preset.PresetMeta.ImageAccessMode == "private" && i.Preset.PresetOptions.Image == "" {
+			errs = errs.Also(apis.ErrGeneric("When ImageAccessMode is private, an image must be provided in PresetOptions"))
 		}
 		// Note: we don't enforce private access mode to have image secrets, in case anonymous pulling is enabled
 	}

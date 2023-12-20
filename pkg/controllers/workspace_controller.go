@@ -420,8 +420,8 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 }
 
 func (c *WorkspaceReconciler) updateInferenceParamFromWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace, inferenceParam *model.PresetInferenceParam) {
-	inferenceParam.AccessMode = string(wObj.Inference.Preset.PresetMeta.AccessMode)
-	if inferenceParam.AccessMode == "private" && wObj.Inference.Preset.PresetOptions.Image != "" {
+	inferenceParam.ImageAccessMode = string(wObj.Inference.Preset.PresetMeta.ImageAccessMode)
+	if inferenceParam.ImageAccessMode == "private" && wObj.Inference.Preset.PresetOptions.Image != "" {
 		inferenceParam.Image = wObj.Inference.Preset.PresetOptions.Image
 
 		imagePullSecretRefs := []corev1.LocalObjectReference{}

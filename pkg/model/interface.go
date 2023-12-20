@@ -15,10 +15,10 @@ type Model interface {
 
 // PresetInferenceParam defines the preset inference parameters for a model.
 type PresetInferenceParam struct {
-	ModelName                 string                        // The name of the model.
+	ModelFamilyName           string                        // The name of the model family.
 	Image                     string                        // Docker image used for running the inference.
 	ImagePullSecrets          []corev1.LocalObjectReference // Secrets for pulling the image from a private registry.
-	AccessMode                string                        // Defines where the Image is Public or Private.
+	ImageAccessMode           string                        // Defines where the Image is Public or Private.
 	DiskStorageRequirement    string                        // Disk storage requirements for the model.
 	GPUCountRequirement       string                        // Number of GPUs required for the inference.
 	TotalGPUMemoryRequirement string                        // Total GPU memory required for the inference.

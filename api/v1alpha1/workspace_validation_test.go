@@ -158,7 +158,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				spec = InferenceSpec{
 					Preset: &PresetSpec{
 						PresetMeta: PresetMeta{
-							Name: ModelName("test-validation"),
+							Name: ModelFamilyName("test-validation"),
 						},
 					},
 				}
@@ -281,7 +281,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name: ModelName("Invalid-Preset-Name"),
+						Name: ModelFamilyName("Invalid-Preset-Name"),
 					},
 				},
 			},
@@ -307,7 +307,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name: ModelName("test-validation"),
+						Name: ModelFamilyName("test-validation"),
 					},
 				},
 				Template: &v1.PodTemplateSpec{}, // Assuming a non-nil TemplateSpec implies it's set
@@ -320,13 +320,13 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name:       ModelName("test-validation"),
-						AccessMode: "private",
+						Name:            ModelFamilyName("test-validation"),
+						ImageAccessMode: "private",
 					},
 					PresetOptions: PresetOptions{},
 				},
 			},
-			errContent: "When AccessMode is private, an image must be provided",
+			errContent: "When ImageAccessMode is private, an image must be provided",
 			expectErrs: true,
 		},
 		{
@@ -334,8 +334,8 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name:       ModelName("test-validation"),
-						AccessMode: "public",
+						Name:            ModelFamilyName("test-validation"),
+						ImageAccessMode: "public",
 					},
 				},
 			},
@@ -376,14 +376,14 @@ func TestInferenceSpecValidateUpdate(t *testing.T) {
 			newInference: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name: ModelName("new-preset"),
+						Name: ModelFamilyName("new-preset"),
 					},
 				},
 			},
 			oldInference: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name: ModelName("old-preset"),
+						Name: ModelFamilyName("old-preset"),
 					},
 				},
 			},

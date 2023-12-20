@@ -40,10 +40,10 @@ type llama2Text7b struct{}
 
 func (*llama2Text7b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
-		ModelName:                 "LLaMa2",
+		ModelFamilyName:           "LLaMa2",
 		Image:                     "",
 		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		AccessMode:                inference.DefaultAccessMode,
+		ImageAccessMode:           inference.DefaultImageAccessMode,
 		DiskStorageRequirement:    "34Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "14Gi",
@@ -69,10 +69,10 @@ type llama2Text13b struct{}
 
 func (*llama2Text13b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
-		ModelName:                 "LLaMa2",
+		ModelFamilyName:           "LLaMa2",
 		Image:                     "",
 		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		AccessMode:                inference.DefaultAccessMode,
+		ImageAccessMode:           inference.DefaultImageAccessMode,
 		DiskStorageRequirement:    "46Gi",
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "30Gi",
@@ -97,10 +97,10 @@ type llama2Text70b struct{}
 
 func (*llama2Text70b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
-		ModelName:                 "LLaMa2",
+		ModelFamilyName:           "LLaMa2",
 		Image:                     "",
 		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		AccessMode:                inference.DefaultAccessMode,
+		ImageAccessMode:           inference.DefaultImageAccessMode,
 		DiskStorageRequirement:    "158Gi",
 		GPUCountRequirement:       "8",
 		TotalGPUMemoryRequirement: "152Gi",
