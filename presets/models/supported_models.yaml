@@ -9,3 +9,5 @@ models:
   - llama-2-13b-chat
   - llama-2-70b
   - llama-2-70b-chat
+  - mistral-7b-v0.1
+  - mistral-7b-instruct-v0.1
