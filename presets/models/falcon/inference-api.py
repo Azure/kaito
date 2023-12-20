@@ -122,7 +122,6 @@ def generate_text(params: GenerationParams):
 
     return {"Result": result}
 
-
 if __name__ == "__main__":
     local_rank = int(os.environ.get("LOCAL_RANK", 0)) # Default to 0 if not set
     port = 5000 + local_rank # Adjust port based on local rank
