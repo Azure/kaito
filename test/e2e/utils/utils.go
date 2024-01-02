@@ -57,8 +57,8 @@ func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount 
 		inferenceMode == kaitov1alpha1.ModelImageAccessModePrivate {
 		workspaceInference.Preset = &kaitov1alpha1.PresetSpec{
 			PresetMeta: kaitov1alpha1.PresetMeta{
-				Name:            presetName,
-				ImageAccessMode: inferenceMode,
+				Name:       presetName,
+				AccessMode: inferenceMode,
 			},
 			PresetOptions: kaitov1alpha1.PresetOptions{
 				Image:            imageName,

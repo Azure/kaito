@@ -320,13 +320,13 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name:            ModelName("test-validation"),
-						ImageAccessMode: "private",
+						Name:       ModelName("test-validation"),
+						AccessMode: "private",
 					},
 					PresetOptions: PresetOptions{},
 				},
 			},
-			errContent: "When ImageAccessMode is private, an image must be provided",
+			errContent: "When AccessMode is private, an image must be provided",
 			expectErrs: true,
 		},
 		{
@@ -334,8 +334,8 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
-						Name:            ModelName("test-validation"),
-						ImageAccessMode: "public",
+						Name:       ModelName("test-validation"),
+						AccessMode: "public",
 					},
 				},
 			},

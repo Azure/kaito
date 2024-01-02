@@ -48,12 +48,12 @@ type ModelImageAccessMode string
 type PresetMeta struct {
 	// Name of the supported models with preset configurations.
 	Name ModelName `json:"name"`
-	// ImageAccessMode specifies whether the containerized model image is accessible via public registry
+	// AccessMode specifies whether the containerized model image is accessible via public registry
 	// or private registry. This field defaults to "public" if not specified.
 	// If this field is "private", user needs to provide the private image information in PresetOptions.
 	// +bebuilder:default:="public"
 	// +optional
-	ImageAccessMode ModelImageAccessMode `json:"accessMode,omitempty"`
+	AccessMode ModelImageAccessMode `json:"accessMode,omitempty"`
 }
 
 type PresetOptions struct {
