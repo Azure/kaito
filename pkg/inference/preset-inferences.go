@@ -20,6 +20,8 @@ import (
 const (
 	ProbePath = "/healthz"
 	Port5000  = int32(5000)
+	InferenceFile = "inference-api.py"
+	DefaultVolumeMountPath = "/dev/shm"
 )
 
 var (
@@ -123,7 +125,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 func prepareInferenceParameters(ctx context.Context, inferenceObj *model.PresetInferenceParam) ([]string, corev1.ResourceRequirements) {
 	torchCommand := buildCommandStr(inferenceObj.BaseCommand, inferenceObj.TorchRunParams)
 	torchCommand = buildCommandStr(torchCommand, inferenceObj.TorchRunRdzvParams)
-	modelCommand := buildCommandStr(inferenceObj.InferenceFile, inferenceObj.ModelRunParams)
+	modelCommand := buildCommandStr(InferenceFile, inferenceObj.ModelRunParams)
 	commands := shellCommand(torchCommand + " " + modelCommand)
 
 	resourceRequirements := corev1.ResourceRequirements{
@@ -156,7 +158,7 @@ func configVolume(wObj *kaitov1alpha1.Workspace, inferenceObj *model.PresetInfer
 
 		volumeMount = append(volumeMount, corev1.VolumeMount{
 			Name:      volume[0].Name,
-			MountPath: inferenceObj.DefaultVolumeMountPath,
+			MountPath: DefaultVolumeMountPath,
 		})
 	}
 

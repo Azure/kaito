@@ -31,7 +31,6 @@ var (
 		"max_seq_len":    "512",
 		"max_batch_size": "8",
 	}
-	llamaChatInferenceFile = "inference-api.py"
 )
 
 var llama2A llama2Text7b
@@ -51,11 +50,9 @@ func (*llama2Text7b) GetInferenceParameters() *model.PresetInferenceParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		InferenceFile:             llamaChatInferenceFile,
 		DeploymentTimeout:         time.Duration(10) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 1,
-		DefaultVolumeMountPath:    "/dev/shm",
 	}
 
 }
@@ -80,11 +77,9 @@ func (*llama2Text13b) GetInferenceParameters() *model.PresetInferenceParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		InferenceFile:             llamaChatInferenceFile,
 		DeploymentTimeout:         time.Duration(20) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 2,
-		DefaultVolumeMountPath:    "/dev/shm",
 	}
 }
 func (*llama2Text13b) SupportDistributedInference() bool {
@@ -108,11 +103,9 @@ func (*llama2Text70b) GetInferenceParameters() *model.PresetInferenceParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		InferenceFile:             llamaChatInferenceFile,
 		DeploymentTimeout:         time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 8,
-		DefaultVolumeMountPath:    "/dev/shm",
 	}
 }
 func (*llama2Text70b) SupportDistributedInference() bool {

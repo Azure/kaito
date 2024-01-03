@@ -59,15 +59,12 @@ var (
 	presetFalcon40bInstructImage = registryName + fmt.Sprintf("/kaito-%s:0.0.1", PresetFalcon40BInstructModel)
 
 	baseCommandPresetLlama = "cd /workspace/llama/llama-2 && torchrun"
-	// llamaTextInferenceFile       = "inference-api.py" TODO: To support Text Generation Llama Models
-	llamaChatInferenceFile = "inference-api.py"
 	llamaRunParams         = map[string]string{
 		"max_seq_len":    "512",
 		"max_batch_size": "8",
 	}
 
 	baseCommandPresetFalcon = "accelerate launch --use_deepspeed"
-	falconInferenceFile     = "inference-api.py"
 	falconRunParams         = map[string]string{}
 
 	defaultTorchRunParams = map[string]string{
@@ -142,11 +139,9 @@ var (
 			TorchRunParams:            defaultTorchRunParams,
 			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
 			ModelRunParams:            llamaRunParams,
-			InferenceFile:             llamaChatInferenceFile,
 			DeploymentTimeout:         time.Duration(10) * time.Minute,
 			BaseCommand:               baseCommandPresetLlama,
 			WorldSize:                 1,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2AModel: {
 			ModelFamilyName:           "LLaMa2",
@@ -159,11 +154,9 @@ var (
 			TorchRunParams:            defaultTorchRunParams,
 			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
 			ModelRunParams:            llamaRunParams,
-			InferenceFile:             llamaChatInferenceFile,
 			DeploymentTimeout:         time.Duration(10) * time.Minute,
 			BaseCommand:               baseCommandPresetLlama,
 			WorldSize:                 1,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2BChat: {
 			ModelFamilyName:           "LLaMa2",
@@ -176,11 +169,9 @@ var (
 			TorchRunParams:            defaultTorchRunParams,
 			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
 			ModelRunParams:            llamaRunParams,
-			InferenceFile:             llamaChatInferenceFile,
 			DeploymentTimeout:         time.Duration(20) * time.Minute,
 			BaseCommand:               baseCommandPresetLlama,
 			WorldSize:                 2,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2BModel: {
 			ModelFamilyName:           "LLaMa2",
@@ -193,11 +184,9 @@ var (
 			TorchRunParams:            defaultTorchRunParams,
 			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
 			ModelRunParams:            llamaRunParams,
-			InferenceFile:             llamaChatInferenceFile,
 			DeploymentTimeout:         time.Duration(20) * time.Minute,
 			BaseCommand:               baseCommandPresetLlama,
 			WorldSize:                 2,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2CChat: {
 			ModelFamilyName:           "LLaMa2",
@@ -210,11 +199,9 @@ var (
 			TorchRunParams:            defaultTorchRunParams,
 			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
 			ModelRunParams:            llamaRunParams,
-			InferenceFile:             llamaChatInferenceFile,
 			DeploymentTimeout:         time.Duration(30) * time.Minute,
 			BaseCommand:               baseCommandPresetLlama,
 			WorldSize:                 8,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2CModel: {
 			ModelFamilyName:           "LLaMa2",
@@ -227,11 +214,9 @@ var (
 			TorchRunParams:            defaultTorchRunParams,
 			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
 			ModelRunParams:            llamaRunParams,
-			InferenceFile:             llamaChatInferenceFile,
 			DeploymentTimeout:         time.Duration(30) * time.Minute,
 			BaseCommand:               baseCommandPresetLlama,
 			WorldSize:                 8,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 	}
 
@@ -247,10 +232,8 @@ var (
 			TotalGPUMemoryRequirement: "14Gi",
 			TorchRunParams:            defaultAccelerateParams,
 			ModelRunParams:            falconRunParams,
-			InferenceFile:             falconInferenceFile,
 			DeploymentTimeout:         time.Duration(30) * time.Minute,
 			BaseCommand:               baseCommandPresetFalcon,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetFalcon7BInstructModel: {
 			ModelFamilyName:           "Falcon",
@@ -262,10 +245,8 @@ var (
 			TotalGPUMemoryRequirement: "14Gi",
 			TorchRunParams:            defaultAccelerateParams,
 			ModelRunParams:            falconRunParams,
-			InferenceFile:             falconInferenceFile,
 			DeploymentTimeout:         time.Duration(30) * time.Minute,
 			BaseCommand:               baseCommandPresetFalcon,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 
 		PresetFalcon40BModel: {
@@ -278,10 +259,8 @@ var (
 			TotalGPUMemoryRequirement: "90Gi",
 			TorchRunParams:            defaultAccelerateParams,
 			ModelRunParams:            falconRunParams,
-			InferenceFile:             falconInferenceFile,
 			DeploymentTimeout:         time.Duration(30) * time.Minute,
 			BaseCommand:               baseCommandPresetFalcon,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 
 		PresetFalcon40BInstructModel: {
@@ -294,10 +273,8 @@ var (
 			TotalGPUMemoryRequirement: "90Gi",
 			TorchRunParams:            defaultAccelerateParams,
 			ModelRunParams:            falconRunParams,
-			InferenceFile:             falconInferenceFile,
 			DeploymentTimeout:         time.Duration(30) * time.Minute,
 			BaseCommand:               baseCommandPresetFalcon,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 	}
 )

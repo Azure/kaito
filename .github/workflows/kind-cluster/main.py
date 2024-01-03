@@ -148,7 +148,7 @@ def check_job_status(job_name):
     else:
         return "running"
 
-def wait_for_jobs_to_complete(job_names, timeout=3600):
+def wait_for_jobs_to_complete(job_names, timeout=10800):
     """Wait for all jobs to complete with a timeout."""
     start_time = time.time()
     while time.time() - start_time < timeout:
