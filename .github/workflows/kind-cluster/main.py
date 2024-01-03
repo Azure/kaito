@@ -134,19 +134,23 @@ def check_modified_models(pr_branch):
 
 def check_job_status(job_name):
     """Check the status of a Kubernetes job."""
-    # Query for the specific fields 'succeeded' and 'failed' in the job's status
-    command_succeeded = f"kubectl get job docker-build-job-{job_name} -o jsonpath='{{.status.succeeded}}'"
-    command_failed = f"kubectl get job docker-build-job-{job_name} -o jsonpath='{{.status.failed}}'"
+    # Query for both 'succeeded' and 'failed' fields in the job's status
+    command = f"kubectl get job docker-build-job-{job_name} -o jsonpath='{{.status.succeeded}} {{.status.failed}}'"
 
-    succeeded = run_command(command_succeeded)
-    failed = run_command(command_failed)
-
-    if succeeded and int(succeeded) > 0:
-        return "succeeded"
-    elif failed and int(failed) > 0:
-        return "failed"
+    status = run_command(command).split()
+    
+    # Check if status list has two elements (succeeded and failed)
+    if len(status) == 2:
+        succeeded, failed = status
+        if succeeded and int(succeeded) > 0:
+            return "succeeded"
+        elif failed and int(failed) > 0:
+            return "failed"
+        else:
+            return "running"
     else:
-        return "running"
+        return "unknown"  # This case handles situations where the job status might not be available
+
 
 def wait_for_jobs_to_complete(job_names, timeout=10800):
     """Wait for all jobs to complete with a timeout."""
