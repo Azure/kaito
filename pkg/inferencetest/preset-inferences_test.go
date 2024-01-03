@@ -142,11 +142,6 @@ func TestCreatePresetInference(t *testing.T) {
 
 			useHeadlessSvc := false
 
-			// plugin.KaitoModelRegister.Register(&plugin.Registration{
-			// 	Name:     tc.modelName,
-			// 	Instance: &falconA,
-			// })
-
 			var inferenceObj *model.PresetInferenceParam
 			model := plugin.KaitoModelRegister.MustGet(tc.modelName)
 			inferenceObj = model.GetInferenceParameters()
