@@ -1,12 +1,13 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
-package inference
+package inferencetest
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	"github.com/azure/kaito/pkg/inference"
 	"github.com/azure/kaito/pkg/utils"
 	"github.com/stretchr/testify/mock"
 	"gotest.tools/assert"
@@ -43,7 +44,7 @@ func TestCreateTemplateInference(t *testing.T) {
 			mockClient := utils.NewClient()
 			tc.callMocks(mockClient)
 
-			obj, err := CreateTemplateInference(context.Background(), utils.MockWorkspaceWithInferenceTemplate, mockClient)
+			obj, err := inference.CreateTemplateInference(context.Background(), utils.MockWorkspaceWithInferenceTemplate, mockClient)
 			if tc.expectedError == nil {
 				assert.Check(t, err == nil, "Not expected to return error")
 				assert.Check(t, obj != nil, "Return object should not be nil")

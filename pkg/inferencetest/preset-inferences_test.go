@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-package inference
+package inferencetest
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/azure/kaito/pkg/inference"
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/plugin"
@@ -164,7 +165,7 @@ func TestCreatePresetInference(t *testing.T) {
 			}
 			mockClient.CreateOrUpdateObjectInMap(svc)
 
-			createdObject, _ := CreatePresetInference(context.TODO(), workspace, inferenceObj, useHeadlessSvc, mockClient)
+			createdObject, _ := inference.CreatePresetInference(context.TODO(), workspace, inferenceObj, useHeadlessSvc, mockClient)
 			createdWorkload := ""
 			switch createdObject.(type) {
 			case *appsv1.Deployment:
