@@ -16,6 +16,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	_ "github.com/azure/kaito/presets/models/falcon"
+	_ "github.com/azure/kaito/presets/models/llama2"
+	_ "github.com/azure/kaito/presets/models/llama2chat"
 )
 
 func TestCreatePresetInference(t *testing.T) {
@@ -136,9 +140,16 @@ func TestCreatePresetInference(t *testing.T) {
 			workspace.Resource.Count = &tc.nodeCount
 
 			useHeadlessSvc := false
+
+			// plugin.KaitoModelRegister.Register(&plugin.Registration{
+			// 	Name:     tc.modelName,
+			// 	Instance: &falconA,
+			// })
+
 			var inferenceObj *model.PresetInferenceParam
 			model := plugin.KaitoModelRegister.MustGet(tc.modelName)
 			inferenceObj = model.GetInferenceParameters()
+
 			if strings.HasPrefix(tc.modelName, "llama") {
 				useHeadlessSvc = true
 			}
