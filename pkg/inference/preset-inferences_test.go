@@ -153,7 +153,7 @@ func TestCreatePresetInference(t *testing.T) {
 			}
 			mockClient.CreateOrUpdateObjectInMap(svc)
 
-			createdObject, _ := CreatePresetInference(context.TODO(), workspace, &inferenceObj, useHeadlessSvc, mockClient)
+			createdObject, _ := CreatePresetInference(context.TODO(), workspace, inferenceObj, useHeadlessSvc, mockClient)
 			createdWorkload := ""
 			switch createdObject.(type) {
 			case *appsv1.Deployment:
