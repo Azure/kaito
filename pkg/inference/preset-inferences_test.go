@@ -11,6 +11,7 @@ import (
 
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils"
+	"github.com/azure/kaito/pkg/utils/plugin"
 	"github.com/stretchr/testify/mock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -135,14 +136,12 @@ func TestCreatePresetInference(t *testing.T) {
 			workspace.Resource.Count = &tc.nodeCount
 
 			useHeadlessSvc := false
-			var inferenceObj model.PresetInferenceParam
+			var inferenceObj *model.PresetInferenceParam
+			model := plugin.KaitoModelRegister.MustGet(tc.modelName)
+			inferenceObj = model.GetInferenceParameters()
 			if strings.HasPrefix(tc.modelName, "llama") {
-				inferenceObj = Llama2PresetInferences[tc.modelName]
 				useHeadlessSvc = true
-			} else {
-				inferenceObj = FalconPresetInferences[tc.modelName]
 			}
-
 			svc := &corev1.Service{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      workspace.Name,

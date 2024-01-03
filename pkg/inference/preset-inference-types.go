@@ -5,9 +5,7 @@ package inference
 import (
 	"fmt"
 	"os"
-	"time"
 
-	"github.com/azure/kaito/pkg/model"
 	corev1 "k8s.io/api/core/v1"
 )
 
