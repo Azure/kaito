@@ -20,7 +20,7 @@ import argparse
 # Setup argparse
 parser = argparse.ArgumentParser(description="Llama API server.")
 parser.add_argument("--ckpt_dir", default="weights/", help="Checkpoint directory.")
-parser.add_argument("--tokenizer_path", default="tokenizer.model", help="Path to the tokenizer model.")
+parser.add_argument("--tokenizer_path", default="weights/tokenizer.model", help="Path to the tokenizer model.")
 parser.add_argument("--max_seq_len", type=int, default=128, help="Maximum sequence length.")
 parser.add_argument("--max_batch_size", type=int, default=4, help="Maximum batch size.")
 parser.add_argument("--model_parallel_size", type=int, default=int(os.environ.get("WORLD_SIZE", 1)), help="Model parallel size.")

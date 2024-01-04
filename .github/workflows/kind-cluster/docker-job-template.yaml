@@ -3,6 +3,7 @@ kind: Job
 metadata:
   name: docker-build-job-{{JOB_ID}}
 spec:
+  ttlSecondsAfterFinished: 600  # Job and its pods are deleted 10 min after job completion
   backoffLimit: 3  # Number of retries before marking the job as failed
   template:
     spec:
