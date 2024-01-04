@@ -73,7 +73,7 @@ def main():
             write_job_file(job_yaml, job_name)
 
             output = run_command(f"ls {get_weights_path(model)}")
-            print("Model weights:", output)
+            print("Model Weights:", output)
 
             run_command(f"kubectl apply -f {job_name}-job.yaml")
             job_names.append(job_name)
