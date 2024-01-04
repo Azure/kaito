@@ -71,6 +71,10 @@ def main():
             job_name = f"{model}-{unique_id}"
             job_yaml = populate_job_template(model, img_tag, job_name, os.environ)
             write_job_file(job_yaml, job_name)
+
+            output = run_command(f"ls {get_weights_path(model)}")
+            print("Model weights:", output)
+
             run_command(f"kubectl apply -f {job_name}-job.yaml")
             job_names.append(job_name)
     
