@@ -1,10 +1,11 @@
-import subprocess
 import os
-import shutil
-from pathlib import Path
-import time
 import random
+import shutil
 import string
+import subprocess
+import time
+from pathlib import Path
+
 import yaml
 
 KAITO_REPO_URL = "https://github.com/Azure/kaito.git"
@@ -85,7 +86,8 @@ def write_job_file(job_yaml, job_name):
 def populate_job_template(model, img_tag, job_name, env_vars):
     """Populate the job template with provided values."""
     try:
-        with open("/home/azureuser/docker-job-template.yaml", "r") as file:
+        docker_job_template = Path.cwd() / "repo/.github/workflows/kind-cluster/docker-job-template.yaml"
+        with open(docker_job_template, "r") as file:
             job_template = file.read()
 
         replacements = {
@@ -137,7 +139,8 @@ def check_job_status(job_name):
     # Query for both 'succeeded' and 'failed' fields in the job's status
     command = f"kubectl get job docker-build-job-{job_name} -o jsonpath='{{.status.succeeded}} {{.status.failed}}'"
 
-    status = run_command(command).split()
+    status = run_command(command)
+    print(f"{job_name} status: {status}")
     
     # Check if status list has two elements (succeeded and failed)
     if len(status) == 2:
