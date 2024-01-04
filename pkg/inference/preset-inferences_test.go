@@ -11,6 +11,7 @@ import (
 
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils"
+	"github.com/azure/kaito/pkg/utils/plugin"
 	"github.com/stretchr/testify/mock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,7 +19,7 @@ import (
 )
 
 func TestCreatePresetInference(t *testing.T) {
-
+	utils.RegisterTestModel()
 	testcases := map[string]struct {
 		nodeCount   int
 		modelName   string
@@ -27,102 +28,27 @@ func TestCreatePresetInference(t *testing.T) {
 		expectedCmd string
 	}{
 
-		"falcon-7b": {
+		"test-model": {
 			nodeCount: 1,
-			modelName: "falcon-7b",
+			modelName: "test-model",
 			callMocks: func(c *utils.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 			},
-			workload:    "Deployment",
-			expectedCmd: "/bin/sh -c accelerate launch --use_deepspeed --config_file=config.yaml --num_processes=1 --num_machines=1 --machine_rank=0 --gpu_ids=all inference-api.py",
-		},
-		"falcon-7b-instruct": {
-			nodeCount: 1,
-			modelName: "falcon-7b-instruct",
-			callMocks: func(c *utils.MockClient) {
-				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
-			},
-			workload:    "Deployment",
-			expectedCmd: "/bin/sh -c accelerate launch --use_deepspeed --config_file=config.yaml --num_processes=1 --num_machines=1 --machine_rank=0 --gpu_ids=all inference-api.py",
-		},
-		"falcon-40b": {
-			nodeCount: 1,
-			modelName: "falcon-40b",
-			callMocks: func(c *utils.MockClient) {
-				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
-			},
-			workload:    "Deployment",
-			expectedCmd: "/bin/sh -c accelerate launch --use_deepspeed --num_machines=1 --machine_rank=0 --gpu_ids=all --config_file=config.yaml --num_processes=1 inference-api.py",
-		},
-		"falcon-40b-instruct": {
-			nodeCount: 1,
-			modelName: "falcon-40b-instruct",
-			callMocks: func(c *utils.MockClient) {
-				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
-			},
-			workload:    "Deployment",
-			expectedCmd: "/bin/sh -c accelerate launch --use_deepspeed --config_file=config.yaml --num_processes=1 --num_machines=1 --machine_rank=0 --gpu_ids=all inference-api.py",
+			workload: "Deployment",
+			// No BaseCommand, TorchRunParams, TorchRunRdzvParams, or ModelRunParams
+			// So expected cmd consists of shell command and inference file
+			expectedCmd: "/bin/sh -c  inference-api.py",
 		},
 
-		"llama-7b-chat": {
+		"test-distributed-model": {
 			nodeCount: 1,
-			modelName: "llama-2-7b-chat",
+			modelName: "test-distributed-model",
 			callMocks: func(c *utils.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil)
 			},
 			workload:    "StatefulSet",
-			expectedCmd: "/bin/sh -c cd /workspace/llama/llama-2 && torchrun --nnodes=1 --nproc_per_node=1 --node_rank=$(echo $HOSTNAME | grep -o '[^-]*$') --master_addr=10.0.0.1 --master_port=29500 --max_restarts=3 --rdzv_id=job --rdzv_backend=c10d --rdzv_endpoint=testWorkspace-0.testWorkspace-headless.default.svc.cluster.local:29500 inference-api.py --max_seq_len=512 --max_batch_size=8",
-		},
-		"llama-13b-chat": {
-			nodeCount: 1,
-			modelName: "llama-2-13b-chat",
-			callMocks: func(c *utils.MockClient) {
-				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
-				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil)
-			},
-			workload:    "StatefulSet",
-			expectedCmd: "/bin/sh -c cd /workspace/llama/llama-2 && torchrun --nnodes=1 --nproc_per_node=2 --node_rank=$(echo $HOSTNAME | grep -o '[^-]*$') --master_addr=10.0.0.1 --master_port=29500 --max_restarts=3 --rdzv_id=job --rdzv_backend=c10d --rdzv_endpoint=testWorkspace-0.testWorkspace-headless.default.svc.cluster.local:29500 inference-api.py --max_seq_len=512 --max_batch_size=8",
-		},
-		"llama-70b-chat": {
-			nodeCount: 2,
-			modelName: "llama-2-70b-chat",
-			callMocks: func(c *utils.MockClient) {
-				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
-				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil)
-			},
-			workload:    "StatefulSet",
-			expectedCmd: "/bin/sh -c cd /workspace/llama/llama-2 && torchrun --nproc_per_node=4 --node_rank=$(echo $HOSTNAME | grep -o '[^-]*$') --master_addr=10.0.0.1 --master_port=29500 --nnodes=2 --rdzv_backend=c10d --rdzv_endpoint=testWorkspace-0.testWorkspace-headless.default.svc.cluster.local:29500 --max_restarts=3 --rdzv_id=job inference-api.py --max_seq_len=512 --max_batch_size=8",
-		},
-		"llama-7b": {
-			nodeCount: 1,
-			modelName: "llama-2-7b",
-			callMocks: func(c *utils.MockClient) {
-				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
-				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil)
-			},
-			workload:    "StatefulSet",
-			expectedCmd: "/bin/sh -c cd /workspace/llama/llama-2 && torchrun --nnodes=1 --nproc_per_node=1 --node_rank=$(echo $HOSTNAME | grep -o '[^-]*$') --master_addr=10.0.0.1 --master_port=29500 --max_restarts=3 --rdzv_id=job --rdzv_backend=c10d --rdzv_endpoint=testWorkspace-0.testWorkspace-headless.default.svc.cluster.local:29500 inference-api.py --max_seq_len=512 --max_batch_size=8",
-		},
-		"llama-13b": {
-			nodeCount: 1,
-			modelName: "llama-2-13b",
-			callMocks: func(c *utils.MockClient) {
-				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
-				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil)
-			},
-			workload:    "StatefulSet",
-			expectedCmd: "/bin/sh -c cd /workspace/llama/llama-2 && torchrun --node_rank=$(echo $HOSTNAME | grep -o '[^-]*$') --master_addr=10.0.0.1 --master_port=29500 --nnodes=1 --nproc_per_node=2 --max_restarts=3 --rdzv_id=job --rdzv_backend=c10d --rdzv_endpoint=testWorkspace-0.testWorkspace-headless.default.svc.cluster.local:29500 inference-api.py --max_batch_size=8 --max_seq_len=512",
-		},
-		"llama-70b": {
-			nodeCount: 2,
-			modelName: "llama-2-70b",
-			callMocks: func(c *utils.MockClient) {
-				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
-				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil)
-			},
-			workload:    "StatefulSet",
-			expectedCmd: "/bin/sh -c cd /workspace/llama/llama-2 && torchrun --nproc_per_node=4 --node_rank=$(echo $HOSTNAME | grep -o '[^-]*$') --master_addr=10.0.0.1 --master_port=29500 --nnodes=2 --rdzv_backend=c10d --rdzv_endpoint=testWorkspace-0.testWorkspace-headless.default.svc.cluster.local:29500 --max_restarts=3 --rdzv_id=job inference-api.py --max_seq_len=512 --max_batch_size=8",
+			expectedCmd: "/bin/sh -c  inference-api.py",
 		},
 	}
 
@@ -135,14 +61,14 @@ func TestCreatePresetInference(t *testing.T) {
 			workspace.Resource.Count = &tc.nodeCount
 
 			useHeadlessSvc := false
-			var inferenceObj model.PresetInferenceParam
-			if strings.HasPrefix(tc.modelName, "llama") {
-				inferenceObj = Llama2PresetInferences[tc.modelName]
-				useHeadlessSvc = true
-			} else {
-				inferenceObj = FalconPresetInferences[tc.modelName]
-			}
 
+			var inferenceObj *model.PresetInferenceParam
+			model := plugin.KaitoModelRegister.MustGet(tc.modelName)
+			inferenceObj = model.GetInferenceParameters()
+
+			if strings.Contains(tc.modelName, "distributed") {
+				useHeadlessSvc = true
+			}
 			svc := &corev1.Service{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      workspace.Name,
@@ -154,7 +80,7 @@ func TestCreatePresetInference(t *testing.T) {
 			}
 			mockClient.CreateOrUpdateObjectInMap(svc)
 
-			createdObject, _ := CreatePresetInference(context.TODO(), workspace, &inferenceObj, useHeadlessSvc, mockClient)
+			createdObject, _ := CreatePresetInference(context.TODO(), workspace, inferenceObj, useHeadlessSvc, mockClient)
 			createdWorkload := ""
 			switch createdObject.(type) {
 			case *appsv1.Deployment:
@@ -169,7 +95,6 @@ func TestCreatePresetInference(t *testing.T) {
 			var workloadCmd string
 			if tc.workload == "Deployment" {
 				workloadCmd = strings.Join((createdObject.(*appsv1.Deployment)).Spec.Template.Spec.Containers[0].Command, " ")
-
 			} else {
 				workloadCmd = strings.Join((createdObject.(*appsv1.StatefulSet)).Spec.Template.Spec.Containers[0].Command, " ")
 			}

@@ -8,14 +8,11 @@ import (
 	"reflect"
 	"sort"
 	"testing"
-	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/machine"
-	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils"
-	"github.com/azure/kaito/pkg/utils/plugin"
 	"github.com/stretchr/testify/mock"
 	"gotest.tools/assert"
 	appsv1 "k8s.io/api/apps/v1"
@@ -26,47 +23,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type testModel struct{}
-
-func (*testModel) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
-		GPUCountRequirement: "1",
-		DeploymentTimeout:   time.Duration(30) * time.Minute,
-	}
-}
-func (*testModel) SupportDistributedInference() bool {
-	return false
-}
-
-type testDistributedModel struct{}
-
-func (*testDistributedModel) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
-		GPUCountRequirement: "1",
-		DeploymentTimeout:   time.Duration(30) * time.Minute,
-	}
-}
-func (*testDistributedModel) SupportDistributedInference() bool {
-	return true
-}
-
-func RegisterTestModel() {
-	var test testModel
-	plugin.KaitoModelRegister.Register(&plugin.Registration{
-		Name:     "test-model",
-		Instance: &test,
-	})
-
-	var testDistributed testDistributedModel
-	plugin.KaitoModelRegister.Register(&plugin.Registration{
-		Name:     "test-distributed-model",
-		Instance: &testDistributed,
-	})
-
-}
-
 func TestSelectWorkspaceNodes(t *testing.T) {
-	RegisterTestModel()
+	utils.RegisterTestModel()
 	testcases := map[string]struct {
 		qualified []*corev1.Node
 		preferred []string
@@ -265,7 +223,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 }
 
 func TestCreateAndValidateNode(t *testing.T) {
-	RegisterTestModel()
+	utils.RegisterTestModel()
 	testcases := map[string]struct {
 		callMocks         func(c *utils.MockClient)
 		machineConditions apis.Conditions
@@ -337,7 +295,7 @@ func TestCreateAndValidateNode(t *testing.T) {
 }
 
 func TestEnsureService(t *testing.T) {
-	RegisterTestModel()
+	utils.RegisterTestModel()
 	testcases := map[string]struct {
 		callMocks     func(c *utils.MockClient)
 		expectedError error
@@ -387,7 +345,7 @@ func TestEnsureService(t *testing.T) {
 }
 
 func TestApplyInferenceWithPreset(t *testing.T) {
-	RegisterTestModel()
+	utils.RegisterTestModel()
 	testcases := map[string]struct {
 		callMocks     func(c *utils.MockClient)
 		workspace     v1alpha1.Workspace
@@ -678,7 +636,7 @@ func TestDeleteWorkspace(t *testing.T) {
 }
 
 func TestApplyWorkspaceResource(t *testing.T) {
-	RegisterTestModel()
+	utils.RegisterTestModel()
 	testcases := map[string]struct {
 		callMocks     func(c *utils.MockClient)
 		expectedError error
