@@ -59,15 +59,12 @@ var (
 	presetFalcon40bInstructImage = registryName + fmt.Sprintf("/kaito-%s:0.0.1", PresetFalcon40BInstructModel)
 
 	baseCommandPresetLlama = "cd /workspace/llama/llama-2 && torchrun"
-	// llamaTextInferenceFile       = "inference-api.py" TODO: To support Text Generation Llama Models
-	llamaChatInferenceFile = "inference-api.py"
 	llamaRunParams         = map[string]string{
 		"max_seq_len":    "512",
 		"max_batch_size": "8",
 	}
 
 	baseCommandPresetFalcon = "accelerate launch --use_deepspeed"
-	falconInferenceFile     = "inference-api.py"
 	falconRunParams         = map[string]string{}
 
 	defaultTorchRunParams = map[string]string{
@@ -93,7 +90,7 @@ var (
 		"gpu_ids":       DefaultGPUIds,
 	}
 
-	defaultAccessMode       = "public"
+	defaultImageAccessMode  = "public"
 	defaultImagePullSecrets = []corev1.LocalObjectReference{}
 )
 
@@ -122,7 +119,7 @@ var (
 		"gpu_ids":       DefaultGPUIds,
 	}
 
-	DefaultAccessMode       = "public"
+	DefaultImageAccessMode  = "public"
 	DefaultImagePullSecrets = []corev1.LocalObjectReference{}
 )
 
@@ -132,172 +129,152 @@ var (
 	Llama2PresetInferences = map[string]model.PresetInferenceParam{
 
 		PresetLlama2AChat: {
-			ModelName:                 "LLaMa2",
+			ModelFamilyName:           "LLaMa2",
 			Image:                     "",
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "34Gi",
 			GPUCountRequirement:       "1",
 			TotalGPUMemoryRequirement: "16Gi",
 			TorchRunParams:            defaultTorchRunParams,
 			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
 			ModelRunParams:            llamaRunParams,
-			InferenceFile:             llamaChatInferenceFile,
 			DeploymentTimeout:         time.Duration(10) * time.Minute,
 			BaseCommand:               baseCommandPresetLlama,
 			WorldSize:                 1,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2AModel: {
-			ModelName:                 "LLaMa2",
+			ModelFamilyName:           "LLaMa2",
 			Image:                     "",
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "34Gi",
 			GPUCountRequirement:       "1",
 			TotalGPUMemoryRequirement: "16Gi",
 			TorchRunParams:            defaultTorchRunParams,
 			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
 			ModelRunParams:            llamaRunParams,
-			InferenceFile:             llamaChatInferenceFile,
 			DeploymentTimeout:         time.Duration(10) * time.Minute,
 			BaseCommand:               baseCommandPresetLlama,
 			WorldSize:                 1,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2BChat: {
-			ModelName:                 "LLaMa2",
+			ModelFamilyName:           "LLaMa2",
 			Image:                     "",
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "46Gi",
 			GPUCountRequirement:       "2",
 			TotalGPUMemoryRequirement: "16Gi",
 			TorchRunParams:            defaultTorchRunParams,
 			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
 			ModelRunParams:            llamaRunParams,
-			InferenceFile:             llamaChatInferenceFile,
 			DeploymentTimeout:         time.Duration(20) * time.Minute,
 			BaseCommand:               baseCommandPresetLlama,
 			WorldSize:                 2,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2BModel: {
-			ModelName:                 "LLaMa2",
+			ModelFamilyName:           "LLaMa2",
 			Image:                     "",
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "46Gi",
 			GPUCountRequirement:       "2",
 			TotalGPUMemoryRequirement: "16Gi",
 			TorchRunParams:            defaultTorchRunParams,
 			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
 			ModelRunParams:            llamaRunParams,
-			InferenceFile:             llamaChatInferenceFile,
 			DeploymentTimeout:         time.Duration(20) * time.Minute,
 			BaseCommand:               baseCommandPresetLlama,
 			WorldSize:                 2,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2CChat: {
-			ModelName:                 "LLaMa2",
+			ModelFamilyName:           "LLaMa2",
 			Image:                     "",
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "158Gi",
 			GPUCountRequirement:       "8",
 			TotalGPUMemoryRequirement: "19Gi",
 			TorchRunParams:            defaultTorchRunParams,
 			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
 			ModelRunParams:            llamaRunParams,
-			InferenceFile:             llamaChatInferenceFile,
 			DeploymentTimeout:         time.Duration(30) * time.Minute,
 			BaseCommand:               baseCommandPresetLlama,
 			WorldSize:                 8,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetLlama2CModel: {
-			ModelName:                 "LLaMa2",
+			ModelFamilyName:           "LLaMa2",
 			Image:                     "",
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "158Gi",
 			GPUCountRequirement:       "8",
 			TotalGPUMemoryRequirement: "19Gi",
 			TorchRunParams:            defaultTorchRunParams,
 			TorchRunRdzvParams:        defaultTorchRunRdzvParams,
 			ModelRunParams:            llamaRunParams,
-			InferenceFile:             llamaChatInferenceFile,
 			DeploymentTimeout:         time.Duration(30) * time.Minute,
 			BaseCommand:               baseCommandPresetLlama,
 			WorldSize:                 8,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 	}
 
 	// FalconPresetInferences defines the preset inferences for Falcon.
 	FalconPresetInferences = map[string]model.PresetInferenceParam{
 		PresetFalcon7BModel: {
-			ModelName:                 "Falcon",
+			ModelFamilyName:           "Falcon",
 			Image:                     presetFalcon7bImage,
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "50Gi",
 			GPUCountRequirement:       "1",
 			TotalGPUMemoryRequirement: "14Gi",
 			TorchRunParams:            defaultAccelerateParams,
 			ModelRunParams:            falconRunParams,
-			InferenceFile:             falconInferenceFile,
 			DeploymentTimeout:         time.Duration(30) * time.Minute,
 			BaseCommand:               baseCommandPresetFalcon,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 		PresetFalcon7BInstructModel: {
-			ModelName:                 "Falcon",
+			ModelFamilyName:           "Falcon",
 			Image:                     presetFalcon7bInstructImage,
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "50Gi",
 			GPUCountRequirement:       "1",
 			TotalGPUMemoryRequirement: "14Gi",
 			TorchRunParams:            defaultAccelerateParams,
 			ModelRunParams:            falconRunParams,
-			InferenceFile:             falconInferenceFile,
 			DeploymentTimeout:         time.Duration(30) * time.Minute,
 			BaseCommand:               baseCommandPresetFalcon,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 
 		PresetFalcon40BModel: {
-			ModelName:                 "Falcon",
+			ModelFamilyName:           "Falcon",
 			Image:                     presetFalcon40bImage,
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "400",
 			GPUCountRequirement:       "2",
 			TotalGPUMemoryRequirement: "90Gi",
 			TorchRunParams:            defaultAccelerateParams,
 			ModelRunParams:            falconRunParams,
-			InferenceFile:             falconInferenceFile,
 			DeploymentTimeout:         time.Duration(30) * time.Minute,
 			BaseCommand:               baseCommandPresetFalcon,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 
 		PresetFalcon40BInstructModel: {
-			ModelName:                 "Falcon",
+			ModelFamilyName:           "Falcon",
 			Image:                     presetFalcon40bInstructImage,
 			ImagePullSecrets:          defaultImagePullSecrets,
-			AccessMode:                defaultAccessMode,
+			ImageAccessMode:           defaultImageAccessMode,
 			DiskStorageRequirement:    "400",
 			GPUCountRequirement:       "2",
 			TotalGPUMemoryRequirement: "90Gi",
 			TorchRunParams:            defaultAccelerateParams,
 			ModelRunParams:            falconRunParams,
-			InferenceFile:             falconInferenceFile,
 			DeploymentTimeout:         time.Duration(30) * time.Minute,
 			BaseCommand:               baseCommandPresetFalcon,
-			DefaultVolumeMountPath:    "/dev/shm",
 		},
 	}
 )

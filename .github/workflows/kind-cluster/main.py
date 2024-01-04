@@ -1,10 +1,11 @@
-import subprocess
 import os
-import shutil
-from pathlib import Path
-import time
 import random
+import shutil
 import string
+import subprocess
+import time
+from pathlib import Path
+
 import yaml
 
 KAITO_REPO_URL = "https://github.com/Azure/kaito.git"
@@ -85,7 +86,8 @@ def write_job_file(job_yaml, job_name):
 def populate_job_template(model, img_tag, job_name, env_vars):
     """Populate the job template with provided values."""
     try:
-        with open("/home/azureuser/docker-job-template.yaml", "r") as file:
+        docker_job_template = Path.cwd() / "repo/.github/workflows/kind-cluster/docker-job-template.yaml"
+        with open(docker_job_template, "r") as file:
             job_template = file.read()
 
         replacements = {
@@ -145,10 +147,10 @@ def check_job_status(job_name):
         return "succeeded"
     elif failed and int(failed) > 0:
         return "failed"
-    else:
+    else: 
         return "running"
 
-def wait_for_jobs_to_complete(job_names, timeout=3600):
+def wait_for_jobs_to_complete(job_names, timeout=10800):
     """Wait for all jobs to complete with a timeout."""
     start_time = time.time()
     while time.time() - start_time < timeout:
