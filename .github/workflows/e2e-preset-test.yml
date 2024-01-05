@@ -39,7 +39,7 @@ jobs:
   e2e-preset-tests:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     needs: setup
-    runs-on: self-hosted
+    runs-on: [self-hosted, 'username:runner-3']
     strategy:
       fail-fast: false
       matrix:
@@ -125,7 +125,7 @@ jobs:
       - name: 'Az CLI login'
         uses: azure/login@v1.4.6
         with:
-            client-id: ${{ secrets.AZURE_KDM_PRESET_SELF_RUNNER_CLIENT_ID }}
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
             allow-no-subscriptions: true
       
