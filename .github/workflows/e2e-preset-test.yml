@@ -222,7 +222,7 @@ jobs:
         if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
             sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            sed -i "s/TAG_HERE/${{ needs.setup.outputs.IMG_TAG }}/g" presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/TAG_HERE/${{ needs.setup.outputs.image_tag }}/g" presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
             sed -i "s/REPO_HERE/${{ steps.get_acr_name.outputs.ACR_NAME }}/g" presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
             kubectl apply -f presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
     
