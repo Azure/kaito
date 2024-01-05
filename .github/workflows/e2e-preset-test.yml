@@ -12,6 +12,7 @@ on:
                 required: true
 env:
     GO_VERSION: "1.20"
+    VERSION: 0.0.1
 
 permissions:
     id-token: write
@@ -19,66 +20,21 @@ permissions:
 
 jobs:
   setup:
-    if: false
-    # if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: self-hosted
     outputs: 
-        IMG_TAG: ${{ steps.set_final_tag.outputs.IMG_TAG }}
-    steps: 
-      - name: Determine tag from dispatch
-        if: github.event_name == 'workflow_dispatch'
-        id: determine_tag
-        run: echo "IMG_TAG=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
-
-      - name: Download tag artifact
-        if: github.event_name == 'workflow_run'
-        uses: actions/github-script@v7
-        with:
-            github-token: ${{ secrets.KAITO_ACCESS_TOKEN_READ }}
-            script: |
-                let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    run_id: context.payload.workflow_run.id,
-                });
-                let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
-                    return artifact.name == "artifacts"
-                })[0];
-                let download = await github.rest.actions.downloadArtifact({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    artifact_id: matchArtifact.id,
-                    archive_format: 'zip',
-                });
-                let fs = require('fs');
-                fs.writeFileSync(`/tmp/artifacts.zip`, Buffer.from(download.data));
-      - name: Unzip tag artifact
-        if: github.event_name == 'workflow_run'
+      image_tag: ${{ steps.set_tag.outputs.image_tag }}
+    steps:
+      - name: Set Image Tag
+        id: set_tag
         run: |
-          mkdir -p /tmp/artifacts
-          unzip -o /tmp/artifacts.zip -d /tmp/artifacts
-        shell: bash
-      - name: Display downloaded aritifacts
-        if: github.event_name == 'workflow_run'
-        run: |
-          echo "Downloaded artifacts:"
-          ls -ablh /tmp/artifacts
-        shell: bash
-      - name: Parse artifacts and assign GA environment variables
-        if: github.event_name == 'workflow_run'
-        id: get_image_tag
-        run: |
-            tag=$(tail -n 1 /tmp/artifacts/tag.txt)
-            echo "IMG_TAG=$tag" >> $GITHUB_OUTPUT
-
-      - name: Set final image tag
-        id: set_final_tag
-        run: |
-            if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-                echo "IMG_TAG=${{ steps.determine_tag.outputs.IMG_TAG }}" >> $GITHUB_OUTPUT
-            else
-                echo "IMG_TAG=${{ steps.get_image_tag.outputs.IMG_TAG }}" >> $GITHUB_OUTPUT
-            fi
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag }}" ]]; then
+            echo "Using workflow dispatch to set image tag"
+            echo "image_tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "Setting image tag based on version set"
+            echo "image_tag=${{ env.VERSION }}" >> $GITHUB_OUTPUT
+          fi
 
   e2e-preset-tests:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
@@ -151,7 +107,7 @@ jobs:
         id: get_acr_name
         run: |
             # Set the ACR based on the tag value
-            if [[ "${{ needs.setup.outputs.IMG_TAG }}" == "latest" ]]; then
+            if [[ "${{ needs.setup.outputs.image_tag }}" == "latest" ]]; then
               echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
             else
               echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
@@ -181,7 +137,7 @@ jobs:
         run: |
             ACR_NAME=${{ steps.get_acr_name.outputs.ACR_NAME }}
             IMAGE_NAME=${{ matrix.image.name }}
-            TAG=${{ needs.setup.outputs.IMG_TAG }}
+            TAG=${{ needs.setup.outputs.image_tag }}
         
             TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv)
         
