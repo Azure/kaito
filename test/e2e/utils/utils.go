@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -45,7 +45,7 @@ func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount 
 			Namespace: namespace,
 		},
 		Resource: kaitov1alpha1.ResourceSpec{
-			Count:          to.Ptr(resourceCount),
+			Count:          lo.ToPtr(resourceCount),
 			InstanceType:   instanceType,
 			LabelSelector:  labelSelector,
 			PreferredNodes: preferredNodes,
