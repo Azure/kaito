@@ -1,10 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
-# System
 import argparse
 import os
-# API
 from typing import List, Optional
 
 import torch
@@ -12,7 +9,6 @@ import transformers
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-# ML
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 parser = argparse.ArgumentParser(description='Falcon Model Configuration')
