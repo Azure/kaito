@@ -76,7 +76,6 @@ class GenerationParams(BaseModel):
     forced_eos_token_id: Optional[int] = None
     remove_invalid_values: Optional[bool] = None
 
-
 @app.post("/chat")
 def generate_text(params: GenerationParams):
     sequences = pipeline(
