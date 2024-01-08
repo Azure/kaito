@@ -141,7 +141,7 @@ jobs:
         uses: azure/CLI@v1.0.9
         with:
           inlineScript: |
-            az acr login --name ${{secrets.DOCKER_SERVER}}
+            az acr login --name ${{ secrets.DOCKER_SERVER }} --expose-token
             az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} --attach-acr ${{secrets.ACR_AIMODELSREGISTRY}}
 
       - name: Add Secret Credentials
