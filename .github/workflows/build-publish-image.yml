@@ -36,7 +36,7 @@ jobs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION  }}
       - name: Checkout
