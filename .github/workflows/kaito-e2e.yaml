@@ -75,8 +75,9 @@ jobs:
 
       - name: Create Azure Identity
         uses: azure/CLI@v1.0.9
-        inlineScript: |
-          az identity create --name gpuIdentity --resource-group  ${{ env.CLUSTER_NAME }}
+        with:
+          inlineScript: |
+            az identity create --name gpuIdentity --resource-group  ${{ env.CLUSTER_NAME }}
 
       - name: build KAITO image
         shell: bash
@@ -112,16 +113,18 @@ jobs:
 
       - name: Create Role Assignment
         uses: azure/CLI@v1.0.9
-        inlineScript: |
-          IDENTITY_PRINCIPAL_ID="$(az identity show --name gpuIdentity --resource-group ${{ env.CLUSTER_NAME }} --query 'principalId' -otsv)"
-          az role assignment create --assignee ${IDENTITY_PRINCIPAL_ID} --scope "/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.CLUSTER_NAME }}"  --role "Contributor"
+        with:
+          inlineScript: |
+            IDENTITY_PRINCIPAL_ID="$(az identity show --name gpuIdentity --resource-group ${{ env.CLUSTER_NAME }} --query 'principalId' -otsv)"
+            az role assignment create --assignee ${IDENTITY_PRINCIPAL_ID} --scope "/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.CLUSTER_NAME }}"  --role "Contributor"
 
       - name: Create Azure Federated Identity
         uses: azure/CLI@v1.0.9
-        inlineScript: |
-          AKS_OIDC_ISSUER="$(az aks show -n "${{ env.CLUSTER_NAME }}" -g "${{ env.CLUSTER_NAME }}" --query 'oidcIssuerProfile.issuerUrl' -otsv)"
-          az identity federated-credential create --name gpu-fed-credential --identity-name gpuIdentity --resource-group "${{ env.CLUSTER_NAME }}" \
-           --issuer "${AKS_OIDC_ISSUER}" --subject system:serviceaccount:"gpu-provisioner:gpu-provisioner" --audience api://AzureADTokenExchange
+        with:
+          inlineScript: |
+            AKS_OIDC_ISSUER="$(az aks show -n "${{ env.CLUSTER_NAME }}" -g "${{ env.CLUSTER_NAME }}" --query 'oidcIssuerProfile.issuerUrl' -otsv)"
+            az identity federated-credential create --name gpu-fed-credential --identity-name gpuIdentity --resource-group "${{ env.CLUSTER_NAME }}" \
+            --issuer "${AKS_OIDC_ISSUER}" --subject system:serviceaccount:"gpu-provisioner:gpu-provisioner" --audience api://AzureADTokenExchange
 
       - name: Install KAITO Workspace helm chart
         shell: bash
@@ -136,9 +139,10 @@ jobs:
       
       - name: Login to Private Presets ACR
         uses: azure/CLI@v1.0.9
-        inlineScript: |
-          az acr login --name ${{secrets.DOCKER_SERVER}}
-          az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} --attach-acr ${{secrets.ACR_AIMODELSREGISTRY}}
+        with:
+          inlineScript: |
+            az acr login --name ${{ secrets.DOCKER_SERVER }} --expose-token
+            az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} --attach-acr ${{secrets.ACR_AIMODELSREGISTRY}}
 
       - name: Add Secret Credentials
         run: |
@@ -164,6 +168,7 @@ jobs:
       - name: Cleanup e2e resources
         if: ${{ always() }}
         uses: azure/CLI@v1.0.9
-        inlineScript: |
-          set +e
-          az group delete --name "${{ env.CLUSTER_NAME }}" --yes --no-wait || true
+        with:
+          inlineScript: |
+            set +e
+            az group delete --name "${{ env.CLUSTER_NAME }}" --yes --no-wait || true
