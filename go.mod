@@ -3,7 +3,6 @@ module github.com/azure/kaito
 go 1.20
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.8.0
 	github.com/aws/karpenter-core v0.29.2
 	github.com/go-logr/logr v1.2.4
 	github.com/onsi/ginkgo/v2 v2.9.7

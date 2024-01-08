@@ -14,18 +14,19 @@ on:
 
 env:
   GO_VERSION: "1.20"
+  E2E_IMG_TAG: "kaito-e2e"
 
 permissions:
   id-token: write # This is required for requesting the JWT
   contents: read # This is required for actions/checkout
+
 jobs:
   e2e-tests:
-    env:
-      E2E_IMG_TAG: "kaito-e2e"
     runs-on: ubuntu-latest
+    environment: e2e-test
     steps:
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION  }}
 
@@ -52,24 +53,12 @@ jobs:
           echo "RUN_LLAMA_13B=false" >> $GITHUB_ENV
           echo "AI_MODELS_IMAGE_VERSION=0.0.1" >> $GITHUB_ENV 
 
-      - name: Install Azure CLI latest
-        run: |
-            if ! which az > /dev/null; then
-                echo "Azure CLI not found. Installing..."
-                curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-            else
-                echo "Azure CLI already installed."
-            fi
-
-      - uses: azure/login@v1.4.6
+      - uses: azure/login@v1.5.1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
-    
-      - name: 'Set subscription'
-        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
-      
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - uses: azure/setup-helm@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -85,8 +74,9 @@ jobs:
           AZURE_ACR_NAME: ${{ env.CLUSTER_NAME }}
 
       - name: Create Azure Identity
-        shell: bash
-        run: |
+        uses: azure/CLI@v1.0.9
+        with:
+          inlineScript: |
             az identity create --name gpuIdentity --resource-group  ${{ env.CLUSTER_NAME }}
 
       - name: build KAITO image
@@ -115,24 +105,26 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
 
-      - uses: azure/login@v1.4.6
+      - uses: azure/login@v1.5.1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Create Role Assignment
-        shell: bash
-        run: |
-          IDENTITY_PRINCIPAL_ID="$(az identity show --name gpuIdentity --resource-group ${{ env.CLUSTER_NAME }} --query 'principalId' -otsv)"
-          az role assignment create --assignee ${IDENTITY_PRINCIPAL_ID} --scope "/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.CLUSTER_NAME }}"  --role "Contributor"
+        uses: azure/CLI@v1.0.9
+        with:
+          inlineScript: |
+            IDENTITY_PRINCIPAL_ID="$(az identity show --name gpuIdentity --resource-group ${{ env.CLUSTER_NAME }} --query 'principalId' -otsv)"
+            az role assignment create --assignee ${IDENTITY_PRINCIPAL_ID} --scope "/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.CLUSTER_NAME }}"  --role "Contributor"
 
       - name: Create Azure Federated Identity
-        shell: bash
-        run: |
-          AKS_OIDC_ISSUER="$(az aks show -n "${{ env.CLUSTER_NAME }}" -g "${{ env.CLUSTER_NAME }}" --query 'oidcIssuerProfile.issuerUrl' -otsv)"
-          az identity federated-credential create --name gpu-fed-credential --identity-name gpuIdentity --resource-group "${{ env.CLUSTER_NAME }}" \
-           --issuer "${AKS_OIDC_ISSUER}" --subject system:serviceaccount:"gpu-provisioner:gpu-provisioner" --audience api://AzureADTokenExchange
+        uses: azure/CLI@v1.0.9
+        with:
+          inlineScript: |
+            AKS_OIDC_ISSUER="$(az aks show -n "${{ env.CLUSTER_NAME }}" -g "${{ env.CLUSTER_NAME }}" --query 'oidcIssuerProfile.issuerUrl' -otsv)"
+            az identity federated-credential create --name gpu-fed-credential --identity-name gpuIdentity --resource-group "${{ env.CLUSTER_NAME }}" \
+            --issuer "${AKS_OIDC_ISSUER}" --subject system:serviceaccount:"gpu-provisioner:gpu-provisioner" --audience api://AzureADTokenExchange
 
       - name: Install KAITO Workspace helm chart
         shell: bash
@@ -146,9 +138,11 @@ jobs:
           VERSION: ${{ env.VERSION }}
       
       - name: Login to Private Presets ACR
-        run: |
-          az acr login --name ${{secrets.DOCKER_SERVER}}
-          az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} --attach-acr ${{secrets.ACR_AIMODELSREGISTRY}}
+        uses: azure/CLI@v1.0.9
+        with:
+          inlineScript: |
+            az acr login --name ${{ secrets.DOCKER_SERVER }} --expose-token
+            az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} --attach-acr ${{secrets.ACR_AIMODELSREGISTRY}}
 
       - name: Add Secret Credentials
         run: |
@@ -173,6 +167,8 @@ jobs:
 
       - name: Cleanup e2e resources
         if: ${{ always() }}
-        run: |
-          set +e
-          az group delete --name "${{ env.CLUSTER_NAME }}" --yes --no-wait || true
+        uses: azure/CLI@v1.0.9
+        with:
+          inlineScript: |
+            set +e
+            az group delete --name "${{ env.CLUSTER_NAME }}" --yes --no-wait || true
