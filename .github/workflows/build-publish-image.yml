@@ -107,7 +107,7 @@ jobs:
           mkdir -p /tmp/artifacts
           echo ${{ needs.create-tag.outputs.tag }} >> /tmp/artifacts/tag.txt
           cat /tmp/artifacts/tag.txt
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: artifacts
           path: /tmp/artifacts
