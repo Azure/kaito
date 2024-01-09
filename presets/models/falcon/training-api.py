@@ -41,4 +41,47 @@ config = LoraConfig(
 )
 
 model = get_peft_model(model, config)
+model.print_trainable_parameters()
 
+
+# Loading and Preparing the Dataset 
+
+def generate_prompt(data_point):
+  return f"""
+<Human>: {data_point["Context"]}
+<AI>: {data_point["Response"]}
+  """.strip()
+
+def generate_and_tokenize_prompt(data_point):
+  full_prompt = generate_prompt(data_point)
+  tokenized_full_prompt = tokenizer(full_prompt, padding=True, truncation=True)
+  return tokenized_full_prompt
+
+from datasets import load_dataset
+
+dataset_name = 'Amod/mental_health_counseling_conversations'
+dataset = load_dataset(dataset_name, split="train")
+
+dataset = dataset.shuffle().map(generate_and_tokenize_prompt)
+
+# Setting Up the Training Arguments
+training_args = transformers.TrainingArguments(
+    auto_find_batch_size=True, # Auto finds largest batch size that fits into memory
+    num_train_epochs=4, # # of training epichs
+    learning_rate=2e-4, # lr
+    bf16=True, # precision
+    save_total_limit=4, # Total # of ckpts to save
+    logging_steps=10, # # of steps between each logging
+    output_dir=".", #  Dir where model ckpts saved
+    save_strategy='epoch', # Strategy for saving ckpts. Here ckpt saved after each epoch
+)
+
+# Training the Model
+trainer = transformers.Trainer(
+    model=model,
+    train_dataset=dataset,
+    args=training_args,
+    data_collator=transformers.DataCollatorForLanguageModeling(tokenizer, mlm=False),
+)
+model.config.use_cache = False
+trainer.train()
