@@ -71,6 +71,10 @@ def main():
             job_name = f"{model}-{unique_id}"
             job_yaml = populate_job_template(model, img_tag, job_name, os.environ)
             write_job_file(job_yaml, job_name)
+
+            output = run_command(f"ls {get_weights_path(model)}")
+            print("Model Weights:", output)
+
             run_command(f"kubectl apply -f {job_name}-job.yaml")
             job_names.append(job_name)
     
@@ -150,7 +154,7 @@ def check_job_status(job_name):
     else: 
         return "running"
 
-def wait_for_jobs_to_complete(job_names, timeout=10800):
+def wait_for_jobs_to_complete(job_names, timeout=21600):
     """Wait for all jobs to complete with a timeout."""
     start_time = time.time()
     while time.time() - start_time < timeout:
