@@ -4,26 +4,17 @@ package model
 
 import (
 	"time"
-
-	corev1 "k8s.io/api/core/v1"
 )
 
 type Model interface {
-	GetImageInfo() *PresetImageInfo
 	GetInferenceParameters() *PresetInferenceParam
 	SupportDistributedInference() bool //If true, the model workload will be a StatefulSet, using the torch elastic runtime framework.
-}
-
-// PresetImageInfo defines the preset image information for a model.
-type PresetImageInfo struct {
-	Image            string                        // Docker image used for running the inference.
-	ImagePullSecrets []corev1.LocalObjectReference // Secrets for pulling the image from a private registry.
-	ImageAccessMode  string                        // Defines where the Image is Public or Private.
 }
 
 // PresetInferenceParam defines the preset inference parameters for a model.
 type PresetInferenceParam struct {
 	ModelFamilyName           string            // The name of the model family.
+	ImageAccessMode           string            // Defines where the Image is Public or Private.
 	DiskStorageRequirement    string            // Disk storage requirements for the model.
 	GPUCountRequirement       string            // Number of GPUs required for the inference.
 	TotalGPUMemoryRequirement string            // Total GPU memory required for the inference.

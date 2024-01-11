@@ -5,6 +5,7 @@ package llama2chat
 import (
 	"time"
 
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/inference"
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils/plugin"
@@ -37,17 +38,10 @@ var llama2chatA llama2Chat7b
 
 type llama2Chat7b struct{}
 
-func (*llama2Chat7b) GetImageInfo() *model.PresetImageInfo {
-	return &model.PresetImageInfo{
-		Image:            "",
-		ImagePullSecrets: inference.DefaultImagePullSecrets,
-		ImageAccessMode:  inference.DefaultImageAccessMode,
-	}
-}
-
 func (*llama2Chat7b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "34Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
@@ -69,17 +63,10 @@ var llama2chatB llama2Chat13b
 
 type llama2Chat13b struct{}
 
-func (*llama2Chat13b) GetImageInfo() *model.PresetImageInfo {
-	return &model.PresetImageInfo{
-		Image:            "",
-		ImagePullSecrets: inference.DefaultImagePullSecrets,
-		ImageAccessMode:  inference.DefaultImageAccessMode,
-	}
-}
-
 func (*llama2Chat13b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "46Gi",
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "30Gi",
@@ -100,17 +87,10 @@ var llama2chatC llama2Chat70b
 
 type llama2Chat70b struct{}
 
-func (*llama2Chat70b) GetImageInfo() *model.PresetImageInfo {
-	return &model.PresetImageInfo{
-		Image:            "",
-		ImagePullSecrets: inference.DefaultImagePullSecrets,
-		ImageAccessMode:  inference.DefaultImageAccessMode,
-	}
-}
-
 func (*llama2Chat70b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "158Gi",
 		GPUCountRequirement:       "8",
 		TotalGPUMemoryRequirement: "192Gi",
