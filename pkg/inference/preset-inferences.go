@@ -10,6 +10,7 @@ import (
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/resources"
+	"github.com/azure/kaito/pkg/utils/plugin"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -18,9 +19,9 @@ import (
 )
 
 const (
-	ProbePath = "/healthz"
-	Port5000  = int32(5000)
-	InferenceFile = "inference-api.py"
+	ProbePath              = "/healthz"
+	Port5000               = int32(5000)
+	InferenceFile          = "inference-api.py"
 	DefaultVolumeMountPath = "/dev/shm"
 )
 
@@ -102,13 +103,14 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 
 	volume, volumeMount := configVolume(workspaceObj, inferenceObj)
 	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj)
+	presetImageInfo := plugin.KaitoModelRegister.MustGet(string(workspaceObj.Inference.Preset.Name)).GetImageInfo()
 
 	var depObj client.Object
 	if supportDistributedInference {
-		depObj = resources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
+		depObj = resources.GenerateStatefulSetManifest(ctx, workspaceObj, presetImageInfo.Image, presetImageInfo.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
 			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
 	} else {
-		depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
+		depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, presetImageInfo.Image, presetImageInfo.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
 			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
 	}
 	err := resources.CreateResource(ctx, depObj, kubeClient)

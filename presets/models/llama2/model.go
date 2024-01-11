@@ -37,12 +37,17 @@ var llama2A llama2Text7b
 
 type llama2Text7b struct{}
 
+func (*llama2Text7b) GetImageInfo() *model.PresetImageInfo {
+	return &model.PresetImageInfo{
+		Image:            "",
+		ImagePullSecrets: inference.DefaultImagePullSecrets,
+		ImageAccessMode:  inference.DefaultImageAccessMode,
+	}
+}
+
 func (*llama2Text7b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
-		Image:                     "",
-		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		ImageAccessMode:           inference.DefaultImageAccessMode,
 		DiskStorageRequirement:    "34Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "14Gi",
@@ -64,12 +69,17 @@ var llama2B llama2Text13b
 
 type llama2Text13b struct{}
 
+func (*llama2Text13b) GetImageInfo() *model.PresetImageInfo {
+	return &model.PresetImageInfo{
+		Image:            "",
+		ImagePullSecrets: inference.DefaultImagePullSecrets,
+		ImageAccessMode:  inference.DefaultImageAccessMode,
+	}
+}
+
 func (*llama2Text13b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
-		Image:                     "",
-		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		ImageAccessMode:           inference.DefaultImageAccessMode,
 		DiskStorageRequirement:    "46Gi",
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "30Gi",
@@ -90,12 +100,17 @@ var llama2C llama2Text70b
 
 type llama2Text70b struct{}
 
+func (*llama2Text70b) GetImageInfo() *model.PresetImageInfo {
+	return &model.PresetImageInfo{
+		Image:            "",
+		ImagePullSecrets: inference.DefaultImagePullSecrets,
+		ImageAccessMode:  inference.DefaultImageAccessMode,
+	}
+}
+
 func (*llama2Text70b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
-		Image:                     "",
-		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		ImageAccessMode:           inference.DefaultImageAccessMode,
 		DiskStorageRequirement:    "158Gi",
 		GPUCountRequirement:       "8",
 		TotalGPUMemoryRequirement: "152Gi",

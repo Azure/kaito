@@ -16,7 +16,6 @@ import (
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/inference"
 	"github.com/azure/kaito/pkg/machine"
-	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/resources"
 	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/plugin"
@@ -419,19 +418,6 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 	return nil
 }
 
-func (c *WorkspaceReconciler) updateInferenceParamFromWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace, inferenceParam *model.PresetInferenceParam) {
-	inferenceParam.ImageAccessMode = string(wObj.Inference.Preset.PresetMeta.AccessMode)
-	if inferenceParam.ImageAccessMode == "private" && wObj.Inference.Preset.PresetOptions.Image != "" {
-		inferenceParam.Image = wObj.Inference.Preset.PresetOptions.Image
-
-		imagePullSecretRefs := []corev1.LocalObjectReference{}
-		for _, secretName := range wObj.Inference.Preset.PresetOptions.ImagePullSecrets {
-			imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
-		}
-		inferenceParam.ImagePullSecrets = imagePullSecretRefs
-	}
-}
-
 // applyInference applies inference spec.
 func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
 	var err error
@@ -452,7 +438,6 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 
 			inferenceParam := model.GetInferenceParameters()
 
-			c.updateInferenceParamFromWorkspace(ctx, wObj, inferenceParam)
 			// TODO: we only do create if it does not exist for preset model. Need to document it.
 
 			var existingObj client.Object
