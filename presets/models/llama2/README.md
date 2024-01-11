@@ -1,5 +1,3 @@
-# llama2
-
 ## Supported Models
 |Model name| Model source | Sample workspace|Kubernetes Workload|Distributed inference|
 |----|:----:|:----:| :----: |:----: |
@@ -12,7 +10,7 @@
 
 ### Build llama2 private images
 
-#### 1. Clone Kaito Repository
+#### 1. Clone kaito repository
 ```
 git clone https://github.com/Azure/kaito.git
 ```
@@ -32,8 +30,8 @@ Use the following command to build the llama2 inference service image from the r
 ```
 docker build \
   --file docker/presets/llama-2/Dockerfile \
-  --build-arg LLAMA_WEIGHTS=$LLAMA_WEIGHTS_PATH \
-  --build-arg SRC_DIR=presets/llama2 \
+  --build-arg WEIGHTS_PATH=$LLAMA_WEIGHTS_PATH \
+  --build-arg MODEL_PRESET_PATH=presets/models/llama2 \
   -t $LLAMA_MODEL_NAME:latest .
 ```
 
