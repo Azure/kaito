@@ -10,6 +10,8 @@ on:
       - main
     paths:
       - 'presets/models/**'
+    paths-ignore:
+      - 'presets/models/**/*.md'  # Ignore markdown files in the path
   workflow_dispatch:
     inputs:
       image_tag_name:
