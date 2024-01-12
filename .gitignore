@@ -29,3 +29,5 @@ hack/tools/bin/*
 .DS_Store
 /coverage.txt
 
+# values override file for helm chart installation
+values.override.yaml
