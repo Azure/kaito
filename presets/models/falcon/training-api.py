@@ -8,6 +8,7 @@ import bitsandbytes as bnb
 import torch
 import transformers
 import uvicorn
+from accelerate import Accelerator
 from datasets import load_dataset
 from fastapi import FastAPI, HTTPException
 from peft import (LoraConfig, PeftConfig, get_peft_model,
@@ -21,6 +22,7 @@ parser.add_argument('--load_in_8bit', default=False, action='store_true', help='
 args = parser.parse_args()
 
 app = FastAPI()
+accelerator = Accelerator()
 
 # Load the Pre-Trained Model
 tokenizer = AutoTokenizer.from_pretrained("/workspace/tfs/weights")
@@ -35,9 +37,9 @@ bnb_config = BitsAndBytesConfig(
 
 model = AutoModelForCausalLM.from_pretrained(
     "/workspace/tfs/weights", # args.model_id,
-    device_map="auto",
-    torch_dtype=torch.bfloat16,
-    load_in_8bit=args.load_in_8bit,
+    device_map={"": accelerator.process_index},
+    # torch_dtype=torch.bfloat16,
+    # load_in_8bit=args.load_in_8bit,
     quantization_config=bnb_config,
 )
 
@@ -58,22 +60,10 @@ model = get_peft_model(model, config)
 model.config.use_cache = False
 model.print_trainable_parameters()
 
-
 # Loading and Preparing the Dataset 
 def preprocess_data(example):
     prompt = f"<Human>: {example['Context']}\n<AI>: {example['Response']}".strip()
     return tokenizer(prompt, padding=True, truncation=True)
-
-# def generate_prompt(data_point):
-#   return f"""
-# <Human>: {data_point["Context"]}
-# <AI>: {data_point["Response"]}
-#   """.strip()
-
-# def generate_and_tokenize_prompt(data_point):
-#   full_prompt = generate_prompt(data_point)
-#   tokenized_full_prompt = tokenizer(full_prompt, padding=True, truncation=True)
-#   return tokenized_full_prompt
 
 dataset_name = 'Amod/mental_health_counseling_conversations'
 dataset = load_dataset(dataset_name, split="train").shuffle()
@@ -82,6 +72,10 @@ dataset = dataset.map(preprocess_data)
 # Setting Up the Training Arguments
 training_args = transformers.TrainingArguments(
     # auto_find_batch_size=True, # Auto finds largest batch size that fits into memory
+    gradient_checkpointing_kwargs={"use_reentrant": False},
+    gradient_checkpointing=False,
+    ddp_backend="nccl",
+    ddp_find_unused_parameters=False,
     per_device_train_batch_size=1,
     num_train_epochs=4, # Number of training epochs
     learning_rate=2e-4, # lr
