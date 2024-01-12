@@ -4,6 +4,7 @@ import argparse
 import os
 from typing import List, Optional
 
+import GPUtil
 import torch
 import transformers
 import uvicorn
@@ -111,6 +112,26 @@ def generate_text(params: GenerationParams):
         result += seq['generated_text']
 
     return {"Result": result}
+
+@app.get("/metrics")
+def get_metrics():
+    try:
+        gpus = GPUtil.getGPUs()
+        gpu_info = []
+        for gpu in gpus:
+            gpu_info.append({
+                "id": gpu.id,
+                "name": gpu.name,
+                "load": f"{gpu.load * 100:.2f}%",  # Format as percentage
+                "temperature": f"{gpu.temperature} C",
+                "memory": {
+                    "used": f"{gpu.memoryUsed / 1024:.2f} GB",
+                    "total": f"{gpu.memoryTotal / 1024:.2f} GB"
+                }
+            })
+        return {"gpu_info": gpu_info}
+    except Exception as e:
+        return {"error": str(e)}
 
 if __name__ == "__main__":
     local_rank = int(os.environ.get("LOCAL_RANK", 0)) # Default to 0 if not set
