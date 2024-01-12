@@ -1,38 +1,30 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-# System
-import os
 import argparse
-
-# API
+import os
 from typing import List, Optional
-from pydantic import BaseModel
-from fastapi import FastAPI, HTTPException
-import uvicorn
 
-# ML
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import transformers
 import torch
-# import torch.distributed as dist
+import transformers
+import uvicorn
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 parser = argparse.ArgumentParser(description='Falcon Model Configuration')
 parser.add_argument('--load_in_8bit', default=False, action='store_true', help='Load model in 8-bit mode')
-parser.add_argument('--disable_trust_remote_code', default=False, action='store_true', help='Disable trusting remote code when loading the model')
 # parser.add_argument('--model_id', required=True, type=str, help='The Falcon ID for the pre-trained model')
 args = parser.parse_args()
 
 app = FastAPI()
 
-tokenizer = AutoTokenizer.from_pretrained("/workspace/tfs/weights")
+tokenizer = AutoTokenizer.from_pretrained("/workspace/tfs/weights", local_files_only=True)
 model = AutoModelForCausalLM.from_pretrained(
     "/workspace/tfs/weights", # args.model_id,
     device_map="auto",
     torch_dtype=torch.bfloat16,
-    trust_remote_code=not args.disable_trust_remote_code, # Use NOT since our flag disables the trust
     load_in_8bit=args.load_in_8bit,
-    # offload_folder="offload",
-    # offload_state_dict = True
+    local_files_only=True
 )
 
 pipeline = transformers.pipeline(
@@ -40,7 +32,6 @@ pipeline = transformers.pipeline(
     model=model,
     tokenizer=tokenizer,
     torch_dtype=torch.bfloat16,
-    trust_remote_code=True,
     device_map="auto",
 )
 
@@ -84,7 +75,6 @@ class GenerationParams(BaseModel):
     forced_bos_token_id: Optional[int] = None
     forced_eos_token_id: Optional[int] = None
     remove_invalid_values: Optional[bool] = None
-
 
 @app.post("/chat")
 def generate_text(params: GenerationParams):

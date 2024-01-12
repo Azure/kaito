@@ -17,7 +17,7 @@ jobs:
     environment: publish-mcr
     steps:
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION  }}
       - name: Set Image Tag
@@ -30,7 +30,7 @@ jobs:
           submodules: true
           ref: ${{ env.REPO_TAG }}
       - name: 'Az CLI login'
-        uses: azure/login@v1.4.7
+        uses: azure/login@v1.5.1
         with:
           client-id: ${{ secrets.KAITO_MCR_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}

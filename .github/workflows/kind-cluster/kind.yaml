@@ -5,3 +5,5 @@ nodes:
       extraMounts:
       - hostPath: /home
         containerPath: /home
+      - hostPath: /datadrive
+        containerPath: /datadrive

@@ -5,11 +5,13 @@ on:
       - main
     paths:
       - 'presets/models/**'
+      - '!presets/models/**/*.md'  # Exclude markdown files in the path
   push:
     branches:
       - main
     paths:
       - 'presets/models/**'
+      - '!presets/models/**/*.md'  # Exclude markdown files in the path
   workflow_dispatch:
     inputs:
       image_tag_name:

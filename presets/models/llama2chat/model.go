@@ -31,7 +31,6 @@ var (
 		"max_seq_len":    "512",
 		"max_batch_size": "8",
 	}
-	llamaChatInferenceFile = "inference-api.py"
 )
 
 var llama2chatA llama2Chat7b
@@ -40,10 +39,10 @@ type llama2Chat7b struct{}
 
 func (*llama2Chat7b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
-		ModelName:                 "LLaMa2",
+		ModelFamilyName:           "LLaMa2",
 		Image:                     "",
 		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		AccessMode:                inference.DefaultAccessMode,
+		ImageAccessMode:           inference.DefaultImageAccessMode,
 		DiskStorageRequirement:    "34Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
@@ -51,11 +50,9 @@ func (*llama2Chat7b) GetInferenceParameters() *model.PresetInferenceParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		InferenceFile:             llamaChatInferenceFile,
 		DeploymentTimeout:         time.Duration(10) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 1,
-		DefaultVolumeMountPath:    "/dev/shm",
 	}
 
 }
@@ -69,10 +66,10 @@ type llama2Chat13b struct{}
 
 func (*llama2Chat13b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
-		ModelName:                 "LLaMa2",
+		ModelFamilyName:           "LLaMa2",
 		Image:                     "",
 		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		AccessMode:                inference.DefaultAccessMode,
+		ImageAccessMode:           inference.DefaultImageAccessMode,
 		DiskStorageRequirement:    "46Gi",
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "30Gi",
@@ -80,11 +77,9 @@ func (*llama2Chat13b) GetInferenceParameters() *model.PresetInferenceParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		InferenceFile:             llamaChatInferenceFile,
 		DeploymentTimeout:         time.Duration(20) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 2,
-		DefaultVolumeMountPath:    "/dev/shm",
 	}
 }
 func (*llama2Chat13b) SupportDistributedInference() bool {
@@ -97,10 +92,10 @@ type llama2Chat70b struct{}
 
 func (*llama2Chat70b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
-		ModelName:                 "LLaMa2",
+		ModelFamilyName:           "LLaMa2",
 		Image:                     "",
 		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		AccessMode:                inference.DefaultAccessMode,
+		ImageAccessMode:           inference.DefaultImageAccessMode,
 		DiskStorageRequirement:    "158Gi",
 		GPUCountRequirement:       "8",
 		TotalGPUMemoryRequirement: "192Gi",
@@ -108,11 +103,9 @@ func (*llama2Chat70b) GetInferenceParameters() *model.PresetInferenceParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		InferenceFile:             llamaChatInferenceFile,
 		DeploymentTimeout:         time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 8,
-		DefaultVolumeMountPath:    "/dev/shm",
 	}
 }
 func (*llama2Chat70b) SupportDistributedInference() bool {
