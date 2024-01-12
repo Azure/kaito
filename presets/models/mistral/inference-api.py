@@ -1,19 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-# System
-import os
 import argparse
-
-# API
+import os
 from typing import List, Optional
-from pydantic import BaseModel, Field
-from fastapi import FastAPI, HTTPException
-import uvicorn
 
-# ML
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import transformers
+import GPUtil
 import torch
+import transformers
+import uvicorn
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
 
 def dtype_type(string):
     if hasattr(torch, string):
@@ -158,6 +156,25 @@ def generate_text(request_model: UnifiedRequestModel):
     else:
         raise HTTPException(status_code=400, detail="Invalid pipeline type")
 
+@app.get("/metrics")
+def get_metrics():
+    try:
+        gpus = GPUtil.getGPUs()
+        gpu_info = []
+        for gpu in gpus:
+            gpu_info.append({
+                "id": gpu.id,
+                "name": gpu.name,
+                "load": f"{gpu.load * 100:.2f}%",  # Format as percentage
+                "temperature": f"{gpu.temperature} C",
+                "memory": {
+                    "used": f"{gpu.memoryUsed / 1024:.2f} GB",
+                    "total": f"{gpu.memoryTotal / 1024:.2f} GB"
+                }
+            })
+        return {"gpu_info": gpu_info}
+    except Exception as e:
+        return {"error": str(e)}
 
 if __name__ == "__main__":
     local_rank = int(os.environ.get("LOCAL_RANK", 0)) # Default to 0 if not set
