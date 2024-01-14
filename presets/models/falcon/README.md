@@ -1,5 +1,3 @@
-# Falcon
-
 ## Supported Models
 |Model name| Model source | Sample workspace|Kubernetes Workload|Distributed inference|
 |----|:----:|:----:| :----: |:----: |
