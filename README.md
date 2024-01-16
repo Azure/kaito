@@ -9,12 +9,12 @@
 | First Release: Nov 15th, 2023. Kaito v0.1.0.                                               |
 
 Kaito is an operator that automates the AI/ML inference model deployment in a Kubernetes cluster.
-The target models are popular large open sourced inference models such as [falcon](https://huggingface.co/tiiuae) and [llama 2](https://github.com/facebookresearch/llama).
-Kaito has the following key differentiations compared to most of the mainstream model deployment methodologies built on top of virtual machine infrastructures.
+The target models are popular large open-sourced inference models such as [falcon](https://huggingface.co/tiiuae) and [llama 2](https://github.com/facebookresearch/llama).
+Kaito has the following key differentiations compared to most of the mainstream model deployment methodologies built on top of virtual machine infrastructures:
 - Manage large model files using container images. A http server is provided to perform inference calls using the model library.
 - Avoid tuning deployment parameters to fit GPU hardware by providing preset configurations.
 - Auto-provision GPU nodes based on model requirements.
-- Host large model images in public Microsoft Container Registry(MCR) if the license allows.
+- Host large model images in the public Microsoft Container Registry (MCR) if the license allows.
 
 Using Kaito, the workflow of onboarding large AI inference models in Kubernetes is largely simplified.
 
