@@ -5,6 +5,7 @@ package llama2chat
 import (
 	"time"
 
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/inference"
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils/plugin"
@@ -40,9 +41,7 @@ type llama2Chat7b struct{}
 func (*llama2Chat7b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
-		Image:                     "",
-		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		ImageAccessMode:           inference.DefaultImageAccessMode,
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "34Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
@@ -67,9 +66,7 @@ type llama2Chat13b struct{}
 func (*llama2Chat13b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
-		Image:                     "",
-		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		ImageAccessMode:           inference.DefaultImageAccessMode,
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "46Gi",
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "30Gi",
@@ -93,9 +90,7 @@ type llama2Chat70b struct{}
 func (*llama2Chat70b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
-		Image:                     "",
-		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		ImageAccessMode:           inference.DefaultImageAccessMode,
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "158Gi",
 		GPUCountRequirement:       "8",
 		TotalGPUMemoryRequirement: "192Gi",
