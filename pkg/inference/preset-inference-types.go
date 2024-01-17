@@ -55,6 +55,5 @@ var (
 		"gpu_ids":       DefaultGPUIds,
 	}
 
-	DefaultImageAccessMode  = "public"
 	DefaultImagePullSecrets = []corev1.LocalObjectReference{}
 )

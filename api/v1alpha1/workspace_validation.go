@@ -133,6 +133,11 @@ func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
 		if !isValidPreset(presetName) {
 			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", presetName), "presetName"))
 		}
+		// Validate private preset has private image specified
+		if plugin.KaitoModelRegister.MustGet(string(i.Preset.Name)).GetInferenceParameters().ImageAccessMode == "private" &&
+			i.Preset.PresetMeta.AccessMode != "private" {
+			errs = errs.Also(apis.ErrGeneric("This preset only supports private AccessMode, AccessMode must be private to continue"))
+		}
 		// Additional validations for Preset
 		if i.Preset.PresetMeta.AccessMode == "private" && i.Preset.PresetOptions.Image == "" {
 			errs = errs.Also(apis.ErrGeneric("When AccessMode is private, an image must be provided in PresetOptions"))
