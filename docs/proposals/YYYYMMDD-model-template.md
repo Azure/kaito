@@ -46,7 +46,7 @@ There is always a cost of maintaining preset configurations and model images in 
 
 The following table describes the basic model characteristics and the resource requirements of running it.
 
-| Required | Notes|
+| Field | Notes|
 |----|----|
 | Family name| E.g., falcon, llama.|
 | Type| huggingface classifications, e.g., `text-to-image` or `conversational` or `text generation`. |
@@ -55,7 +55,7 @@ The following table describes the basic model characteristics and the resource r
 | Storage size| The required disk size to contain all model files. |
 | GPU count| The minimum required GPU count to run the model. |
 | Total GPU memory| The minimum required aggregated GPU memory to run the model. |
-| Per GPU memory | The minimum required GPU memory per GPU. The mainstream GPU has 20-80GB memory. |
+| Per GPU memory | The minimum required GPU memory per GPU. If not applicable, enter `N/A`. The mainstream GPU has 16-80GB memory. |
 
 
 ## Runtimes
@@ -66,7 +66,7 @@ This section describes how to configure the runtime framework to support the inf
 |----|----|
 | Runtime | E.g., huggingface transformer, or onnx. Kaito can support multiple runtimes (details TBD). |
 | Distributed Inference| True/False. This indicates whether torch elastic should be configured or not. |
-| Model configurations| Describe the specific model configurations that will be included in the model preset configuration as default. Examples can be found [here](https://huggingface.co/docs/accelerate/basic_tutorials/launch#custom-configurations) for the huggingface transformer.|
+| Custom configurations| Describe custom configurations that will be used in the model deployment as defaults. For example, see [here](https://huggingface.co/docs/accelerate/basic_tutorials/launch#custom-configurations) for customizing the huggingface accelerate library.|
 
 # History
 
