@@ -1,9 +1,13 @@
 FROM nvcr.io/nvidia/pytorch:23.10-py3
 
 ARG WEIGHTS_PATH
+ARG VERSION
 
 # Set the working directory
 WORKDIR /workspace/tfs
+
+# Write the version to a file
+RUN echo $VERSION > /workspace/tfs/version.txt
 
 # First, copy just the preset files and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and

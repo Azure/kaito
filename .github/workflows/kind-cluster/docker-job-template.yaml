@@ -41,7 +41,7 @@ spec:
             # Build and push the Docker image
             docker build -t $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG \
                          --build-arg WEIGHTS_PATH=/weights \
-                         --build-arg MODEL_PRESET_PATH=$MODEL_PRESET_PATH \
+                         --build-arg VERSION={{VERSION}} \
                          -f $DOCKERFILE_PATH /
             docker push $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG
         env:
@@ -61,6 +61,8 @@ spec:
             value: "{{MODEL_PRESET_PATH}}"
           - name: DOCKERFILE_PATH
             value: "{{DOCKERFILE_PATH}}"
+          - name: VERSION
+            value: "{{VERSION}}"
         volumeMounts:
           - name: weight-volume
             mountPath: /weights

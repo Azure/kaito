@@ -2,16 +2,22 @@ models:
   # Llama
   - name: llama-2-7b
     type: custom
+    tag: 0.0.1
   - name: llama-2-7b-chat
     type: custom
+    tag: 0.0.1
   - name: llama-2-13b
     type: custom
+    tag: 0.0.1
   - name: llama-2-13b-chat
     type: custom
+    tag: 0.0.1
   - name: llama-2-70b
     type: custom
+    tag: 0.0.1
   - name: llama-2-70b-chat
     type: custom
+    tag: 0.0.1
 
   # Falcon
   - name: falcon-7b
