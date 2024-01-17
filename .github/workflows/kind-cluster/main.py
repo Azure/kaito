@@ -13,7 +13,9 @@ KAITO_REPO_URL = "https://github.com/Azure/kaito.git"
 def read_models_from_yaml(file_path):
     with open(file_path, 'r') as file:
         data = yaml.safe_load(file)
-        return data['models']
+        # Output Format
+        # {falcon-7b : {model_name:falcon-7b, type:text-generation, revision: #, tag: #}}
+        return {model['name']: model for model in data['models']}
 
 yaml_file_path = 'presets/models/supported_models.yaml'
 MODELS = read_models_from_yaml(yaml_file_path)
@@ -102,10 +104,10 @@ def populate_job_template(model, img_tag, job_name, env_vars):
             "{{ACR_USERNAME}}": env_vars["ACR_USERNAME"],
             "{{ACR_PASSWORD}}": env_vars["ACR_PASSWORD"],
             "{{PR_BRANCH}}": env_vars["PR_BRANCH"],
-            "{{HOST_WEIGHTS_PATH}}": get_weights_path(model['name']),
-            "{{MODEL_PRESET_PATH}}": get_preset_path(model['name']),
-            "{{DOCKERFILE_PATH}}": get_dockerfile_path(model['name']),
-            "{{VERSION}}": model['tag'],
+            "{{HOST_WEIGHTS_PATH}}": get_weights_path(model),
+            "{{MODEL_PRESET_PATH}}": get_preset_path(model),
+            "{{DOCKERFILE_PATH}}": get_dockerfile_path(model),
+            "{{VERSION}}": MODELS[model]['tag'],
         }
 
         for key, value in replacements.items():
@@ -134,7 +136,7 @@ def check_modified_models(pr_branch):
     files = run_command("git diff --name-only origin/main")
     os.chdir(Path.cwd().parent)
 
-    modified_models = {model: model['name'].split("-")[0] in files for model in MODELS}
+    modified_models = {model: model.split("-")[0] in files for model in MODELS}
     print("Modified Models (Images to build): ", modified_models)
 
     return modified_models
