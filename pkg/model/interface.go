@@ -22,6 +22,7 @@ type PresetInferenceParam struct {
 	TorchRunParams            map[string]string // Parameters for configuring the torchrun command.
 	TorchRunRdzvParams        map[string]string // Optional rendezvous parameters for distributed inference using torchrun (elastic).
 	ModelRunParams            map[string]string // Parameters for running the model inference.
+	InferenceFile             string            // File used for inference
 	// DeploymentTimeout defines the maximum duration for pulling the Preset image.
 	// This timeout accommodates the size of the image, ensuring pull completion
 	// even under slower network conditions or unforeseen delays.
