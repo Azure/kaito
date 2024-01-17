@@ -13,7 +13,7 @@ KAITO_REPO_URL = "https://github.com/Azure/kaito.git"
 def read_models_from_yaml(file_path):
     with open(file_path, 'r') as file:
         data = yaml.safe_load(file)
-        return set(data['models'])
+        return data['models']
 
 yaml_file_path = 'presets/models/supported_models.yaml'
 MODELS = read_models_from_yaml(yaml_file_path)
