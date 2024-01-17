@@ -16,6 +16,7 @@ func (*testModel) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		GPUCountRequirement: "1",
 		DeploymentTimeout:   time.Duration(30) * time.Minute,
+		InferenceFile:       "inference-api.py",
 	}
 }
 func (*testModel) SupportDistributedInference() bool {
@@ -28,6 +29,7 @@ func (*testDistributedModel) GetInferenceParameters() *model.PresetInferencePara
 	return &model.PresetInferenceParam{
 		GPUCountRequirement: "1",
 		DeploymentTimeout:   time.Duration(30) * time.Minute,
+		InferenceFile:       "inference-api.py",
 	}
 }
 func (*testDistributedModel) SupportDistributedInference() bool {
