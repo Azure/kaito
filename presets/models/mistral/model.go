@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/inference"
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils/plugin"
@@ -33,7 +34,6 @@ var (
 	presetMistral7bInstructImage = registryName + fmt.Sprintf("/kaito-%s:0.0.1", PresetMistral7BInstructModel)
 
 	baseCommandPresetMistral = "accelerate launch --use_deepspeed"
-	mistralInferenceFile     = "inference-api.py"
 	mistralARunParams        = map[string]string{
 		"torch_dtype": "float16",
 		"pipeline":    "text-generation",
@@ -50,20 +50,18 @@ type mistral7b struct{}
 
 func (*mistral7b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
-		ModelName:                 "Mistral",
+		ModelFamilyName:           "Mistral",
 		Image:                     presetMistral7bImage,
 		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		AccessMode:                inference.DefaultAccessMode,
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
 		PerGPUMemoryRequirement:   "0Gi", // We run Mistral using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            mistralARunParams,
-		InferenceFile:             mistralInferenceFile,
 		DeploymentTimeout:         time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetMistral,
-		DefaultVolumeMountPath:    "/dev/shm",
 	}
 
 }
@@ -77,20 +75,18 @@ type mistral7bInst struct{}
 
 func (*mistral7bInst) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
-		ModelName:                 "Mistral",
+		ModelFamilyName:           "Mistral",
 		Image:                     presetMistral7bInstructImage,
 		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		AccessMode:                inference.DefaultAccessMode,
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
 		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            mistralBRunParams,
-		InferenceFile:             mistralInferenceFile,
 		DeploymentTimeout:         time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetMistral,
-		DefaultVolumeMountPath:    "/dev/shm",
 	}
 
 }
