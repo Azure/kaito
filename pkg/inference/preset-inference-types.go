@@ -23,7 +23,6 @@ const (
 )
 
 const (
-	DefaultConfigFile   = "config.yaml"
 	DefaultNumProcesses = "1"
 	DefaultNumMachines  = "1"
 	DefaultMachineRank  = "0"
@@ -48,7 +47,6 @@ var (
 	}
 
 	DefaultAccelerateParams = map[string]string{
-		"config_file":   DefaultConfigFile,
 		"num_processes": DefaultNumProcesses,
 		"num_machines":  DefaultNumMachines,
 		"machine_rank":  DefaultMachineRank,

@@ -19,7 +19,7 @@ spec:
           command:
             - /bin/sh
             - -c
-            - accelerate launch --config_file config.yaml --num_processes 1 --num_machines 1 --use_deepspeed --machine_rank 0 --gpu_ids all inference-api.py
+            - accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference-api.py
           livenessProbe:
             httpGet:
               path: /healthz

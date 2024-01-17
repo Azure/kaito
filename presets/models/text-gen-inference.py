@@ -81,6 +81,12 @@ pipeline = transformers.pipeline(
     **pipeline_kwargs
 )
 
+try:
+    # Attempt to load the generation configuration
+    default_generate_config = GenerationConfig.from_pretrained("/workspace/tfs/weights", local_files_only=True).to_dict()
+except Exception as e:
+    default_generate_config = {}
+
 @app.get('/')
 def home():
     return "Server is running", 200
@@ -112,11 +118,6 @@ class UnifiedRequestModel(BaseModel):
 
 @app.post("/chat")
 def generate_text(request_model: UnifiedRequestModel):
-    try:
-        # Attempt to load the generation configuration
-        default_generate_config = GenerationConfig.from_pretrained("/workspace/tfs/weights", local_files_only=True).to_dict()
-    except Exception as e:
-        default_generate_config = {}
     user_generate_kwargs = request_model.generate_kwargs or {}
     generate_kwargs = {**default_generate_config, **user_generate_kwargs}
 
