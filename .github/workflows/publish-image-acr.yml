@@ -30,7 +30,7 @@ jobs:
           submodules: true
           ref: ${{ env.REPO_TAG }}
       - name: 'Az CLI login'
-        uses: azure/login@v1.5.1
+        uses: azure/login@v1.6.0
         with:
           client-id: ${{ secrets.KAITO_MCR_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
