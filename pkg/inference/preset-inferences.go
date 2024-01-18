@@ -135,6 +135,20 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	return depObj, nil
 }
 
+func getInferenceFile(ctx context.Context, inferenceObj *model.PresetInferenceParam) string {
+	// Default inference file
+	inferenceFile := "inference-api.py"
+	// Check if the ModelRunParams contains the "pipeline" key
+	if pipeline, exists := inferenceObj.ModelRunParams["pipeline"]; exists {
+		// Determine the inference file based on the pipeline value
+		if pipeline == "text-generation" || pipeline == "conversational" {
+			inferenceFile = "text-gen-inference.py"
+		}
+	}
+	// Return the determined inference file
+	return inferenceFile
+}
+
 // prepareInferenceParameters builds a PyTorch command:
 // torchrun <TORCH_PARAMS> <OPTIONAL_RDZV_PARAMS> baseCommand <MODEL_PARAMS>
 // and sets the GPU resources required for inference.
@@ -142,7 +156,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 func prepareInferenceParameters(ctx context.Context, inferenceObj *model.PresetInferenceParam) ([]string, corev1.ResourceRequirements) {
 	torchCommand := buildCommandStr(inferenceObj.BaseCommand, inferenceObj.TorchRunParams)
 	torchCommand = buildCommandStr(torchCommand, inferenceObj.TorchRunRdzvParams)
-	modelCommand := buildCommandStr(inferenceObj.InferenceFile, inferenceObj.ModelRunParams)
+	modelCommand := buildCommandStr(getInferenceFile(ctx, inferenceObj), inferenceObj.ModelRunParams)
 	commands := shellCommand(torchCommand + " " + modelCommand)
 
 	resourceRequirements := corev1.ResourceRequirements{
