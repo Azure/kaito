@@ -22,27 +22,27 @@ models:
   # Falcon
   - name: falcon-7b
     type: text-generation
-    revision: 898df1396f35e447d5fe44e0a3ccaaaa69f30d36
+    version: 898df1396f35e447d5fe44e0a3ccaaaa69f30d36
     tag: 0.0.1
   - name: falcon-7b-instruct
     type: text-generation
-    revision: cf4b3c42ce2fdfe24f753f0f0d179202fea59c99
+    version: cf4b3c42ce2fdfe24f753f0f0d179202fea59c99
     tag: 0.0.1
   - name: falcon-40b
     type: text-generation
-    revision: 4a70170c215b36a3cce4b4253f6d0612bb7d4146
+    version: 4a70170c215b36a3cce4b4253f6d0612bb7d4146
     tag: 0.0.1
   - name: falcon-40b-instruct
     type: text-generation
-    revision: ecb78d97ac356d098e79f0db222c9ce7c5d9ee5f
+    version: ecb78d97ac356d098e79f0db222c9ce7c5d9ee5f
     tag: 0.0.1
 
   # Mistral
   - name: mistral-7b-v0.1
     type: text-generation 
-    revision: 26bca36bde8333b5d7f72e9ed20ccda6a618af24
+    version: 26bca36bde8333b5d7f72e9ed20ccda6a618af24
     tag: 0.0.1
   - name: mistral-7b-instruct-v0.1
     type: text-generation
-    revision: 9ab9e76e2b09f9f29ea2d56aa5bd139e4445c59e
+    version: 9ab9e76e2b09f9f29ea2d56aa5bd139e4445c59e
     tag: 0.0.1
