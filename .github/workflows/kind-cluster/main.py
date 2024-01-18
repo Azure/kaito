@@ -31,14 +31,6 @@ def get_model_type(model_name):
 def get_weights_path(model_name): 
     return f"/datadrive/{model_name}/weights"
 
-def get_preset_path(model_name): 
-    preset_name = model_name.split("-")[0]
-    if preset_name == "llama":
-        preset_name += "2"
-        if model_name.endswith("chat"):
-            preset_name += "chat"
-    return f"/kaito/presets/models/{preset_name}"
-
 def get_dockerfile_path(model_name): 
     model_type = get_model_type(model_name)
     return f"/kaito/docker/presets/{model_type}/Dockerfile"
@@ -105,7 +97,6 @@ def populate_job_template(model, img_tag, job_name, env_vars):
             "{{ACR_PASSWORD}}": env_vars["ACR_PASSWORD"],
             "{{PR_BRANCH}}": env_vars["PR_BRANCH"],
             "{{HOST_WEIGHTS_PATH}}": get_weights_path(model),
-            "{{MODEL_PRESET_PATH}}": get_preset_path(model),
             "{{DOCKERFILE_PATH}}": get_dockerfile_path(model),
             "{{VERSION}}": MODELS[model]['tag'],
         }

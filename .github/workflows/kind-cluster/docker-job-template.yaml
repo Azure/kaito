@@ -57,8 +57,6 @@ spec:
             value: "{{IMAGE_NAME}}"
           - name: PR_BRANCH
             value: "{{PR_BRANCH}}"
-          - name: MODEL_PRESET_PATH
-            value: "{{MODEL_PRESET_PATH}}"
           - name: DOCKERFILE_PATH
             value: "{{DOCKERFILE_PATH}}"
           - name: VERSION

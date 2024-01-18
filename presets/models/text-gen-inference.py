@@ -96,9 +96,9 @@ def health_check():
     if not torch.cuda.is_available():
         raise HTTPException(status_code=500, detail="No GPU available")
     if not model:
-        raise HTTPException(status_code=500, detail="Falcon model not initialized")
+        raise HTTPException(status_code=500, detail="Model not initialized")
     if not pipeline: 
-        raise HTTPException(status_code=500, detail="Falcon pipeline not initialized")
+        raise HTTPException(status_code=500, detail="Pipeline not initialized")
     return {"status": "Healthy"}
 
 class UnifiedRequestModel(BaseModel):

@@ -19,7 +19,7 @@ spec:
           command:
             - /bin/sh
             - -c
-            - accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all text-gen-inference.py
+            - accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all text-gen-inference.py --pipeline text-generation --torch_dtype bfloat16
           livenessProbe:
             httpGet:
               path: /healthz
