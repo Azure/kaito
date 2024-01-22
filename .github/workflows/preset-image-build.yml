@@ -26,8 +26,33 @@ env:
   VERSION: 0.0.1
 
 jobs:
-  setup:
+  determine-models: 
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.determine_models.outputs.matrix }}
+    steps: 
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+      
+      # This script should output a JSON array of model names
+      - name: Determine Affected Models
+        id: determine_models
+        run: |
+          PR_BRANCH=${{ github.head_ref }} \
+          python3 .github/workflows/scripts/determine_models.py
+  
+  build-models:
+    needs: determine-models
     runs-on: [self-hosted, 'username:runner-2']
+    strategy:
+      fail-fast: false
+      matrix: 
+        model: ${{fromJson(needs.determine-models.outputs.matrix)}}
+      # The maximum number of jobs that can run simultaneously
+      max-parallel: 1
     outputs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
     steps:
@@ -79,6 +104,7 @@ jobs:
           ACR_NAME=${{ steps.acr_info.outputs.ACR_NAME }} \
           ACR_USERNAME=${{ steps.acr_info.outputs.ACR_USERNAME }} \
           ACR_PASSWORD=${{ steps.acr_info.outputs.ACR_PASSWORD }} \
+          MODEL=${{matrix.model}}
           python3 .github/workflows/kind-cluster/main.py
       
       # Check the exit status of the Python script
