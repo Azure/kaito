@@ -56,6 +56,7 @@ def get_yaml_from_branch(branch, file_path):
 
 def detect_changes_in_yaml(yaml_main, yaml_pr): 
     """Detecting relevant changes in support_models.yaml"""
+    yaml_main, yaml_pr = yaml_main['models'], yaml_pr['models']
     models_to_build = []
     for model_pr in yaml_pr:
         # Searches for matching models
@@ -105,7 +106,6 @@ def check_modified_models(pr_branch):
     print("Modified Models (Images to build): ", modified_models)
 
     return modified_models
-
 
 def main():
     pr_branch = os.environ.get("PR_BRANCH", "main")
