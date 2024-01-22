@@ -42,7 +42,7 @@ jobs:
         id: determine_models
         run: |
           PR_BRANCH=${{ github.head_ref }} \
-          python3 .github/workflows/kind-cluster/determined_models.py
+          python3 .github/workflows/kind-cluster/determine_models.py
   
   build-models:
     needs: determine-models
