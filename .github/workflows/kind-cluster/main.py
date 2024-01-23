@@ -20,19 +20,11 @@ def read_models_from_yaml(file_path):
 yaml_file_path = 'presets/models/supported_models.yaml'
 MODELS = read_models_from_yaml(yaml_file_path)
 
-def get_model_type(model_name): 
-    model_type = "tfs"
-    if "llama" in model_name: 
-        model_type = "llama-2"
-    elif "onnx" in model_name: 
-        model_type = "tfs-onnx"
-    return model_type
-
 def get_weights_path(model_name): 
     return f"/datadrive/{model_name}/weights"
 
 def get_dockerfile_path(model_name): 
-    model_type = get_model_type(model_name)
+    model_type = MODELS[model_name]['runtime']
     return f"/kaito/docker/presets/{model_type}/Dockerfile"
 
 def generate_unique_id():
@@ -53,9 +45,10 @@ def run_command(command):
         print(f"An error occurred: {e}")
         return None
 
-def main(): 
+def main():
     img_tag = os.environ.get("IMAGE_TAG", "0.0.1")
-    model = os.environ.get("")
+    model = os.environ.get("MODEL", None)
+    assert model
     
     job_names = []
 
