@@ -54,7 +54,6 @@ def run_command(command):
         return None
 
 def main(): 
-    pr_branch = os.environ.get("PR_BRANCH", "main")
     img_tag = os.environ.get("IMAGE_TAG", "0.0.1")
     model = os.environ.get("")
     

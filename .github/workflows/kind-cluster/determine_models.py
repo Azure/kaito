@@ -32,7 +32,8 @@ def set_multiline_output(name, value):
 
 def create_matrix(models_list):
     """Create GitHub Matrix"""
-    return json.dumps({"model": models_list})
+    matrix = [MODELS[model] for model in models_list]
+    return json.dumps(matrix)
 
 def run_command(command):
     """Execute a shell command and return the output."""
