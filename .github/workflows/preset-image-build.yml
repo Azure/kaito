@@ -107,7 +107,11 @@ jobs:
           ACR_NAME=${{ steps.acr_info.outputs.ACR_NAME }} \
           ACR_USERNAME=${{ steps.acr_info.outputs.ACR_USERNAME }} \
           ACR_PASSWORD=${{ steps.acr_info.outputs.ACR_PASSWORD }} \
-          MODEL=${{matrix.model}} \
+          MODEL_NAME=${{ matrix.model.name }} \
+          MODEL_TYPE=${{matrix.model.type}} \
+          MODEL_VERSION=${{ matrix.model.version }} \
+          MODEL_RUNTIME=${{ matrix.model.runtime }} \
+          MODEL_TAG=${{ matrix.model.tag }} \
           python3 .github/workflows/kind-cluster/main.py
       
       # Check the exit status of the Python script

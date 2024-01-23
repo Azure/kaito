@@ -35,15 +35,15 @@ def run_command(command):
 
 def main():
     img_tag = os.environ.get("IMAGE_TAG", "0.0.1")
-    model = os.environ.get("MODEL", None)
-    print(model, type(model))
-    assert model
-    model_name = model["name"]
+    model_name = os.environ.get("MODEL_NAME", None)
+    model_runtime = os.environ.get("MODEL_RUNTIME", None)
+    model_tag = os.environ.get("MODEL_TAG", None)
+
     job_names = []
 
     unique_id = generate_unique_id()
     job_name = f"{model_name}-{unique_id}"
-    job_yaml = populate_job_template(model, img_tag, job_name, os.environ)
+    job_yaml = populate_job_template(model_name, model_runtime, model_tag, img_tag, job_name, os.environ)
     write_job_file(job_yaml, job_name)
 
     output = run_command(f"ls {get_weights_path(model_name)}")
@@ -61,7 +61,7 @@ def write_job_file(job_yaml, job_name):
         with open(f"{job_name}-job.yaml", "w") as file:
             file.write(job_yaml)
 
-def populate_job_template(model, img_tag, job_name, env_vars):
+def populate_job_template(model_name, model_runtime, model_tag, img_tag, job_name, env_vars):
     """Populate the job template with provided values."""
     try:
         docker_job_template = Path.cwd() / "repo/.github/workflows/kind-cluster/docker-job-template.yaml"
@@ -70,15 +70,15 @@ def populate_job_template(model, img_tag, job_name, env_vars):
 
         replacements = {
             "{{JOB_ID}}": f"{job_name}",
-            "{{IMAGE_NAME}}": model['name'],
+            "{{IMAGE_NAME}}": model_name,
             "{{IMAGE_TAG}}": img_tag,
             "{{ACR_NAME}}": env_vars["ACR_NAME"],
             "{{ACR_USERNAME}}": env_vars["ACR_USERNAME"],
             "{{ACR_PASSWORD}}": env_vars["ACR_PASSWORD"],
             "{{PR_BRANCH}}": env_vars["PR_BRANCH"],
-            "{{HOST_WEIGHTS_PATH}}": get_weights_path(model['name']),
-            "{{DOCKERFILE_PATH}}": get_dockerfile_path(model['runtime']),
-            "{{VERSION}}": model['tag'],
+            "{{HOST_WEIGHTS_PATH}}": get_weights_path(model_name),
+            "{{DOCKERFILE_PATH}}": get_dockerfile_path(model_runtime),
+            "{{VERSION}}": model_tag,
         }
 
         for key, value in replacements.items():
