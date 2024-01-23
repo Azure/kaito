@@ -1,4 +1,9 @@
 name: Build and Push Preset Models
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 on:
   pull_request:
     branches:
@@ -53,9 +58,9 @@ jobs:
     runs-on: [self-hosted, 'username:runner-2']
     strategy:
       fail-fast: false
-      matrix: 
+      matrix:
         model: ${{fromJson(needs.determine-models.outputs.matrix)}}
-      max-parallel: 1
+      max-parallel: 3
     outputs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
     steps:
