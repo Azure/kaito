@@ -56,6 +56,8 @@ def get_yaml_from_branch(branch, file_path):
 
 def detect_changes_in_yaml(yaml_main, yaml_pr): 
     """Detecting relevant changes in support_models.yaml"""
+    print(yaml_main)
+    print(yaml_pr)
     yaml_main, yaml_pr = yaml_main['models'], yaml_pr['models']
     print(yaml_main)
     print(yaml_pr)
