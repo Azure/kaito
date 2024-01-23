@@ -43,6 +43,13 @@ jobs:
         run: |
           PR_BRANCH=${{ github.head_ref }} \
           python3 .github/workflows/kind-cluster/determine_models.py
+      
+      - name: Print GITHUB_OUTPUT Content
+        run: cat $GITHUB_OUTPUT
+      
+      - name: Print OUTPUT
+        run: |
+          echo "Output from determine_models: ${{ steps.determine_models.outputs.matrix }}"
   
   build-models:
     needs: determine-models

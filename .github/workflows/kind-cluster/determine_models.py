@@ -119,6 +119,7 @@ def main():
 
     # Convert the list of models into JSON matrix format
     matrix = create_matrix(affected_models)
+    print("Create Matrix: ", matrix)
 
     # Set the matrix as an output for the GitHub Actions workflow
     set_multiline_output('matrix', matrix)

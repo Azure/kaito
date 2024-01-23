@@ -56,21 +56,20 @@ def run_command(command):
 def main(): 
     pr_branch = os.environ.get("PR_BRANCH", "main")
     img_tag = os.environ.get("IMAGE_TAG", "0.0.1")
-    mod_models = check_modified_models(pr_branch)
-
+    model = os.environ.get("")
+    
     job_names = []
-    for model, modified in mod_models.items(): 
-        if modified:
-            unique_id = generate_unique_id()
-            job_name = f"{model}-{unique_id}"
-            job_yaml = populate_job_template(model, img_tag, job_name, os.environ)
-            write_job_file(job_yaml, job_name)
 
-            output = run_command(f"ls {get_weights_path(model)}")
-            print("Model Weights:", output)
+    unique_id = generate_unique_id()
+    job_name = f"{model}-{unique_id}"
+    job_yaml = populate_job_template(model, img_tag, job_name, os.environ)
+    write_job_file(job_yaml, job_name)
 
-            run_command(f"kubectl apply -f {job_name}-job.yaml")
-            job_names.append(job_name)
+    output = run_command(f"ls {get_weights_path(model)}")
+    print("Model Weights:", output)
+
+    run_command(f"kubectl apply -f {job_name}-job.yaml")
+    job_names.append(job_name)
     
     if not wait_for_jobs_to_complete(job_names):
         exit(1)  # Exit with an error code if any job failed
@@ -109,28 +108,6 @@ def populate_job_template(model, img_tag, job_name, env_vars):
         print(f"An error occurred while populating job template: {e}")
         return None
 
-def check_modified_models(pr_branch):
-    """Check for modified models in the repository."""
-    repo_dir = Path.cwd() / "repo"
-
-    if repo_dir.exists():
-        shutil.rmtree(repo_dir)
-
-    run_command(f"git clone {KAITO_REPO_URL} {repo_dir}")
-    os.chdir(repo_dir)
-
-    run_command("git checkout --detach")
-    run_command("git fetch origin main:main")
-    run_command(f"git fetch origin {pr_branch}:{pr_branch}")
-    run_command(f"git checkout {pr_branch}")
-
-    files = run_command("git diff --name-only origin/main")
-    os.chdir(Path.cwd().parent)
-
-    modified_models = {model: model.split("-")[0] in files for model in MODELS}
-    print("Modified Models (Images to build): ", modified_models)
-
-    return modified_models
 
 def check_job_status(job_name):
     """Check the status of a Kubernetes job."""
