@@ -36,6 +36,7 @@ def run_command(command):
 def main():
     img_tag = os.environ.get("IMAGE_TAG", "0.0.1")
     model = os.environ.get("MODEL", None)
+    print(model, type(model))
     assert model
     model_name = model["name"]
     job_names = []
