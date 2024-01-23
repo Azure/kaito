@@ -8,24 +8,12 @@ from pathlib import Path
 
 import yaml
 
-KAITO_REPO_URL = "https://github.com/Azure/kaito.git"
-
-def read_models_from_yaml(file_path):
-    with open(file_path, 'r') as file:
-        data = yaml.safe_load(file)
-        # Output Format
-        # {falcon-7b : {model_name:falcon-7b, type:text-generation, revision: #, tag: #}}
-        return {model['name']: model for model in data['models']}
-
-yaml_file_path = 'presets/models/supported_models.yaml'
-MODELS = read_models_from_yaml(yaml_file_path)
 
 def get_weights_path(model_name): 
     return f"/datadrive/{model_name}/weights"
 
-def get_dockerfile_path(model_name): 
-    model_type = MODELS[model_name]['runtime']
-    return f"/kaito/docker/presets/{model_type}/Dockerfile"
+def get_dockerfile_path(model_runtime): 
+    return f"/kaito/docker/presets/{model_runtime}/Dockerfile"
 
 def generate_unique_id():
     """Generate a unique identifier for a job."""
@@ -49,15 +37,15 @@ def main():
     img_tag = os.environ.get("IMAGE_TAG", "0.0.1")
     model = os.environ.get("MODEL", None)
     assert model
-    
+    model_name = model["name"]
     job_names = []
 
     unique_id = generate_unique_id()
-    job_name = f"{model}-{unique_id}"
+    job_name = f"{model_name}-{unique_id}"
     job_yaml = populate_job_template(model, img_tag, job_name, os.environ)
     write_job_file(job_yaml, job_name)
 
-    output = run_command(f"ls {get_weights_path(model)}")
+    output = run_command(f"ls {get_weights_path(model_name)}")
     print("Model Weights:", output)
 
     run_command(f"kubectl apply -f {job_name}-job.yaml")
@@ -81,15 +69,15 @@ def populate_job_template(model, img_tag, job_name, env_vars):
 
         replacements = {
             "{{JOB_ID}}": f"{job_name}",
-            "{{IMAGE_NAME}}": model,
+            "{{IMAGE_NAME}}": model['name'],
             "{{IMAGE_TAG}}": img_tag,
             "{{ACR_NAME}}": env_vars["ACR_NAME"],
             "{{ACR_USERNAME}}": env_vars["ACR_USERNAME"],
             "{{ACR_PASSWORD}}": env_vars["ACR_PASSWORD"],
             "{{PR_BRANCH}}": env_vars["PR_BRANCH"],
-            "{{HOST_WEIGHTS_PATH}}": get_weights_path(model),
-            "{{DOCKERFILE_PATH}}": get_dockerfile_path(model),
-            "{{VERSION}}": MODELS[model]['tag'],
+            "{{HOST_WEIGHTS_PATH}}": get_weights_path(model['name']),
+            "{{DOCKERFILE_PATH}}": get_dockerfile_path(model['runtime']),
+            "{{VERSION}}": model['tag'],
         }
 
         for key, value in replacements.items():
