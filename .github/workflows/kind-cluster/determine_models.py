@@ -56,24 +56,23 @@ def get_yaml_from_branch(branch, file_path):
 
 def detect_changes_in_yaml(yaml_main, yaml_pr): 
     """Detecting relevant changes in support_models.yaml"""
-    print(yaml_main)
-    print(yaml_pr)
     yaml_main, yaml_pr = yaml_main['models'], yaml_pr['models']
-    print(yaml_main)
-    print(yaml_pr)
 
     models_to_build = []
     for model_pr in yaml_pr:
         # Searches for matching models
         model_main = next((m for m in yaml_main if m['name'] == model_pr['name']), None)
         # New Model
-        if not model_main: 
+        if not model_main:
+            print("New Model: ", model_pr['name'])
             models_to_build.append(model_pr['name'])
         # Model Version Update
         elif model_pr.get('version') != model_main.get('version'):
+            print("Updated Version of Model: ", model_pr['name'])
             models_to_build.append(model_pr['name'])
         # Model Tag Update
         elif model_pr.get('tag') != model_main.get('tag'):
+            print("Update Tag of Model: ", model_pr['name'])
             models_to_build.append(model_pr['name'])
     return models_to_build
 
@@ -122,7 +121,7 @@ def main():
     matrix = create_matrix(affected_models)
 
     # Set the matrix as an output for the GitHub Actions workflow
-    # set_multiline_output('matrix', matrix)
+    set_multiline_output('matrix', matrix)
 
 if __name__ == "__main__":
     main()
