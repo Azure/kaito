@@ -2,27 +2,27 @@ models:
   # Llama
   - name: llama-2-7b
     type: text-generation
-    runtime: llama
+    runtime: llama-2
     tag: 0.0.2
   - name: llama-2-7b-chat
     type: text-generation
-    runtime: llama
+    runtime: llama-2
     tag: 0.0.2
   - name: llama-2-13b
     type: text-generation
-    runtime: llama
+    runtime: llama-2
     tag: 0.0.2
   - name: llama-2-13b-chat
     type: text-generation
-    runtime: llama
+    runtime: llama-2
     tag: 0.0.2
   - name: llama-2-70b
     type: text-generation
-    runtime: llama
+    runtime: llama-2
     tag: 0.0.2
   - name: llama-2-70b-chat
     type: text-generation
-    runtime: llama
+    runtime: llama-2
     tag: 0.0.2
 
   # Falcon
