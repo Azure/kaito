@@ -97,6 +97,7 @@ def populate_job_template(model_name, model_runtime, model_tag, img_tag, job_nam
             "{{ACR_PASSWORD}}": env_vars["ACR_PASSWORD"],
             "{{PR_BRANCH}}": env_vars["PR_BRANCH"],
             "{{HOST_WEIGHTS_PATH}}": get_weights_path(model_name),
+            "{{RUNTIME}}": model_runtime,
             "{{DOCKERFILE_PATH}}": get_dockerfile_path(model_runtime),
             "{{VERSION}}": model_tag,
         }

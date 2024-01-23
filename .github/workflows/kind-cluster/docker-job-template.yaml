@@ -42,6 +42,7 @@ spec:
             docker build -t $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG \
                          --build-arg WEIGHTS_PATH=/weights \
                          --build-arg VERSION={{VERSION}} \
+                         --build-arg RUNTIME={{RUNTIME}} \
                          -f $DOCKERFILE_PATH /
             docker push $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG
         env:
@@ -57,6 +58,8 @@ spec:
             value: "{{IMAGE_NAME}}"
           - name: PR_BRANCH
             value: "{{PR_BRANCH}}"
+          - name: RUNTIME
+            value: "{{RUNTIME}}"
           - name: DOCKERFILE_PATH
             value: "{{DOCKERFILE_PATH}}"
           - name: VERSION
