@@ -8,6 +8,7 @@ from pathlib import Path
 
 import yaml
 
+KAITO_REPO_URL = "https://github.com/Azure/kaito.git"
 
 def get_weights_path(model_name): 
     return f"/datadrive/{model_name}/weights"
@@ -34,10 +35,12 @@ def run_command(command):
         return None
 
 def main():
+    pr_branch = os.environ.get("PR_BRANCH", "main")
     img_tag = os.environ.get("IMAGE_TAG", "0.0.1")
     model_name = os.environ.get("MODEL_NAME", None)
     model_runtime = os.environ.get("MODEL_RUNTIME", None)
     model_tag = os.environ.get("MODEL_TAG", None)
+    clone_and_checkout_pr_branch(pr_branch)
 
     job_names = []
 
@@ -60,6 +63,23 @@ def write_job_file(job_yaml, job_name):
     if job_yaml:
         with open(f"{job_name}-job.yaml", "w") as file:
             file.write(job_yaml)
+
+def clone_and_checkout_pr_branch(pr_branch):
+    """Clone and checkout PR Branch."""
+    repo_dir = Path.cwd() / "repo"
+
+    if repo_dir.exists():
+        shutil.rmtree(repo_dir)
+
+    run_command(f"git clone {KAITO_REPO_URL} {repo_dir}")
+    os.chdir(repo_dir)
+
+    run_command("git checkout --detach")
+    run_command("git fetch origin main:main")
+    run_command(f"git fetch origin {pr_branch}:{pr_branch}")
+    run_command(f"git checkout {pr_branch}")
+
+    os.chdir(Path.cwd().parent)
 
 def populate_job_template(model_name, model_runtime, model_tag, img_tag, job_name, env_vars):
     """Populate the job template with provided values."""
