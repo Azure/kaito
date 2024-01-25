@@ -108,9 +108,9 @@ jobs:
         run: |
             # Set the ACR based on the tag value
             if [[ "${{ needs.setup.outputs.image_tag }}" == "latest" ]]; then
-              echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
+              echo "ACR_NAME=${{secrets.ACR_AMR_USERNAME}}" >> $GITHUB_OUTPUT
             else
-              echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
+              echo "ACR_NAME=${{secrets.ACR_AMRT_USERNAME}}" >> $GITHUB_OUTPUT
             fi
         
       - name: Install Azure CLI latest

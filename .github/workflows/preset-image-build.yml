@@ -92,11 +92,11 @@ jobs:
         id: acr_info
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag_name }}" ]]; then
-            ACR_NAME="aimodelsregistry"
+            ACR_NAME="${{ secrets.ACR_AMR_USERNAME }}"
             ACR_USERNAME=${{ secrets.ACR_AMR_USERNAME }}
             ACR_PASSWORD=${{ secrets.ACR_AMR_PASSWORD }}
           else
-            ACR_NAME="aimodelsregistrytest"
+            ACR_NAME="${{ secrets.ACR_AMRT_USERNAME }}"
             ACR_USERNAME=${{ secrets.ACR_AMRT_USERNAME }}
             ACR_PASSWORD=${{ secrets.ACR_AMRT_PASSWORD }} 
           fi
