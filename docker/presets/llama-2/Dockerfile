@@ -21,7 +21,7 @@ ARG WEIGHTS_PATH
 ARG MODEL_TYPE
 ARG VERSION
 # Write the version to a file
-RUN echo $VERSION > /workspace/tfs/version.txt
+RUN echo $VERSION > /workspace/llama/version.txt
 
 ADD ${WEIGHTS_PATH} /workspace/llama/llama-2/weights
 ADD kaito/presets/models/${MODEL_TYPE} /workspace/llama/llama-2
