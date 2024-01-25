@@ -1,21 +1,21 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from fastapi import FastAPI, HTTPException
-import uvicorn
-from pydantic import BaseModel
-from typing import Optional
+import argparse
+import functools
 import multiprocessing
 import multiprocessing.pool
-import threading
-import functools
-
-from llama import Llama
-import torch
-import sys
-import signal
 import os
+import signal
+import sys
+import threading
+from typing import Optional
+
+import torch
 import torch.distributed as dist
-import argparse
+import uvicorn
+from fastapi import FastAPI, HTTPException
+from llama import Llama
+from pydantic import BaseModel
 
 # Setup argparse
 parser = argparse.ArgumentParser(description="Llama API server.")
