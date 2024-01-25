@@ -84,7 +84,7 @@ def models_to_build(files_changed):
         yaml_main = get_yaml_from_branch('main', supp_models_yaml)
         models.update(detect_changes_in_yaml(yaml_main, YAML_PR))
     for model, model_info in MODELS.items():
-        if any(file.startswith(f'presets/models/{model_info["type"]}') for file in files_changed):
+        if any(file.startswith(f'presets/models/inference/{model_info["type"]}') for file in files_changed):
             models.add(model)
     return list(models)
 

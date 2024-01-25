@@ -9,14 +9,14 @@ on:
     branches:
       - main
     paths:
-      - 'presets/models/**'
-      - '!presets/models/**/*.md'  # Exclude markdown files in the path
+      - 'presets/models/inference/*'
+      - 'presets/models/supported_models.yaml'
   push:
     branches:
       - main
     paths:
-      - 'presets/models/**'
-      - '!presets/models/**/*.md'  # Exclude markdown files in the path
+      - 'presets/models/inference/*'
+      - 'presets/models/supported_models.yaml'
   workflow_dispatch:
     inputs:
       image_tag_name:
@@ -135,4 +135,3 @@ jobs:
         run: |
           kubectl get job --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job" | xargs -r kubectl delete job
           kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job" | xargs -r kubectl delete pod
-          

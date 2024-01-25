@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triton-deployment
+  labels:
+    app: triton-server
+spec:
+  selector:
+    matchLabels:
+      app: triton-server
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: triton-server
+    spec:
+      containers:
+      - name: serving
+        image: nvcr.io/nvidia/tritonserver:22.08-py3
+        ports:
+        - name: grpc
+          containerPort: 8001
+        - name: http
+          containerPort: 8000
+        - name: metrics
+          containerPort: 8002
+        # resources:
+        #   limits:
+        #     nvidia.com/gpu: 1
+        command: [ "/bin/sh", "-c", "--" ]
+        args: [ "sleep infinity" ]
+        volumeMounts:
+          - name: dshm
+            mountPath: /dev/shm
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+      tolerations:
+        - effect: NoSchedule
+          key: sku
+          operator: Equal
+          value: gpu
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+      nodeSelector:
+        kubernetes.io/hostname: aks-gpu-10910974-vmss000006
