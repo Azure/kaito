@@ -97,7 +97,7 @@ def health_check():
         raise HTTPException(status_code=500, detail="No GPU available")
     if not model:
         raise HTTPException(status_code=500, detail="Model not initialized")
-    if not pipeline: 
+    if not pipeline:
         raise HTTPException(status_code=500, detail="Pipeline not initialized")
     return {"status": "Healthy"}
 
