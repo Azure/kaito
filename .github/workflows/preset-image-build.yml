@@ -1,17 +1,22 @@
 name: Build and Push Preset Models
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 on:
   pull_request:
     branches:
       - main
     paths:
-      - 'presets/models/**'
-      - '!presets/models/**/*.md'  # Exclude markdown files in the path
+      - 'presets/inference/**'
+      - 'presets/models/supported_models.yaml'
   push:
     branches:
       - main
     paths:
-      - 'presets/models/**'
-      - '!presets/models/**/*.md'  # Exclude markdown files in the path
+      - 'presets/inference/**'
+      - 'presets/models/supported_models.yaml'
   workflow_dispatch:
     inputs:
       image_tag_name:
@@ -22,14 +27,37 @@ permissions:
   id-token: write
   contents: read
 
-env:
-  VERSION: 0.0.1
-
 jobs:
-  setup:
-    runs-on: [self-hosted, 'username:runner-2']
+  determine-models: 
+    runs-on: ubuntu-latest
     outputs:
-      image_tag: ${{ steps.set_tag.outputs.image_tag }}
+      matrix: ${{ steps.determine_models.outputs.matrix }}
+    steps: 
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+      
+      # This script should output a JSON array of model names
+      - name: Determine Affected Models
+        id: determine_models
+        run: |
+          PR_BRANCH=${{ github.head_ref }} \
+          python3 .github/workflows/kind-cluster/determine_models.py
+            
+      - name: Print Determined Models
+        run: |
+          echo "Output from determine_models: ${{ steps.determine_models.outputs.matrix }}"
+  
+  build-models:
+    needs: determine-models
+    runs-on: [self-hosted, 'username:runner-2', 'username:runner-3']
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ${{fromJson(needs.determine-models.outputs.matrix)}}
+      max-parallel: 3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,33 +68,12 @@ jobs:
       - name: Check Available Disk Space
         run: df -h
 
-      - name: Set Image Tag
-        id: set_tag
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag_name }}" ]]; then
-            echo "Using workflow dispatch to set image tag"
-            echo "image_tag=${{ github.event.inputs.image_tag_name }}" >> $GITHUB_OUTPUT
-          else
-            echo "Setting image tag based on version set"
-            echo "image_tag=${{ env.VERSION }}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Print Image Tag
-        run: |
-          echo "image_tag for this job: ${{ steps.set_tag.outputs.image_tag }}"
-
       - name: 'Get ACR Info'
         id: acr_info
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag_name }}" ]]; then
-            ACR_NAME="aimodelsregistry"
-            ACR_USERNAME=${{ secrets.ACR_AMR_USERNAME }}
-            ACR_PASSWORD=${{ secrets.ACR_AMR_PASSWORD }}
-          else
-            ACR_NAME="aimodelsregistrytest"
-            ACR_USERNAME=${{ secrets.ACR_AMRT_USERNAME }}
-            ACR_PASSWORD=${{ secrets.ACR_AMRT_PASSWORD }} 
-          fi
+          ACR_NAME="${{ secrets.ACR_AMRT_USERNAME }}"
+          ACR_USERNAME=${{ secrets.ACR_AMRT_USERNAME }}
+          ACR_PASSWORD=${{ secrets.ACR_AMRT_PASSWORD }} 
           echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
           echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
           echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
@@ -74,11 +81,15 @@ jobs:
       - name: Launch Python Script to Kickoff Build Jobs
         id: launch_script
         run: |
-          IMAGE_TAG=${{ steps.set_tag.outputs.image_tag }} \
           PR_BRANCH=${{ github.head_ref }} \
           ACR_NAME=${{ steps.acr_info.outputs.ACR_NAME }} \
           ACR_USERNAME=${{ steps.acr_info.outputs.ACR_USERNAME }} \
           ACR_PASSWORD=${{ steps.acr_info.outputs.ACR_PASSWORD }} \
+          MODEL_NAME=${{ matrix.model.name }} \
+          MODEL_TYPE=${{matrix.model.type}} \
+          MODEL_VERSION=${{ matrix.model.version }} \
+          MODEL_RUNTIME=${{ matrix.model.runtime }} \
+          MODEL_TAG=${{ matrix.model.tag }} \
           python3 .github/workflows/kind-cluster/main.py
       
       # Check the exit status of the Python script
@@ -91,3 +102,9 @@ jobs:
           else
             echo "Python script executed successfully."
           fi
+      # Cleanup Resources
+      - name: Cleanup
+        if: ${{ always() }}
+        run: |
+          kubectl get job --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job" | xargs -r kubectl delete job
+          kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job" | xargs -r kubectl delete pod

@@ -1,60 +1,60 @@
 models:
   # Llama
   - name: llama-2-7b
-    type: text-generation
-    runtime: llama
+    type: llama2-completion
+    runtime: llama-2
     tag: 0.0.1
   - name: llama-2-7b-chat
-    type: text-generation
-    runtime: llama
+    type: llama2-chat
+    runtime: llama-2
     tag: 0.0.1
   - name: llama-2-13b
-    type: text-generation
-    runtime: llama
+    type: llama2-completion
+    runtime: llama-2
     tag: 0.0.1
   - name: llama-2-13b-chat
-    type: text-generation
-    runtime: llama
+    type: llama2-chat
+    runtime: llama-2
     tag: 0.0.1
   - name: llama-2-70b
-    type: text-generation
-    runtime: llama
+    type: llama2-completion
+    runtime: llama-2
     tag: 0.0.1
   - name: llama-2-70b-chat
-    type: text-generation
-    runtime: llama
+    type: llama2-chat
+    runtime: llama-2
     tag: 0.0.1
 
   # Falcon
   - name: falcon-7b
     type: text-generation
-    version: 898df1396f35e447d5fe44e0a3ccaaaa69f30d36
+    version: https://huggingface.co/tiiuae/falcon-7b/commit/898df1396f35e447d5fe44e0a3ccaaaa69f30d36
     runtime: tfs
     tag: 0.0.1
   - name: falcon-7b-instruct
     type: text-generation
-    version: cf4b3c42ce2fdfe24f753f0f0d179202fea59c99
+    version: https://huggingface.co/tiiuae/falcon-7b-instruct/commit/cf4b3c42ce2fdfe24f753f0f0d179202fea59c99
     runtime: tfs
     tag: 0.0.1
   - name: falcon-40b
     type: text-generation
-    version: 4a70170c215b36a3cce4b4253f6d0612bb7d4146
+    version: https://huggingface.co/tiiuae/falcon-40b/commit/4a70170c215b36a3cce4b4253f6d0612bb7d4146
     runtime: tfs
     tag: 0.0.1
   - name: falcon-40b-instruct
     type: text-generation
-    version: ecb78d97ac356d098e79f0db222c9ce7c5d9ee5f
+    version: https://huggingface.co/tiiuae/falcon-40b-instruct/commit/ecb78d97ac356d098e79f0db222c9ce7c5d9ee5f
     runtime: tfs
     tag: 0.0.1
 
   # Mistral
   - name: mistral-7b-v0.1
     type: text-generation 
-    version: 26bca36bde8333b5d7f72e9ed20ccda6a618af24
+    version: https://huggingface.co/mistralai/Mistral-7B-v0.1/commit/26bca36bde8333b5d7f72e9ed20ccda6a618af24
     runtime: tfs
     tag: 0.0.1
   - name: mistral-7b-instruct-v0.1
     type: text-generation
-    version: 9ab9e76e2b09f9f29ea2d56aa5bd139e4445c59e
+    version: https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1/commit/9ab9e76e2b09f9f29ea2d56aa5bd139e4445c59e
     runtime: tfs
     tag: 0.0.1
