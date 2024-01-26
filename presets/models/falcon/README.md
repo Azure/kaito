@@ -25,34 +25,44 @@ curl -X POST \
     -H "Content-Type: application/json" \
     -d '{
         "prompt":"YOUR_PROMPT_HERE",
-        "max_length":200,
-        "min_length":0,
-        "do_sample":true,
-        "early_stopping":false,
-        "num_beams":1,
-        "num_beam_groups":1,
-        "diversity_penalty":0.0,
-        "temperature":1.0,
-        "top_k":10,
-        "top_p":1,
-        "typical_p":1,
-        "repetition_penalty":1,
-        "length_penalty":1,
-        "no_repeat_ngram_size":0,
-        "encoder_no_repeat_ngram_size":0,
-        "bad_words_ids":null,
-        "num_return_sequences":1,
-        "output_scores":false,
-        "return_dict_in_generate":false,
-        "forced_bos_token_id":null,
-        "forced_eos_token_id":null,
-        "remove_invalid_values":null
+        "return_full_text": false,
+        "clean_up_tokenization_spaces": false, 
+        "prefix": None,
+        "handle_long_generation": None,
+        "generate_kwargs": {
+                "max_length":200,
+                "min_length":0,
+                "do_sample":true,
+                "early_stopping":false,
+                "num_beams":1,
+                "num_beam_groups":1,
+                "diversity_penalty":0.0,
+                "temperature":1.0,
+                "top_k":10,
+                "top_p":1,
+                "typical_p":1,
+                "repetition_penalty":1,
+                "length_penalty":1,
+                "no_repeat_ngram_size":0,
+                "encoder_no_repeat_ngram_size":0,
+                "bad_words_ids":null,
+                "num_return_sequences":1,
+                "output_scores":false,
+                "return_dict_in_generate":false,
+                "forced_bos_token_id":null,
+                "forced_eos_token_id":null,
+                "remove_invalid_values":null
+            }
         }' \
         "http://<SERVICE>:80/chat"
 ```
 
 ### Parameters
 - `prompt`: The initial text provided by the user, from which the model will continue generating text.
+- `return_full_text`: If False only generated text is returned, else full text is returned.
+- `clean_up_tokenization_spaces`: True/False, determines whether to remove potential extra spaces in the text output.
+- `prefix`: Prefix added to the prompt.
+- `handle_long_generation`: Provides strategies to address generations beyond the model's maximum length capacity.
 - `max_length`: The maximum total number of tokens in the generated text.
 - `min_length`: The minimum total number of tokens that should be generated.
 - `do_sample`: If True, sampling methods will be used for text generation, which can introduce randomness and variation.
