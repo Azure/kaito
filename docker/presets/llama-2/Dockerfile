@@ -14,7 +14,7 @@ WORKDIR /workspace/llama
 RUN sed -i $'/torch.distributed.init_process_group("nccl")/c\\            import datetime\\\n            torch.distributed.init_process_group("nccl", timeout=datetime.timedelta(days=365*100))' /workspace/llama/llama/generation.py
 
 RUN pip install -e .
-RUN pip install fastapi pydantic
+RUN pip install fastapi pydantic gputil
 RUN pip install 'uvicorn[standard]'
 
 ARG WEIGHTS_PATH
