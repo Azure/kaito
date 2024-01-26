@@ -72,7 +72,6 @@ def download_new_model(model_name, model_url):
 
 def main():
     pr_branch = os.environ.get("PR_BRANCH", "main")
-    img_tag = os.environ.get("IMAGE_TAG", "0.0.1")
     model_name = os.environ.get("MODEL_NAME", None)
     model_version = os.environ.get("MODEL_VERSION", None)
     model_runtime = os.environ.get("MODEL_RUNTIME", None)
@@ -88,7 +87,7 @@ def main():
 
     unique_id = generate_unique_id()
     job_name = f"{model_name}-{unique_id}"
-    job_yaml = populate_job_template(model_name, model_type, model_runtime, model_tag, img_tag, job_name, os.environ)
+    job_yaml = populate_job_template(model_name, model_type, model_runtime, model_tag, job_name, os.environ)
     write_job_file(job_yaml, job_name)
 
     output = run_command(f"ls {get_weights_path(model_name)}")
@@ -123,7 +122,7 @@ def clone_and_checkout_pr_branch(pr_branch):
 
     os.chdir(Path.cwd().parent)
 
-def populate_job_template(model_name, model_type, model_runtime, model_tag, img_tag, job_name, env_vars):
+def populate_job_template(model_name, model_type, model_runtime, model_tag, job_name, env_vars):
     """Populate the job template with provided values."""
     try:
         docker_job_template = Path.cwd() / "repo/.github/workflows/kind-cluster/docker-job-template.yaml"
@@ -133,7 +132,6 @@ def populate_job_template(model_name, model_type, model_runtime, model_tag, img_
         replacements = {
             "{{JOB_ID}}": f"{job_name}",
             "{{IMAGE_NAME}}": model_name,
-            "{{IMAGE_TAG}}": img_tag,
             "{{ACR_NAME}}": env_vars["ACR_NAME"],
             "{{ACR_USERNAME}}": env_vars["ACR_USERNAME"],
             "{{ACR_PASSWORD}}": env_vars["ACR_PASSWORD"],
