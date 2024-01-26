@@ -48,7 +48,6 @@ var (
 	}
 
 	DefaultAccelerateParams = map[string]string{
-		"config_file":   DefaultConfigFile,
 		"num_processes": DefaultNumProcesses,
 		"num_machines":  DefaultNumMachines,
 		"machine_rank":  DefaultMachineRank,
