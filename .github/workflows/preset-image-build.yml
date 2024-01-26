@@ -9,13 +9,13 @@ on:
     branches:
       - main
     paths:
-      - 'presets/models/inference/*'
+      - 'presets/models/inference/**'
       - 'presets/models/supported_models.yaml'
   push:
     branches:
       - main
     paths:
-      - 'presets/models/inference/*'
+      - 'presets/models/inference/**'
       - 'presets/models/supported_models.yaml'
   workflow_dispatch:
     inputs:
