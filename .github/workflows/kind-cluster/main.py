@@ -6,8 +6,6 @@ import subprocess
 import time
 from pathlib import Path
 
-import yaml
-
 KAITO_REPO_URL = "https://github.com/Azure/kaito.git"
 
 def get_weights_path(model_name): 
@@ -34,40 +32,66 @@ def run_command(command):
         print(f"An error occurred: {e}")
         return None
 
-def update_model(model_name, model_version): 
+def get_model_git_info(model_version):
+    """Get model Git Repo link and commit ID"""
+    url_parts = model_version.split('/')
+    model_url = '/'.join([url_parts[:-2]])
+    commit_id = url_parts[-1]
+    return model_url, commit_id
+
+def update_model(model_name, model_commit): 
     """Using Git Update Model"""
-    if not model_version: 
-        return
     weights_path = get_weights_path(model_name)
     start_dir = os.getcwd()
     try:
-        # Change to weights directory 
+        # Change to weights directory
         os.chdir(weights_path)
         run_command("git checkout main")
         run_command("git pull origin main")
-        run_command(f"git checkout {model_version}")
+        run_command(f"git checkout {model_commit}")
     except Exception as e:
         print(f"An error occurred: {e}")
     finally: 
         # Change back to the original directory
         os.chdir(start_dir)
-    
+
+def download_new_model(model_name, model_url):
+    """Given URL download new model""" 
+    weights_path = get_weights_path(model_name)
+    start_dir = os.getcwd()
+    # If a new model then download it
+    if not os.path.exists(weights_path) and model_url: 
+        try:
+            os.makedirs(weights_path, exist_ok=True)
+            # Change to weights directory 
+            os.chdir(weights_path)
+            # Clone the repo
+            run_command(f"git clone {model_url}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        finally: 
+            # Change back to the original directory
+            os.chdir(start_dir)
+
 def main():
     pr_branch = os.environ.get("PR_BRANCH", "main")
-    img_tag = os.environ.get("IMAGE_TAG", "0.0.1")
     model_name = os.environ.get("MODEL_NAME", None)
     model_version = os.environ.get("MODEL_VERSION", None)
     model_runtime = os.environ.get("MODEL_RUNTIME", None)
     model_type = os.environ.get("MODEL_TYPE", None)
     model_tag = os.environ.get("MODEL_TAG", None)
-    update_model(model_name, model_version)
+
+    if model_version: 
+        model_url, model_commit = get_model_git_info(model_version)
+        download_new_model(model_name, model_url)
+        update_model(model_name, model_commit)
     clone_and_checkout_pr_branch(pr_branch)
 
     job_names = []
 
     unique_id = generate_unique_id()
     job_name = f"{model_name}-{unique_id}"
-    job_yaml = populate_job_template(model_name, model_type, model_runtime, model_tag, img_tag, job_name, os.environ)
+    job_yaml = populate_job_template(model_name, model_type, model_runtime, model_tag, job_name, os.environ)
     write_job_file(job_yaml, job_name)
 
     output = run_command(f"ls {get_weights_path(model_name)}")
@@ -102,7 +126,7 @@ def clone_and_checkout_pr_branch(pr_branch):
 
     os.chdir(Path.cwd().parent)
 
-def populate_job_template(model_name, model_type, model_runtime, model_tag, img_tag, job_name, env_vars):
+def populate_job_template(model_name, model_type, model_runtime, model_tag, job_name, env_vars):
     """Populate the job template with provided values."""
     try:
         docker_job_template = Path.cwd() / "repo/.github/workflows/kind-cluster/docker-job-template.yaml"
@@ -112,7 +136,6 @@ def populate_job_template(model_name, model_type, model_runtime, model_tag, img_
         replacements = {
             "{{JOB_ID}}": f"{job_name}",
             "{{IMAGE_NAME}}": model_name,
-            "{{IMAGE_TAG}}": img_tag,
             "{{ACR_NAME}}": env_vars["ACR_NAME"],
             "{{ACR_USERNAME}}": env_vars["ACR_USERNAME"],
             "{{ACR_PASSWORD}}": env_vars["ACR_PASSWORD"],
