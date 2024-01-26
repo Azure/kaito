@@ -51,7 +51,25 @@ def update_model(model_name, model_version):
     finally: 
         # Change back to the original directory
         os.chdir(start_dir)
-    
+
+def download_new_model(model_name, model_url):
+    """Given URL download new model""" 
+    weights_path = get_weights_path(model_name)
+    start_dir = os.getcwd()
+    # If a new model then download it
+    if not os.path.exists(weights_path) and model_url: 
+        try:
+            os.makedirs(weights_path, exist_ok=True)
+            # Change to weights directory 
+            os.chdir(weights_path)
+            # Clone the repo
+            run_command(f"git clone {model_url}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        finally: 
+            # Change back to the original directory
+            os.chdir(start_dir)
+
 def main():
     pr_branch = os.environ.get("PR_BRANCH", "main")
     img_tag = os.environ.get("IMAGE_TAG", "0.0.1")
@@ -60,6 +78,9 @@ def main():
     model_runtime = os.environ.get("MODEL_RUNTIME", None)
     model_type = os.environ.get("MODEL_TYPE", None)
     model_tag = os.environ.get("MODEL_TAG", None)
+    model_url = os.environ.get("MODEL_URL", None)
+
+    download_new_model(model_name, model_url)
     update_model(model_name, model_version)
     clone_and_checkout_pr_branch(pr_branch)
 
