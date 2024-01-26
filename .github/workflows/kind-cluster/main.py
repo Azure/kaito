@@ -34,18 +34,23 @@ def run_command(command):
         print(f"An error occurred: {e}")
         return None
 
-def update_model(model_name, model_version): 
+def get_model_git_info(model_version):
+    """Get model Git Repo link and commit ID"""
+    url_parts = model_version.split('/')
+    model_url = '/'.join([url_parts[:-2]])
+    commit_id = url_parts[-1]
+    return model_url, commit_id
+
+def update_model(model_name, model_commit): 
     """Using Git Update Model"""
-    if not model_version: 
-        return
     weights_path = get_weights_path(model_name)
     start_dir = os.getcwd()
     try:
-        # Change to weights directory 
+        # Change to weights directory
         os.chdir(weights_path)
         run_command("git checkout main")
         run_command("git pull origin main")
-        run_command(f"git checkout {model_version}")
+        run_command(f"git checkout {model_commit}")
     except Exception as e:
         print(f"An error occurred: {e}")
     finally: 
@@ -77,10 +82,11 @@ def main():
     model_runtime = os.environ.get("MODEL_RUNTIME", None)
     model_type = os.environ.get("MODEL_TYPE", None)
     model_tag = os.environ.get("MODEL_TAG", None)
-    model_url = os.environ.get("MODEL_URL", None)
 
-    download_new_model(model_name, model_url)
-    update_model(model_name, model_version)
+    if model_version: 
+        model_url, model_commit = get_model_git_info(model_version)
+        download_new_model(model_name, model_url)
+        update_model(model_name, model_commit)
     clone_and_checkout_pr_branch(pr_branch)
 
     job_names = []

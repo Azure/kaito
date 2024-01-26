@@ -90,7 +90,6 @@ jobs:
           MODEL_VERSION=${{ matrix.model.version }} \
           MODEL_RUNTIME=${{ matrix.model.runtime }} \
           MODEL_TAG=${{ matrix.model.tag }} \
-          MODEL_URL=${{ matrix.model.url }} \
           python3 .github/workflows/kind-cluster/main.py
       
       # Check the exit status of the Python script
