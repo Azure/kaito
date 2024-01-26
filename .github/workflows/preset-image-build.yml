@@ -91,15 +91,9 @@ jobs:
       - name: 'Get ACR Info'
         id: acr_info
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag_name }}" ]]; then
-            ACR_NAME="${{ secrets.ACR_AMR_USERNAME }}"
-            ACR_USERNAME=${{ secrets.ACR_AMR_USERNAME }}
-            ACR_PASSWORD=${{ secrets.ACR_AMR_PASSWORD }}
-          else
-            ACR_NAME="${{ secrets.ACR_AMRT_USERNAME }}"
-            ACR_USERNAME=${{ secrets.ACR_AMRT_USERNAME }}
-            ACR_PASSWORD=${{ secrets.ACR_AMRT_PASSWORD }} 
-          fi
+          ACR_NAME="${{ secrets.ACR_AMRT_USERNAME }}"
+          ACR_USERNAME=${{ secrets.ACR_AMRT_USERNAME }}
+          ACR_PASSWORD=${{ secrets.ACR_AMRT_PASSWORD }} 
           echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
           echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
           echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
