@@ -30,4 +30,5 @@ type PresetInferenceParam struct {
 	BaseCommand string
 	// WorldSize defines the number of processes required for distributed inference.
 	WorldSize int
+	Tag       string // The model image tag
 }
