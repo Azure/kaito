@@ -63,7 +63,7 @@ jobs:
   build-models:
     needs: determine-models
     if: needs.determine-models.outputs.is_matrix_empty == 'false'
-    runs-on: [self-hosted, 'username:runner-2', 'username:runner-3']
+    runs-on: [self-hosted]
     strategy:
       fail-fast: false
       matrix:
