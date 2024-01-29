@@ -6,112 +6,69 @@ on:
         types: 
             - completed
     workflow_dispatch:
-        inputs:
-            image_tag:
-                description: 'Image Tag'
-                required: true
+
 env:
     GO_VERSION: "1.20"
-    VERSION: 0.0.1
 
 permissions:
     id-token: write
     contents: read
 
 jobs:
-  setup:
+  determine-models:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs: 
-      image_tag: ${{ steps.set_tag.outputs.image_tag }}
-    steps:
-      - name: Set Image Tag
-        id: set_tag
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag }}" ]]; then
-            echo "Using workflow dispatch to set image tag"
-            echo "image_tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "Setting image tag based on version set"
-            echo "image_tag=${{ env.VERSION }}" >> $GITHUB_OUTPUT
-          fi
-
-  e2e-preset-tests:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
-    needs: setup
-    runs-on: [self-hosted, 'username:runner-3']
-    strategy:
-      fail-fast: false
-      matrix:
-        image:
-          - name: falcon-7b
-            node-count: 1
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 100
-
-          - name: falcon-7b-instruct
-            node-count: 1
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 100
-
-          - name: falcon-40b
-            node-count: 1
-            node-vm-size: Standard_NC96ads_A100_v4
-            node-osdisk-size: 400
-
-          - name: falcon-40b-instruct
-            node-count: 1
-            node-vm-size: Standard_NC96ads_A100_v4
-            node-osdisk-size: 400
-
-          - name: llama-2-7b
-            node-count: 1
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 100
-        
-          - name: llama-2-13b
-            node-count: 2
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 150
-        
-        # Uncomment once service/deployment made
-        #   - name: llama-2-70b
-        #     node-count: 2
-        #     node-vm-size: Standard_NC96ads_A100_v4
-        #     node-osdisk-size: 400
-
-          - name: llama-2-7b-chat
-            node-count: 1
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 100
-
-          - name: llama-2-13b-chat
-            node-count: 2
-            node-vm-size: Standard_NC12s_v3
-            node-osdisk-size: 150
-        
-        # Uncomment once service/deployment made
-        #   - name: llama-2-70b-chat
-        #     node-count: 2
-        #     node-vm-size: Standard_NC96ads_A100_v4
-        #     node-osdisk-size: 400
-
+      matrix: ${{ steps.images.outputs.matrix }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
             submodules: true
             fetch-depth: 0
-    
-      - name: Get ACR Name
-        id: get_acr_name
+
+      - name: Determine Images for Testing
+        id: images
         run: |
-            # Set the ACR based on the tag value
-            if [[ "${{ needs.setup.outputs.image_tag }}" == "latest" ]]; then
-              echo "ACR_NAME=aimodelsregistry" >> $GITHUB_OUTPUT
-            else
-              echo "ACR_NAME=aimodelsregistrytest" >> $GITHUB_OUTPUT
-            fi
+            echo "Setting image tag based on presets/models/supported_models.yaml"
+            MATRIX=$(yq e -o=json '.models' presets/models/supported_models.yaml | jq -c)
+            
+            # Read the additional configurations from e2e-preset-configs.json
+            CONFIGS=$(cat .github/workflows/e2e-preset-configs.json | jq -c '.matrix.image')
+            
+            # Pseudocode for combining matrices
+            # COMBINED_MATRIX = []
+            # for model in MATRIX:
+            #     for config in CONFIGS:
+            #         if config['name'] == model['name']:
+            #             combined = {**model, **config}
+            #             COMBINED_MATRIX.append(combined)
+            #             break
+
+            COMBINED_MATRIX=$(echo $MATRIX | jq --argjson configs "$CONFIGS" -c '
+                map(. as $model | $configs[] | select(.name == $model.name) | $model + .)
+            ')
+
+            echo "matrix=$COMBINED_MATRIX" >> $GITHUB_OUTPUT
+
+  e2e-preset-tests:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    needs: determine-models
+    runs-on: [self-hosted, 'username:runner-2','username:runner-3']
+    strategy:
+      fail-fast: false
+      matrix:
+        # Ex matrix element:
+        # {"name":"falcon-40b","type":"text-generation","version":"#",
+        # "runtime":"tfs","tag":"0.0.1","node-count":1,
+        # "node-vm-size":"Standard_NC96ads_A100_v4", "node-osdisk-size":400}
+        model: ${{fromJson(needs.determine-models.outputs.matrix)}}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+            submodules: true
+            fetch-depth: 0
         
       - name: Install Azure CLI latest
         run: |
@@ -135,9 +92,9 @@ jobs:
       - name: 'Check if Image exists in ACR'
         id: check_image
         run: |
-            ACR_NAME=${{ steps.get_acr_name.outputs.ACR_NAME }}
-            IMAGE_NAME=${{ matrix.image.name }}
-            TAG=${{ needs.setup.outputs.image_tag }}
+            ACR_NAME=${{ secrets.ACR_AMRT_USERNAME }}
+            IMAGE_NAME=${{ matrix.name }}
+            TAG=${{ matrix.tag }}
         
             TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv)
         
@@ -157,7 +114,7 @@ jobs:
         if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         id: get_nodepool_name
         run: |
-            NAME_SUFFIX=${{ matrix.image.name }}
+            NAME_SUFFIX=${{ matrix.name }}
             NAME_SUFFIX_WITHOUT_DASHES=${NAME_SUFFIX//-/}  # Removing all '-' symbols
             
             if [ ${#NAME_SUFFIX_WITHOUT_DASHES} -gt 12 ]; then
@@ -182,9 +139,9 @@ jobs:
                     --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
                     --cluster-name GitRunner \
                     --resource-group llm-test \
-                    --node-count ${{ matrix.image.node-count }} \
-                    --node-vm-size ${{ matrix.image.node-vm-size }} \
-                    --node-osdisk-size ${{ matrix.image.node-osdisk-size }} \
+                    --node-count ${{ matrix.node-count }} \
+                    --node-vm-size ${{ matrix.node-vm-size }} \
+                    --node-osdisk-size ${{ matrix.node-osdisk-size }} \
                     --labels pool=${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
                     --node-taints sku=gpu:NoSchedule \
                     --aks-custom-headers UseGPUDedicatedVHD=true
@@ -205,14 +162,14 @@ jobs:
 
       - name: Create Service
         if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
-        run: kubectl apply -f presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-service.yaml
+        run: kubectl apply -f presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-service.yaml
       
       - name: Retrieve External Service IP
         if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         id: get_ip
         run: |
             while [[ -z $SERVICE_IP ]]; do 
-                SERVICE_IP=$(kubectl get svc ${{ matrix.image.name }} -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                SERVICE_IP=$(kubectl get svc ${{ matrix.name }} -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')
                 sleep 5
             done 
             echo "Service IP is $SERVICE_IP"
@@ -221,15 +178,15 @@ jobs:
       - name: Replace IP and Deploy Statefulset to K8s
         if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
-            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            sed -i "s/TAG_HERE/${{ needs.setup.outputs.image_tag }}/g" presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            sed -i "s/REPO_HERE/${{ steps.get_acr_name.outputs.ACR_NAME }}/g" presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
-            kubectl apply -f presets/test/manifests/${{ matrix.image.name }}/${{ matrix.image.name }}-statefulset.yaml
+            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-statefulset.yaml
+            sed -i "s/TAG_HERE/${{ matrix.tag }}/g" presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-statefulset.yaml
+            sed -i "s/REPO_HERE/${{ secrets.ACR_AMRT_USERNAME }}/g" presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-statefulset.yaml
+            kubectl apply -f presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-statefulset.yaml
     
       - name: Wait for Statefulset to be ready
         if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
-            kubectl rollout status statefulset/${{ matrix.image.name }}
+            kubectl rollout status statefulset/${{ matrix.name }}
         
       - name: Test home endpoint
         if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
@@ -244,8 +201,8 @@ jobs:
       - name: Test inference endpoint
         if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
         run: |
-            if [[ "${{ matrix.image.name }}" == *"llama"* && "${{ matrix.image.name }}" == *"-chat"* ]]; then
-                echo "Testing inference for ${{ matrix.image.name }}"
+            if [[ "${{ matrix.name }}" == *"llama"* && "${{ matrix.name }}" == *"-chat"* ]]; then
+                echo "Testing inference for ${{ matrix.name }}"
                 curl -X POST \
                 -H "Content-Type: application/json" \
                 -d '{
@@ -265,8 +222,8 @@ jobs:
                     }
                 }' \
                 http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/chat
-            elif [[ "${{ matrix.image.name }}" == *"llama"* ]]; then
-                echo "Testing inference for ${{ matrix.image.name }}"
+            elif [[ "${{ matrix.name }}" == *"llama"* ]]; then
+                echo "Testing inference for ${{ matrix.name }}"
                 curl -X POST \
                 -H "Content-Type: application/json" \
                 -d '{
@@ -281,8 +238,8 @@ jobs:
                     }
                 }' \
                 http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/generate
-            elif [[ "${{ matrix.image.name }}" == *"falcon"* ]]; then
-                echo "Testing inference for ${{ matrix.image.name }}"
+            elif [[ "${{ matrix.name }}" == *"falcon"* ]]; then
+                echo "Testing inference for ${{ matrix.name }}"
                 curl -X POST \
                 -H "accept: application/json" \
                 -H "Content-Type: application/json" \
@@ -294,13 +251,13 @@ jobs:
         if: always()
         run: |
             # Check and Delete K8s Service if it exists
-            if kubectl get svc ${{ matrix.image.name }} > /dev/null 2>&1; then
-                kubectl delete svc ${{ matrix.image.name }}
+            if kubectl get svc ${{ matrix.name }} > /dev/null 2>&1; then
+                kubectl delete svc ${{ matrix.name }}
             fi
         
             # Check and Delete K8s StatefulSet if it exists
-            if kubectl get statefulset ${{ matrix.image.name }} > /dev/null 2>&1; then
-                kubectl delete statefulset ${{ matrix.image.name }}
+            if kubectl get statefulset ${{ matrix.name }} > /dev/null 2>&1; then
+                kubectl delete statefulset ${{ matrix.name }}
             fi
 
             # Check and Delete AKS Nodepool if it exists            
