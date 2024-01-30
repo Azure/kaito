@@ -50,11 +50,16 @@ jobs:
             ')
 
             echo "matrix=$COMBINED_MATRIX" >> $GITHUB_OUTPUT
-
+      
+      - name: Print Combined Matrix
+        run: |
+            echo "Combined Matrix:"
+            echo '${{ steps.images.outputs.matrix }}'
   e2e-preset-tests:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     needs: determine-models
-    runs-on: [self-hosted, 'username:runner-2','username:runner-3']
+    runs-on: ubuntu-latest
+    environment: e2e-test
     strategy:
       fail-fast: false
       matrix:
@@ -93,8 +98,8 @@ jobs:
         id: check_test_image
         run: |
             ACR_NAME=${{ secrets.ACR_AMRT_USERNAME }}
-            IMAGE_NAME=${{ matrix.name }}
-            TAG=${{ matrix.tag }}
+            IMAGE_NAME=${{ matrix.model.name }}
+            TAG=${{ matrix.model.tag }}
         
             TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv)
         
@@ -109,8 +114,8 @@ jobs:
         id: check_prod_image
         run: |
             ACR_NAME=${{ secrets.ACR_AMR_USERNAME }}
-            IMAGE_NAME=${{ matrix.name }}
-            TAG=${{ matrix.tag }}
+            IMAGE_NAME=${{ matrix.model.name }}
+            TAG=${{ matrix.model.tag }}
         
             TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv)
         
@@ -135,7 +140,7 @@ jobs:
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         id: get_nodepool_name
         run: |
-            NAME_SUFFIX=${{ matrix.name }}
+            NAME_SUFFIX=${{ matrix.model.name }}
             NAME_SUFFIX_WITHOUT_DASHES=${NAME_SUFFIX//-/}  # Removing all '-' symbols
             
             if [ ${#NAME_SUFFIX_WITHOUT_DASHES} -gt 12 ]; then
@@ -160,9 +165,9 @@ jobs:
                     --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
                     --cluster-name GitRunner \
                     --resource-group llm-test \
-                    --node-count ${{ matrix.node-count }} \
-                    --node-vm-size ${{ matrix.node-vm-size }} \
-                    --node-osdisk-size ${{ matrix.node-osdisk-size }} \
+                    --node-count ${{ matrix.model.node-count }} \
+                    --node-vm-size ${{ matrix.model.node-vm-size }} \
+                    --node-osdisk-size ${{ matrix.model.node-osdisk-size }} \
                     --labels pool=${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
                     --node-taints sku=gpu:NoSchedule \
                     --aks-custom-headers UseGPUDedicatedVHD=true
@@ -183,14 +188,14 @@ jobs:
 
       - name: Create Service
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
-        run: kubectl apply -f presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-service.yaml
+        run: kubectl apply -f presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}-service.yaml
       
       - name: Retrieve External Service IP
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         id: get_ip
         run: |
             while [[ -z $SERVICE_IP ]]; do 
-                SERVICE_IP=$(kubectl get svc ${{ matrix.name }} -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                SERVICE_IP=$(kubectl get svc ${{ matrix.model.name }} -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')
                 sleep 5
             done 
             echo "Service IP is $SERVICE_IP"
@@ -199,15 +204,15 @@ jobs:
       - name: Replace IP and Deploy Statefulset to K8s
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
-            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-statefulset.yaml
-            sed -i "s/TAG_HERE/${{ matrix.tag }}/g" presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-statefulset.yaml
-            sed -i "s/REPO_HERE/${{ secrets.ACR_AMRT_USERNAME }}/g" presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-statefulset.yaml
-            kubectl apply -f presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-statefulset.yaml
+            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}-statefulset.yaml
+            sed -i "s/TAG_HERE/${{ matrix.model.tag }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}-statefulset.yaml
+            sed -i "s/REPO_HERE/${{ secrets.ACR_AMRT_USERNAME }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}-statefulset.yaml
+            kubectl apply -f presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}-statefulset.yaml
     
       - name: Wait for Statefulset to be ready
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
-            kubectl rollout status statefulset/${{ matrix.name }}
+            kubectl rollout status statefulset/${{ matrix.model.name }}
         
       - name: Test home endpoint
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
@@ -222,8 +227,8 @@ jobs:
       - name: Test inference endpoint
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
-            if [[ "${{ matrix.name }}" == *"llama"* && "${{ matrix.name }}" == *"-chat"* ]]; then
-                echo "Testing inference for ${{ matrix.name }}"
+            if [[ "${{ matrix.model.name }}" == *"llama"* && "${{ matrix.model.name }}" == *"-chat"* ]]; then
+                echo "Testing inference for ${{ matrix.model.name }}"
                 curl -X POST \
                 -H "Content-Type: application/json" \
                 -d '{
@@ -243,8 +248,8 @@ jobs:
                     }
                 }' \
                 http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/chat
-            elif [[ "${{ matrix.name }}" == *"llama"* ]]; then
-                echo "Testing inference for ${{ matrix.name }}"
+            elif [[ "${{ matrix.model.name }}" == *"llama"* ]]; then
+                echo "Testing inference for ${{ matrix.model.name }}"
                 curl -X POST \
                 -H "Content-Type: application/json" \
                 -d '{
@@ -259,8 +264,8 @@ jobs:
                     }
                 }' \
                 http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/generate
-            elif [[ "${{ matrix.name }}" == *"falcon"* ]]; then
-                echo "Testing inference for ${{ matrix.name }}"
+            elif [[ "${{ matrix.model.name }}" == *"falcon"* ]]; then
+                echo "Testing inference for ${{ matrix.model.name }}"
                 curl -X POST \
                 -H "accept: application/json" \
                 -H "Content-Type: application/json" \
@@ -278,8 +283,8 @@ jobs:
 
             TEST_ACR_NAME=${{ secrets.ACR_AMRT_USERNAME }}
             PROD_ACR_NAME=${{ secrets.ACR_AMR_USERNAME }}
-            IMAGE_NAME=${{ matrix.name }}
-            TAG=${{ matrix.tag }}
+            IMAGE_NAME=${{ matrix.model.name }}
+            TAG=${{ matrix.model.tag }}
 
             # Formulate the source image reference
             SOURCE_IMAGE="$TEST_ACR_NAME.azurecr.io/$IMAGE_NAME:$TAG"
@@ -291,13 +296,13 @@ jobs:
         if: always()
         run: |
             # Check and Delete K8s Service if it exists
-            if kubectl get svc ${{ matrix.name }} > /dev/null 2>&1; then
-                kubectl delete svc ${{ matrix.name }}
+            if kubectl get svc ${{ matrix.model.name }} > /dev/null 2>&1; then
+                kubectl delete svc ${{ matrix.model.name }}
             fi
         
             # Check and Delete K8s StatefulSet if it exists
-            if kubectl get statefulset ${{ matrix.name }} > /dev/null 2>&1; then
-                kubectl delete statefulset ${{ matrix.name }}
+            if kubectl get statefulset ${{ matrix.model.name }} > /dev/null 2>&1; then
+                kubectl delete statefulset ${{ matrix.model.name }}
             fi
 
             # Check and Delete AKS Nodepool if it exists            
