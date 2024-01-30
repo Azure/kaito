@@ -54,7 +54,7 @@ jobs:
   e2e-preset-tests:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     needs: determine-models
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, 'hostname:aks-agentpool-38555668-vmss000007']
     strategy:
       fail-fast: false
       matrix:
