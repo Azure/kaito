@@ -1,21 +1,22 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from fastapi import FastAPI, HTTPException
-import uvicorn
-from pydantic import BaseModel
-from typing import Optional
+import argparse
+import functools
 import multiprocessing
 import multiprocessing.pool
-import threading
-import functools
-
-from llama import Llama
-import torch
-import sys
-import signal
 import os
+import signal
+import sys
+import threading
+from typing import Optional
+
+import GPUtil
+import torch
 import torch.distributed as dist
-import argparse
+import uvicorn
+from fastapi import FastAPI, HTTPException
+from llama import Llama
+from pydantic import BaseModel
 
 # Setup argparse
 parser = argparse.ArgumentParser(description="Llama API server.")
@@ -159,6 +160,26 @@ def setup_main_routes():
 
         return {"results": response_data}
 
+    @app_main.get("/metrics")
+    def get_metrics():
+        try:
+            gpus = GPUtil.getGPUs()
+            gpu_info = []
+            for gpu in gpus:
+                gpu_info.append({
+                    "id": gpu.id,
+                    "name": gpu.name,
+                    "load": f"{gpu.load * 100:.2f}%",  # Format as percentage
+                    "temperature": f"{gpu.temperature} C",
+                    "memory": {
+                        "used": f"{gpu.memoryUsed / 1024:.2f} GB",
+                        "total": f"{gpu.memoryTotal / 1024:.2f} GB"
+                    }
+                })
+            return {"gpu_info": gpu_info}
+        except Exception as e:
+            return {"error": str(e)}
+
 def setup_worker_routes(): 
     @app_worker.get("/healthz")
     def health_check():
@@ -167,6 +188,26 @@ def setup_worker_routes():
         if not generator:
             raise HTTPException(status_code=500, detail="Llama model not initialized")
         return {"status": "Healthy"}
+
+    @app_worker.get("/metrics")
+    def get_metrics():
+        try:
+            gpus = GPUtil.getGPUs()
+            gpu_info = []
+            for gpu in gpus:
+                gpu_info.append({
+                    "id": gpu.id,
+                    "name": gpu.name,
+                    "load": f"{gpu.load * 100:.2f}%",  # Format as percentage
+                    "temperature": f"{gpu.temperature} C",
+                    "memory": {
+                        "used": f"{gpu.memoryUsed / 1024:.2f} GB",
+                        "total": f"{gpu.memoryTotal / 1024:.2f} GB"
+                    }
+                })
+            return {"gpu_info": gpu_info}
+        except Exception as e:
+            return {"error": str(e)}
 
 def start_worker_server():
     print(f"Worker {dist.get_rank()} HTTP health server started at port 5000")

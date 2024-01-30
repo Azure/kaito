@@ -10,36 +10,11 @@ import yaml
 
 KAITO_REPO_URL = "https://github.com/Azure/kaito.git"
 
-def read_models_from_yaml(file_path):
-    with open(file_path, 'r') as file:
-        data = yaml.safe_load(file)
-        return set(data['models'])
-
-yaml_file_path = 'presets/models/supported_models.yaml'
-MODELS = read_models_from_yaml(yaml_file_path)
-
-def get_model_type(model_name): 
-    model_type = "tfs"
-    if "llama" in model_name: 
-        model_type = "llama-2"
-    elif "onnx" in model_name: 
-        model_type = "tfs-onnx"
-    return model_type
-
 def get_weights_path(model_name): 
     return f"/datadrive/{model_name}/weights"
 
-def get_preset_path(model_name): 
-    preset_name = model_name.split("-")[0]
-    if preset_name == "llama":
-        preset_name += "2"
-        if model_name.endswith("chat"):
-            preset_name += "chat"
-    return f"/kaito/presets/models/{preset_name}"
-
-def get_dockerfile_path(model_name): 
-    model_type = get_model_type(model_name)
-    return f"/kaito/docker/presets/{model_type}/Dockerfile"
+def get_dockerfile_path(model_runtime): 
+    return f"/kaito/docker/presets/{model_runtime}/Dockerfile"
 
 def generate_unique_id():
     """Generate a unique identifier for a job."""
@@ -59,24 +34,73 @@ def run_command(command):
         print(f"An error occurred: {e}")
         return None
 
-def main(): 
+def get_model_git_info(model_version):
+    """Get model Git Repo link and commit ID"""
+    url_parts = model_version.split('/')
+    model_url = '/'.join([url_parts[:-2]])
+    commit_id = url_parts[-1]
+    return model_url, commit_id
+
+def update_model(model_name, model_commit): 
+    """Using Git Update Model"""
+    weights_path = get_weights_path(model_name)
+    start_dir = os.getcwd()
+    try:
+        # Change to weights directory
+        os.chdir(weights_path)
+        run_command("git checkout main")
+        run_command("git pull origin main")
+        run_command(f"git checkout {model_commit}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally: 
+        # Change back to the original directory
+        os.chdir(start_dir)
+
+def download_new_model(model_name, model_url):
+    """Given URL download new model""" 
+    weights_path = get_weights_path(model_name)
+    start_dir = os.getcwd()
+    # If a new model then download it
+    if not os.path.exists(weights_path) and model_url: 
+        try:
+            os.makedirs(weights_path, exist_ok=True)
+            # Change to weights directory 
+            os.chdir(weights_path)
+            # Clone the repo
+            run_command(f"git clone {model_url}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        finally: 
+            # Change back to the original directory
+            os.chdir(start_dir)
+
+def main():
     pr_branch = os.environ.get("PR_BRANCH", "main")
-    img_tag = os.environ.get("IMAGE_TAG", "0.0.1")
-    mod_models = check_modified_models(pr_branch)
+    model_name = os.environ.get("MODEL_NAME", None)
+    model_version = os.environ.get("MODEL_VERSION", None)
+    model_runtime = os.environ.get("MODEL_RUNTIME", None)
+    model_type = os.environ.get("MODEL_TYPE", None)
+    model_tag = os.environ.get("MODEL_TAG", None)
+
+    if model_version: 
+        model_url, model_commit = get_model_git_info(model_version)
+        download_new_model(model_name, model_url)
+        update_model(model_name, model_commit)
+    clone_and_checkout_pr_branch(pr_branch)
 
     job_names = []
-    for model, modified in mod_models.items(): 
-        if modified:
-            unique_id = generate_unique_id()
-            job_name = f"{model}-{unique_id}"
-            job_yaml = populate_job_template(model, img_tag, job_name, os.environ)
-            write_job_file(job_yaml, job_name)
 
-            output = run_command(f"ls {get_weights_path(model)}")
-            print("Model Weights:", output)
+    unique_id = generate_unique_id()
+    job_name = f"{model_name}-{unique_id}"
+    job_yaml = populate_job_template(model_name, model_type, model_runtime, model_tag, job_name, os.environ)
+    write_job_file(job_yaml, job_name)
 
-            run_command(f"kubectl apply -f {job_name}-job.yaml")
-            job_names.append(job_name)
+    output = run_command(f"ls {get_weights_path(model_name)}")
+    print("Model Weights:", output)
+
+    run_command(f"kubectl apply -f {job_name}-job.yaml")
+    job_names.append(job_name)
     
     if not wait_for_jobs_to_complete(job_names):
         exit(1)  # Exit with an error code if any job failed
@@ -87,36 +111,8 @@ def write_job_file(job_yaml, job_name):
         with open(f"{job_name}-job.yaml", "w") as file:
             file.write(job_yaml)
 
-def populate_job_template(model, img_tag, job_name, env_vars):
-    """Populate the job template with provided values."""
-    try:
-        docker_job_template = Path.cwd() / "repo/.github/workflows/kind-cluster/docker-job-template.yaml"
-        with open(docker_job_template, "r") as file:
-            job_template = file.read()
-
-        replacements = {
-            "{{JOB_ID}}": f"{job_name}",
-            "{{IMAGE_NAME}}": model,
-            "{{IMAGE_TAG}}": img_tag,
-            "{{ACR_NAME}}": env_vars["ACR_NAME"],
-            "{{ACR_USERNAME}}": env_vars["ACR_USERNAME"],
-            "{{ACR_PASSWORD}}": env_vars["ACR_PASSWORD"],
-            "{{PR_BRANCH}}": env_vars["PR_BRANCH"],
-            "{{HOST_WEIGHTS_PATH}}": get_weights_path(model),
-            "{{MODEL_PRESET_PATH}}": get_preset_path(model),
-            "{{DOCKERFILE_PATH}}": get_dockerfile_path(model)
-        }
-
-        for key, value in replacements.items():
-            job_template = job_template.replace(key, value)
-
-        return job_template
-    except Exception as e:
-        print(f"An error occurred while populating job template: {e}")
-        return None
-
-def check_modified_models(pr_branch):
-    """Check for modified models in the repository."""
+def clone_and_checkout_pr_branch(pr_branch):
+    """Clone and checkout PR Branch."""
     repo_dir = Path.cwd() / "repo"
 
     if repo_dir.exists():
@@ -130,13 +126,36 @@ def check_modified_models(pr_branch):
     run_command(f"git fetch origin {pr_branch}:{pr_branch}")
     run_command(f"git checkout {pr_branch}")
 
-    files = run_command("git diff --name-only origin/main")
     os.chdir(Path.cwd().parent)
 
-    modified_models = {model: model.split("-")[0] in files for model in MODELS}
-    print("Modified Models (Images to build): ", modified_models)
+def populate_job_template(model_name, model_type, model_runtime, model_tag, job_name, env_vars):
+    """Populate the job template with provided values."""
+    try:
+        docker_job_template = Path.cwd() / "repo/.github/workflows/kind-cluster/docker-job-template.yaml"
+        with open(docker_job_template, "r") as file:
+            job_template = file.read()
 
-    return modified_models
+        replacements = {
+            "{{JOB_ID}}": f"{job_name}",
+            "{{IMAGE_NAME}}": model_name,
+            "{{ACR_NAME}}": env_vars["ACR_NAME"],
+            "{{ACR_USERNAME}}": env_vars["ACR_USERNAME"],
+            "{{ACR_PASSWORD}}": env_vars["ACR_PASSWORD"],
+            "{{PR_BRANCH}}": env_vars["PR_BRANCH"],
+            "{{HOST_WEIGHTS_PATH}}": get_weights_path(model_name),
+            "{{MODEL_TYPE}}": model_type,
+            "{{DOCKERFILE_PATH}}": get_dockerfile_path(model_runtime),
+            "{{VERSION}}": model_tag,
+        }
+
+        for key, value in replacements.items():
+            job_template = job_template.replace(key, value)
+
+        return job_template
+    except Exception as e:
+        print(f"An error occurred while populating job template: {e}")
+        return None
+
 
 def check_job_status(job_name):
     """Check the status of a Kubernetes job."""
