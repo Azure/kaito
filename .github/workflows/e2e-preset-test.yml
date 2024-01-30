@@ -121,13 +121,18 @@ jobs:
                 echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
             fi
     
+      - name: Check if Image is Test and Prod ACRs
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'true'
+        run: |
+            echo "Skipping: Image already exists in both Test and Prod ACRs, remember to bump tag"
+
       - name: Set up kubectl context
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true'
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
           az aks get-credentials --resource-group llm-test --name GitRunner
     
       - name: Get Nodepool Name
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true'
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         id: get_nodepool_name
         run: |
             NAME_SUFFIX=${{ matrix.name }}
@@ -142,7 +147,7 @@ jobs:
             echo "NODEPOOL_NAME=$TRUNCATED_NAME_SUFFIX" >> $GITHUB_OUTPUT
 
       - name: Create Nodepool
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true'
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
             NODEPOOL_EXIST=$(az aks nodepool show \
                             --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
@@ -177,11 +182,11 @@ jobs:
             fi
 
       - name: Create Service
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true'
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: kubectl apply -f presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-service.yaml
       
       - name: Retrieve External Service IP
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true'
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         id: get_ip
         run: |
             while [[ -z $SERVICE_IP ]]; do 
@@ -192,7 +197,7 @@ jobs:
             echo "SERVICE_IP=$SERVICE_IP" >> $GITHUB_OUTPUT
         
       - name: Replace IP and Deploy Statefulset to K8s
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true'
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
             sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-statefulset.yaml
             sed -i "s/TAG_HERE/${{ matrix.tag }}/g" presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-statefulset.yaml
@@ -200,22 +205,22 @@ jobs:
             kubectl apply -f presets/test/manifests/${{ matrix.name }}/${{ matrix.name }}-statefulset.yaml
     
       - name: Wait for Statefulset to be ready
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true'
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
             kubectl rollout status statefulset/${{ matrix.name }}
         
       - name: Test home endpoint
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true'
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
             curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/
 
       - name: Test healthz endpoint
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true'
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
             curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/healthz
     
       - name: Test inference endpoint
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true'
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
             if [[ "${{ matrix.name }}" == *"llama"* && "${{ matrix.name }}" == *"-chat"* ]]; then
                 echo "Testing inference for ${{ matrix.name }}"
