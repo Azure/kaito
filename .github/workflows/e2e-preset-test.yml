@@ -100,14 +100,20 @@ jobs:
             ACR_NAME=${{ secrets.ACR_AMRT_USERNAME }}
             IMAGE_NAME=${{ matrix.model.name }}
             TAG=${{ matrix.model.tag }}
-        
-            TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv)
-        
-            if echo "$TAGS" | grep -q "^$TAG$"; then
-                echo "IMAGE_EXISTS=true" >> $GITHUB_OUTPUT
-            else
+
+            # Use '|| true' to prevent script from exiting with an error if the repository is not found
+            TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv || true)
+
+            if [[ -z "$TAGS" ]]; then
+                echo "Image $IMAGE_NAME:$TAG or repository not found in $ACR_NAME."
                 echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
-                echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
+            else
+                if echo "$TAGS" | grep -q "^$TAG$"; then
+                    echo "IMAGE_EXISTS=true" >> $GITHUB_OUTPUT
+                else
+                    echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
+                    echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
+                fi
             fi
         
       - name: 'Check if Image exists in Prod ACR'
@@ -117,13 +123,19 @@ jobs:
             IMAGE_NAME=${{ matrix.model.name }}
             TAG=${{ matrix.model.tag }}
         
-            TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv)
-        
-            if echo "$TAGS" | grep -q "^$TAG$"; then
-                echo "IMAGE_EXISTS=true" >> $GITHUB_OUTPUT
-            else
+            # Use '|| true' to prevent script from exiting with an error if the repository is not found
+            TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv || true)
+
+            if [[ -z "$TAGS" ]]; then
+                echo "Image $IMAGE_NAME:$TAG or repository not found in $ACR_NAME."
                 echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
-                echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
+            else
+                if echo "$TAGS" | grep -q "^$TAG$"; then
+                    echo "IMAGE_EXISTS=true" >> $GITHUB_OUTPUT
+                else
+                    echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
+                    echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
+                fi
             fi
     
       - name: Check if Image is Test and Prod ACRs
