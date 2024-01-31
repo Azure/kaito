@@ -4,7 +4,7 @@
 #              --build-arg VERSION={{VERSION}} \
 #              --build-arg MODEL_TYPE={{MODEL_TYPE}} \
 
-FROM nvcr.io/nvidia/pytorch:23.10-py3
+FROM python:3.8-slim
 WORKDIR /workspace
 
 RUN git clone https://github.com/facebookresearch/llama
@@ -14,7 +14,7 @@ WORKDIR /workspace/llama
 RUN sed -i $'/torch.distributed.init_process_group("nccl")/c\\            import datetime\\\n            torch.distributed.init_process_group("nccl", timeout=datetime.timedelta(days=365*100))' /workspace/llama/llama/generation.py
 
 RUN pip install -e .
-RUN pip install fastapi pydantic gputil
+RUN pip install torch==2.2.0 fastapi==0.103.2 pydantic==1.10.9 gputil==1.4.0
 RUN pip install 'uvicorn[standard]'
 
 ARG WEIGHTS_PATH
