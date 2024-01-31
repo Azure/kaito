@@ -24,3 +24,5 @@ COPY kaito/presets/inference/${MODEL_TYPE}/inference-api.py /workspace/tfs/infer
 
 # Copy the entire model weights to the weights directory
 COPY ${WEIGHTS_PATH} /workspace/tfs/weights
+
+RUN rm -rf /workspace/tfs/weights/.git /workspace/tfs/weights/.gitattributes
