@@ -37,7 +37,7 @@ def run_command(command):
 def get_model_git_info(model_version):
     """Get model Git Repo link and commit ID"""
     url_parts = model_version.split('/')
-    model_url = '/'.join([url_parts[:-2]])
+    model_url = '/'.join(url_parts[:-2])
     commit_id = url_parts[-1]
     return model_url, commit_id
 
