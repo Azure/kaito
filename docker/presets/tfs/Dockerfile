@@ -10,6 +10,9 @@ WORKDIR /workspace/tfs
 # Write the version to a file
 RUN echo $VERSION > /workspace/tfs/version.txt
 
+# Install rsync
+RUN apt-get update && apt-get install -y rsync && rm -rf /var/lib/apt/lists/*
+
 # First, copy just the preset files and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and
 # avoid reinstalling dependencies unless the requirements file changes.
@@ -18,5 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY kaito/presets/inference/${MODEL_TYPE}/inference-api.py /workspace/tfs/inference-api.py
 
-# Copy the entire model weights to the weights directory
-COPY ${WEIGHTS_PATH} /workspace/tfs/weights
+# # Copy the entire model weights to the weights directory
+# COPY ${WEIGHTS_PATH} /workspace/tfs/weights
+
+# Use rsync to copy the entire model weights to the weights directory, excluding .git and .gitattributes
+RUN RUN mkdir -p /workspace/tfs/weights && rsync -av --exclude='.git' --exclude='.gitattributes' ${WEIGHTS_PATH}/ /workspace/tfs/weights/
+
