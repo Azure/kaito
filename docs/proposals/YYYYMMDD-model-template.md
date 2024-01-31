@@ -6,7 +6,7 @@ reviewers:
   - "Kaito contributor"
 creation-date: yyyy-mm-dd
 last-updated: yyyy-mm-dd
-status: provisional|implemented|deferred|rejected|withdrawn
+status: provisional|ready to integrate|integrated
 ---
 
 # Title
