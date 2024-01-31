@@ -105,7 +105,8 @@ def check_modified_models(pr_branch):
     run_command(f"git fetch origin {pr_branch}:{pr_branch}")
     run_command(f"git checkout {pr_branch}")
 
-    files = run_command("git diff --name-only origin/main")
+    files = run_command("git diff --name-only origin/main") # Returns each file on newline
+    files = files.split("\n")
     os.chdir(Path.cwd().parent)
 
     modified_models = models_to_build(files)
