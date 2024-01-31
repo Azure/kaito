@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/pytorch:23.10-py3
+FROM python:3.8-slim
 
 ARG WEIGHTS_PATH
 ARG MODEL_TYPE
