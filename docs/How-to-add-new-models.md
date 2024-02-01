@@ -18,7 +18,7 @@ This step is done by Kaito maintainers. If the model license allows, Kaito maint
 
 ## Step 4: Add preset configurations
 
-This step is done by the requestor. The requestor will work on a PR to register the model with preset configurations. The PR will contain code changes to implement a simple inference interface. [Here](../presets/models/falcon/model.go) is an existing example. In the same PR, or a sperate PR, the status of the proposal status should be updated to `integrated`.
+This step is done by the requestor. The requestor will work on a PR to register the model with preset configurations. The PR will contain code changes to implement a simple inference interface. [Here](../presets/models/falcon/model.go) is an existing example. In the same PR, or a separate PR, the status of the proposal status should be updated to `integrated`.
 
 ## Step 5: Add an E2E test
 
