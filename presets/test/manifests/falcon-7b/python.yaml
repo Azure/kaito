@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-gpu-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: python-gpu-app
+  template:
+    metadata:
+      labels:
+        app: python-gpu-app
+    spec:
+      containers:
+      - name: python-gpu-container
+        image: AIMODELSREGISTRYTEST.azurecr.io/falcon-7b:0.0.1  # Replace with your Docker image
+        command: ["/bin/sh"]
+        args: ["-c", "sleep infinity"]
+        resources:
+          limits:
+            nvidia.com/gpu: 2  # Requesting 2 GPUs
+      tolerations:
+        - effect: NoSchedule
+          key: sku
+          operator: Equal
+          value: gpu
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+      nodeSelector:
+        pool: falcon7b

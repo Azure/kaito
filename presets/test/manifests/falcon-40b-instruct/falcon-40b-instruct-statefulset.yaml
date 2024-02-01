@@ -21,6 +21,8 @@ spec:
             - -c
             - accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference-api.py --pipeline text-generation --torch_dtype bfloat16
           resources:
+            requests:
+              nvidia.com/gpu: 4
             limits:
               nvidia.com/gpu: 4  # Requesting 4 GPUs
           livenessProbe:
