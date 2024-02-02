@@ -35,9 +35,6 @@ spec:
               exit 1
             fi
 
-            # Create a .dockerignore file in the root directory
-            echo -e ".git\n.gitattributes" > /.dockerignore
-
             # Login to Docker registry
             echo $ACR_PASSWORD | docker login $ACR_NAME.azurecr.io -u $ACR_USERNAME --password-stdin
             
