@@ -79,13 +79,15 @@ def detect_changes_in_yaml(yaml_main, yaml_pr):
 
 def models_to_build(files_changed):
     """Models to build based on changed files."""
-    models = set()
+    models, seen_model_types = set(), set()
     if supp_models_yaml in files_changed:
         yaml_main = get_yaml_from_branch('main', supp_models_yaml)
         models.update(detect_changes_in_yaml(yaml_main, YAML_PR))
     for model, model_info in MODELS.items():
-        if any(file.startswith(f'presets/models/inference/{model_info["type"]}') for file in files_changed):
-            models.add(model)
+        if model_info["type"] not in seen_model_types: 
+            if any(file.startswith(f'presets/inference/{model_info["type"]}') for file in files_changed):
+                models.add(model)
+                seen_model_types.add(model_info["type"])
     return list(models)
 
 def check_modified_models(pr_branch):
@@ -103,7 +105,8 @@ def check_modified_models(pr_branch):
     run_command(f"git fetch origin {pr_branch}:{pr_branch}")
     run_command(f"git checkout {pr_branch}")
 
-    files = run_command("git diff --name-only origin/main")
+    files = run_command("git diff --name-only origin/main") # Returns each file on newline
+    files = files.split("\n")
     os.chdir(Path.cwd().parent)
 
     modified_models = models_to_build(files)

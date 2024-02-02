@@ -94,6 +94,7 @@ func updateTorchParamsForDistributedInference(ctx context.Context, kubeClient cl
 
 func GetImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, inferenceObj *model.PresetInferenceParam) (string, []corev1.LocalObjectReference) {
 	imageName := string(workspaceObj.Inference.Preset.Name)
+	imageTag := inferenceObj.Tag
 	imagePullSecretRefs := []corev1.LocalObjectReference{}
 	if inferenceObj.ImageAccessMode == "private" {
 		imageName = string(workspaceObj.Inference.Preset.PresetOptions.Image)
@@ -104,7 +105,7 @@ func GetImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, in
 	}
 
 	registryName := os.Getenv("PRESET_REGISTRY_NAME")
-	imageName = registryName + fmt.Sprintf("/kaito-%s:0.0.1", imageName)
+	imageName = registryName + fmt.Sprintf("/kaito-%s:%s", imageName, imageTag)
 	return imageName, imagePullSecretRefs
 }
 
