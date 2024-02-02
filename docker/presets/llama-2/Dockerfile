@@ -25,5 +25,3 @@ RUN echo $VERSION > /workspace/llama/version.txt
 
 ADD ${WEIGHTS_PATH} /workspace/llama/llama-2/weights
 ADD kaito/presets/inference/${MODEL_TYPE} /workspace/llama/llama-2
-
-RUN rm -rf /workspace/llama/llama-2/weights/.git /workspace/llama/llama-2/weights/.gitattributes
