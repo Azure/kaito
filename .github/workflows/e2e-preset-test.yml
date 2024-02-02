@@ -34,7 +34,7 @@ jobs:
             MATRIX=$(yq e -o=json '.models' presets/models/supported_models.yaml | jq -c)
             
             # Read the additional configurations from e2e-preset-configs.json
-            CONFIGS=$(cat .github/workflows/e2e-preset-configs.json | jq -c '.matrix.image')
+            CONFIGS=$(cat .github/e2e-preset-configs.json | jq -c '.matrix.image')
             
             # Pseudocode for combining matrices
             # COMBINED_MATRIX = []
