@@ -18,5 +18,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY kaito/presets/inference/${MODEL_TYPE}/inference-api.py /workspace/tfs/inference-api.py
 
-# Copy only files that don't start with a "." from the weights path
-RUN find ${WEIGHTS_PATH} -type f ! -name ".*" -exec cp {} /workspace/tfs/weights/ \;
+# Copy the entire model weights to the weights directory
+COPY ${WEIGHTS_PATH} /workspace/tfs/weights

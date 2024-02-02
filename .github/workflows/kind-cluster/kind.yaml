@@ -9,3 +9,5 @@ nodes:
     containerPath: /home
   - hostPath: /datadrive/etcd
     containerPath: /var/lib/etcd
+  - hostPath: /.dockerignore
+    containerPath: /.dockerignore
