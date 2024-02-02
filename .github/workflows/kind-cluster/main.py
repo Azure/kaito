@@ -41,8 +41,8 @@ def get_model_git_info(model_version):
     commit_id = url_parts[-1]
     return model_url, commit_id
 
-def update_model(model_name, model_commit): 
-    """Using Git Update Model"""
+def update_model(model_name, model_commit):
+    """Update the model to a specific commit, including LFS files."""
     weights_path = get_weights_path(model_name)
     start_dir = os.getcwd()
     try:
@@ -50,10 +50,17 @@ def update_model(model_name, model_commit):
         os.chdir(weights_path)
         run_command("git checkout main")
         run_command("git pull origin main")
+        # Ensure Git LFS is initialized
+        run_command("git lfs install")
+        # Checkout to the specific commit
         run_command(f"git checkout {model_commit}")
+        # Pull LFS files for the checked-out commit
+        run_command("git lfs pull")
+        # Remove the .git/lfs directory to save space
+        run_command("rm -rf .git/lfs")
     except Exception as e:
         print(f"An error occurred: {e}")
-    finally: 
+    finally:
         # Change back to the original directory
         os.chdir(start_dir)
 
@@ -62,7 +69,7 @@ def download_new_model(model_name, model_url):
     weights_path = get_weights_path(model_name)
     start_dir = os.getcwd()
     # If a new model then download it
-    if not os.path.exists(weights_path) and model_url: 
+    if not os.path.exists(weights_path) and model_url:
         try:
             os.makedirs(weights_path, exist_ok=True)
             # Change to weights directory 
@@ -71,7 +78,7 @@ def download_new_model(model_name, model_url):
             run_command(f"git clone {model_url}")
         except Exception as e:
             print(f"An error occurred: {e}")
-        finally: 
+        finally:
             # Change back to the original directory
             os.chdir(start_dir)
 
