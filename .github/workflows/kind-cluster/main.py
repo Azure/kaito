@@ -35,42 +35,54 @@ def run_command(command):
 def get_model_git_info(model_version):
     """Get model Git Repo link and commit ID"""
     url_parts = model_version.split('/')
-    model_url = '/'.join([url_parts[:-2]])
+    model_url = '/'.join(url_parts[:-2])
     commit_id = url_parts[-1]
     return model_url, commit_id
 
-def update_model(model_name, model_commit): 
-    """Using Git Update Model"""
+def update_model(model_name, model_commit):
+    """Update the model to a specific commit, including LFS files."""
     weights_path = get_weights_path(model_name)
+    git_files_path = os.path.join(weights_path, "..", "git_files", ".git")
     start_dir = os.getcwd()
     try:
         # Change to weights directory
         os.chdir(weights_path)
-        run_command("git checkout main")
-        run_command("git pull origin main")
-        run_command(f"git checkout {model_commit}")
+        # Allow current runner access to git dir
+        run_command(f"git config --global --add safe.directory {weights_path}")
+        run_command(f"git config --global --add safe.directory {git_files_path}")
+
+        run_command(f"git --git-dir={git_files_path} checkout main")
+        run_command(f"git --git-dir={git_files_path} pull origin main")
+        # Checkout to the specific commit
+        run_command(f"git --git-dir={git_files_path} checkout {model_commit}")
+        # Pull LFS files for the checked-out commit
+        run_command(f"git --git-dir={git_files_path} lfs pull")
+        # Remove the cached .git/lfs directory to save space (Optimization)
+        # run_command(f"rm -rf {os.path.join(git_files_path, 'lfs')}")
     except Exception as e:
         print(f"An error occurred: {e}")
-    finally: 
+    finally:
         # Change back to the original directory
         os.chdir(start_dir)
 
 def download_new_model(model_name, model_url):
-    """Given URL download new model""" 
+    """Given URL download new model."""
     weights_path = get_weights_path(model_name)
+    git_files_path = os.path.join(weights_path, "..", "git_files")  # Path for git_files directory
     start_dir = os.getcwd()
-    # If a new model then download it
-    if not os.path.exists(weights_path) and model_url: 
+    
+    if not os.path.exists(weights_path) and model_url:
         try:
             os.makedirs(weights_path, exist_ok=True)
-            # Change to weights directory 
             os.chdir(weights_path)
-            # Clone the repo
-            run_command(f"git clone {model_url}")
+            run_command(f"git clone {model_url} .")
+            
+            # Create git_files directory and move .git there
+            os.makedirs(git_files_path, exist_ok=True)
+            shutil.move(os.path.join(weights_path, ".git"), git_files_path)
         except Exception as e:
             print(f"An error occurred: {e}")
-        finally: 
-            # Change back to the original directory
+        finally:
             os.chdir(start_dir)
 
 def main():
