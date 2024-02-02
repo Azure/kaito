@@ -44,7 +44,7 @@ def get_model_git_info(model_version):
 def update_model(model_name, model_commit):
     """Update the model to a specific commit, including LFS files."""
     weights_path = get_weights_path(model_name)
-    git_files_path = os.path.join(weights_path, "..", "git_files")
+    git_files_path = os.path.join(weights_path, "..", "git_files", ".git")
     start_dir = os.getcwd()
     try:
         # Change to weights directory
