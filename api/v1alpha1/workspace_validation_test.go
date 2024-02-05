@@ -32,11 +32,30 @@ func (*testModel) SupportDistributedInference() bool {
 	return false
 }
 
-func RegisterValidationTestModel() {
+type testModelPrivate struct{}
+
+func (*testModelPrivate) GetInferenceParameters() *model.PresetInferenceParam {
+	return &model.PresetInferenceParam{
+		ImageAccessMode:           "private",
+		GPUCountRequirement:       gpuCountRequirement,
+		TotalGPUMemoryRequirement: totalGPUMemoryRequirement,
+		PerGPUMemoryRequirement:   perGPUMemoryRequirement,
+	}
+}
+func (*testModelPrivate) SupportDistributedInference() bool {
+	return false
+}
+
+func RegisterValidationTestModels() {
 	var test testModel
+	var testPrivate testModelPrivate
 	plugin.KaitoModelRegister.Register(&plugin.Registration{
 		Name:     "test-validation",
 		Instance: &test,
+	})
+	plugin.KaitoModelRegister.Register(&plugin.Registration{
+		Name:     "private-test-validation",
+		Instance: &testPrivate,
 	})
 }
 
@@ -45,7 +64,7 @@ func pointerToInt(i int) *int {
 }
 
 func TestResourceSpecValidateCreate(t *testing.T) {
-	RegisterValidationTestModel()
+	RegisterValidationTestModels()
 	tests := []struct {
 		name                string
 		resourceSpec        *ResourceSpec
@@ -269,7 +288,7 @@ func TestResourceSpecValidateUpdate(t *testing.T) {
 }
 
 func TestInferenceSpecValidateCreate(t *testing.T) {
-	RegisterValidationTestModel()
+	RegisterValidationTestModels()
 	tests := []struct {
 		name          string
 		inferenceSpec *InferenceSpec
@@ -285,7 +304,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 					},
 				},
 			},
-			errContent: "Unsupported preset name",
+			errContent: "model is not registered",
 			expectErrs: true,
 		},
 		{
@@ -330,6 +349,19 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			expectErrs: true,
 		},
 		{
+			name: "Private Preset With Public AccessMode",
+			inferenceSpec: &InferenceSpec{
+				Preset: &PresetSpec{
+					PresetMeta: PresetMeta{
+						Name: ModelName("private-test-validation"),
+					},
+					PresetOptions: PresetOptions{},
+				},
+			},
+			errContent: "This preset only supports private AccessMode, AccessMode must be private to continue",
+			expectErrs: true,
+		},
+		{
 			name: "Valid Preset",
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
@@ -346,6 +378,18 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			// If the test expects an error, setup defer function to catch the panic.
+			if tc.expectErrs {
+				defer func() {
+					if r := recover(); r != nil {
+						// Check if the recovered panic matches the expected error content.
+						if errContent, ok := r.(string); ok && strings.Contains(errContent, tc.errContent) {
+							return
+						}
+						t.Errorf("unexpected panic: %v", r)
+					}
+				}()
+			}
 			errs := tc.inferenceSpec.validateCreate()
 			hasErrs := errs != nil
 			if hasErrs != tc.expectErrs {

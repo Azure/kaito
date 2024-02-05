@@ -5,6 +5,7 @@ package llama2
 import (
 	"time"
 
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/inference"
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils/plugin"
@@ -26,6 +27,12 @@ func init() {
 }
 
 var (
+	PresetLlamaTagMap = map[string]string{
+		"llama-2-7b":  "0.0.1",
+		"llama-2-13b": "0.0.1",
+		"llama-2-70b": "0.0.1",
+	}
+
 	baseCommandPresetLlama = "cd /workspace/llama/llama-2 && torchrun"
 	llamaRunParams         = map[string]string{
 		"max_seq_len":    "512",
@@ -40,9 +47,7 @@ type llama2Text7b struct{}
 func (*llama2Text7b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
-		Image:                     "",
-		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		ImageAccessMode:           inference.DefaultImageAccessMode,
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "34Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "14Gi",
@@ -53,6 +58,7 @@ func (*llama2Text7b) GetInferenceParameters() *model.PresetInferenceParam {
 		DeploymentTimeout:         time.Duration(10) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 1,
+		Tag:                       PresetLlamaTagMap["llama-2-7b"],
 	}
 
 }
@@ -67,9 +73,7 @@ type llama2Text13b struct{}
 func (*llama2Text13b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
-		Image:                     "",
-		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		ImageAccessMode:           inference.DefaultImageAccessMode,
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "46Gi",
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "30Gi",
@@ -80,6 +84,7 @@ func (*llama2Text13b) GetInferenceParameters() *model.PresetInferenceParam {
 		DeploymentTimeout:         time.Duration(20) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 2,
+		Tag:                       PresetLlamaTagMap["llama-2-13b"],
 	}
 }
 func (*llama2Text13b) SupportDistributedInference() bool {
@@ -93,9 +98,7 @@ type llama2Text70b struct{}
 func (*llama2Text70b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
-		Image:                     "",
-		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		ImageAccessMode:           inference.DefaultImageAccessMode,
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "158Gi",
 		GPUCountRequirement:       "8",
 		TotalGPUMemoryRequirement: "152Gi",
@@ -106,6 +109,7 @@ func (*llama2Text70b) GetInferenceParameters() *model.PresetInferenceParam {
 		DeploymentTimeout:         time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 8,
+		Tag:                       PresetLlamaTagMap["llama-2-70b"],
 	}
 }
 func (*llama2Text70b) SupportDistributedInference() bool {

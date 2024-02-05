@@ -5,13 +5,11 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  pull_request:
-    branches:
-      - main
-      - release-**
-    paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
   push:
     branches: [main]
+    paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
+  pull_request:
+    branches: [main, release-**]
     paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
 
 permissions:
@@ -41,7 +39,7 @@ jobs:
           make unit-test
 
       - name: Upload Codecov report
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           ## Comma-separated list of files to upload
           files: ./coverage.txt

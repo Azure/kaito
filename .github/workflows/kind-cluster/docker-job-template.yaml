@@ -39,11 +39,12 @@ spec:
             echo $ACR_PASSWORD | docker login $ACR_NAME.azurecr.io -u $ACR_USERNAME --password-stdin
             
             # Build and push the Docker image
-            docker build -t $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG \
+            docker build -t $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$VERSION \
                          --build-arg WEIGHTS_PATH=/weights \
-                         --build-arg MODEL_PRESET_PATH=$MODEL_PRESET_PATH \
+                         --build-arg VERSION={{VERSION}} \
+                         --build-arg MODEL_TYPE={{MODEL_TYPE}} \
                          -f $DOCKERFILE_PATH /
-            docker push $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$IMAGE_TAG
+            docker push $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$VERSION
         env:
           - name: ACR_USERNAME
             value: "{{ACR_USERNAME}}"
@@ -51,16 +52,16 @@ spec:
             value: "{{ACR_PASSWORD}}"
           - name: ACR_NAME
             value: "{{ACR_NAME}}"
-          - name: IMAGE_TAG
-            value: "{{IMAGE_TAG}}"
           - name: IMAGE_NAME
             value: "{{IMAGE_NAME}}"
           - name: PR_BRANCH
             value: "{{PR_BRANCH}}"
-          - name: MODEL_PRESET_PATH
-            value: "{{MODEL_PRESET_PATH}}"
+          - name: MODEL_TYPE
+            value: "{{MODEL_TYPE}}"
           - name: DOCKERFILE_PATH
             value: "{{DOCKERFILE_PATH}}"
+          - name: VERSION
+            value: "{{VERSION}}"
         volumeMounts:
           - name: weight-volume
             mountPath: /weights

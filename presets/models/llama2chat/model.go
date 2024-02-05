@@ -5,6 +5,7 @@ package llama2chat
 import (
 	"time"
 
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/inference"
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils/plugin"
@@ -26,6 +27,12 @@ func init() {
 }
 
 var (
+	PresetLlamaTagMap = map[string]string{
+		"llama-2-7b-chat":  "0.0.1",
+		"llama-2-13b-chat": "0.0.1",
+		"llama-2-70b-chat": "0.0.1",
+	}
+
 	baseCommandPresetLlama = "cd /workspace/llama/llama-2 && torchrun"
 	llamaRunParams         = map[string]string{
 		"max_seq_len":    "512",
@@ -40,9 +47,7 @@ type llama2Chat7b struct{}
 func (*llama2Chat7b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
-		Image:                     "",
-		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		ImageAccessMode:           inference.DefaultImageAccessMode,
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "34Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
@@ -53,6 +58,7 @@ func (*llama2Chat7b) GetInferenceParameters() *model.PresetInferenceParam {
 		DeploymentTimeout:         time.Duration(10) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 1,
+		Tag:                       PresetLlamaTagMap["llama-2-7b-chat"],
 	}
 
 }
@@ -67,9 +73,7 @@ type llama2Chat13b struct{}
 func (*llama2Chat13b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
-		Image:                     "",
-		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		ImageAccessMode:           inference.DefaultImageAccessMode,
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "46Gi",
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "30Gi",
@@ -80,6 +84,7 @@ func (*llama2Chat13b) GetInferenceParameters() *model.PresetInferenceParam {
 		DeploymentTimeout:         time.Duration(20) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 2,
+		Tag:                       PresetLlamaTagMap["llama-2-13b-chat"],
 	}
 }
 func (*llama2Chat13b) SupportDistributedInference() bool {
@@ -93,9 +98,7 @@ type llama2Chat70b struct{}
 func (*llama2Chat70b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "LLaMa2",
-		Image:                     "",
-		ImagePullSecrets:          inference.DefaultImagePullSecrets,
-		ImageAccessMode:           inference.DefaultImageAccessMode,
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "158Gi",
 		GPUCountRequirement:       "8",
 		TotalGPUMemoryRequirement: "192Gi",
@@ -106,6 +109,7 @@ func (*llama2Chat70b) GetInferenceParameters() *model.PresetInferenceParam {
 		DeploymentTimeout:         time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 8,
+		Tag:                       PresetLlamaTagMap["llama-2-70b-chat"],
 	}
 }
 func (*llama2Chat70b) SupportDistributedInference() bool {

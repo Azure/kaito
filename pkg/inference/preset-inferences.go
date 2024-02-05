@@ -5,6 +5,7 @@ package inference
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -18,9 +19,9 @@ import (
 )
 
 const (
-	ProbePath = "/healthz"
-	Port5000  = int32(5000)
-	InferenceFile = "inference-api.py"
+	ProbePath              = "/healthz"
+	Port5000               = int32(5000)
+	InferenceFile          = "inference-api.py"
 	DefaultVolumeMountPath = "/dev/shm"
 )
 
@@ -91,6 +92,23 @@ func updateTorchParamsForDistributedInference(ctx context.Context, kubeClient cl
 	return nil
 }
 
+func GetImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, inferenceObj *model.PresetInferenceParam) (string, []corev1.LocalObjectReference) {
+	imageName := string(workspaceObj.Inference.Preset.Name)
+	imageTag := inferenceObj.Tag
+	imagePullSecretRefs := []corev1.LocalObjectReference{}
+	if inferenceObj.ImageAccessMode == "private" {
+		imageName = string(workspaceObj.Inference.Preset.PresetOptions.Image)
+		for _, secretName := range workspaceObj.Inference.Preset.PresetOptions.ImagePullSecrets {
+			imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
+		}
+		return imageName, imagePullSecretRefs
+	}
+
+	registryName := os.Getenv("PRESET_REGISTRY_NAME")
+	imageName = registryName + fmt.Sprintf("/kaito-%s:%s", imageName, imageTag)
+	return imageName, imagePullSecretRefs
+}
+
 func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	inferenceObj *model.PresetInferenceParam, supportDistributedInference bool, kubeClient client.Client) (client.Object, error) {
 	if inferenceObj.TorchRunParams != nil && supportDistributedInference {
@@ -102,13 +120,14 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 
 	volume, volumeMount := configVolume(workspaceObj, inferenceObj)
 	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj)
+	image, imagePullSecrets := GetImageInfo(ctx, workspaceObj, inferenceObj)
 
 	var depObj client.Object
 	if supportDistributedInference {
-		depObj = resources.GenerateStatefulSetManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
+		depObj = resources.GenerateStatefulSetManifest(ctx, workspaceObj, image, imagePullSecrets, *workspaceObj.Resource.Count, commands,
 			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
 	} else {
-		depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, inferenceObj.Image, inferenceObj.ImagePullSecrets, *workspaceObj.Resource.Count, commands,
+		depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, image, imagePullSecrets, *workspaceObj.Resource.Count, commands,
 			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
 	}
 	err := resources.CreateResource(ctx, depObj, kubeClient)

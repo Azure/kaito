@@ -19,7 +19,12 @@ spec:
           command:
             - /bin/sh
             - -c
-            - accelerate launch --config_file config.yaml --num_processes 1 --num_machines 1 --use_deepspeed --machine_rank 0 --gpu_ids all inference-api.py
+            - accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference-api.py --pipeline text-generation --torch_dtype bfloat16
+          resources:
+            requests:
+              nvidia.com/gpu: 2
+            limits:
+              nvidia.com/gpu: 2  # Requesting 2 GPUs
           livenessProbe:
             httpGet:
               path: /healthz
