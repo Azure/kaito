@@ -31,7 +31,8 @@ Use the following command to build the llama2 inference service image from the r
 docker build \
   --file docker/presets/llama-2/Dockerfile \
   --build-arg WEIGHTS_PATH=$LLAMA_WEIGHTS_PATH \
-  --build-arg MODEL_PRESET_PATH=presets/models/llama2 \
+  --build-arg MODEL_TYPE=llama2-completion \
+  --build-arg VERSION=0.0.1 \
   -t $LLAMA_MODEL_NAME:latest .
 ```
 
