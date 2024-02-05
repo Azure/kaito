@@ -45,15 +45,6 @@ var (
 
 	baseCommandPresetFalcon = "accelerate launch --use_deepspeed"
 	falconRunParams         = map[string]string{}
-
-	/* TODO: Migrate to following for Falcon Image 0.0.2
-		baseCommandPresetFalcon = "accelerate launch"
-
-		falconRunParams = map[string]string{
-			"torch_dtype": "bfloat16",
-			"pipeline":    "text-generation",
-		}
-	*/
 )
 
 var falconA falcon7b
