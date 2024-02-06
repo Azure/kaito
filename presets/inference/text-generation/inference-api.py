@@ -36,26 +36,26 @@ class ModelConfig:
     torch_dtype: Optional[str] = field(default=None, metadata={"help": "The torch dtype for the pre-trained model"})
     device_map: str = field(default="auto", metadata={"help": "The device map for the pre-trained model"})
     
-    # Method to process unknown arguments
-    def process_unknown_args(self, unknown_args: List[str]):
+    # Method to process additional arguments
+    def process_additional_args(self, addt_args: List[str]):
         """
-        Process unknown cmd line args and update the model configuration accordingly.
+        Process additional cmd line args and update the model configuration accordingly.
         """
-        unknown_args_dict = {}
+        addt_args_dict = {}
         i = 0
-        while i < len(unknown_args):
-            key = unknown_args[i].lstrip('-')  # Remove leading dashes
-            if i + 1 < len(unknown_args) and not unknown_args[i + 1].startswith('--'):
-                value = unknown_args[i + 1]
+        while i < len(addt_args):
+            key = addt_args[i].lstrip('-')  # Remove leading dashes
+            if i + 1 < len(addt_args) and not addt_args[i + 1].startswith('--'):
+                value = addt_args[i + 1]
                 i += 2  # Move past the current key-value pair
             else:
                 value = True  # Assign a True value for standalone flags
                 i += 1  # Move to the next item
             
-            unknown_args_dict[key] = value
+            addt_args_dict[key] = value
 
-        # Update the ModelConfig instance with the unknown args
-        self.__dict__.update(unknown_args_dict)
+        # Update the ModelConfig instance with the additional args
+        self.__dict__.update(addt_args_dict)
 
     def __post_init__(self):
         """
@@ -70,11 +70,11 @@ class ModelConfig:
             raise ValueError(f"Unsupported pipeline: {self.pipeline}")
 
 parser = HfArgumentParser(ModelConfig)
-args, unknown_args = parser.parse_args_into_dataclasses(
+args, additional_args = parser.parse_args_into_dataclasses(
     return_remaining_strings=True
 )
 
-args.process_unknown_args(unknown_args)
+args.process_additional_args(additional_args)
 
 model_args = asdict(args)
 model_args["local_files_only"] = not model_args.pop('use_remote_files')
