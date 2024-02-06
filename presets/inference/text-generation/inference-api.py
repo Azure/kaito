@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import argparse
 import os
+from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
 import GPUtil
@@ -9,62 +9,54 @@ import torch
 import transformers
 import uvicorn
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
+from pydantic import BaseModel, Extra, Field
+from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                          GenerationConfig, HfArgumentParser)
 
 
-def dtype_type(string):
-    if hasattr(torch, string):
-        return getattr(torch, string)
-    else:
-        raise ValueError(f"Invalid torch dtype: {string}")
+@dataclass
+class ModelConfig:
+    """
+    HuggingFace Model Configuration Parameters
+    """
+    pipeline: str = field(metadata={"help": "The model pipeline for the pre-trained model"})
+    pretrained_model_name_or_path: Optional[str] = field(default="/workspace/tfs/weights", metadata={"help": "Path to the pretrained model or model identifier from huggingface.co/models"})
+    state_dict: Optional[Dict[str, Any]] = field(default=None, metadata={"help": "State dictionary for the model"})
+    cache_dir: Optional[str] = field(default=None, metadata={"help": "Cache directory for the model"})
+    from_tf: bool = field(default=False, metadata={"help": "Load model from a TensorFlow checkpoint"})
+    force_download: bool = field(default=False, metadata={"help": "Force the download of the model"})
+    resume_download: bool = field(default=False, metadata={"help": "Resume an interrupted download"})
+    proxies: Optional[str] = field(default=None, metadata={"help": "Proxy configuration for downloading the model"})
+    output_loading_info: bool = field(default=False, metadata={"help": "Output additional loading information"})
+    use_remote_files: bool = field(default=False, metadata={"help": "Allow using remote files, default is local only"})
+    revision: str = field(default="main", metadata={"help": "Specific model version to use"})
+    trust_remote_code: bool = field(default=False, metadata={"help": "Enable trusting remote code when loading the model"})
+    load_in_4bit: bool = field(default=False, metadata={"help": "Load model in 4-bit mode"})
+    load_in_8bit: bool = field(default=False, metadata={"help": "Load model in 8-bit mode"})
+    torch_dtype: Optional[str] = field(default=None, metadata={"help": "The torch dtype for the pre-trained model"})
+    device_map: str = field(default="auto", metadata={"help": "The device map for the pre-trained model"})
+    
+    def __post_init__(self):
+        if self.torch_dtype and not hasattr(torch, self.torch_dtype):
+            raise ValueError(f"Invalid torch dtype: {self.torch_dtype}")
+        self.torch_dtype = getattr(torch, self.torch_dtype) if self.torch_dtype else None
 
-parser = argparse.ArgumentParser(description='Model Configuration')
-parser.add_argument('--pipeline', required=True, type=str, help='The model pipeline for the pre-trained model')
-parser.add_argument('--load_in_8bit', default=False, action='store_true', help='Load model in 8-bit mode')
-parser.add_argument('--trust_remote_code', default=False, action='store_true', help='Enable trusting remote code when loading the model')
-parser.add_argument('--torch_dtype', default=None, type=dtype_type, help='The torch dtype for the pre-trained model')
-parser.add_argument('--device_map', default="auto", type=str, help='The device map for the pre-trained model')
-parser.add_argument('--cache_dir', type=str, default=None, help='Cache directory for the model')
-parser.add_argument('--from_tf', action='store_true', default=False, help='Load model from a TensorFlow checkpoint')
-parser.add_argument('--force_download', action='store_true', default=False, help='Force the download of the model')
-parser.add_argument('--resume_download', action='store_true', default=False, help='Resume an interrupted download')
-parser.add_argument('--proxies', type=str, default=None, help='Proxy configuration for downloading the model')
-parser.add_argument('--revision', type=str, default="main", help='Specific model version to use')
-# parser.add_argument('--local_files_only', action='store_true', default=False, help='Only use local files for model loading')
-parser.add_argument('--output_loading_info', action='store_true', default=False, help='Output additional loading information')
+        supported_pipelines = {"conversational", "text-generation"}
+        if self.pipeline not in supported_pipelines:
+            raise ValueError(f"Unsupported pipeline: {self.pipeline}")
 
-args = parser.parse_args()
+parser = HfArgumentParser(ModelConfig)
+args, unknown_args = parser.parse_args_into_dataclasses(
+    return_remaining_strings=True
+)
+
+model_args = asdict(args)
+model_args["local_files_only"] = not model_args.pop('use_remote_files')
+model_pipeline = model_args.pop('pipeline')
 
 app = FastAPI()
-
-supported_pipelines = {"conversational", "text-generation"}
-if args.pipeline not in supported_pipelines:
-    raise HTTPException(status_code=400, detail="Invalid pipeline specified")
-
-model_kwargs = {
-    "cache_dir": args.cache_dir,
-    "from_tf": args.from_tf,
-    "force_download": args.force_download,
-    "resume_download": args.resume_download,
-    "proxies": args.proxies,
-    "revision": args.revision,
-    "output_loading_info": args.output_loading_info,
-    "trust_remote_code": args.trust_remote_code,
-    "device_map": args.device_map,
-    "local_files_only": True,
-}
-
-if args.load_in_8bit:
-    model_kwargs["load_in_8bit"] = args.load_in_8bit
-if args.torch_dtype:
-    model_kwargs["torch_dtype"] = args.torch_dtype
-
-tokenizer = AutoTokenizer.from_pretrained("/workspace/tfs/weights", **model_kwargs)
-model = AutoModelForCausalLM.from_pretrained(
-    "/workspace/tfs/weights",
-    **model_kwargs
-)
+tokenizer = AutoTokenizer.from_pretrained(**model_args)
+model = AutoModelForCausalLM.from_pretrained(**model_args)
 
 pipeline_kwargs = {
     "trust_remote_code": args.trust_remote_code,
@@ -75,7 +67,7 @@ if args.torch_dtype:
     pipeline_kwargs["torch_dtype"] = args.torch_dtype
 
 pipeline = transformers.pipeline(
-    args.pipeline,
+    model_pipeline,
     model=model,
     tokenizer=tokenizer,
     **pipeline_kwargs
@@ -101,17 +93,42 @@ def health_check():
         raise HTTPException(status_code=500, detail="Pipeline not initialized")
     return {"status": "Healthy"}
 
+class GenerateKwargs(BaseModel):
+    max_length: int = 200
+    min_length: int = 0
+    do_sample: bool = True
+    early_stopping: bool = False
+    num_beams: int = 1
+    num_beam_groups: int = 1
+    diversity_penalty: float = 0.0
+    temperature: float = 1.0
+    top_k: int = 10
+    top_p: float = 1
+    typical_p: float = 1
+    repetition_penalty: float = 1
+    length_penalty: float = 1
+    no_repeat_ngram_size: int = 0
+    encoder_no_repeat_ngram_size: int = 0
+    bad_words_ids: Optional[List[int]] = None
+    num_return_sequences: int = 1
+    output_scores: bool = False
+    return_dict_in_generate: bool = False
+    pad_token_id: Optional[int] = tokenizer.pad_token_id
+    eos_token_id: Optional[int] = tokenizer.eos_token_id
+    forced_bos_token_id: Optional[int] = None
+    forced_eos_token_id: Optional[int] = None
+    remove_invalid_values: Optional[bool] = None
+    class Config:
+        extra = Extra.allow # Allows for additional fields not explicitly defined
+
 class UnifiedRequestModel(BaseModel):
     # Fields for text generation
     prompt: Optional[str] = Field(None, description="Prompt for text generation")
-    # Mutually Exclusive with return_full_text
-    # return_tensors: Optional[bool] = Field(False, description="Return tensors of predictions")
-    # return_text: Optional[bool] = Field(True, description="Return decoded texts in the outputs")
     return_full_text: Optional[bool] = Field(True, description="Return full text if True, else only added text")
     clean_up_tokenization_spaces: Optional[bool] = Field(False, description="Clean up extra spaces in text output")
     prefix: Optional[str] = Field(None, description="Prefix added to prompt")
     handle_long_generation: Optional[str] = Field(None, description="Strategy to handle long generation")
-    generate_kwargs: Optional[Dict[str, Any]] = Field(None, description="Additional kwargs for generate method")
+    generate_kwargs: Optional[GenerateKwargs] = Field(None, description="Additional kwargs for generate method")
 
     # Field for conversational model
     messages: Optional[List[dict]] = Field(None, description="Messages for conversational model")
