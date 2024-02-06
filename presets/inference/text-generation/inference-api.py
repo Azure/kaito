@@ -102,7 +102,9 @@ pipeline = transformers.pipeline(
 try:
     # Attempt to load the generation configuration
     default_generate_config = GenerationConfig.from_pretrained(
-        args.pretrained_model_name_or_path, local_files_only=True).to_dict()
+        args.pretrained_model_name_or_path, 
+        local_files_only=args.local_files_only
+    ).to_dict()
 except Exception as e:
     default_generate_config = {}
 
