@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 import torch
 from peft import LoraConfig
 # import transformers
-from transformers import BitsAndBytesConfig, QuantizationMethod
+from transformers import BitsAndBytesConfig
 
 DEFAULT_LORA_CONFIG = LoraConfig(
     r=16,
@@ -74,6 +74,7 @@ class TrainingConfig:
 
 @dataclass
 class QuantizationConfig(BitsAndBytesConfig):
+    quant_method: str = field(default="bitsandbytes", metadata={"help": "Quantization Method {bitsandbytes,gptq,awq}"})
     load_in_8bit: bool = field(default=False, metadata={"help": "Enable 8-bit quantization"})
     load_in_4bit: bool = field(default=False, metadata={"help": "Enable 4-bit quantization"})
     llm_int8_threshold: float = field(default=6.0, metadata={"help": "LLM.int8 threshold"})
@@ -86,7 +87,7 @@ class QuantizationConfig(BitsAndBytesConfig):
 
     def __post_init__(self):
         super().__init__(
-            quant_method=QuantizationMethod.BITS_AND_BYTES,
+            quant_method=self.quant_method,
             load_in_8bit=self.load_in_8bit,
             load_in_4bit=self.load_in_4bit,
             llm_int8_threshold=self.llm_int8_threshold,
