@@ -1,0 +1,10 @@
+datasets==2.16.1
+peft==0.8.2
+transformers==4.36.0
+torch==2.2.0
+accelerate==0.23.0
+fastapi==0.103.2
+pydantic==1.10.9
+uvicorn[standard]==0.23.2
+bitsandbytes==0.41.1
+gputil==1.4.0
