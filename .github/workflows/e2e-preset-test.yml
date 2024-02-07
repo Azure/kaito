@@ -18,8 +18,10 @@ jobs:
   determine-models:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    outputs: 
-      matrix: ${{ steps.images.outputs.matrix }}
+    outputs:
+      matrix: ${{ steps.affected_models.outputs.matrix }}
+      is_matrix_empty: ${{ steps.check_matrix_empty.outputs.is_empty }}
+      full_matrix: ${{ steps.images.outputs.full_matrix }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,12 +29,30 @@ jobs:
             submodules: true
             fetch-depth: 0
 
-      - name: Determine Images for Testing
-        id: images
+      # This script should output a JSON array of model names
+      - name: Determine Affected Models
+        id: affected_models
         run: |
-            echo "Setting image tag based on presets/models/supported_models.yaml"
-            MATRIX=$(yq e -o=json '.models' presets/models/supported_models.yaml | jq -c)
-            
+            PR_BRANCH=${{ github.head_ref }} \
+            python3 .github/workflows/kind-cluster/determine_models.py
+              
+      - name: Print Determined Models
+        run: |
+            echo "Output from determine_models: ${{ steps.affected_models.outputs.matrix }}"
+    
+      - name: Check if Matrix is Empty
+        id: check_matrix_empty
+        run: |
+            if [ "${{ steps.affected_models.outputs.matrix }}" == "[]" ] || [ -z "${{ steps.affected_models.outputs.matrix }}" ]; then
+                echo "is_empty=true" >> $GITHUB_OUTPUT
+            else
+                echo "is_empty=false" >> $GITHUB_OUTPUT
+            fi
+        
+      - name: Add Config info for Testing
+        if: steps.check_matrix_empty.outputs.is_empty == 'false'
+        id: images
+        run: |         
             # Read the additional configurations from e2e-preset-configs.json
             CONFIGS=$(cat .github/e2e-preset-configs.json | jq -c '.matrix.image')
             
@@ -45,19 +65,21 @@ jobs:
             #             COMBINED_MATRIX.append(combined)
             #             break
 
-            COMBINED_MATRIX=$(echo $MATRIX | jq --argjson configs "$CONFIGS" -c '
+            COMBINED_MATRIX=$(echo ${{ steps.affected_models.outputs.matrix }} | jq --argjson configs "$CONFIGS" -c '
                 map(. as $model | $configs[] | select(.name == $model.name) | $model + .)
             ')
 
-            echo "matrix=$COMBINED_MATRIX" >> $GITHUB_OUTPUT
+            echo "full_matrix=$COMBINED_MATRIX" >> $GITHUB_OUTPUT
       
       - name: Print Combined Matrix
+        if: steps.check_matrix_empty.outputs.is_empty == 'false'
         run: |
             echo "Combined Matrix:"
-            echo '${{ steps.images.outputs.matrix }}'
+            echo '${{ steps.images.outputs.full_matrix }}'
+
   e2e-preset-tests:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     needs: determine-models
+    if: needs.determine-models.outputs.is_matrix_empty == 'false' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     environment: e2e-test
     strategy:
@@ -67,7 +89,7 @@ jobs:
         # {"name":"falcon-40b","type":"text-generation","version":"#",
         # "runtime":"tfs","tag":"0.0.1","node-count":1,
         # "node-vm-size":"Standard_NC96ads_A100_v4", "node-osdisk-size":400}
-        model: ${{fromJson(needs.determine-models.outputs.matrix)}}
+        model: ${{fromJson(needs.determine-models.outputs.full_matrix)}}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

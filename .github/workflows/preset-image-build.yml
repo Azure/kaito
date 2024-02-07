@@ -31,7 +31,7 @@ jobs:
   determine-models: 
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.determine_models.outputs.matrix }}
+      matrix: ${{ steps.affected_models.outputs.matrix }}
       is_matrix_empty: ${{ steps.check_matrix_empty.outputs.is_empty }}
     steps: 
       - name: Checkout
@@ -42,19 +42,19 @@ jobs:
       
       # This script should output a JSON array of model names
       - name: Determine Affected Models
-        id: determine_models
+        id: affected_models
         run: |
           PR_BRANCH=${{ github.head_ref }} \
           python3 .github/workflows/kind-cluster/determine_models.py
             
       - name: Print Determined Models
         run: |
-          echo "Output from determine_models: ${{ steps.determine_models.outputs.matrix }}"
+          echo "Output from affected_models: ${{ steps.affected_models.outputs.matrix }}"
       
       - name: Check if Matrix is Empty
         id: check_matrix_empty
         run: |
-          if [ "${{ steps.determine_models.outputs.matrix }}" == "[]" ] || [ -z "${{ steps.determine_models.outputs.matrix }}" ]; then
+          if [ "${{ steps.affected_models.outputs.matrix }}" == "[]" ] || [ -z "${{ steps.affected_models.outputs.matrix }}" ]; then
             echo "is_empty=true" >> $GITHUB_OUTPUT
           else
             echo "is_empty=false" >> $GITHUB_OUTPUT
