@@ -166,9 +166,31 @@ def populate_job_template(model_name, model_type, model_runtime, model_tag, job_
         print(f"An error occurred while populating job template: {e}")
         return None
 
+def log_job_info(job_name): 
+    """Log information about our Job's pod for debugging."""
+    # Find the pod(s) associated with the job
+    command_find_pods = f"kubectl get pods --selector=job-name=docker-build-job-{job_name} -o jsonpath='{{.items[*].metadata.name}}'"
+    pod_names = run_command(command_find_pods)
+    if pod_names:
+        for pod_name in pod_names.split():
+            print(f"Logging info for pod: {pod_name}")
+            # Log pod description for status, events, etc.
+            command_describe_pod = f"kubectl describe pod {pod_name}"
+            pod_description = run_command(command_describe_pod)
+            print(f"Pod Description: \n{pod_description}")
 
-def check_job_status(job_name):
+            # Log the last 100 lines of the pod's logs, adjust as necessary
+            command_logs = f"kubectl logs {pod_name} --tail=100"
+            pod_logs = run_command(command_logs)
+            print(f"Pod Logs: \n{pod_logs}")
+    else:
+        print(f"No pods found for job {job_name}.")
+
+def check_job_status(job_name, iteration):
     """Check the status of a Kubernetes job."""
+    # Every 5 minutes log job information
+    if iteration % 10: 
+        log_job_info(job_name)
     # Query for the specific fields 'succeeded' and 'failed' in the job's status
     command_succeeded = f"kubectl get job docker-build-job-{job_name} -o jsonpath='{{.status.succeeded}}'"
     command_failed = f"kubectl get job docker-build-job-{job_name} -o jsonpath='{{.status.failed}}'"
@@ -185,12 +207,13 @@ def check_job_status(job_name):
 
 def wait_for_jobs_to_complete(job_names, timeout=21600):
     """Wait for all jobs to complete with a timeout."""
+    iteration = 0
     start_time = time.time()
     while time.time() - start_time < timeout:
         all_completed = True
         for job_name in job_names:
             print("Check Job Status: ", job_name)
-            status = check_job_status(job_name)
+            status = check_job_status(job_name, iteration)
             if status != "succeeded":
                 all_completed = False
                 if status == "failed":
@@ -201,6 +224,7 @@ def wait_for_jobs_to_complete(job_names, timeout=21600):
             print("All jobs completed successfully.")
             return True
         time.sleep(30)  # Wait for 30 seconds before checking again
+        iteration += 1
     print("Timeout waiting for jobs to complete.")
     return False
 
