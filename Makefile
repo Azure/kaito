@@ -7,8 +7,6 @@ IMG_TAG ?= $(subst v,,$(VERSION))
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 BIN_DIR := $(abspath $(ROOT_DIR)/bin)
-# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.27.3
 
 TOOLS_DIR := hack/tools
 TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/bin)
@@ -109,9 +107,14 @@ create-acr:  ## Create test ACR
 	az acr login  --name $(AZURE_ACR_NAME)
 
 .PHONY: create-aks-cluster
-create-aks-cluster: ## Create test AKS cluster (with msi, oidc and workload identity enabled)
+create-aks-cluster: ## Create test AKS cluster (with msi and oidc enabled)
 	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --attach-acr $(AZURE_ACR_NAME) \
-	--node-count 1 --generate-ssh-keys --enable-managed-identity  --enable-workload-identity --enable-oidc-issuer -o none
+	--node-count 1 --generate-ssh-keys --enable-managed-identity --enable-oidc-issuer -o none
+
+.PHONY: create-aks-cluster-with-kaito
+create-aks-cluster-with-kaito: ## Create test AKS cluster (with msi, oidc and kaito enabled)
+	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --attach-acr $(AZURE_ACR_NAME) \
+	--node-count 1 --generate-ssh-keys --enable-managed-identity --enable-oidc-issuer --enable-ai-toolchain-operator -o none
 
 	# az aks nodepool add --cluster-name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --name gpunode \
     #   --node-count 1 --node-vm-size standard_nc96ads_a100_v4 --node-taints sku=gpu:NoSchedule \
