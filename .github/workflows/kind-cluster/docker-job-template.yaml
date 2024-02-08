@@ -7,6 +7,7 @@ spec:
   backoffLimit: 3  # Number of retries before marking the job as failed
   template:
     spec:
+      terminationGracePeriodSeconds: 600
       containers:
       - name: docker
         image: docker:dind
