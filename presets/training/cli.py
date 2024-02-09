@@ -3,7 +3,9 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 import torch
 from peft import LoraConfig
-from transformers import BitsAndBytesConfig
+# from peft.config import PeftConfig
+from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
+                          Trainer)
 
 # DEFAULT_LORA_CONFIG = LoraConfig(
 #     r=16,
@@ -14,7 +16,10 @@ from transformers import BitsAndBytesConfig
 #     task_type="CAUSAL_LM"
 # )
 
-# TODO: Need to fix this up to allow multiple types for these fields as intended
+@dataclass
+class ExtDataCollator(DataCollatorForLanguageModeling): 
+    tokenizer: Optional[dict] = field(default=None, metadata={"help": "Tokenizer for DataCollatorForLanguageModeling"})
+
 @dataclass
 class ExtLoraConfig(LoraConfig):
     init_lora_weights: bool = field(default=True, metadata={"help": "Enable initialization of LoRA weights"})
