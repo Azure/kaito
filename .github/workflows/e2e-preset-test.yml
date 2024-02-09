@@ -16,7 +16,6 @@ permissions:
 
 jobs:
   determine-models:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.affected_models.outputs.matrix }}
@@ -95,7 +94,7 @@ jobs:
 
   e2e-preset-tests:
     needs: determine-models
-    if: needs.determine-models.outputs.is_matrix_empty == 'false' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    if: needs.determine-models.outputs.is_matrix_empty == 'false'
     runs-on: ubuntu-latest
     environment: e2e-test
     strategy:
