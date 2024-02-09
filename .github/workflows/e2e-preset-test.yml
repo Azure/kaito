@@ -29,11 +29,27 @@ jobs:
             submodules: true
             fetch-depth: 0
 
+
+      - name: Download Artifact with PR Branch Name
+        uses: actions/download-artifact@v3
+        with:
+            name: pr-branch-name-${{ github.event.workflow_run.id }} # Match the uploaded artifact name
+          
+      - name: Use the Artifact
+        id: artifact
+        run: |
+            if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+                pr_branch=$(cat pr-branch-${{ github.event.workflow_run.id }}.txt)
+                echo "PR_BRANCH=$pr_branch" >> $GITHUB_OUTPUT
+            else
+                echo "PR_BRANCH=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+            fi
+
       # This script should output a JSON array of model names
       - name: Determine Affected Models
         id: affected_models
         run: |
-            PR_BRANCH=${{ github.head_ref }} \
+            PR_BRANCH=${{ steps.artifact.outputs.PR_BRANCH }} \
             python3 .github/workflows/kind-cluster/determine_models.py
               
       - name: Print Determined Models

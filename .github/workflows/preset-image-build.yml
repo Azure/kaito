@@ -40,6 +40,15 @@ jobs:
           submodules: true
           fetch-depth: 0
       
+      - name: Save PR branch name
+        run: echo "${{ github.head_ref }}" > pr-branch-${{ github.run_id }}.txt # Ensured consistent naming convention
+          
+      - name: Upload PR branch name as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: pr-branch-name-${{ github.run_id }}
+          path: pr-branch-${{ github.run_id }}.txt
+
       # This script should output a JSON array of model names
       - name: Determine Affected Models
         id: affected_models
