@@ -28,9 +28,9 @@ jobs:
             submodules: true
             fetch-depth: 0
 
-
       - name: Download Artifact with PR Branch Name
         uses: actions/download-artifact@v3
+        if: github.event_name == 'workflow_run'
         with:
             name: pr-branch-name-${{ github.event.workflow_run.id }} # Match the uploaded artifact name
           
