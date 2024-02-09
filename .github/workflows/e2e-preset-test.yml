@@ -37,7 +37,7 @@ jobs:
       - name: Use the Artifact
         id: artifact
         run: |
-            if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            if [ "${{ github.event_name }}" == "workflow_run" ]; then
                 pr_branch=$(cat pr-branch-${{ github.event.workflow_run.id }}.txt)
                 echo "PR_BRANCH=$pr_branch" >> $GITHUB_OUTPUT
             else
