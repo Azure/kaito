@@ -41,7 +41,9 @@ jobs:
                 pr_branch=$(cat pr-branch-${{ github.event.workflow_run.id }}.txt)
                 echo "PR_BRANCH=$pr_branch" >> $GITHUB_OUTPUT
             else
-                echo "PR_BRANCH=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+                echo "${{ github.ref_name }}"
+                echo "${{ github.ref }}"
+                echo "PR_BRANCH=${{ github.ref_name }}" >> $GITHUB_OUTPUT
             fi
 
       # This script should output a JSON array of model names
