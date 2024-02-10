@@ -3,49 +3,56 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 import torch
 from peft import LoraConfig
-# from peft.config import PeftConfig
 from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
-                          Trainer)
+                          PreTrainedTokenizer, Trainer)
 
-# DEFAULT_LORA_CONFIG = LoraConfig(
-#     r=16,
-#     lora_alpha=32,
-#     target_modules=["query_key_value"],
-#     lora_dropout=0.05,
-#     bias="none",
-#     task_type="CAUSAL_LM"
-# )
 
 @dataclass
-class ExtDataCollator(DataCollatorForLanguageModeling): 
-    tokenizer: Optional[dict] = field(default=None, metadata={"help": "Tokenizer for DataCollatorForLanguageModeling"})
+class ExtDataCollator(DataCollatorForLanguageModeling):
+    tokenizer: Optional[PreTrainedTokenizer] = field(default=PreTrainedTokenizer, metadata={"help": "Tokenizer for DataCollatorForLanguageModeling"})
 
 @dataclass
 class ExtLoraConfig(LoraConfig):
+    """
+    Lora Config
+    """
     init_lora_weights: bool = field(default=True, metadata={"help": "Enable initialization of LoRA weights"})
     layers_to_transform: Optional[List[int]] = field(default=None, metadata={"help": "Layer indices to apply LoRA"})
     layers_pattern: Optional[List[str]] = field(default=None, metadata={"help": "Pattern to match layers for LoRA"})
     loftq_config: Dict[str, any] = field(default_factory=dict, metadata={"help": "LoftQ configuration for quantization"}) 
-#     r: int = field(default=8, metadata={"help": "Lora attention dimension"})
-#     target_modules: Optional[Union[List[str], str]] = field(
-#         default=None,
-#         metadata={"help": "List of module names or regex expressions to replace with LoRA"}
-#     )
-#     task_type: Optional[str] = field(default=None, metadata={"help": "Megatron core module"})
-#     lora_alpha: int = field(default=8, metadata={"help": "Lora alpha scaling factor"})
-#     lora_dropout: float = field(default=0.0, metadata={"help": "Dropout rate for LoRA layers"})
-#     fan_in_fan_out: bool = field(default=False, metadata={"help": "Set true if layer weights are (fan_in, fan_out)"})
-#     bias: Literal["none", "all", "lora_only"] = field(default="none", metadata={"help": "Bias type for LoRA layers"})
-#     use_rslora: bool = field(default=False, metadata={"help": "Use Rank-Stabilized LoRA"})
-#     modules_to_save: Optional[List[str]] = field(default_factory=list, metadata={"help": "Modules to save besides LoRA layers"})
-#     # init_lora_weights: Optional[Union[bool, Literal["gaussian", "loftq"]]] = field(default=True, metadata={"help": "Initialize LoRA weights method"})
-#     # layers_to_transform: Optional[Union[List[int], int]] = field(default=None, metadata={"help": "Layer indices to apply LoRA"})
-#     # layers_pattern: Optional[Union[List[str], str]] = field(default=None, metadata={"help": "Pattern to match layers for LoRA"})
-#     rank_pattern: Optional[Dict[str, int]] = field(default_factory=dict, metadata={"help": "Custom ranks for specific layers"})
-#     alpha_pattern: Optional[Dict[str, int]] = field(default_factory=dict, metadata={"help": "Custom alphas for specific layers"})
-#     megatron_config: Optional[Dict[str, any]] = field(default=None, metadata={"help": "Megatron TransformerConfig for parallel layers"})
-#     megatron_core: Optional[str] = field(default="megatron.core", metadata={"help": "Megatron core module"})
-#     # loftq_config: Union[LoftQConfig, Dict[str, any]] = field(default_factory=dict, metadata={"help": "LoftQ configuration for quantization"}) 
+
+@dataclass 
+class DatasetConfig: 
+    """
+    Config for Dataset 
+    """
+    dataset_name: str = field(metadata={"help": "Name of Dataset"})
+    shuffle_dataset: bool = field(default=True, metadata={"help": "Whether to shuffle dataset"})
+    shuffle_seed: int = field(default=42, metadata={"help": "Seed for shuffling data"})
+    context_column: str = field(default="Context", metadata={"help": "Example human input column in the dataset"})
+    response_column: str = field(default="Response", metadata={"help": "Example bot response output column in the dataset"})
+    train_test_split: float = field(default=0.8, metadata={"help": "Split between test and training data (e.g. 0.8 means 80/20% train/test split)"})
+
+@dataclass
+class TokenizerParams:
+    """
+    Tokenizer params 
+    """
+    add_special_tokens: bool = field(default=True, metadata={"help": ""})
+    padding: bool = field(default=False, metadata={"help": ""})
+    truncation: bool = field(default=None, metadata={"help": ""})
+    max_length: Optional[int] = field(default=None, metadata={"help": ""})
+    stride: int = field(default=0, metadata={"help": ""})
+    is_split_into_words: bool = field(default=False, metadata={"help": ""})
+    tok_pad_to_multiple_of: Optional[int] = field(default=None, metadata={"help": ""})
+    tok_return_tensors: Optional[str] = field(default=None, metadata={"help": ""})
+    return_token_type_ids: Optional[bool] = field(default=None, metadata={"help": ""})
+    return_attention_mask: Optional[bool] = field(default=None, metadata={"help": ""})
+    return_overflowing_tokens: bool = field(default=False, metadata={"help": ""})
+    return_special_tokens_mask: bool = field(default=False, metadata={"help": ""})
+    return_offsets_mapping: bool = field(default=False, metadata={"help": ""})
+    return_length: bool = field(default=False, metadata={"help": ""})
+    verbose: bool = field(default=True, metadata={"help": ""})
 
 @dataclass
 class ModelConfig:
@@ -68,27 +75,6 @@ class ModelConfig:
     torch_dtype: Optional[str] = field(default=None, metadata={"help": "The torch dtype for the pre-trained model"})
     device_map: str = field(default="auto", metadata={"help": "The device map for the pre-trained model"})
 
-    # Method to process additional arguments
-    def process_additional_args(self, addt_args: List[str]):
-        """
-        Process additional cmd line args and update the model configuration accordingly.
-        """
-        addt_args_dict = {}
-        i = 0
-        while i < len(addt_args):
-            key = addt_args[i].lstrip('-')  # Remove leading dashes
-            if i + 1 < len(addt_args) and not addt_args[i + 1].startswith('--'):
-                value = addt_args[i + 1]
-                i += 2  # Move past the current key-value pair
-            else:
-                value = True  # Assign a True value for standalone flags
-                i += 1  # Move to the next item
-
-            addt_args_dict[key] = value
-
-        # Update the ModelConfig instance with the additional args
-        self.__dict__.update(addt_args_dict)
-    
     def __post_init__(self):
         """
         Post-initialization to validate some ModelConfig values
@@ -99,6 +85,9 @@ class ModelConfig:
 
 @dataclass
 class QuantizationConfig(BitsAndBytesConfig):
+    """
+    Quanitization Configuration
+    """
     quant_method: str = field(default="bitsandbytes", metadata={"help": "Quantization Method {bitsandbytes,gptq,awq}"})
     load_in_8bit: bool = field(default=False, metadata={"help": "Enable 8-bit quantization"})
     load_in_4bit: bool = field(default=False, metadata={"help": "Enable 4-bit quantization"})
@@ -123,4 +112,3 @@ class QuantizationConfig(BitsAndBytesConfig):
             bnb_4bit_quant_type=self.bnb_4bit_quant_type,
             bnb_4bit_use_double_quant=self.bnb_4bit_use_double_quant,
         )
-

@@ -8,3 +8,4 @@ pydantic==1.10.9
 uvicorn[standard]==0.23.2
 bitsandbytes==0.42.0
 gputil==1.4.0
+# loralib einops xformers

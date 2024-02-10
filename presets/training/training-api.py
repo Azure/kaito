@@ -10,8 +10,9 @@ import torch
 import transformers
 import uvicorn
 from accelerate import Accelerator
-from cli import ExtDataCollator, ExtLoraConfig, ModelConfig, QuantizationConfig
-from datasets import load_dataset
+from cli import (DatasetConfig, ExtDataCollator, ExtLoraConfig, ModelConfig,
+                 QuantizationConfig, TokenizerParams)
+from datasets import DatasetDict, load_dataset
 from fastapi import FastAPI, HTTPException
 from peft import (LoraConfig, PeftConfig, get_peft_model,
                   prepare_model_for_kbit_training)
@@ -20,23 +21,23 @@ from transformers import (AutoConfig, AutoModelForCausalLM, AutoTokenizer,
                           BitsAndBytesConfig, DataCollatorForLanguageModeling,
                           HfArgumentParser, TrainingArguments)
 
-parser = HfArgumentParser((ModelConfig, QuantizationConfig, ExtLoraConfig, TrainingArguments, ExtDataCollator))
+# Parsing
+parser = HfArgumentParser((ModelConfig, QuantizationConfig, ExtLoraConfig, TrainingArguments, ExtDataCollator, DatasetConfig, TokenizerParams))
 # TODO: How to pass dict/lists/other ds on cmd line
-model_config, bnb_config, ext_lora_config, ta_args, dc_args, additional_args = parser.parse_args_into_dataclasses(
+model_config, bnb_config, ext_lora_config, ta_args, dc_args, ds_config, tk_params, additional_args = parser.parse_args_into_dataclasses(
     return_remaining_strings=True
 )
 
 print("Additional arguments:", additional_args)
 
-# model_config.process_additional_args(additional_args)
+accelerator = Accelerator()
+
+# Load Model Args
 model_args = asdict(model_config)
 model_args["local_files_only"] = not model_args.pop('allow_remote_files')
 model_args["revision"] = model_args.pop('m_revision')
 model_args["load_in_4bit"] = model_args.pop('m_load_in_4bit')
 model_args["load_in_8bit"] = model_args.pop('m_load_in_8bit')
-
-
-accelerator = Accelerator()
 
 # Load BitsAndBytesConfig
 bnb_config_args = asdict(bnb_config)
@@ -55,6 +56,11 @@ model = AutoModelForCausalLM.from_pretrained(
     quantization_config=bnb_config if enable_qlora else None,
 )
 
+# Load Tokenizer Params
+tk_params = asdict(tk_params)
+tk_params["pad_to_multiple_of"] = tk_params.pop("tok_pad_to_multiple_of")
+tk_params["return_tensors"] = tk_params.pop("tok_return_tensors")
+
 if enable_qlora:
     # Preparing the Model for QLoRA
     model = prepare_model_for_kbit_training(model)
@@ -68,51 +74,40 @@ model = get_peft_model(model, lora_config)
 model.config.use_cache = False
 model.print_trainable_parameters()
 
-# TODO: How to abstract this into API
 # Loading and Preparing the Dataset 
+# Data format: https://huggingface.co/docs/autotrain/en/llm_finetuning
 def preprocess_data(example):
-    prompt = f"<human>: {example['Context']}\n<assistance>: {example['Response']}".strip()
-    return tokenizer(prompt, padding=True, truncation=True)
+    prompt = f"human: {example[ds_config.context_column]}\n bot: {example[ds_config.response_column]}".strip()
+    return tokenizer(prompt, **tk_params)
 
-dataset_name = 'Amod/mental_health_counseling_conversations'
-dataset = load_dataset(dataset_name, split="train")
-# Shuffle and preprocess the data
-dataset = dataset.shuffle().map(preprocess_data)
-print("Dataset Dimensions: ", dataset.shape)
+# Loading the dataset
+dataset = load_dataset(ds_config.dataset_name, split="train")
 
-# Setting Up the Training Arguments
-# training_args = transformers.TrainingArguments(
-#     # auto_find_batch_size=True, # Auto finds largest batch size that fits into memory
-#     # gradient_checkpointing_kwargs={"use_reentrant": False},
-#     # gradient_checkpointing=False,
-#     # ddp_backend="nccl",
-#     # ddp_find_unused_parameters=False,
-#     # per_device_train_batch_size=1,
-#     num_train_epochs=4, # Number of training epochs
-#     learning_rate=2e-4, # lr
-#     bf16=False, # precision
-#     save_total_limit=4, # Total # of ckpts to save
-#     logging_steps=10, # # of steps between each logging
-#     output_dir=".", #  Dir where model ckpts saved
-#     save_strategy='epoch', # Strategy for saving ckpts. Here ckpt saved after each epoch
-# )
+# Shuffling the dataset (if needed)
+if ds_config.shuffle_dataset: 
+    dataset = dataset.shuffle(seed=ds_config.shuffle_seed)
 
-# print("1", training_args)
+# Preprocessing the data
+dataset = dataset.map(preprocess_data)
 
-# Needs to be explicitly defined
-# if not targs.gradient_checkpointing_kwargs:
-#     from functools import partial
-#     from torch.utils import checkpoint
-#     notfailing_checkpoint = partial(checkpoint.checkpoint, use_reentrant=False)
-#     checkpoint.checkpoint = notfailing_checkpoint
+assert 0 <= ds_config.train_test_split <= 1, "Train/Test split needs to be between 0 and 1"
+# Splitting the dataset into training and test sets
+split_dataset = dataset.train_test_split(
+    test_size=1-ds_config.train_test_split, 
+    seed=ds_config.shuffle_seed
+)
 
+print("Training Dataset Dimensions: ", split_dataset['train'].shape)
+print("Test Dataset Dimensions: ", split_dataset['test'].shape)
+print("Example Dataset Entry: ", split_dataset['train'][0])
 
-print("2", ta_args)
+print("Training Arguments: ", ta_args)
 
 # Training the Model
 trainer = transformers.Trainer(
     model=model,
-    train_dataset=dataset,
+    train_dataset=split_dataset['train'],
+    eval_dataset=split_dataset['test'],
     args=ta_args,
     data_collator=dc_args,
 )
