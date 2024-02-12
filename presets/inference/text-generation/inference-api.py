@@ -28,7 +28,7 @@ class ModelConfig:
     resume_download: bool = field(default=False, metadata={"help": "Resume an interrupted download"})
     proxies: Optional[str] = field(default=None, metadata={"help": "Proxy configuration for downloading the model"})
     output_loading_info: bool = field(default=False, metadata={"help": "Output additional loading information"})
-    use_remote_files: bool = field(default=False, metadata={"help": "Allow using remote files, default is local only"})
+    allow_remote_files: bool = field(default=False, metadata={"help": "Allow using remote files, default is local only"})
     revision: str = field(default="main", metadata={"help": "Specific model version to use"})
     trust_remote_code: bool = field(default=False, metadata={"help": "Enable trusting remote code when loading the model"})
     load_in_4bit: bool = field(default=False, metadata={"help": "Load model in 4-bit mode"})
@@ -77,7 +77,7 @@ args, additional_args = parser.parse_args_into_dataclasses(
 args.process_additional_args(additional_args)
 
 model_args = asdict(args)
-model_args["local_files_only"] = not model_args.pop('use_remote_files')
+model_args["local_files_only"] = not model_args.pop('allow_remote_files')
 model_pipeline = model_args.pop('pipeline')
 
 app = FastAPI()
