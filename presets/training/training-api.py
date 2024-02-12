@@ -15,7 +15,6 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
 
 # Parsing
 parser = HfArgumentParser((ModelConfig, QuantizationConfig, ExtLoraConfig, TrainingArguments, ExtDataCollator, DatasetConfig, TokenizerParams))
-# TODO: How to pass dict/lists/other ds on cmd line
 model_config, bnb_config, ext_lora_config, ta_args, dc_args, ds_config, tk_params, additional_args = parser.parse_args_into_dataclasses(
     return_remaining_strings=True
 )
