@@ -5,11 +5,9 @@ metadata:
 spec:
   selector:
     app: falcon
-    statefulset.kubernetes.io/pod-name: falcon-7b-0
   ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 5000
+  - protocol: TCP
+    port: 80
+    targetPort: 5000
   type: LoadBalancer
   publishNotReadyAddresses: true
-
