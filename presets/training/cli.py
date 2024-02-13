@@ -1,10 +1,12 @@
-from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Literal, Optional, Union
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 import torch
 from peft import LoraConfig
 from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
-                          PreTrainedTokenizer, Trainer)
+                          PreTrainedTokenizer)
 
 
 @dataclass
@@ -100,16 +102,10 @@ class QuantizationConfig(BitsAndBytesConfig):
     bnb_4bit_quant_type: str = field(default="fp4", metadata={"help": "Quantization type for 4-bit"})
     bnb_4bit_use_double_quant: bool = field(default=False, metadata={"help": "Use double quantization for 4-bit"})
 
-    def __post_init__(self):
-        super().__init__(
-            quant_method=self.quant_method,
-            load_in_8bit=self.load_in_8bit,
-            load_in_4bit=self.load_in_4bit,
-            llm_int8_threshold=self.llm_int8_threshold,
-            llm_int8_skip_modules=self.llm_int8_skip_modules,
-            llm_int8_enable_fp32_cpu_offload=self.llm_int8_enable_fp32_cpu_offload,
-            llm_int8_has_fp16_weight=self.llm_int8_has_fp16_weight,
-            bnb_4bit_compute_dtype=self.bnb_4bit_compute_dtype,
-            bnb_4bit_quant_type=self.bnb_4bit_quant_type,
-            bnb_4bit_use_double_quant=self.bnb_4bit_use_double_quant,
-        )
+@dataclass
+class TrainingConfig:
+    """
+    Configuration for training process
+    """
+    save_output_path: str = field(default=".", metadata={"help": "Path where training output is saved"})
+    # Other training-related configurations can go here

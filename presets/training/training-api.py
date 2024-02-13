@@ -1,12 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import os
 from dataclasses import asdict
 
 import torch
 import transformers
 from accelerate import Accelerator
 from cli import (DatasetConfig, ExtDataCollator, ExtLoraConfig, ModelConfig,
-                 QuantizationConfig, TokenizerParams)
+                 QuantizationConfig, TokenizerParams, TrainingConfig)
 from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
@@ -14,8 +15,8 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           TrainingArguments)
 
 # Parsing
-parser = HfArgumentParser((ModelConfig, QuantizationConfig, ExtLoraConfig, TrainingArguments, ExtDataCollator, DatasetConfig, TokenizerParams))
-model_config, bnb_config, ext_lora_config, ta_args, dc_args, ds_config, tk_params, additional_args = parser.parse_args_into_dataclasses(
+parser = HfArgumentParser((ModelConfig, QuantizationConfig, ExtLoraConfig, TrainingConfig, TrainingArguments, ExtDataCollator, DatasetConfig, TokenizerParams))
+model_config, bnb_config, ext_lora_config, train_config, ta_args, dc_args, ds_config, tk_params, additional_args = parser.parse_args_into_dataclasses(
     return_remaining_strings=True
 )
 
@@ -35,10 +36,20 @@ bnb_config_args = asdict(bnb_config)
 bnb_config = BitsAndBytesConfig(**bnb_config_args)
 enable_qlora = bnb_config.is_quantizable()
 
+# Load Tokenizer Params
+tk_params = asdict(tk_params)
+tk_params["pad_to_multiple_of"] = tk_params.pop("tok_pad_to_multiple_of")
+tk_params["return_tensors"] = tk_params.pop("tok_return_tensors")
+
 # Load the Pre-Trained Tokenizer
 tokenizer = AutoTokenizer.from_pretrained(**model_args)
 if not tokenizer.pad_token:
     tokenizer.pad_token = tokenizer.eos_token
+if dc_args.mlm and tokenizer.mask_token is None:
+    raise ValueError(
+        "This tokenizer does not have a mask token which is necessary for masked language modeling. "
+        "You should pass `mlm=False` to train on causal language modeling instead."
+    )
 dc_args.tokenizer = tokenizer
 
 # Load the Pre-Trained Model
@@ -46,11 +57,6 @@ model = AutoModelForCausalLM.from_pretrained(
     **model_args,
     quantization_config=bnb_config if enable_qlora else None,
 )
-
-# Load Tokenizer Params
-tk_params = asdict(tk_params)
-tk_params["pad_to_multiple_of"] = tk_params.pop("tok_pad_to_multiple_of")
-tk_params["return_tensors"] = tk_params.pop("tok_return_tensors")
 
 if enable_qlora:
     # Preparing the Model for QLoRA
@@ -92,8 +98,6 @@ print("Training Dataset Dimensions: ", split_dataset['train'].shape)
 print("Test Dataset Dimensions: ", split_dataset['test'].shape)
 print("Example Dataset Entry: ", split_dataset['train'][0])
 
-print("Training Arguments: ", ta_args)
-
 # Training the Model
 trainer = transformers.Trainer(
     model=model,
@@ -103,4 +107,5 @@ trainer = transformers.Trainer(
     data_collator=dc_args,
 )
 trainer.train()
-trainer.save_model(".")
+os.makedirs(train_config.save_output_path, exist_ok=True)
+trainer.save_model(train_config.save_output_path)
