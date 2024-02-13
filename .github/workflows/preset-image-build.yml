@@ -126,5 +126,6 @@ jobs:
       - name: Cleanup
         if: ${{ always() }}
         run: |
-          kubectl get job --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job" | xargs -r kubectl delete job
-          kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job" | xargs -r kubectl delete pod
+          kubectl get job --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job-${{ matrix.model.name }}-[0-9]" | xargs -r kubectl delete job
+          kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job-${{ matrix.model.name }}-[0-9]" | xargs -r kubectl delete pod
+
