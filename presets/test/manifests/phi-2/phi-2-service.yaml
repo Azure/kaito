@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: falcon-40b-instruct
+  name: phi-2
 spec:
   selector:
-    app: falcon
+    app: phi-2
   ports:
   - protocol: TCP
     port: 80
