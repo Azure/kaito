@@ -160,11 +160,11 @@ class UnifiedRequestModel(BaseModel):
     generate_kwargs: Optional[GenerateKwargs] = Field(None, description="Additional kwargs for generate method")
 
     # Field for conversational model
-    messages: Optional[List[dict]] = Field(None, description="Messages for conversational model")
+    messages: Optional[List[Dict[str, str]]] = Field(None, description="Messages for conversational model")
 
 @app.post("/chat")
 def generate_text(request_model: UnifiedRequestModel):
-    user_generate_kwargs = request_model.generate_kwargs or {}
+    user_generate_kwargs = request_model.generate_kwargs.dict() if request_model.generate_kwargs else {}
     generate_kwargs = {**default_generate_config, **user_generate_kwargs}
 
     if args.pipeline == "text-generation":
