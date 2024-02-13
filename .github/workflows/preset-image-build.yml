@@ -126,6 +126,5 @@ jobs:
       - name: Cleanup
         if: ${{ always() }}
         run: |
-          echo "Commenting out for debugging"
-          # kubectl get job --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job" | xargs -r kubectl delete job
-          # kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job" | xargs -r kubectl delete pod
+          kubectl get job --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job" | xargs -r kubectl delete job
+          kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job" | xargs -r kubectl delete pod
