@@ -249,19 +249,25 @@ jobs:
             done 
             echo "Service IP is $SERVICE_IP"
             echo "SERVICE_IP=$SERVICE_IP" >> $GITHUB_OUTPUT
-        
-      - name: Replace IP and Deploy Statefulset to K8s
+
+      - name: Get Resource Type
+        id: resource
+        run: |
+            RESOURCE_TYPE=$(echo "${{ matrix.model.name }}" | grep -q "llama" && echo "statefulset" || echo "deployment")
+            echo "RESOURCE_TYPE=$RESOURCE_TYPE" >> $GITHUB_OUTPUT
+      
+      - name: Replace IP and Deploy Resource to K8s
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
-            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}-statefulset.yaml
-            sed -i "s/TAG_HERE/${{ matrix.model.tag }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}-statefulset.yaml
-            sed -i "s/REPO_HERE/${{ secrets.ACR_AMRT_USERNAME }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}-statefulset.yaml
-            kubectl apply -f presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}-statefulset.yaml
-    
-      - name: Wait for Statefulset to be ready
+            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}.yaml
+            sed -i "s/TAG_HERE/${{ matrix.model.tag }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}.yaml
+            sed -i "s/REPO_HERE/${{ secrets.ACR_AMRT_USERNAME }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}.yaml
+            kubectl apply -f presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}.yaml
+
+      - name: Wait for Resource to be ready
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
-            kubectl rollout status statefulset/${{ matrix.model.name }}
+            kubectl rollout status ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }}
         
       - name: Test home endpoint
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
@@ -374,16 +380,22 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
+            # Only proceed if RESOURCE_TYPE is set (else resource wasn't created)
+            if [ -n "${{ steps.resource.outputs.RESOURCE_TYPE }}" ]; then
+                # Use RESOURCE_TYPE from the previous step
+                RESOURCE_TYPE=${{ steps.resource.outputs.RESOURCE_TYPE }}
+                
+                # Check and Delete K8s Resource (Deployment or StatefulSet)
+                if kubectl get $RESOURCE_TYPE ${{ matrix.model.name }} > /dev/null 2>&1; then
+                    kubectl delete $RESOURCE_TYPE ${{ matrix.model.name }}
+                fi
+            fi
+
             # Check and Delete K8s Service if it exists
             if kubectl get svc ${{ matrix.model.name }} > /dev/null 2>&1; then
                 kubectl delete svc ${{ matrix.model.name }}
             fi
         
-            # Check and Delete K8s StatefulSet if it exists
-            if kubectl get statefulset ${{ matrix.model.name }} > /dev/null 2>&1; then
-                kubectl delete statefulset ${{ matrix.model.name }}
-            fi
-
             # Check and Delete AKS Nodepool if it exists            
             if [ -n "${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }}" ]; then
                 NODEPOOL_EXIST=$(az aks nodepool show \
