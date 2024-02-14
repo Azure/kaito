@@ -7,6 +7,12 @@
 FROM python:3.8-slim
 WORKDIR /workspace
 
+# Install git
+RUN apt-get update && \
+    apt-get install -y git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+    
 RUN git clone https://github.com/facebookresearch/llama
 
 WORKDIR /workspace/llama
