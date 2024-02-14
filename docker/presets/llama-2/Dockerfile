@@ -17,7 +17,8 @@ RUN git clone https://github.com/facebookresearch/llama
 
 WORKDIR /workspace/llama
 
-RUN sed -i $'/torch.distributed.init_process_group("nccl")/c\\            import datetime\\\n            torch.distributed.init_process_group("nccl", timeout=datetime.timedelta(days=365*100))' /workspace/llama/llama/generation.py
+# RUN sed -i $'/torch.distributed.init_process_group("nccl")/c\\            import datetime\\\n            torch.distributed.init_process_group("nccl", timeout=datetime.timedelta(days=365*100))' /workspace/llama/llama/generation.py
+RUN ["/bin/bash", "-c", "sed -i $'/torch.distributed.init_process_group(\"nccl\")/c\\            import datetime\\\n            torch.distributed.init_process_group(\"nccl\", timeout=datetime.timedelta(days=365*100))' /workspace/llama/llama/generation.py"]
 
 RUN pip install -e .
 RUN pip install torch==2.2.0 fastapi==0.103.2 pydantic==1.10.9 gputil==1.4.0
