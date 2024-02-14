@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import torch
 from fastapi.testclient import TestClient
 
 # Get the parent directory of the current file
@@ -12,8 +13,8 @@ parent_dir = str(Path(__file__).resolve().parent.parent)
 sys.path.append(parent_dir)
 
 @pytest.fixture(params=[
-    {"pipeline": "text-generation", "model_path": "microsoft/phi-2", "torch_dtype": "bfloat16"},
-    {"pipeline": "conversational", "model_path": "mistralai/Mistral-7B-Instruct-v0.2", "torch_dtype": "bfloat16"},
+    {"pipeline": "text-generation", "model_path": "stanford-crfm/alias-gpt2-small-x21"},
+    {"pipeline": "conversational", "model_path": "stanford-crfm/alias-gpt2-small-x21"},
 ])
 def configured_app(request):
     original_argv = sys.argv.copy()
@@ -22,7 +23,7 @@ def configured_app(request):
         'program_name',
         '--pipeline', request.param['pipeline'],
         '--pretrained_model_name_or_path', request.param['model_path'],
-        '--torch_dtype', request.param['torch_dtype']
+        '--allow_remote_files', 'True'
     ]
     sys.argv = test_args
 
@@ -105,9 +106,12 @@ def test_read_main(configured_app):
     assert status_code == 200
 
 def test_health_check(configured_app):
+    device = "GPU" if torch.cuda.is_available() else "CPU"
+    if device != "GPU":
+        pytest.skip("Skipping healthz endpoint check - running on CPU")
     client = TestClient(configured_app)
     response = client.get("/healthz")
-    # Assume we have a GPU available and the model & pipeline initialized for testing
+    # Assuming we have a GPU available
     assert response.status_code == 200
     assert response.json() == {"status": "Healthy"}
 

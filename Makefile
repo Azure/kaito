@@ -82,6 +82,8 @@ fmt: ## Run go fmt against code.
 unit-test: ## Run unit tests.
 	go test -v $(shell go list ./pkg/... ./api/... | grep -v /vendor) -race -coverprofile=coverage.txt -covermode=atomic
 	go tool cover -func=coverage.txt
+	pip install -r presets/inference/text-generation/requirements.txt
+	pytest -o log_cli=true -o log_cli_level=INFO .
 
 $(E2E_TEST):
 	(cd test/e2e && go test -c . -o $(E2E_TEST))

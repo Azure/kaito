@@ -10,8 +10,8 @@ parent_dir = str(Path(__file__).resolve().parent.parent)
 sys.path.append(parent_dir)
 
 @pytest.fixture(params=[
-    {"pipeline": "text-generation", "model_path": "microsoft/phi-2", "torch_dtype": "bfloat16"},
-    {"pipeline": "conversational", "model_path": "mistralai/Mistral-7B-Instruct-v0.2", "torch_dtype": "bfloat16"},
+    {"pipeline": "text-generation", "model_path": "stanford-crfm/alias-gpt2-small-x21"},
+    {"pipeline": "conversational", "model_path": "stanford-crfm/alias-gpt2-small-x21"},
 ])
 def configured_model_config(request):
     original_argv = sys.argv.copy()
@@ -20,7 +20,7 @@ def configured_model_config(request):
         'program_name',
         '--pipeline', request.param['pipeline'],
         '--pretrained_model_name_or_path', request.param['model_path'],
-        '--torch_dtype', request.param['torch_dtype']
+        '--allow_remote_files', 'True'
     ]
 
     import inference_api
@@ -31,7 +31,6 @@ def configured_model_config(request):
     model_config = ModelConfig(
         pipeline=request.param['pipeline'], 
         pretrained_model_name_or_path=request.param['model_path'],
-        torch_dtype=request.param['torch_dtype']
     )
 
     yield model_config
