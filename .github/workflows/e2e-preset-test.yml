@@ -33,7 +33,7 @@ jobs:
       - name: Determine Affected Models
         id: affected_models
         run: |
-            PR_BRANCH=${{ github.head_ref }} \
+            PR_BRANCH=${{ github.ref_name }} \
             python3 .github/workflows/kind-cluster/determine_models.py
               
       - name: Print Determined Models
@@ -65,7 +65,7 @@ jobs:
             #             COMBINED_MATRIX.append(combined)
             #             break
 
-            COMBINED_MATRIX=$(echo ${{ steps.affected_models.outputs.matrix }} | jq --argjson configs "$CONFIGS" -c '
+            COMBINED_MATRIX=$(echo '${{ steps.affected_models.outputs.matrix }}' | jq --argjson configs "$CONFIGS" -c '
                 map(. as $model | $configs[] | select(.name == $model.name) | $model + .)
             ')
 
@@ -252,7 +252,7 @@ jobs:
       - name: Wait for Resource to be ready
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
-            kubectl rollout status ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }}
+            kubectl rollout status ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} --timeout=1800s
         
       - name: Test home endpoint
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
