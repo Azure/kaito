@@ -33,7 +33,7 @@ jobs:
       - name: Determine Affected Models
         id: affected_models
         run: |
-            PR_BRANCH=${{ github.head_ref }} \
+            PR_BRANCH=${{ github.ref_name }} \
             python3 .github/workflows/kind-cluster/determine_models.py
               
       - name: Print Determined Models
