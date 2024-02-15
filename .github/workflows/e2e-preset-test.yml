@@ -65,7 +65,7 @@ jobs:
             #             COMBINED_MATRIX.append(combined)
             #             break
 
-            COMBINED_MATRIX=$(echo ${{ steps.affected_models.outputs.matrix }} | jq --argjson configs "$CONFIGS" -c '
+            COMBINED_MATRIX=$(echo '${{ steps.affected_models.outputs.matrix }}' | jq --argjson configs "$CONFIGS" -c '
                 map(. as $model | $configs[] | select(.name == $model.name) | $model + .)
             ')
 
