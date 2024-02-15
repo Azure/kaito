@@ -37,6 +37,10 @@ jobs:
       - name: Run unit tests & Generate coverage
         run: |
           make unit-test
+      
+      - name: Run inference api unit tests
+        run: |
+          make inference-api-e2e
 
       - name: Upload Codecov report
         uses: codecov/codecov-action@v4
