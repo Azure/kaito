@@ -221,10 +221,10 @@ def setup_worker_routes():
             return {"error": str(e)}
 
 def start_worker_server():
-    print(f"Worker {dist.get_rank()} HTTP health server started at port 5000")
+    print(f"Worker {dist.get_rank()} HTTP health server started at port 5000\n")
     uvicorn.run(app=app_worker, host='0.0.0.0', port=5000)
 
-def worker_listen_tasks(): 
+def worker_listen_tasks():
     while True:
         worker_num = dist.get_rank()
         print(f"Worker {worker_num} ready to recieve next command")
@@ -276,7 +276,9 @@ if __name__ == "__main__":
         # Uncomment to enable worker logs
         # sys.stdout = sys.__stdout__
 
-        os.setpgrp()
+        pid = os.getpid()
+        if pid != os.getpgid(pid):
+            os.setpgrp()
         try: 
             # If the current process is the locally ranked 0 (i.e., the primary process)
             # on its node, then it starts a worker server that exposes a health check endpoint.
