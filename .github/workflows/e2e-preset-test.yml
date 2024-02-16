@@ -9,6 +9,7 @@ on:
 
 env:
     GO_VERSION: "1.20"
+    BRANCH_NAME: ${{ github.head_ref || github.ref_name}} 
 
 permissions:
     id-token: write
@@ -33,7 +34,7 @@ jobs:
       - name: Determine Affected Models
         id: affected_models
         run: |
-            PR_BRANCH=${{ github.ref_name }} \
+            PR_BRANCH=${{ env.BRANCH_NAME }} \
             python3 .github/workflows/kind-cluster/determine_models.py
               
       - name: Print Determined Models
