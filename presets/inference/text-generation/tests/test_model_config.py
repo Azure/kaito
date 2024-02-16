@@ -23,12 +23,11 @@ def configured_model_config(request):
         '--allow_remote_files', 'True'
     ]
 
-    import inference_api
+    inference_api = importlib.import_module("inference-api")
     importlib.reload(inference_api)
-    from inference_api import ModelConfig
 
     # Create and configure the ModelConfig instance
-    model_config = ModelConfig(
+    model_config = inference_api.ModelConfig(
         pipeline=request.param['pipeline'], 
         pretrained_model_name_or_path=request.param['model_path'],
     )
@@ -76,13 +75,15 @@ def test_ignore_double_dash_arguments(configured_model_config):
 # Test case to verify handling unsupported pipeline values
 def test_unsupported_pipeline_raises_value_error(configured_model_config):
     with pytest.raises(ValueError) as excinfo:
-        from inference_api import ModelConfig
-        ModelConfig(pipeline="unsupported_pipeline")
+        inference_api = importlib.import_module("inference-api")
+        importlib.reload(inference_api)
+        inference_api.ModelConfig(pipeline="unsupported_pipeline")
     assert "Unsupported pipeline" in str(excinfo.value)
 
 # Test case for validating torch_dtype
 def test_invalid_torch_dtype_raises_value_error(configured_model_config):
     with pytest.raises(ValueError) as excinfo:
-        from inference_api import ModelConfig
-        ModelConfig(pipeline="text-generation", torch_dtype="unsupported_dtype")
+        inference_api = importlib.import_module("inference-api")
+        importlib.reload(inference_api)
+        inference_api.ModelConfig(pipeline="text-generation", torch_dtype="unsupported_dtype")
     assert "Invalid torch dtype" in str(excinfo.value)
