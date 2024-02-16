@@ -13,7 +13,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
     
-RUN git clone https://github.com/facebookresearch/llama
+RUN git clone https://github.com/facebookresearch/llama.git
 
 WORKDIR /workspace/llama
 
