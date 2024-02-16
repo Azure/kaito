@@ -79,6 +79,25 @@ jobs:
       - name: Check Available Disk Space
         run: df -h
 
+      - name: Install Azure CLI latest
+        run: |
+              if ! which az > /dev/null; then
+                  echo "Azure CLI not found. Installing..."
+                  curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+              else
+                  echo "Azure CLI already installed."
+              fi
+    
+      - name: 'Az CLI login'
+        uses: azure/login@v1.6.1
+        with:
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            allow-no-subscriptions: true
+        
+      - name: 'Set subscription'
+        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
+
       - name: 'Get ACR Info'
         id: acr_info
         run: |
@@ -89,7 +108,30 @@ jobs:
           echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
           echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
       
+      - name: 'Check if Image exists in Test ACR'
+        id: check_test_image
+        run: |
+            ACR_NAME=${{ steps.acr_info.outputs.ACR_USERNAME }}
+            IMAGE_NAME=${{ matrix.model.name }}
+            TAG=${{ matrix.model.tag }}
+
+            # Use '|| true' to prevent script from exiting with an error if the repository is not found
+            TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv || true)
+
+            if [[ -z "$TAGS" ]]; then
+                echo "Image $IMAGE_NAME:$TAG or repository not found in $ACR_NAME."
+                echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
+            else
+                if echo "$TAGS" | grep -q "^$TAG$"; then
+                    echo "IMAGE_EXISTS=true" >> $GITHUB_OUTPUT
+                else
+                    echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
+                    echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
+                fi
+            fi
+      
       - name: Launch Python Script to Kickoff Build Jobs
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'false'
         id: launch_script
         run: |
           PR_BRANCH=${{ github.head_ref }} \
@@ -107,9 +149,11 @@ jobs:
       - name: Check Python Script Status
         if: ${{ always() }}
         run: |
-          if [ "${{ steps.launch_script.outcome }}" != "success" ]; then
+          if [[ "${{ steps.check_test_image.outputs.IMAGE_EXISTS }}" == "true" ]]; then
+            echo "Image already exists; skipping the status step."
+          elif [[ "${{ steps.launch_script.outcome }}" != "success" ]]; then
             echo "Python script failed to execute successfully."
-            exit 1  # Fail the job
+            exit 1  # Fail the job due to script failure
           else
             echo "Python script executed successfully."
           fi
@@ -117,6 +161,6 @@ jobs:
       - name: Cleanup
         if: ${{ always() }}
         run: |
-          kubectl get job --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job-${{ matrix.model.name }}-[0-9]" | xargs -r kubectl delete job
-          kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job-${{ matrix.model.name }}-[0-9]" | xargs -r kubectl delete pod
-
+          if [[ "${{ steps.check_test_image.outputs.IMAGE_EXISTS }}" == "false" ]]; then
+            kubectl get job --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job-${{ matrix.model.name }}-[0-9]" | xargs -r kubectl delete job
+          fi
