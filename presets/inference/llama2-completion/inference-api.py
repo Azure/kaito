@@ -83,7 +83,7 @@ def master_inference(prompts, max_gen_len, temperature, top_p):
 
 def shutdown_server():
     """Shut down the server."""
-    os.killpg(os.getpgrp(), signal.SIGTERM)
+    os.kill(os.getpid(), signal.SIGTERM)
 
 # Default values for the generator
 gen_params = {
@@ -236,15 +236,15 @@ def worker_listen_tasks():
                     print(f"Error in generation: {str(e)}")
             elif command == "shutdown":
                 print(f"Worker {worker_num} shutting down")
-                os.killpg(os.getpgrp(), signal.SIGTERM)
+                sys.exit()
         except torch.distributed.DistBackendError as e:
             print("torch.distributed.DistBackendError", e)
-            os.killpg(os.getpgrp(), signal.SIGTERM)
+            sys.exit()
         except Exception as e:
             print(f"Error in Worker Listen Task", e)
             if 'Socket Timeout' in str(e):
                 print("A socket timeout occurred.")
-            os.killpg(os.getpgrp(), signal.SIGTERM)
+            sys.exit()
 
 if __name__ == "__main__":
     # Fetch the LOCAL_RANK environment variable to determine the rank of this process
@@ -265,9 +265,6 @@ if __name__ == "__main__":
         # Uncomment to enable worker logs
         # sys.stdout = sys.__stdout__
 
-        pid = os.getpid()
-        if pid != os.getpgid(pid):
-            os.setpgrp()
         try: 
             # If the current process is the locally ranked 0 (i.e., the primary process)
             # on its node, then it starts a worker server that exposes a health check endpoint.
@@ -285,4 +282,4 @@ if __name__ == "__main__":
             worker_listen_tasks()
         finally:
             # Additional fail-safe (to ensure no lingering processes)
-            os.killpg(os.getpgrp(), signal.SIGTERM)
+            os.kill(os.getpid(), signal.SIGTERM)
