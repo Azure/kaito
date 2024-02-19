@@ -37,7 +37,7 @@ func TestCreatePresetInference(t *testing.T) {
 			workload: "Deployment",
 			// No BaseCommand, TorchRunParams, TorchRunRdzvParams, or ModelRunParams
 			// So expected cmd consists of shell command and inference file
-			expectedCmd: "/bin/sh -c  inference_api.py",
+			expectedCmd: "/bin/sh -c  inference-api.py",
 		},
 
 		"test-distributed-model": {
@@ -48,7 +48,7 @@ func TestCreatePresetInference(t *testing.T) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil)
 			},
 			workload:    "StatefulSet",
-			expectedCmd: "/bin/sh -c  inference_api.py",
+			expectedCmd: "/bin/sh -c  inference-api.py",
 		},
 	}
 
