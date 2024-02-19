@@ -1,12 +1,12 @@
 apiVersion: kaito.sh/v1alpha1
 kind: Workspace
 metadata:
-  name: workspace-falcon-7b
+  name: workspace-mistral-7b
 resource:
   instanceType: "Standard_NC12s_v3"
   labelSelector:
     matchLabels:
-      apps: falcon-7b
+      apps: mistral-7b
 inference:
   preset:
-    name: "falcon-7b"
+    name: "mistral-7b"
