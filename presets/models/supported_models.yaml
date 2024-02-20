@@ -3,27 +3,27 @@ models:
   - name: llama-2-7b
     type: llama2-completion
     runtime: llama-2
-    tag: 0.0.1
+    tag: 0.0.2
   - name: llama-2-7b-chat
     type: llama2-chat
     runtime: llama-2
-    tag: 0.0.1
+    tag: 0.0.2
   - name: llama-2-13b
     type: llama2-completion
     runtime: llama-2
-    tag: 0.0.1
+    tag: 0.0.2
   - name: llama-2-13b-chat
     type: llama2-chat
     runtime: llama-2
-    tag: 0.0.1
+    tag: 0.0.2
   - name: llama-2-70b
     type: llama2-completion
     runtime: llama-2
-    tag: 0.0.1
+    tag: 0.0.2
   - name: llama-2-70b-chat
     type: llama2-chat
     runtime: llama-2
-    tag: 0.0.1
+    tag: 0.0.2
 
   # Falcon
   - name: falcon-7b
