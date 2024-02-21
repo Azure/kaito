@@ -142,7 +142,8 @@ jobs:
         with:
           inlineScript: |
             az acr login --name ${{ secrets.DOCKER_SERVER }} --expose-token
-            az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} --attach-acr ${{secrets.ACR_AIMODELSREGISTRY}}
+            az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} \
+              --attach-acr /subscriptions/${{secrets.PROD_ACR_SUB_ID}}/resourceGroups/${{secrets.PROD_ACR_RG}}/providers/Microsoft.ContainerRegistry/registries/${{secrets.PROD_ACR_NAME}}
 
       - name: Add Secret Credentials
         run: |
