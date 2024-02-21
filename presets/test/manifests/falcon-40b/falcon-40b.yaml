@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: falcon-40b
 spec:
+  progressDeadlineSeconds: 1800
   replicas: 1
   selector:
     matchLabels:
@@ -12,7 +13,6 @@ spec:
       labels:
         app: falcon
     spec:
-      progressDeadlineSeconds: 1800
       containers:
       - name: falcon-container
         image: REPO_HERE.azurecr.io/falcon-40b:TAG_HERE
