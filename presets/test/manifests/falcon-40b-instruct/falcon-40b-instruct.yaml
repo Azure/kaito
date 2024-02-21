@@ -12,6 +12,7 @@ spec:
       labels:
         app: falcon
     spec:
+      progressDeadlineSeconds: 1800
       containers:
       - name: falcon-container
         image: REPO_HERE.azurecr.io/falcon-40b-instruct:TAG_HERE
