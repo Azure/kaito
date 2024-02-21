@@ -41,7 +41,7 @@
         "name": "phi-2",
         "node-count": 1,
         "node-vm-size": "Standard_NC6s_v3",
-        "node-osdisk-size": 30
+        "node-osdisk-size": 50
       },
       {
         "name": "llama-2-7b",
