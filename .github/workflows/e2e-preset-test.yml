@@ -117,16 +117,16 @@ jobs:
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
             allow-no-subscriptions: true
       
-      - name: 'Set subscription'
+      - name: 'Set Prod Subscription'
         run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
-
-      - name: 'Check if Image exists in Test ACR'
-        id: check_test_image
+        
+      - name: 'Check if Image exists in Prod ACR'
+        id: check_prod_image
         run: |
-            ACR_NAME=${{ secrets.ACR_AMRT_USERNAME }}
-            IMAGE_NAME=${{ matrix.model.name }}
+            ACR_NAME=${{ secrets.PROD_ACR_USERNAME }}
+            IMAGE_NAME=unlisted/aks/kaito/kaito-${{ matrix.model.name }}
             TAG=${{ matrix.model.tag }}
-
+        
             # Use '|| true' to prevent script from exiting with an error if the repository is not found
             TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv || true)
 
@@ -141,24 +141,15 @@ jobs:
                     echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
                 fi
             fi
-    
-      - name: 'Az CLI login'
-        uses: azure/login@v1.6.1
-        with:
-            client-id: ${{ secrets.AZURE_CLIENT_ID }}
-            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-            allow-no-subscriptions: true
-      
-      - name: 'Set subscription'
-        run: az account set --subscription ${{secrets.PROD_ACR_SUB_ID}}
-    
-      - name: 'Check if Image exists in Prod ACR'
-        id: check_prod_image
-        run: |
-            ACR_NAME=${{ secrets.PROD_ACR_USERNAME }}
-            az acr login --name $ACR_NAME --expose-token
 
-            IMAGE_NAME=unlisted/aks/kaito/kaito-${{ matrix.model.name }}
+      - name: 'Set Test Subscription'
+        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
+
+      - name: 'Check if Image exists in Test ACR'
+        id: check_test_image
+        run: |
+            ACR_NAME=${{ secrets.ACR_AMRT_USERNAME }}
+            IMAGE_NAME=${{ matrix.model.name }}
             TAG=${{ matrix.model.tag }}
         
             # Use '|| true' to prevent script from exiting with an error if the repository is not found
