@@ -141,7 +141,7 @@ jobs:
         uses: azure/CLI@v1.0.9
         with:
           inlineScript: |
-            az acr login --name ${{ secrets.DOCKER_SERVER }} --expose-token
+            az acr login --name ${{ secrets.PROD_ACR_USERNAME }} --expose-token
             az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} \
               --attach-acr /subscriptions/${{secrets.PROD_ACR_SUB_ID}}/resourceGroups/${{secrets.PROD_ACR_RG}}/providers/Microsoft.ContainerRegistry/registries/${{secrets.PROD_ACR_USERNAME}}
 

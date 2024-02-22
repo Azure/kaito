@@ -6,6 +6,11 @@ on:
         types: 
             - completed
     workflow_dispatch:
+        inputs:
+            force-run-all:
+                type: boolean
+                default: false
+                description: "Test all models for E2E"
 
 env:
     GO_VERSION: "1.20"
@@ -30,13 +35,17 @@ jobs:
             submodules: true
             fetch-depth: 0
 
+      - name: Set FORCE_RUN_ALL Flag
+        run: echo "FORCE_RUN_ALL=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force-run-all == 'true' }}" >> $GITHUB_ENV
+
       # This script should output a JSON array of model names
       - name: Determine Affected Models
         id: affected_models
         run: |
             PR_BRANCH=${{ env.BRANCH_NAME }} \
+            FORCE_RUN_ALL=${{ env.FORCE_RUN_ALL }} \
             python3 .github/workflows/kind-cluster/determine_models.py
-              
+
       - name: Print Determined Models
         run: |
             echo "Output from determine_models: ${{ steps.affected_models.outputs.matrix }}"
@@ -97,6 +106,9 @@ jobs:
         with:
             submodules: true
             fetch-depth: 0
+
+      - name: Set OSS Flag
+        run: echo "MODEL_IS_OSS=${{ matrix.model.OSS }}" >> $GITHUB_ENV
         
       - name: Install Azure CLI latest
         run: |
@@ -345,12 +357,13 @@ jobs:
             fi
       
       - name: Move from Test to Prod ACR
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false' && github.event_name == 'workflow_dispatch'
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false' && github.event_name == 'workflow_dispatch' && env.MODEL_IS_OSS == 'true'
         run: |
-            # This should only run if: 
+            # This should only run if:
             # 1. All prior steps have succeeed (Given)
             # 2. Image exists in test ACR repo but not Prod
             # 3. Workflow was triggered manually (workflow_dispatch)
+            # 4. Image is OSS (MIT/Apache2.0)
 
             az account set --subscription ${{secrets.PROD_ACR_SUB_ID}}
 
