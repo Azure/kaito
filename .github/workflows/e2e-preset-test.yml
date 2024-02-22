@@ -109,15 +109,6 @@ jobs:
 
       - name: Set OSS Flag
         run: echo "MODEL_IS_OSS=${{ matrix.model.OSS }}" >> $GITHUB_ENV
-        
-      - name: Install Azure CLI latest
-        run: |
-            if ! which az > /dev/null; then
-                echo "Azure CLI not found. Installing..."
-                curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-            else
-                echo "Azure CLI already installed."
-            fi
 
       - name: 'Az CLI login'
         uses: azure/login@v1.6.1
@@ -150,7 +141,10 @@ jobs:
                     echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
                 fi
             fi
-        
+    
+      - name: 'Set subscription'
+        run: az account set --subscription ${{secrets.PROD_ACR_SUB_ID}}
+    
       - name: 'Check if Image exists in Prod ACR'
         id: check_prod_image
         run: |
