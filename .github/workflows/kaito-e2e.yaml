@@ -143,7 +143,7 @@ jobs:
           inlineScript: |
             az acr login --name ${{ secrets.PROD_ACR_USERNAME }} --expose-token
             az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} \
-              --attach-acr /subscriptions/${{secrets.PROD_ACR_SUB_ID}}/resourceGroups/${{secrets.PROD_ACR_RG}}/providers/Microsoft.ContainerRegistry/registries/${{secrets.PROD_ACR_USERNAME}}
+              --attach-acr ${{ secrets.ACR_AMRT_USERNAME }}
 
       - name: Add Secret Credentials
         run: |

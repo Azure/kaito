@@ -155,6 +155,8 @@ jobs:
         id: check_prod_image
         run: |
             ACR_NAME=${{ secrets.PROD_ACR_USERNAME }}
+            az acr login --name $ACR_NAME --username $ACR_NAME --expose-token
+
             IMAGE_NAME=unlisted/aks/kaito/kaito-${{ matrix.model.name }}
             TAG=${{ matrix.model.tag }}
         
