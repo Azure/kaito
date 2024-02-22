@@ -146,7 +146,7 @@ jobs:
             # az role assignment create --assignee ${{secrets.AZURE_CLIENT_ID}} --role Contributor --scope /subscriptions/${{secrets.AZURE_SUBSCRIPTION_ID}}/resourceGroups/${{env.CLUSTER_NAME}}
 
             az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} \
-              --attach-acr "/subscriptions/${{ secrets.PROD_ACR_SUB_ID }}/resourceGroups/${{ env.CLUSTER_NAME }}/providers/Microsoft.ContainerRegistry/registries/${{ secrets.PROD_ACR_USERNAME }}"
+              --attach-acr "/subscriptions/${{ secrets.PROD_ACR_SUB_ID }}/resourceGroups/${{ secrets.PROD_ACR_RG }}/providers/Microsoft.ContainerRegistry/registries/${{ secrets.PROD_ACR_USERNAME }}"
               
             # az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
       
