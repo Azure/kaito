@@ -36,17 +36,9 @@ func GetEnv(envVar string) string {
 	return env
 }
 
-
 func GetModelConfigInfo(configFilePath string) (map[string]interface{}, error) {
 	var data map[string]interface{}
-	dir, err := os.Getwd()
-	if err != nil {
-		fmt.Println("Error:", err)
-		return nil, fmt.Errorf("error getting current dir: %w", err)
-	}
 
-	fmt.Println("Current Working Directory:", dir)
-	
 	yamlData, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading YAML file: %w", err)
