@@ -320,7 +320,7 @@ var _ = Describe("Workspace Preset", func() {
 		aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
 		
 		// Load stable model versions
-		configs, err := utils.GetModelConfigInfo("~/presets/models/supported_models.yaml")
+		configs, err := utils.GetModelConfigInfo("/home/runner/work/kaito/kaito/presets/models/supported_models.yaml")
 		if err != nil {
 			fmt.Printf("Failed to load model configs: %v\n", err)
 			os.Exit(1)
