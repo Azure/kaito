@@ -144,10 +144,16 @@ jobs:
             # az account set --subscription ${{secrets.PROD_ACR_SUB_ID}}
             # az acr login --name ${{ secrets.PROD_ACR_USERNAME }} --expose-token
             # az role assignment create --assignee ${{secrets.AZURE_CLIENT_ID}} --role Contributor --scope /subscriptions/${{secrets.AZURE_SUBSCRIPTION_ID}}/resourceGroups/${{env.CLUSTER_NAME}}
+            
+            IDENTITY_PRINCIPAL_ID="$(az identity show --name gpuIdentity --resource-group ${{ env.CLUSTER_NAME }} --query 'principalId' -otsv)"
+            echo "IDENTITY_PRINCIPAL_ID"
+            az role assignment create --assignee ${IDENTITY_PRINCIPAL_ID} --role AcrPull --scope "/subscriptions/${{ secrets.PROD_ACR_SUB_ID }}/resourceGroups/${{ secrets.PROD_ACR_RG }}/providers/Microsoft.ContainerRegistry/registries/${{ secrets.PROD_ACR_USERNAME }}"
+            echo "ROLE_ASSIGNMENT"
 
             az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} \
               --attach-acr "/subscriptions/${{ secrets.PROD_ACR_SUB_ID }}/resourceGroups/${{ secrets.PROD_ACR_RG }}/providers/Microsoft.ContainerRegistry/registries/${{ secrets.PROD_ACR_USERNAME }}"
-              
+            
+            echo "ATTACH_ACR"
             # az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
       
       - name: Log kaito-workspace
