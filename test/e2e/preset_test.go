@@ -307,33 +307,32 @@ var runLlama13B bool
 var aiModelsRegistry string
 var modelInfo map[string]string
 
+var _ = BeforeSuite(func() {
+	var err error
+	runLlama13B, err = strconv.ParseBool(os.Getenv("RUN_LLAMA_13B"))
+	if err != nil {
+		// Handle error or set a default value
+		fmt.Print("Error: RUN_LLAMA_13B ENV Variable not set")
+		runLlama13B = false
+	}
+
+	aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
+	
+	// Load stable model versions
+	configs, err := utils.GetModelConfigInfo("~/presets/models/supported_models.yaml")
+	if err != nil {
+		fmt.Printf("Failed to load model configs: %v\n", err)
+		os.Exit(1)
+	}
+
+	modelInfo, err = utils.ExtractModelVersion(configs)
+	if err != nil {
+		fmt.Printf("Failed to extract stable model versions: %v\n", err)
+		os.Exit(1)
+	}
+})
+
 var _ = Describe("Workspace Preset", func() {
-
-	BeforeSuite(func() {
-		var err error
-		runLlama13B, err = strconv.ParseBool(os.Getenv("RUN_LLAMA_13B"))
-		if err != nil {
-			// Handle error or set a default value
-			fmt.Print("Error: RUN_LLAMA_13B ENV Variable not set")
-			runLlama13B = false
-		}
-
-		aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
-		
-		// Load stable model versions
-		configs, err := utils.GetModelConfigInfo("~/presets/models/supported_models.yaml")
-		if err != nil {
-			fmt.Printf("Failed to load model configs: %v\n", err)
-			os.Exit(1)
-		}
-
-		modelInfo, err = utils.ExtractModelVersion(configs)
-		if err != nil {
-			fmt.Printf("Failed to extract stable model versions: %v\n", err)
-			os.Exit(1)
-		}
-	})
-
 	It("should create a workspace with preset public mode successfully", func() {
 		numOfNode := 1
 		workspaceObj := createFalconWorkspaceWithPresetPublicMode(numOfNode)
