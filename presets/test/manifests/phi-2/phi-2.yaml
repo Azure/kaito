@@ -23,7 +23,7 @@ spec:
           requests:
             nvidia.com/gpu: 1
           limits:
-            nvidia.com/gpu: 1  # Requesting 1 GPUs
+            nvidia.com/gpu: 1  # Requesting 1 GPU
         livenessProbe:
           httpGet:
             path: /healthz

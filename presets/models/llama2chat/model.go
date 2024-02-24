@@ -28,9 +28,9 @@ func init() {
 
 var (
 	PresetLlamaTagMap = map[string]string{
-		"llama-2-7b-chat":  "0.0.1",
-		"llama-2-13b-chat": "0.0.1",
-		"llama-2-70b-chat": "0.0.1",
+		"llama-2-7b-chat":  "0.0.3",
+		"llama-2-13b-chat": "0.0.3",
+		"llama-2-70b-chat": "0.0.3",
 	}
 
 	baseCommandPresetLlama = "cd /workspace/llama/llama-2 && torchrun"

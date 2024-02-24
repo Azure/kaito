@@ -9,6 +9,9 @@ Before you begin, ensure you have the following tools installed:
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) to view Kubernetes resources
 - [git](https://git-scm.com/downloads) to clone this repo locally
 
+**Important Note**:
+Ensure you use a release branch of the repository for a stable version of the installation.
+
 If you do not already have an AKS cluster, run the following Azure CLI commands to create one:
 
 ```bash

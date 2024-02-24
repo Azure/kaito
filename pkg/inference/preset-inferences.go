@@ -21,7 +21,7 @@ import (
 const (
 	ProbePath              = "/healthz"
 	Port5000               = int32(5000)
-	InferenceFile          = "inference-api.py"
+	InferenceFile          = "inference_api.py"
 	DefaultVolumeMountPath = "/dev/shm"
 )
 
