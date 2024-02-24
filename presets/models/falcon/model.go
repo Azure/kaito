@@ -37,14 +37,17 @@ var (
 	PresetFalcon40BInstructModel = PresetFalcon40BModel + "-instruct"
 
 	PresetFalconTagMap = map[string]string{
-		"Falcon7B":          "0.0.1",
-		"Falcon7BInstruct":  "0.0.1",
-		"Falcon40B":         "0.0.1",
-		"Falcon40BInstruct": "0.0.1",
+		"Falcon7B":          "0.0.2",
+		"Falcon7BInstruct":  "0.0.2",
+		"Falcon40B":         "0.0.2",
+		"Falcon40BInstruct": "0.0.2",
 	}
 
-	baseCommandPresetFalcon = "accelerate launch --use_deepspeed"
-	falconRunParams         = map[string]string{}
+	baseCommandPresetFalcon = "accelerate launch"
+	falconRunParams         = map[string]string{
+		"torch_dtype": "bfloat16",
+		"pipeline":    "text-generation",
+	}
 )
 
 var falconA falcon7b
