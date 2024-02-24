@@ -51,7 +51,7 @@ jobs:
           echo "VERSION=${rand}" >> $GITHUB_ENV
           echo "CLUSTER_NAME=kaito${rand}" >> $GITHUB_ENV
           echo "RUN_LLAMA_13B=false" >> $GITHUB_ENV
-          echo "AI_MODELS_IMAGE_VERSION=0.0.1" >> $GITHUB_ENV 
+          echo "AI_MODELS_IMAGE_VERSION=0.0.3" >> $GITHUB_ENV 
 
       - uses: azure/login@v1.6.1
         with:
