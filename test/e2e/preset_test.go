@@ -46,28 +46,28 @@ func createFalconWorkspaceWithPresetPublicMode(numOfNode int) *kaitov1alpha1.Wor
 	return workspaceObj
 }
 
-func createLlama7BWorkspaceWithPresetPrivateMode(registry, registrySecret, imageVersion string, numOfNode int) *kaitov1alpha1.Workspace {
+func createLlama7BWorkspaceWithPresetPrivateMode(registry, imageVersion string, numOfNode int) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Llama 7B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
 		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetLlama2AChat, imageVersion),
 			numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
-			}, nil, PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
+			}, nil, PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{}, nil)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
 	return workspaceObj
 }
 
-func createLlama13BWorkspaceWithPresetPrivateMode(registry, registrySecret, imageVersion string, numOfNode int) *kaitov1alpha1.Workspace {
+func createLlama13BWorkspaceWithPresetPrivateMode(registry, imageVersion string, numOfNode int) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Llama 13B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
 		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetLlama2BChat, imageVersion),
 			numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test"},
-			}, nil, PresetLlama2BChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
+			}, nil, PresetLlama2BChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{}, nil)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
@@ -305,11 +305,9 @@ func deleteWorkspace(workspaceObj *kaitov1alpha1.Workspace) error {
 
 var runLlama13B bool
 var aiModelsRegistry string
-var aiModelsRegistrySecret string
-var aiModelsImageVersion string
+var modelInfo map[string]string
 
 var _ = Describe("Workspace Preset", func() {
-
 	BeforeEach(func() {
 		var err error
 		runLlama13B, err = strconv.ParseBool(os.Getenv("RUN_LLAMA_13B"))
@@ -318,10 +316,21 @@ var _ = Describe("Workspace Preset", func() {
 			fmt.Print("Error: RUN_LLAMA_13B ENV Variable not set")
 			runLlama13B = false
 		}
-
+	
 		aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
-		aiModelsRegistrySecret = utils.GetEnv("AI_MODELS_REGISTRY_SECRET")
-		aiModelsImageVersion = utils.GetEnv("AI_MODELS_IMAGE_VERSION")
+		
+		// Load stable model versions
+		configs, err := utils.GetModelConfigInfo("/home/runner/work/kaito/kaito/presets/models/supported_models.yaml")
+		if err != nil {
+			fmt.Printf("Failed to load model configs: %v\n", err)
+			os.Exit(1)
+		}
+	
+		modelInfo, err = utils.ExtractModelVersion(configs)
+		if err != nil {
+			fmt.Printf("Failed to extract stable model versions: %v\n", err)
+			os.Exit(1)
+		}
 	})
 
 	It("should create a workspace with preset public mode successfully", func() {
@@ -345,7 +354,11 @@ var _ = Describe("Workspace Preset", func() {
 
 	It("should create a llama 7b workspace with preset private mode successfully", func() {
 		numOfNode := 1
-		workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, aiModelsImageVersion, numOfNode)
+		modelVersion, ok := modelInfo[PresetLlama2AChat]
+		if !ok {
+			Fail(fmt.Sprintf("Model version for %s not found", PresetLlama2AChat))
+		}
+		workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistry, modelVersion, numOfNode)
 
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
@@ -367,7 +380,11 @@ var _ = Describe("Workspace Preset", func() {
 			Skip("Skipping llama 13b workspace test")
 		}
 		numOfNode := 2
-		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, aiModelsImageVersion, numOfNode)
+		modelVersion, ok := modelInfo[PresetLlama2BChat]
+		if !ok {
+			Fail(fmt.Sprintf("Model version for %s not found", PresetLlama2AChat))
+		}
+		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistry, modelVersion, numOfNode)
 
 		defer cleanupResources(workspaceObj)
 

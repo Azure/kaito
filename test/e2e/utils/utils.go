@@ -5,11 +5,13 @@ package utils
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"time"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/samber/lo"
+	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -32,6 +34,51 @@ func GetEnv(envVar string) string {
 		return ""
 	}
 	return env
+}
+
+func GetModelConfigInfo(configFilePath string) (map[string]interface{}, error) {
+	var data map[string]interface{}
+
+	yamlData, err := ioutil.ReadFile(configFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading YAML file: %w", err)
+	}
+
+	err = yaml.Unmarshal(yamlData, &data)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling YAML: %w", err)
+	}
+
+	return data, nil
+}
+
+func ExtractModelVersion(configs map[string]interface{}) (map[string]string, error) {
+	modelsInfo := make(map[string]string)
+	models, ok := configs["models"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("'models' key not found or is not a slice")
+	}
+
+	for _, modelItem := range models {
+        model, ok := modelItem.(map[interface{}]interface{})
+        if !ok {
+            return nil, fmt.Errorf("model item is not a map")
+        }
+
+        modelName, ok := model["name"].(string)
+        if !ok {
+            return nil, fmt.Errorf("model name is not a string or not found")
+        }
+
+        modelTag, ok := model["tag"].(string) // Using 'tag' as the version
+        if !ok {
+            return nil, fmt.Errorf("model version for %s is not a string or not found", modelName)
+        }
+
+        modelsInfo[modelName] = modelTag
+    }
+
+	return modelsInfo, nil
 }
 
 func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount int, instanceType string,
