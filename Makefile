@@ -117,10 +117,6 @@ create-aks-cluster: ## Create test AKS cluster (with msi, oidc and workload iden
 	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --attach-acr $(AZURE_ACR_NAME) \
 	--node-count 1 --generate-ssh-keys --enable-managed-identity  --enable-workload-identity --enable-oidc-issuer -o none
 
-	# az aks nodepool add --cluster-name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --name gpunode \
-    #   --node-count 1 --node-vm-size standard_nc96ads_a100_v4 --node-taints sku=gpu:NoSchedule \
-    #   --aks-custom-headers UseGPUDedicatedVHD=true --node-osdisk-size 300
-
 	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
 
 .PHONY: az-patch-install-helm

@@ -1,7 +1,14 @@
 name: Push image to ACR
 on:
-  workflow_dispatch:
-
+#  workflow_dispatch:
+#    inputs:
+#      release_version:
+#        description: 'tag to be created for this image (i.e. vxx.xx.xx)'
+#        required: true
+  pull_request:
+    branches:
+      - release-**
+    types: [ closed ]
 
 permissions:
   id-token: write
@@ -10,31 +17,101 @@ permissions:
 
 env:
   GO_VERSION: '1.20'
+  IMAGE_NAME: 'workspace'
 
 jobs:
+  check-tag:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'update manifest and helm charts')
+    outputs:
+      tag: ${{ steps.get-tag.outputs.tag }}
+    steps:
+#      - name: validate version
+#        run: |
+#          echo "${{ github.event.inputs.release_version }}" | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$'
+#      - name: Set up Go ${{ env.GO_VERSION }}
+#        uses: actions/setup-go@v5
+#        with:
+#          go-version: ${{ env.GO_VERSION  }}
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          fetch-depth: 0
+#          submodules: true
+#      - id: get-tag
+#        name: Get tag
+#        run: echo "tag=$(echo ${{ github.event.inputs.release_version }} | tr -d v)" >> $GITHUB_OUTPUT
+
+
   publish:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     environment: publish-mcr
     steps:
+      - id: get-tag
+        name: Get tag
+        run: echo "IMG_TAG=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_OUTPUT
+
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION  }}
-      - name: Set Image Tag
+      - name: 'Set Image Tag'
         run: |
-          echo "IMG_TAG=$(echo "${{ github.ref }}" | tr -d refs/tags/v)" >> $GITHUB_ENV
-          echo "REPO_TAG=$(echo "${{ github.ref }}" | tr -d refs/tags/)" >> $GITHUB_ENV
+          echo "REPO_TAG=$(echo "${{ env.IMG_TAG }}" | tr -d v)" >> $GITHUB_ENV
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: true
           ref: ${{ env.REPO_TAG }}
+
+      - name: 'Build Image'
+        id: Publish
+        run: |
+          OUTPUT_TYPE=type=docker ARCH=arm64 make docker-build-kaito
+        env:
+          VERSION: ${{ env.IMG_TAG }}
+          REGISTRY: ${{ secrets.KAITO_MCR_REGISTRY }}/unlisted/aks/kaito
+
+      - name: Scan ${{ secrets.KAITO_MCR_REGISTRY }}/unlisted/aks/kaito/${{ env.IMAGE_NAME }}:${{ env.IMG_TAG }}
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.KAITO_MCR_REGISTRY }}/unlisted/aks/kaito/${{ env.IMAGE_NAME }}:${{ env.IMG_TAG }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          timeout: '5m0s'
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+
       - name: 'Az CLI login'
         uses: azure/login@v1.6.1
         with:
           client-id: ${{ secrets.KAITO_MCR_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.KAITO_MCR_SUBSCRIPTION_ID }}
+
+      - name: 'Create tag'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'refs/tags/${{ steps.get-tag.outputs.tag }}',
+              sha: context.sha
+            })
+
+      - name: 'Dispatch tag to e2e test'
+        uses: peter-evans/repository-dispatch@v1
+        with:
+          token: ${{ secrets.PAT }}
+          event-type: release-tag
+          client-payload: '{"isRelease": true,"registry": "${{ secrets.KAITO_MCR_REGISTRY }}/unlisted/aks/kaito","tag": "${{ env.IMG_TAG }}"}'
+
+      ## push to MCR
       - name: 'Publish to ACR'
         id: Publish
         run: |

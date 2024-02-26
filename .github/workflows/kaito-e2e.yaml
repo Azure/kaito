@@ -11,10 +11,12 @@ on:
   pull_request:
     branches: [main]
     paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
+  repository_dispatch:
+    types: [ release-tag ]
+    branches: [ release-** ]
 
 env:
   GO_VERSION: "1.20"
-  E2E_IMG_TAG: "kaito-e2e"
 
 permissions:
   id-token: write # This is required for requesting the JWT
@@ -25,18 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: e2e-test
     steps:
-      - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION  }}
-
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          fetch-depth: 0
-
       - name: Shorten SHA
+        if: ${{ !github.event.client_payload.isRelease }}
         id: vars
         run: echo "pr_sha_short=$(git rev-parse --short ${{ github.event.pull_request.head.sha }})" >> $GITHUB_OUTPUT
 
@@ -52,6 +44,27 @@ jobs:
           echo "CLUSTER_NAME=kaito${rand}" >> $GITHUB_ENV
           echo "RUN_LLAMA_13B=false" >> $GITHUB_ENV
 
+      - name: Set Registry
+        run: |
+            isRelease=${{ github.event.client_payload.isRelease }}
+            if ["$isRelease" = true ] ; then
+              echo "REGISTRY= ${{ github.event.client_payload.registry }}" >> $GITHUB_ENV
+            else
+              echo "REGISTRY=${{ env.CLUSTER_NAME }}" >> $GITHUB_ENV
+            fi
+
+      - name: Set up Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION  }}
+
+      - name: Checkout
+        if: ${{ !github.event.client_payload.isRelease }}
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
       - uses: azure/login@v1.6.1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -63,10 +76,16 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
         id: install
 
-      - name: Create ACR
+      - name: Create Resource Group
         shell: bash
         run: |
           make create-rg
+        env:
+          AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
+
+      - name: Create ACR
+        shell: bash
+        run: |
           make create-acr
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
@@ -79,11 +98,12 @@ jobs:
             az identity create --name gpuIdentity --resource-group  ${{ env.CLUSTER_NAME }}
 
       - name: build KAITO image
+        if: ${{ !github.event.client_payload.isRelease }}
         shell: bash
         run: |
           make docker-build-kaito
         env:
-          REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
+          REGISTRY: ${{ env.REGISTRY }}.azurecr.io
           VERSION: ${{ env.VERSION }}
 
       - name: create cluster
@@ -133,7 +153,7 @@ jobs:
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
-          REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
+          REGISTRY: ${{ env.REGISTRY }}.azurecr.io
           VERSION: ${{ env.VERSION }}
             
       - name: Add Secret Credentials
