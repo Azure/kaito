@@ -4,6 +4,7 @@
 package utils
 
 import (
+	"time"
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/azure/kaito/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
