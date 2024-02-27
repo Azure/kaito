@@ -135,13 +135,13 @@ jobs:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
           VERSION: ${{ env.VERSION }}
-      
-      - name: Attach Private Presets ACR
-        uses: azure/CLI@v1.0.9
-        with:
-          inlineScript: |
-            az aks update -n ${{ env.CLUSTER_NAME }} -g ${{ env.CLUSTER_NAME }} \
-              --attach-acr ${{ secrets.ACR_AMRT_USERNAME }}
+            
+      - name: Add Secret Credentials
+        run: |
+          kubectl create secret docker-registry ${{secrets.AMRT_SECRET_NAME}} \
+          --docker-server=${{secrets.ACR_AMRT_USERNAME}}.azurecr.io \
+          --docker-username=${{secrets.ACR_AMRT_USERNAME}} \
+          --docker-password=${{secrets.ACR_AMRT_PASSWORD}}
             
       - name: Log kaito-workspace
         run: |
@@ -154,6 +154,7 @@ jobs:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           RUN_LLAMA_13B: ${{ env.RUN_LLAMA_13B }}
           AI_MODELS_REGISTRY: ${{secrets.ACR_AMRT_USERNAME}}.azurecr.io
+          AI_MODELS_REGISTRY_SECRET: ${{secrets.AMRT_SECRET_NAME}}
 
       - name: Cleanup e2e resources
         if: ${{ always() }}
