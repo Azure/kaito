@@ -1,0 +1,20 @@
+name: Create, Scan and Publish KAITO image
+on:
+  pull_request:
+    branches:
+      - main
+      - release-**
+
+jobs:
+  print:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Save registry and tag as an artifact for other workflows that run on workflow_run to download them
+        run: |
+          mkdir -p /tmp/artifacts
+          echo ${{ github.sha }} >> /tmp/artifacts/tag.txt
+          cat /tmp/artifacts/tag.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifacts
+          path: /tmp/artifacts
