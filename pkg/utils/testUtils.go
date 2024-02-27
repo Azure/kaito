@@ -140,6 +140,15 @@ var (
 				},
 			},
 		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node4",
+				Labels: map[string]string{
+					corev1.LabelInstanceTypeStable: "Standard_NC12s_v3",
+				},
+				DeletionTimestamp: &metav1.Time{Time: time.Now()},
+			},
+		},
 	}
 )
 
