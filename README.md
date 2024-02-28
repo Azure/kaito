@@ -79,27 +79,11 @@ The detailed usage for Kaito supported models can be found in [**HERE**](presets
 
 The number of the supported models in Kaito is growing! Please check [this](./docs/How-to-add-new-models.md) document to see how to add a new supported model.
 
-## Contributing
-
-[Read more](docs/contributing/readme.md)
-<!-- markdown-link-check-disable -->
-This project welcomes contributions and suggestions.  Most contributions require you to agree to a
-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit <https://cla.opensource.microsoft.com>.
-
-When you submit a pull request, a CLA bot will automatically determine whether you need to provide
-a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
-provided by the bot. You will only need to do this once across all repos using our CLA.
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
-contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
-
 ## FAQ
 
 ### How to Update Model/Inference Parameters to Override the Kaito Preset Configuration?
 
-To update model or inference parameters for a deployed service, perform a `kubectl edit` on the workload type, which could be either a `StatefulSet` or `Deployment`. 
+To update model or inference parameters for a deployed service, perform a `kubectl edit` on the workload type, which could be either a `StatefulSet` or `Deployment`.
 For example, to enable 4-bit quantization on a `falcon-7b-instruct` deployment, you would execute:
 
 ```
@@ -129,12 +113,28 @@ Should you need an undocumented parameter, kindly file an issue for potential fu
 When using hosted public models, a user can delete the existing inference workload (Deployment of StatefulSet) manually, and the workspace controller will create a new one with the latest preset configuration (e.g., the image version) defined in the current release. For private models, it is recommended to create a new workspace with a new image version in the Spec.
 
 ### What is the Difference Between Instruct and Non-Instruct Models?
-The main distinction lies in their intended use cases.  Instruct models are fine-tuned versions optimized 
-for interactive chat applications. They are typically the preferred choice for most implementations due to their enhanced performance in 
+The main distinction lies in their intended use cases.  Instruct models are fine-tuned versions optimized
+for interactive chat applications. They are typically the preferred choice for most implementations due to their enhanced performance in
 conversational contexts.
 
-On the other hand, non-instruct, or raw models, are designed for further fine-tuning. Future developments in Kaito may include features that allow users to 
+On the other hand, non-instruct, or raw models, are designed for further fine-tuning. Future developments in Kaito may include features that allow users to
 apply fine-tuned weights to these raw models.
+
+## Contributing
+
+[Read more](docs/contributing/readme.md)
+<!-- markdown-link-check-disable -->
+This project welcomes contributions and suggestions.  Most contributions require you to agree to a
+Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
+the rights to use your contribution. For details, visit <https://cla.opensource.microsoft.com>.
+
+When you submit a pull request, a CLA bot will automatically determine whether you need to provide
+a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
+provided by the bot. You will only need to do this once across all repos using our CLA.
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
+contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
 ## Trademarks
 This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
