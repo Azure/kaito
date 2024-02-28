@@ -499,7 +499,7 @@ func TestGetAllQualifiedNodes(t *testing.T) {
 						Labels: map[string]string{
 							corev1.LabelInstanceTypeStable: "Standard_NC12s_v3",
 						},
-						DeletionTimestamp: &v1.Time{Time: time.Now()}, // This sets the current time as the deletion timestamp
+						DeletionTimestamp: &v1.Time{Time: time.Now()},
 					},
 				}
 				nodeList.Items = append(nodeList.Items, deletedNode)

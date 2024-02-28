@@ -270,7 +270,7 @@ func (c *WorkspaceReconciler) getAllQualifiedNodes(ctx context.Context, wObj *ka
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(nodeList.Items)
+
 	if len(nodeList.Items) == 0 {
 		klog.InfoS("no current nodes match the workspace resource spec", "workspace", klog.KObj(wObj))
 		return nil, nil
