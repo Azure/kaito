@@ -81,7 +81,7 @@ The number of the supported models in Kaito is growing! Please check [this](./do
 
 ## FAQ
 
-### How to Update Model/Inference Parameters to Override the Kaito Preset Configuration?
+### How to update model/inference parameters to override the Kaito Preset Configuration?
 
 To update model or inference parameters for a deployed service, perform a `kubectl edit` on the workload type, which could be either a `StatefulSet` or `Deployment`.
 For example, to enable 4-bit quantization on a `falcon-7b-instruct` deployment, you would execute:
@@ -112,7 +112,7 @@ Should you need an undocumented parameter, kindly file an issue for potential fu
 
 When using hosted public models, a user can delete the existing inference workload (Deployment of StatefulSet) manually, and the workspace controller will create a new one with the latest preset configuration (e.g., the image version) defined in the current release. For private models, it is recommended to create a new workspace with a new image version in the Spec.
 
-### What is the Difference Between Instruct and Non-Instruct Models?
+### What is the difference between instruct and non-instruct models?
 The main distinction lies in their intended use cases.  Instruct models are fine-tuned versions optimized
 for interactive chat applications. They are typically the preferred choice for most implementations due to their enhanced performance in
 conversational contexts.
