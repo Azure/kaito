@@ -97,7 +97,7 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 
 ## FAQ
 
-### How to Update Model/Inference Parameters? 
+### How to Update Model/Inference Parameters to Override the Kaito Preset Configuration?
 
 To update model or inference parameters for a deployed service, perform a `kubectl edit` on the workload type, which could be either a `StatefulSet` or `Deployment`. 
 For example, to enable 4-bit quantization on a `falcon-7b-instruct` deployment, you would execute:
@@ -122,7 +122,11 @@ For a comprehensive list of inference parameters for the text-generation models,
 - `pretrained_model_name_or_path`: Path to the pretrained model or model identifier from huggingface.co/models.
 - Additional parameters such as `state_dict`, `cache_dir`, `from_tf`, `force_download`, `resume_download`, `proxies`, `output_loading_info`, `allow_remote_files`, `revision`, `trust_remote_code`, `load_in_4bit`, `load_in_8bit`, `torch_dtype`, and `device_map` can also be customized as needed.
 
-You can also introduce new parameters not listed above, which will be passed directly into the model.
+Should you need an undocumented parameter, kindly file an issue for potential future inclusion.
+
+### How to upgrade the existing deployment to use the latest model configuration?
+
+When using hosted public models, a user can delete the existing inference workload (Deployment of StatefulSet) manually, and the workspace controller will create a new one with the latest preset configuration (e.g., the image version) defined in the current release. For private models, it is recommended to create a new workspace with a new image version in the Spec.
 
 ### What is the Difference Between Instruct and Non-Instruct Models?
 The main distinction lies in their intended use cases.  Instruct models are fine-tuned versions optimized 
