@@ -4,7 +4,6 @@
 package utils
 
 import (
-	"time"
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/azure/kaito/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -139,15 +138,6 @@ var (
 						Status: corev1.ConditionFalse,
 					},
 				},
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "node4",
-				Labels: map[string]string{
-					corev1.LabelInstanceTypeStable: "Standard_NC12s_v3",
-				},
-				DeletionTimestamp: &metav1.Time{Time: time.Now()},
 			},
 		},
 	}
