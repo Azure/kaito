@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/azure/kaito/api/v1alpha1"
@@ -492,6 +493,17 @@ func TestGetAllQualifiedNodes(t *testing.T) {
 		"Gets all qualified nodes": {
 			callMocks: func(c *utils.MockClient) {
 				nodeList := utils.MockNodeList
+				deletedNode := corev1.Node{
+					ObjectMeta: v1.ObjectMeta{
+						Name: "node4",
+						Labels: map[string]string{
+							corev1.LabelInstanceTypeStable: "Standard_NC12s_v3",
+						},
+						DeletionTimestamp: &v1.Time{Time: time.Now()},
+					},
+				}
+				nodeList.Items = append(nodeList.Items, deletedNode)
+
 				relevantMap := c.CreateMapWithType(nodeList)
 				//insert node objects into the map
 				for _, obj := range utils.MockNodeList.Items {
