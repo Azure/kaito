@@ -23,7 +23,7 @@ Using Kaito, the workflow of onboarding large AI inference models in Kubernetes 
 
 Kaito follows the classic Kubernetes Custom Resource Definition(CRD)/controller design pattern. User manages a `workspace` custom resource which describes the GPU requirements and the inference specification. Kaito controllers will automate the deployment by reconciling the `workspace` custom resource.
 <div align="left">
-  <img src="docs/img/arch.png" width=80% title="Kaito architecture">
+  <img src="docs/img/arch.png" width=80% title="Kaito architecture" alt="Kaito architecture">
 </div>
 
 The above figure presents the Kaito architecture overview. Its major components consist of:
@@ -94,6 +94,43 @@ provided by the bot. You will only need to do this once across all repos using o
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
 contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+
+## FAQ
+
+### How to Update Model/Inference Parameters? 
+
+To update model or inference parameters for a deployed service, perform a `kubectl edit` on the workload type, which could be either a `StatefulSet` or `Deployment`. 
+For example, to enable 4-bit quantization on a `falcon-7b-instruct` deployment, you would execute:
+
+```
+kubectl edit deployment workspace-falcon-7b-instruct
+```
+
+Within the deployment configuration, locate the command section and modify it as follows:
+
+Original command:
+```
+accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference_api.py --pipeline text-generation --torch_dtype bfloat16
+```
+Modified command to enable 4-bit Quantization
+```
+accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference_api.py --pipeline text-generation --torch_dtype bfloat16 --load_in_4bit
+```
+
+For a comprehensive list of inference parameters for the text-generation models, refer to the following options:
+- `pipeline`: The model pipeline for the pre-trained model. For text-generation models this can be either `text-generation` or `conversational`
+- `pretrained_model_name_or_path`: Path to the pretrained model or model identifier from huggingface.co/models.
+- Additional parameters such as `state_dict`, `cache_dir`, `from_tf`, `force_download`, `resume_download`, `proxies`, `output_loading_info`, `allow_remote_files`, `revision`, `trust_remote_code`, `load_in_4bit`, `load_in_8bit`, `torch_dtype`, and `device_map` can also be customized as needed.
+
+You can also introduce new parameters not listed above, which will be passed directly into the model.
+
+### What is the Difference Between Instruct and Non-Instruct Models?
+The main distinction lies in their intended use cases.  Instruct models are fine-tuned versions optimized 
+for interactive chat applications. They are typically the preferred choice for most implementations due to their enhanced performance in 
+conversational contexts.
+
+On the other hand, non-instruct, or raw models, are designed for further fine-tuning. Future developments in Kaito may include features that allow users to 
+apply fine-tuned weights to these raw models, enhancing their functionality and application scope.
 
 ## Trademarks
 This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
