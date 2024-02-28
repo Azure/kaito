@@ -2,8 +2,6 @@ apiVersion: kaito.sh/v1alpha1
 kind: Workspace
 metadata:
   name: workspace-falcon-40b-instruct
-  annotations:
-    kaito.sh/enablelb: "False"
 resource:
   instanceType: "Standard_NC96ads_A100_v4"
   labelSelector:

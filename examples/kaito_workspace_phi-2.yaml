@@ -2,8 +2,6 @@ apiVersion: kaito.sh/v1alpha1
 kind: Workspace
 metadata:
   name: workspace-phi-2
-  annotations:
-    kaito.sh/enablelb: "False"
 resource:
   instanceType: "Standard_NC6s_v3"
   labelSelector:

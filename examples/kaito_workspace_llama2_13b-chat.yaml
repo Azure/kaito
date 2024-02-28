@@ -2,8 +2,6 @@ apiVersion: kaito.sh/v1alpha1
 kind: Workspace
 metadata:
   name: workspace-llama-2-13b-chat
-  annotations:
-    kaito.sh/enablelb: "False"
 resource:
   instanceType: "Standard_NC12s_v3"
   labelSelector:
