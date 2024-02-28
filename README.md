@@ -130,7 +130,7 @@ for interactive chat applications. They are typically the preferred choice for m
 conversational contexts.
 
 On the other hand, non-instruct, or raw models, are designed for further fine-tuning. Future developments in Kaito may include features that allow users to 
-apply fine-tuned weights to these raw models, enhancing their functionality and application scope.
+apply fine-tuned weights to these raw models.
 
 ## Trademarks
 This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
