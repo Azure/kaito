@@ -81,6 +81,10 @@ The number of the supported models in Kaito is growing! Please check [this](./do
 
 ## FAQ
 
+### How to upgrade the existing deployment to use the latest model configuration?
+
+When using hosted public models, a user can delete the existing inference workload (`Deployment` of `StatefulSet`) manually, and the workspace controller will create a new one with the latest preset configuration (e.g., the image version) defined in the current release. For private models, it is recommended to create a new workspace with a new image version in the Spec.
+
 ### How to update model/inference parameters to override the Kaito Preset Configuration?
 
 To update model or inference parameters for a deployed service, perform a `kubectl edit` on the workload type, which could be either a `StatefulSet` or `Deployment`.
@@ -107,10 +111,6 @@ For a comprehensive list of inference parameters for the text-generation models,
 - Additional parameters such as `state_dict`, `cache_dir`, `from_tf`, `force_download`, `resume_download`, `proxies`, `output_loading_info`, `allow_remote_files`, `revision`, `trust_remote_code`, `load_in_4bit`, `load_in_8bit`, `torch_dtype`, and `device_map` can also be customized as needed.
 
 Should you need an undocumented parameter, kindly file an issue for potential future inclusion.
-
-### How to upgrade the existing deployment to use the latest model configuration?
-
-When using hosted public models, a user can delete the existing inference workload (Deployment of StatefulSet) manually, and the workspace controller will create a new one with the latest preset configuration (e.g., the image version) defined in the current release. For private models, it is recommended to create a new workspace with a new image version in the Spec.
 
 ### What is the difference between instruct and non-instruct models?
 The main distinction lies in their intended use cases.  Instruct models are fine-tuned versions optimized
