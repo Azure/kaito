@@ -27,12 +27,6 @@ func init() {
 }
 
 var (
-	PresetLlamaTagMap = map[string]string{
-		"llama-2-7b-chat":  "0.0.3",
-		"llama-2-13b-chat": "0.0.3",
-		"llama-2-70b-chat": "0.0.3",
-	}
-
 	baseCommandPresetLlama = "cd /workspace/llama/llama-2 && torchrun"
 	llamaRunParams         = map[string]string{
 		"max_seq_len":    "512",
@@ -58,7 +52,7 @@ func (*llama2Chat7b) GetInferenceParameters() *model.PresetInferenceParam {
 		DeploymentTimeout:         time.Duration(10) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 1,
-		Tag:                       PresetLlamaTagMap["llama-2-7b-chat"],
+		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
 
 }
@@ -84,7 +78,7 @@ func (*llama2Chat13b) GetInferenceParameters() *model.PresetInferenceParam {
 		DeploymentTimeout:         time.Duration(20) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 2,
-		Tag:                       PresetLlamaTagMap["llama-2-13b-chat"],
+		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
 }
 func (*llama2Chat13b) SupportDistributedInference() bool {
@@ -109,7 +103,7 @@ func (*llama2Chat70b) GetInferenceParameters() *model.PresetInferenceParam {
 		DeploymentTimeout:         time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 8,
-		Tag:                       PresetLlamaTagMap["llama-2-70b-chat"],
+		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
 }
 func (*llama2Chat70b) SupportDistributedInference() bool {
