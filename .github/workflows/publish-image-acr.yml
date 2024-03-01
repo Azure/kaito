@@ -18,7 +18,6 @@ env:
 jobs:
   check-tag:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'update manifest and helm charts')
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
