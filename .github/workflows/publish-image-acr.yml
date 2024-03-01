@@ -100,7 +100,7 @@ jobs:
       - name: 'Dispatch tag to e2e test'
         uses: peter-evans/repository-dispatch@v1
         with:
-          token: ${{ secrets.PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           event-type: release-tag
           client-payload: '{"isRelease": true,"registry": "${{ secrets.KAITO_MCR_REGISTRY }}/unlisted/aks/kaito","tag": "${{ env.IMG_TAG }}"}'
 
