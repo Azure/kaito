@@ -42,7 +42,7 @@ jobs:
             echo "create_tag=$(echo 'true' )" >> $GITHUB_ENV
           fi
      - name: 'Create tag'
-       if:  ${{ env.create_tag == 'true') }}
+       if:  ${{ env.create_tag == 'true' }}
        uses: actions/github-script@v7
        with:
          script: |
