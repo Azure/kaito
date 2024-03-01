@@ -8,8 +8,8 @@ on:
 
 permissions:
   id-token: write
-  contents: read
-  packages: read
+  contents: write
+  packages: write
 
 env:
   GO_VERSION: '1.20'
