@@ -73,13 +73,6 @@ jobs:
           TRIVY_USERNAME: ${{ github.actor }}
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 'Az CLI login'
-        uses: azure/login@v1.6.1
-        with:
-          client-id: ${{ secrets.KAITO_MCR_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.KAITO_MCR_SUBSCRIPTION_ID }}
-
       - name: 'Create tag'
         uses: actions/github-script@v7
         with:
@@ -87,7 +80,7 @@ jobs:
             github.rest.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              ref: 'refs/tags/${{ needs.check-tag.outputs.tag }}',
+              ref: 'refs/tags/${{ env.IMG_TAG }}',
               sha: context.sha
             })
 
@@ -99,6 +92,13 @@ jobs:
           client-payload: '{"isRelease": true,"registry": "${{ secrets.KAITO_MCR_REGISTRY }}/unlisted/aks/kaito","tag": "${{ env.IMG_TAG }}"}'
 
       ## push to MCR
+      - name: 'Az CLI login'
+        uses: azure/login@v1.6.1
+        with:
+          client-id: ${{ secrets.KAITO_MCR_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.KAITO_MCR_SUBSCRIPTION_ID }}
+
       - name: 'Publish to ACR'
         id: Publish
         run: |
