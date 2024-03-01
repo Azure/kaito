@@ -1,14 +1,10 @@
 name: Push image to ACR
 on:
-#  workflow_dispatch:
-#    inputs:
-#      release_version:
-#        description: 'tag to be created for this image (i.e. vxx.xx.xx)'
-#        required: true
-  pull_request:
-    branches:
-      - release-**
-    types: [ closed ]
+ workflow_dispatch:
+   inputs:
+     release_version:
+       description: 'tag to be created for this image (i.e. vxx.xx.xx)'
+       required: true
 
 permissions:
   id-token: write
@@ -26,21 +22,21 @@ jobs:
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
-#      - name: validate version
-#        run: |
-#          echo "${{ github.event.inputs.release_version }}" | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$'
-#      - name: Set up Go ${{ env.GO_VERSION }}
-#        uses: actions/setup-go@v5
-#        with:
-#          go-version: ${{ env.GO_VERSION  }}
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          fetch-depth: 0
-#          submodules: true
-#      - id: get-tag
-#        name: Get tag
-#        run: echo "tag=$(echo ${{ github.event.inputs.release_version }} | tr -d v)" >> $GITHUB_OUTPUT
+     - name: validate version
+       run: |
+         echo "${{ github.event.inputs.release_version }}" | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$'
+     - name: Set up Go ${{ env.GO_VERSION }}
+       uses: actions/setup-go@v5
+       with:
+         go-version: ${{ env.GO_VERSION  }}
+     - name: Checkout
+       uses: actions/checkout@v4
+       with:
+         fetch-depth: 0
+         submodules: true
+     - id: get-tag
+       name: Get tag
+       run: echo "tag=$(echo ${{ github.event.inputs.release_version }} | tr -d v)" >> $GITHUB_OUTPUT
 
 
   publish:
@@ -65,7 +61,6 @@ jobs:
           ref: ${{ env.REPO_TAG }}
 
       - name: 'Build Image'
-        id: Publish
         run: |
           OUTPUT_TYPE=type=docker ARCH=arm64 make docker-build-kaito
         env:
