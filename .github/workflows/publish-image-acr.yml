@@ -24,18 +24,9 @@ jobs:
      - name: validate version
        run: |
          echo "${{ github.event.inputs.release_version }}" | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$'
-     - name: Set up Go ${{ env.GO_VERSION }}
-       uses: actions/setup-go@v5
-       with:
-         go-version: ${{ env.GO_VERSION  }}
-     - name: Checkout
-       uses: actions/checkout@v4
-       with:
-         fetch-depth: 0
-         submodules: true
      - id: get-tag
        name: Get tag
-       run: echo "tag=$(echo ${{ github.event.inputs.release_version }} | tr -d v)" >> $GITHUB_OUTPUT
+       run: echo "tag=$(echo ${{ github.event.inputs.release_version }})" >> $GITHUB_OUTPUT
 
 
   publish:
@@ -46,7 +37,7 @@ jobs:
     steps:
       - id: get-tag
         name: Get tag
-        run: echo "IMG_TAG=$(echo ${{ needs.create-tag.outputs.tag }} | tr -d release-)" >> $GITHUB_OUTPUT
+        run: echo "IMG_TAG=$(echo ${{ needs.check-tag.outputs.tag }} )" >> $GITHUB_OUTPUT
 
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v5
