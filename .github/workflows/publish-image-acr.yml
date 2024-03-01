@@ -51,7 +51,6 @@ jobs:
         with:
           fetch-depth: 0
           submodules: true
-          ref: ${{ env.REPO_TAG }}
 
       - name: 'Build Image'
         run: |
@@ -88,7 +87,7 @@ jobs:
             github.rest.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              ref: 'refs/tags/${{ steps.get-tag.outputs.tag }}',
+              ref: 'refs/tags/${{ needs.check-tag.outputs.tag }}',
               sha: context.sha
             })
 
