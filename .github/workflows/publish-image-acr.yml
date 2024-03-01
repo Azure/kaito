@@ -45,7 +45,8 @@ jobs:
           go-version: ${{ env.GO_VERSION  }}
       - name: 'Set Image Tag'
         run: |
-          echo "REPO_TAG=$(echo "${{ env.IMG_TAG }}" | tr -d v)" >> $GITHUB_ENV
+          echo "REPO_TAG=$(echo ${{ needs.check-tag.outputs.tag }} | tr -d v)" >> $GITHUB_OUTPUT
+          
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
