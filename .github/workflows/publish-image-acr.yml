@@ -41,10 +41,12 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     environment: publish-mcr
+    needs:
+      - check-tag
     steps:
       - id: get-tag
         name: Get tag
-        run: echo "IMG_TAG=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_OUTPUT
+        run: echo "IMG_TAG=$(echo ${{ needs.create-tag.outputs.tag }} | tr -d release-)" >> $GITHUB_OUTPUT
 
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v5
