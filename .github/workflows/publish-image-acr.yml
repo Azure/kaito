@@ -75,6 +75,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: true
+          ref: ${{ env.REPO_TAG }}
 
       - name: 'Build Image'
         run: |
