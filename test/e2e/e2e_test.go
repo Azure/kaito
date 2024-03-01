@@ -26,12 +26,14 @@ var (
 
 var _ = SynchronizedBeforeSuite(func() []byte {
 	GetClusterClient(TestingCluster)
+	gpuNamespace := os.Getenv("GPU_NAMESPACE")
+	kaitoNamespace := os.Getenv("KAITO_NAMESPACE")
 
 	//check gpu-provisioner deployment is up and running
 	gpuProvisionerDeployment := &v1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "kaito-gpu-provisioner",
-			Namespace: "gpu-provisioner",
+			Namespace: gpuNamespace,
 		},
 	}
 
@@ -46,7 +48,7 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	kaitoWorkspaceDeployment := &v1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "kaito-workspace",
-			Namespace: "kaito-workspace",
+			Namespace: kaitoNamespace,
 		},
 	}
 
