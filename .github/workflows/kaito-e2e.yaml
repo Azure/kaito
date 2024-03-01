@@ -64,7 +64,15 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
-
+      
+      - name: Checkout
+        uses: actions/checkout@v4
+        if: ${{ github.event.client_payload.isRelease }}
+        with:
+          fetch-depth: 0
+          submodules: true
+          ref: ${{ env.REPO_TAG }}
+          
       - uses: azure/login@v1.6.1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
