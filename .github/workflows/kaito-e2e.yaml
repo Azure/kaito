@@ -50,7 +50,7 @@ jobs:
             if ["$isRelease" = true ] ; then
               echo "REGISTRY= ${{ github.event.client_payload.registry }}" >> $GITHUB_ENV
             else
-              echo "REGISTRY=${{ env.CLUSTER_NAME }}" >> $GITHUB_ENV
+              echo "REGISTRY=${{ env.CLUSTER_NAME }}.azurecr.io" >> $GITHUB_ENV
             fi
 
       - name: Set up Go ${{ env.GO_VERSION }}
@@ -111,7 +111,7 @@ jobs:
         run: |
           make docker-build-kaito
         env:
-          REGISTRY: ${{ env.REGISTRY }}.azurecr.io
+          REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
 
       - name: create cluster
@@ -161,7 +161,7 @@ jobs:
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
-          REGISTRY: ${{ env.REGISTRY }}.azurecr.io
+          REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
             
       - name: Add Secret Credentials
