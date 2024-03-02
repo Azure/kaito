@@ -100,7 +100,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           event-type: release-tag
-          client-payload: '{"isRelease": true,"registry": "mcr.microsoft.com/aks/kaito/workspace","tag": "${{ needs.check-tag.outputs.tag }}"}'
+          client-payload: '{"isRelease": true,"registry": "mcr.microsoft.com/aks/kaito","tag": "${{ needs.check-tag.outputs.tag }}"}'
 
       ## push to MCR
       - name: 'Az CLI login'
