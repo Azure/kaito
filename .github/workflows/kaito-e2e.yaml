@@ -48,9 +48,9 @@ jobs:
         run: |
             isRelease=${{ github.event.client_payload.isRelease }}
             if ["$isRelease" = true ] ; then
-              echo "REGISTRY=${{ github.event.client_payload.registry }}" >> $GITHUB_ENV
+              echo "REGISTRY=${{ github.event.client_payload.registry }}" >> $GITHUB_OUTPUT
             else
-              echo "REGISTRY=${{ env.CLUSTER_NAME }}.azurecr.io" >> $GITHUB_ENV
+              echo "REGISTRY=${{ env.CLUSTER_NAME }}.azurecr.io" >> $GITHUB_OUTPUT
             fi
 
       - name: Set up Go ${{ env.GO_VERSION }}
