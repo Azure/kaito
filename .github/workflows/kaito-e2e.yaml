@@ -49,6 +49,7 @@ jobs:
         if: ${{ github.event.client_payload.isRelease }}
         run: |
               echo "REGISTRY=${{ github.event.client_payload.registry }}" >> $GITHUB_ENV
+              echo "VERSION=$(echo ${{ needs.check-tag.outputs.tag }} | tr -d v)" >> $GITHUB_ENV
 
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v5
