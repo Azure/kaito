@@ -45,6 +45,7 @@ jobs:
           echo "RUN_LLAMA_13B=false" >> $GITHUB_ENV
 
       - name: Set Registry
+        id: reg
         run: |
             isRelease=${{ github.event.client_payload.isRelease }}
             if ["$isRelease" = true ] ; then
@@ -111,7 +112,7 @@ jobs:
         run: |
           make docker-build-kaito
         env:
-          REGISTRY: ${{ env.REGISTRY }}
+          REGISTRY: ${{ steps.reg.outputs.REGISTRY }}
           VERSION: ${{ env.VERSION }}
 
       - name: create cluster
@@ -161,7 +162,7 @@ jobs:
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
-          REGISTRY: ${{ env.REGISTRY }}
+          REGISTRY: ${{ steps.reg.outputs.REGISTRY }}
           VERSION: ${{ env.VERSION }}
             
       - name: Add Secret Credentials
