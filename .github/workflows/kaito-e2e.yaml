@@ -43,16 +43,12 @@ jobs:
           echo "VERSION=${rand}" >> $GITHUB_ENV
           echo "CLUSTER_NAME=kaito${rand}" >> $GITHUB_ENV
           echo "RUN_LLAMA_13B=false" >> $GITHUB_ENV
+          echo "REGISTRY=${{ env.CLUSTER_NAME }}.azurecr.io" >> $GITHUB_ENV
 
       - name: Set Registry
-        id: reg
+        if: ${{ github.event.client_payload.isRelease }}
         run: |
-            echo "REGISTRY=${{ env.CLUSTER_NAME }}.azurecr.io" >> $GITHUB_OUTPUT
-            
-            isRelease=${{ github.event.client_payload.isRelease }}
-            if ["$isRelease" = true ] ; then
-              echo "REGISTRY=${{ github.event.client_payload.registry }}" >> $GITHUB_OUTPUT
-            fi
+              echo "REGISTRY=${{ github.event.client_payload.registry }}" >> $GITHUB_ENV
 
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v5
@@ -112,7 +108,7 @@ jobs:
         run: |
           make docker-build-kaito
         env:
-          REGISTRY: ${{ steps.reg.outputs.REGISTRY }}
+          REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
 
       - name: create cluster
@@ -162,7 +158,7 @@ jobs:
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
-          REGISTRY: ${{ steps.reg.outputs.REGISTRY }}
+          REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
             
       - name: Add Secret Credentials
