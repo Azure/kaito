@@ -79,4 +79,4 @@ jobs:
         with:
           token: ${{ secrets.PAT }}
           event-type: release-tag
-          client-payload: '{"isRelease": true,"registry": "$${{ env.REGISTRY }}","tag": "${{ env.IMG_TAG }}"}'
+          client-payload: '{"isRelease": true,"registry": "$${{ env.REGISTRY }}","tag": "v${{ env.IMG_TAG }}"}'
