@@ -2,9 +2,17 @@ name: publish_helm_chart
 
 on:
   workflow_run:
-    workflows: [ "Create, Scan and Publish KAITO image" ]
-    types: [ completed ]
-    branches: [ release-** ]
+    workflows: ["Create, Scan and Publish KAITO image"]
+    types: [completed]
+    branches: [release-**]
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  packages: write
+  contents: write
+  actions: read
+  deployments: read
+  pull-requests: read
 
 jobs:
   release:
