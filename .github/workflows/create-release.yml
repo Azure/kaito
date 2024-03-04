@@ -4,6 +4,9 @@ on:
     workflows: [ "Create, Scan and Publish KAITO image" ]
     types: [completed]
     branches: [release-**]
+  repository_dispatch:
+    types: [ release-tag ]
+    branches: [ release-** ]
 
 permissions:
   contents: write
