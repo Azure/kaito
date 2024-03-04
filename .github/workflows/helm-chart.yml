@@ -7,9 +7,12 @@ on:
     branches: [ release-** ]
 
 permissions:
-  id-token: write # This is required for requesting the JWT
-  contents: read # This is required for actions/checkout
+  id-token: read # This is required for requesting the JWT
   packages: write
+  contents: write
+  actions: read
+  deployments: read
+  pull-requests: read
 
 jobs:
   release:
