@@ -2,6 +2,7 @@ name: Create, Scan and Publish KAITO image
 on:
   pull_request:
     branches:
+      - main
       - release-**
     types: [ closed ]
 
