@@ -74,9 +74,9 @@ jobs:
           TRIVY_USERNAME: ${{ github.actor }}
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 'Dispatch tag to e2e test'
+      - name: 'Dispatch release tag'
         uses: peter-evans/repository-dispatch@v1
         with:
-          token: ${{ secrets.PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           event-type: release-tag
           client-payload: '{"isRelease": true,"registry": "$${{ env.REGISTRY }}","tag": "v${{ env.IMG_TAG }}"}'
