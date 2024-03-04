@@ -61,21 +61,18 @@ jobs:
     steps:
       - id: get-tag
         name: Get tag
-        run: echo "IMG_TAG=$(echo ${{ needs.check-tag.outputs.tag }} )" >> $GITHUB_ENV
+        run: echo "IMG_TAG=$(echo ${{ needs.check-tag.outputs.tag }} | tr -d v)" >> $GITHUB_ENV
 
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION  }}
-      - name: 'Set Image Tag'
-        run: |
-          echo "REPO_TAG=$(echo ${{ needs.check-tag.outputs.tag }} | tr -d v)" >> $GITHUB_ENV
-          
+ 
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: true
-          ref: ${{ env.REPO_TAG }}
+          ref: ${{ needs.check-tag.outputs.tag }}
 
       - name: 'Build Image'
         run: |
@@ -103,7 +100,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           event-type: release-tag
-          client-payload: '{"isRelease": true,"registry": "${{ secrets.KAITO_MCR_REGISTRY }}/unlisted/aks/kaito","tag": "${{ env.IMG_TAG }}"}'
+          client-payload: '{"isRelease": true,"registry": "mcr.microsoft.com/aks/kaito","tag": "${{ needs.check-tag.outputs.tag }}"}'
 
       ## push to MCR
       - name: 'Az CLI login'

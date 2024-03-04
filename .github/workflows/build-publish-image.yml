@@ -2,6 +2,7 @@ name: Create, Scan and Publish KAITO image
 on:
   pull_request:
     branches:
+      - main
       - release-**
     types: [ closed ]
 
@@ -36,7 +37,7 @@ jobs:
     steps:
       - id: get-tag
         name: Get tag
-        run: echo "IMG_TAG=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_OUTPUT
+        run: echo "IMG_TAG=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_ENV
       - uses: actions/checkout@v4
         with:
           submodules: true
@@ -73,9 +74,9 @@ jobs:
           TRIVY_USERNAME: ${{ github.actor }}
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 'Dispatch tag to e2e test'
+      - name: 'Dispatch release tag'
         uses: peter-evans/repository-dispatch@v1
         with:
-          token: ${{ secrets.PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           event-type: release-tag
-          client-payload: '{"isRelease": true,"registry": "$${{ env.REGISTRY }}","tag": "${{ env.IMG_TAG }}"}'
+          client-payload: '{"isRelease": true,"registry": "$${{ env.REGISTRY }}","tag": "v${{ env.IMG_TAG }}"}'
