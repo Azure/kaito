@@ -6,11 +6,11 @@
 
 | ![notification](docs/img/bell.svg) What is NEW! |
 |-------------------------------------------------|
+| Latest Release: March 4th, 2024. Kaito v0.2.0.  | 
 | First Release: Nov 15th, 2023. Kaito v0.1.0.    |
-| March 1st, 2024. Kaito v0.2.0.                  | 
 
 Kaito is an operator that automates the AI/ML inference model deployment in a Kubernetes cluster.
-The target models are popular large open-sourced inference models such as [falcon](https://huggingface.co/tiiuae) and [llama 2](https://github.com/facebookresearch/llama).
+The target models are popular large open-sourced inference models such as [falcon](https://huggingface.co/tiiuae) and [llama2](https://github.com/facebookresearch/llama).
 Kaito has the following key differentiations compared to most of the mainstream model deployment methodologies built on top of virtual machine infrastructures:
 - Manage large model files using container images. A http server is provided to perform inference calls using the model library.
 - Avoid tuning deployment parameters to fit GPU hardware by providing preset configurations.
@@ -88,38 +88,36 @@ When using hosted public models, a user can delete the existing inference worklo
 
 ### How to update model/inference parameters to override the Kaito Preset Configuration?
 
-To update model or inference parameters for a deployed service, perform a `kubectl edit` on the workload type, which could be either a `StatefulSet` or `Deployment`.
+Kaito provides a limited capability to override preset configurations for models that use `transformer` runtime manually.
+To update parameters for a deployed model, perform `kubectl edit` against the workload, which could be either a `StatefulSet` or `Deployment`.
 For example, to enable 4-bit quantization on a `falcon-7b-instruct` deployment, you would execute:
 
 ```
 kubectl edit deployment workspace-falcon-7b-instruct
 ```
 
-Within the deployment configuration, locate the command section and modify it as follows:
+Within the deployment specification, locate and modify the command field.
 
-Original command:
+#### Original
 ```
 accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference_api.py --pipeline text-generation --torch_dtype bfloat16
 ```
-Modified command to enable 4-bit Quantization
+#### Modify to enable 4-bit Quantization
 ```
 accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference_api.py --pipeline text-generation --torch_dtype bfloat16 --load_in_4bit
 ```
 
-For a comprehensive list of inference parameters for the text-generation models, refer to the following options:
-- `pipeline`: The model pipeline for the pre-trained model. For text-generation models this can be either `text-generation` or `conversational`
-- `pretrained_model_name_or_path`: Path to the pretrained model or model identifier from huggingface.co/models.
-- Additional parameters such as `state_dict`, `cache_dir`, `from_tf`, `force_download`, `resume_download`, `proxies`, `output_loading_info`, `allow_remote_files`, `revision`, `trust_remote_code`, `load_in_4bit`, `load_in_8bit`, `torch_dtype`, and `device_map` can also be customized as needed.
+Currently, we allow users to change the following paramenters manually: 
+- `pipeline`: For text-generation models this can be either `text-generation` or `conversational`.
+- `load_in_4bit` or `load_in_8bit`: Model quantization resolution.
 
-Should you need an undocumented parameter, kindly file an issue for potential future inclusion.
+Should you need to customize other parameters, kindly file an issue for potential future inclusion.
 
 ### What is the difference between instruct and non-instruct models?
-The main distinction lies in their intended use cases.  Instruct models are fine-tuned versions optimized
+The main distinction lies in their intended use cases. Instruct models are fine-tuned versions optimized
 for interactive chat applications. They are typically the preferred choice for most implementations due to their enhanced performance in
 conversational contexts.
-
-On the other hand, non-instruct, or raw models, are designed for further fine-tuning. Future developments in Kaito may include features that allow users to
-apply fine-tuned weights to these raw models.
+On the other hand, non-instruct, or raw models, are designed for further fine-tuning. 
 
 ## Contributing
 
