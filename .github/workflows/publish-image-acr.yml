@@ -29,7 +29,7 @@ jobs:
        run: echo "tag=$(echo ${{ github.event.inputs.release_version }})" >> $GITHUB_OUTPUT
     
      - name: Checkout
-       uses: actions/checkout@v3
+       uses: actions/checkout@v4
        with:
          fetch-depth: 0
         
