@@ -6,6 +6,9 @@ The current supported model families with preset configurations are listed below
 |[falcon](./models/falcon)|
 |[llama2](./models/llama2)|
 |[llama2chat](./models/llama2chat)|
+|[mistral](./models/mistral)|
+|[phi2](./models/phi)|
+
 
 
 ## Validation
