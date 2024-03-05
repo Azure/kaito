@@ -3,9 +3,9 @@ The current supported model families with preset configurations are listed below
 
 | Model Family    | Compatible Kaito Versions |
 |-----------------|---------------------------|
-|[falcon](./models/falcon)| 0.0.1+|
-|[llama2](./models/llama2)| 0.0.1+|
-|[llama2chat](./models/llama2chat)| 0.0.1+|
+|[falcon](./models/falcon)| v0.0.1+|
+|[llama2](./models/llama2)| v0.0.1+|
+|[llama2chat](./models/llama2chat)| v0.0.1+|
 |[mistral](./models/mistral)| v0.2.0+|
 |[phi2](./models/phi)| v0.2.0+|
 
