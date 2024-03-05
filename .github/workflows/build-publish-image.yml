@@ -3,7 +3,7 @@ on:
   pull_request:
     branches:
       - release-**
-    types: [ closed ]
+    types: [closed]
 
 permissions:
   contents: write
@@ -11,8 +11,8 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  GO_VERSION: '1.20'
-  IMAGE_NAME: 'workspace'
+  GO_VERSION: "1.20"
+  IMAGE_NAME: "workspace"
 
 jobs:
   export-registry:
@@ -63,18 +63,18 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMG_TAG }}
-          format: 'table'
-          exit-code: '1'
+          format: "table"
+          exit-code: "1"
           ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
-          timeout: '5m0s'
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+          timeout: "5m0s"
         env:
           TRIVY_USERNAME: ${{ github.actor }}
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 'Dispatch tag to e2e test'
-        uses: peter-evans/repository-dispatch@v1
+      - name: "Dispatch release tag"
+        uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.PAT }}
           event-type: release-tag
