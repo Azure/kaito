@@ -23,12 +23,12 @@ func init() {
 }
 
 var (
-	PresetMistral7BModel          = "mistral-7b"
-	PresetMistral7BInstructModel  = PresetMistral7BModel + "-instruct"
+	PresetMistral7BModel         = "mistral-7b"
+	PresetMistral7BInstructModel = PresetMistral7BModel + "-instruct"
 
 	PresetMistralTagMap = map[string]string{
-		"Mistral7B":          "0.0.2",
-		"Mistral7BInstruct":  "0.0.2",
+		"Mistral7B":         "0.0.2",
+		"Mistral7BInstruct": "0.0.2",
 	}
 
 	baseCommandPresetMistral = "accelerate launch"
@@ -46,7 +46,7 @@ func (*mistral7b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "Mistral",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
-		DiskStorageRequirement:    "50Gi",
+		DiskStorageRequirement:    "100Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "14Gi",
 		PerGPUMemoryRequirement:   "0Gi", // We run Mistral using native vertical model parallel, no per GPU memory requirement.
