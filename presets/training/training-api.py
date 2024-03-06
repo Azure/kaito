@@ -58,7 +58,10 @@ model = AutoModelForCausalLM.from_pretrained(
     quantization_config=bnb_config if enable_qlora else None,
 )
 
+print("model loaded")
+
 if enable_qlora:
+    print("enable_qlora")
     # Preparing the Model for QLoRA
     model = prepare_model_for_kbit_training(model)
 
@@ -87,22 +90,28 @@ if ds_config.shuffle_dataset:
 # Preprocessing the data
 dataset = dataset.map(preprocess_data)
 
-assert 0 <= ds_config.train_test_split <= 1, "Train/Test split needs to be between 0 and 1"
-# Splitting the dataset into training and test sets
-split_dataset = dataset.train_test_split(
-    test_size=1-ds_config.train_test_split, 
-    seed=ds_config.shuffle_seed
-)
+assert 0 < ds_config.train_test_split <= 1, "Train/Test split needs to be between 0 and 1"
 
-print("Training Dataset Dimensions: ", split_dataset['train'].shape)
-print("Test Dataset Dimensions: ", split_dataset['test'].shape)
-print("Example Dataset Entry: ", split_dataset['train'][0])
+# Initialize variables for train and eval datasets
+train_dataset, eval_dataset = dataset, None
+
+if ds_config.train_test_split < 1:
+    # Splitting the dataset into training and test sets
+    split_dataset = dataset.train_test_split(
+        test_size=1-ds_config.train_test_split, 
+        seed=ds_config.shuffle_seed
+    )
+    train_dataset, eval_dataset = split['train'], split['test']
+    print("Training Dataset Dimensions: ", train_dataset.shape)
+    print("Test Dataset Dimensions: ", eval_dataset.shape)
+else:
+    print(f"Using full dataset for training. Dimensions: {train_dataset.shape}")
 
 # Training the Model
 trainer = transformers.Trainer(
     model=model,
-    train_dataset=split_dataset['train'],
-    eval_dataset=split_dataset['test'],
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,
     args=ta_args,
     data_collator=dc_args,
 )
