@@ -118,13 +118,12 @@ def generate_image(prompt: str):
         image = pipeline(prompt).images[0]  # Generate the image
 
         img_io = BytesIO()
-        image.save(img_io, 'JPEG')  # Convert the PIL Image to bytes in JPEG format
+        image.save(img_io, 'PNG')  # Convert the PIL Image to bytes in PNG format
         img_io.seek(0)  # Rewind the buffer
 
-        return StreamingResponse(img_io, media_type="image/jpeg")  # Return the image as a streaming response
+        return StreamingResponse(img_io, media_type="image/png")  # Return the image as a streaming response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/metrics")
 def get_metrics():
