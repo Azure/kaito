@@ -106,8 +106,6 @@ def home():
 
 @app.get("/healthz")
 def health_check():
-    if not torch.cuda.is_available():
-        raise HTTPException(status_code=500, detail="No GPU available")
     if not pipeline:
         raise HTTPException(status_code=500, detail="Pipeline not initialized")
     return {"status": "Healthy"}

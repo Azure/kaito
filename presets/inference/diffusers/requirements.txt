@@ -6,3 +6,5 @@ accelerate==0.23.0
 fastapi==0.109.1
 pydantic==1.10.9
 uvicorn[standard]==0.23.2
+invisible_watermark
+safetensors
