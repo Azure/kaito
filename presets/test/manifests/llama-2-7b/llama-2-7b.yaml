@@ -1,30 +1,30 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: falcon-7b
+  name: llama-2-7b
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: falcon
+      app: llama
   podManagementPolicy: Parallel
   template:
     metadata:
       labels:
-        app: falcon
+        app: llama
     spec:
       containers:
-        - name: falcon-container
-          image: REPO_HERE.azurecr.io/falcon-7b:TAG_HERE
+        - name: llama-container
+          image: REPO_HERE.azurecr.io/llama-2-7b:TAG_HERE
           command:
             - /bin/sh
             - -c
-            - accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference-api.py --pipeline text-generation --torch_dtype bfloat16
+            - cd /workspace/llama/llama-2 && torchrun inference_api.py
           resources:
-            requests:
-              nvidia.com/gpu: 2
             limits:
-              nvidia.com/gpu: 2  # Requesting 2 GPUs
+              nvidia.com/gpu: "1"
+            requests:
+              nvidia.com/gpu: "1"
           livenessProbe:
             httpGet:
               path: /healthz
@@ -53,4 +53,4 @@ spec:
           key: nvidia.com/gpu
           operator: Exists
       nodeSelector:
-        pool: falcon7b
+        pool: llama27b

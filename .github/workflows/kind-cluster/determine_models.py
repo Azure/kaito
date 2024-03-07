@@ -116,10 +116,16 @@ def check_modified_models(pr_branch):
     return modified_models
 
 def main():
-    pr_branch = os.environ.get("PR_BRANCH", "main")
-    # Logic to determine affected models
-    # Example: affected_models = ['model1', 'model2', 'model3']
-    affected_models = check_modified_models(pr_branch)
+    pr_branch = os.environ.get("PR_BRANCH", "main") # If not specified default to 'main'
+    force_run_all = os.environ.get("FORCE_RUN_ALL", False) # If not specified default to False
+
+    affected_models = []
+    if force_run_all:
+        affected_models = [model['name'] for model in YAML_PR['models']]
+    else:
+        # Logic to determine affected models
+        # Example: affected_models = ['model1', 'model2', 'model3']
+        affected_models = check_modified_models(pr_branch)
 
     # Convert the list of models into JSON matrix format
     matrix = create_matrix(affected_models)

@@ -4,12 +4,13 @@
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Azure/kaito)
 [![codecov](https://codecov.io/gh/Azure/kaito/graph/badge.svg?token=XAQLLPB2AR)](https://codecov.io/gh/Azure/kaito)
 
-| ![notification](docs/img/bell.svg) What is NEW!|
-|---------------------------------------------------------------------------------------------|
-| First Release: Nov 15th, 2023. Kaito v0.1.0.                                               |
+| ![notification](docs/img/bell.svg) What is NEW! |
+|-------------------------------------------------|
+| Latest Release: March 4th, 2024. Kaito v0.2.0.  | 
+| First Release: Nov 15th, 2023. Kaito v0.1.0.    |
 
 Kaito is an operator that automates the AI/ML inference model deployment in a Kubernetes cluster.
-The target models are popular large open-sourced inference models such as [falcon](https://huggingface.co/tiiuae) and [llama 2](https://github.com/facebookresearch/llama).
+The target models are popular large open-sourced inference models such as [falcon](https://huggingface.co/tiiuae) and [llama2](https://github.com/facebookresearch/llama).
 Kaito has the following key differentiations compared to most of the mainstream model deployment methodologies built on top of virtual machine infrastructures:
 - Manage large model files using container images. A http server is provided to perform inference calls using the model library.
 - Avoid tuning deployment parameters to fit GPU hardware by providing preset configurations.
@@ -23,7 +24,7 @@ Using Kaito, the workflow of onboarding large AI inference models in Kubernetes 
 
 Kaito follows the classic Kubernetes Custom Resource Definition(CRD)/controller design pattern. User manages a `workspace` custom resource which describes the GPU requirements and the inference specification. Kaito controllers will automate the deployment by reconciling the `workspace` custom resource.
 <div align="left">
-  <img src="docs/img/arch.png" width=80% title="Kaito architecture">
+  <img src="docs/img/arch.png" width=80% title="Kaito architecture" alt="Kaito architecture">
 </div>
 
 The above figure presents the Kaito architecture overview. Its major components consist of:
@@ -78,6 +79,45 @@ $ kubectl run -it --rm --restart=Never curl --image=curlimages/curl -- curl -X P
 The detailed usage for Kaito supported models can be found in [**HERE**](presets/README.md). In case users want to deploy their own containerized models, they can provide the pod template in the `inference` field of the workspace custom resource (please see [API definitions](api/v1alpha1/workspace_types.go) for details). The controller will create a deployment workload using all provisioned GPU nodes. Note that currently the controller does **NOT** handle automatic model upgrade. It only creates inference workloads based on the preset configurations if the workloads do not exist.
 
 The number of the supported models in Kaito is growing! Please check [this](./docs/How-to-add-new-models.md) document to see how to add a new supported model.
+
+## FAQ
+
+### How to upgrade the existing deployment to use the latest model configuration?
+
+When using hosted public models, a user can delete the existing inference workload (`Deployment` of `StatefulSet`) manually, and the workspace controller will create a new one with the latest preset configuration (e.g., the image version) defined in the current release. For private models, it is recommended to create a new workspace with a new image version in the Spec.
+
+### How to update model/inference parameters to override the Kaito Preset Configuration?
+
+Kaito provides a limited capability to override preset configurations for models that use `transformer` runtime manually.
+To update parameters for a deployed model, perform `kubectl edit` against the workload, which could be either a `StatefulSet` or `Deployment`.
+For example, to enable 4-bit quantization on a `falcon-7b-instruct` deployment, you would execute:
+
+```
+kubectl edit deployment workspace-falcon-7b-instruct
+```
+
+Within the deployment specification, locate and modify the command field.
+
+#### Original
+```
+accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference_api.py --pipeline text-generation --torch_dtype bfloat16
+```
+#### Modify to enable 4-bit Quantization
+```
+accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference_api.py --pipeline text-generation --torch_dtype bfloat16 --load_in_4bit
+```
+
+Currently, we allow users to change the following paramenters manually: 
+- `pipeline`: For text-generation models this can be either `text-generation` or `conversational`.
+- `load_in_4bit` or `load_in_8bit`: Model quantization resolution.
+
+Should you need to customize other parameters, kindly file an issue for potential future inclusion.
+
+### What is the difference between instruct and non-instruct models?
+The main distinction lies in their intended use cases. Instruct models are fine-tuned versions optimized
+for interactive chat applications. They are typically the preferred choice for most implementations due to their enhanced performance in
+conversational contexts.
+On the other hand, non-instruct, or raw models, are designed for further fine-tuning. 
 
 ## Contributing
 

@@ -270,6 +270,7 @@ func (c *WorkspaceReconciler) getAllQualifiedNodes(ctx context.Context, wObj *ka
 	if err != nil {
 		return nil, err
 	}
+
 	if len(nodeList.Items) == 0 {
 		klog.InfoS("no current nodes match the workspace resource spec", "workspace", klog.KObj(wObj))
 		return nil, nil
@@ -277,6 +278,10 @@ func (c *WorkspaceReconciler) getAllQualifiedNodes(ctx context.Context, wObj *ka
 
 	for index := range nodeList.Items {
 		nodeObj := nodeList.Items[index]
+		// Skip nodes that are being deleted
+		if nodeObj.DeletionTimestamp != nil {
+			continue
+		}
 		foundInstanceType := c.validateNodeInstanceType(ctx, wObj, lo.ToPtr(nodeObj))
 		_, statusRunning := lo.Find(nodeObj.Status.Conditions, func(condition corev1.NodeCondition) bool {
 			return condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue

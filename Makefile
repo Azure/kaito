@@ -2,13 +2,11 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
-VERSION ?= v0.1.0
+VERSION ?= v0.2.0
 IMG_TAG ?= $(subst v,,$(VERSION))
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 BIN_DIR := $(abspath $(ROOT_DIR)/bin)
-# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.27.3
 
 TOOLS_DIR := hack/tools
 TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/bin)
@@ -29,6 +27,11 @@ AZURE_LOCATION ?= eastus
 AZURE_RESOURCE_GROUP ?= demo
 AZURE_CLUSTER_NAME ?= kaito-demo
 AZURE_RESOURCE_GROUP_MC=MC_$(AZURE_RESOURCE_GROUP)_$(AZURE_CLUSTER_NAME)_$(AZURE_LOCATION)
+GPU_NAMESPACE ?= gpu-provisioner
+KAITO_NAMESPACE ?= kaito-workspace
+RUN_LLAMA_13B ?= false
+AI_MODELS_REGISTRY ?= modelregistry.azurecr.io
+AI_MODELS_REGISTRY_SECRET ?= modelregistry
 
 # Scripts
 GO_INSTALL := ./hack/go-install.sh
@@ -83,6 +86,10 @@ unit-test: ## Run unit tests.
 	go test -v $(shell go list ./pkg/... ./api/... | grep -v /vendor) -race -coverprofile=coverage.txt -covermode=atomic
 	go tool cover -func=coverage.txt
 
+inference-api-e2e: 
+	pip install -r presets/inference/text-generation/requirements.txt
+	pytest -o log_cli=true -o log_cli_level=INFO .
+
 $(E2E_TEST):
 	(cd test/e2e && go test -c . -o $(E2E_TEST))
 
@@ -96,8 +103,9 @@ GINKGO_ARGS ?= -focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" -nodes=$(GINKGO_N
 
 .PHONY: kaito-workspace-e2e-test
 kaito-workspace-e2e-test: $(E2E_TEST) $(GINKGO)
-	$(GINKGO) -v -trace $(GINKGO_ARGS) \
-	$(E2E_TEST)
+	AI_MODELS_REGISTRY_SECRET=$(AI_MODELS_REGISTRY_SECRET) RUN_LLAMA_13B=$(RUN_LLAMA_13B) \
+ 	AI_MODELS_REGISTRY=$(AI_MODELS_REGISTRY) GPU_NAMESPACE=$(GPU_NAMESPACE) KAITO_NAMESPACE=$(KAITO_NAMESPACE) \
+ 	$(GINKGO) -v -trace $(GINKGO_ARGS) $(E2E_TEST)
 
 .PHONY: create-rg
 create-rg: ## Create resource group
@@ -109,15 +117,26 @@ create-acr:  ## Create test ACR
 	az acr login  --name $(AZURE_ACR_NAME)
 
 .PHONY: create-aks-cluster
-create-aks-cluster: ## Create test AKS cluster (with msi, oidc and workload identity enabled)
+create-aks-cluster: ## Create test AKS cluster (with msi, oidc, and workload identity enabled)
 	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --attach-acr $(AZURE_ACR_NAME) \
-	--node-count 1 --generate-ssh-keys --enable-managed-identity  --enable-workload-identity --enable-oidc-issuer -o none
+	--node-count 1 --generate-ssh-keys --enable-managed-identity --enable-workload-identity --enable-oidc-issuer -o none
 
-	# az aks nodepool add --cluster-name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --name gpunode \
-    #   --node-count 1 --node-vm-size standard_nc96ads_a100_v4 --node-taints sku=gpu:NoSchedule \
-    #   --aks-custom-headers UseGPUDedicatedVHD=true --node-osdisk-size 300
+.PHONY: create-aks-cluster-with-kaito
+create-aks-cluster-with-kaito: ## Create test AKS cluster (with msi, oidc and kaito enabled)
+	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --node-count 1 \
+ 	--generate-ssh-keys --enable-managed-identity --enable-oidc-issuer --enable-ai-toolchain-operator -o none
 
 	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
+
+.PHONY: prepare-kaito-addon-identity
+prepare-kaito-addon-identity:
+	IDENTITY_PRINCIPAL_ID=$(shell az identity show --name "ai-toolchain-operator-$(AZURE_CLUSTER_NAME)" -g "$(AZURE_RESOURCE_GROUP_MC)"  --query 'principalId');\
+	az role assignment create --assignee $$IDENTITY_PRINCIPAL_ID --scope "/subscriptions/$(AZURE_SUBSCRIPTION_ID)/resourceGroups/$(AZURE_RESOURCE_GROUP_MC)"  --role "Contributor"
+
+	AKS_OIDC_ISSUER=$(shell az aks show -n "$(AZURE_CLUSTER_NAME)" -g "$(AZURE_RESOURCE_GROUP_MC)" --query 'oidcIssuerProfile.issuerUrl');\
+	az identity federated-credential create --name gpu-federated-cred --identity-name "ai-toolchain-operator-$(AZURE_CLUSTER_NAME)" \
+    -g "$(AZURE_RESOURCE_GROUP)" --issuer $$AKS_OIDC_ISSUER \
+    --subject system:serviceaccount:"$(KAITO_NAMESPACE):kaito-gpu-provisioner" --audience api://AzureADTokenExchange
 
 .PHONY: az-patch-install-helm
 az-patch-install-helm: ## Update Azure client env vars and settings in helm values.yml
