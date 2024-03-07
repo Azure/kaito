@@ -17,7 +17,8 @@ env:
 
 jobs:
   check-tag:
-    runs-on: ubuntu-latest
+    runs-on:
+      labels: [ self-hosted, "1ES.Pool=${{ matrix.runner }}" ]
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
@@ -27,12 +28,12 @@ jobs:
      - id: get-tag
        name: Get tag
        run: echo "tag=$(echo ${{ github.event.inputs.release_version }})" >> $GITHUB_OUTPUT
-    
+
      - name: Checkout
        uses: actions/checkout@v4
        with:
          fetch-depth: 0
-        
+
      - name: Check for Tag
        run: |
           TAG="${{ steps.get-tag.outputs.tag }}"
@@ -54,7 +55,8 @@ jobs:
            })
 
   publish:
-    runs-on: ubuntu-latest
+    runs-on:
+      labels: [ self-hosted, "1ES.Pool=${{ matrix.runner }}" ]
     environment: publish-mcr
     needs:
       - check-tag
@@ -79,12 +81,12 @@ jobs:
           OUTPUT_TYPE=type=docker ARCH=arm64 make docker-build-kaito
         env:
           VERSION: ${{ env.IMG_TAG }}
-          REGISTRY: ${{ secrets.KAITO_MCR_REGISTRY }}/unlisted/aks/kaito
+          REGISTRY: ${{ secrets.KAITO_MCR_REGISTRY }}/public/aks/kaito
 
-      - name: Scan ${{ secrets.KAITO_MCR_REGISTRY }}/unlisted/aks/kaito/${{ env.IMAGE_NAME }}:${{ env.IMG_TAG }}
+      - name: Scan ${{ secrets.KAITO_MCR_REGISTRY }}/public/aks/kaito/${{ env.IMAGE_NAME }}:${{ env.IMG_TAG }}
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ secrets.KAITO_MCR_REGISTRY }}/unlisted/aks/kaito/${{ env.IMAGE_NAME }}:${{ env.IMG_TAG }}
+          image-ref: ${{ secrets.KAITO_MCR_REGISTRY }}/public/aks/kaito/${{ env.IMAGE_NAME }}:${{ env.IMG_TAG }}
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
@@ -102,19 +104,15 @@ jobs:
           event-type: release-tag
           client-payload: '{"isRelease": true,"registry": "mcr.microsoft.com/aks/kaito","tag": "${{ needs.check-tag.outputs.tag }}"}'
 
-      ## push to MCR
-      - name: 'Az CLI login'
-        uses: azure/login@v1.6.1
-        with:
-          client-id: ${{ secrets.KAITO_MCR_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.KAITO_MCR_SUBSCRIPTION_ID }}
+      - name: Authenticate to ACR
+        run: |
+          az login --identity
+          az acr login -n ${{ secrets.KAITO_MCR_REGISTRY }}
 
       - name: 'Publish to ACR'
         id: Publish
         run: |
-          az acr login -n ${{ secrets.KAITO_MCR_REGISTRY }}
           OUTPUT_TYPE=type=registry make docker-build-kaito
         env:
             VERSION: ${{ env.IMG_TAG }}
-            REGISTRY: ${{ secrets.KAITO_MCR_REGISTRY }}/unlisted/aks/kaito
+            REGISTRY: ${{ secrets.KAITO_MCR_REGISTRY }}/public/aks/kaito
