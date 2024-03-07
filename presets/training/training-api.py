@@ -30,8 +30,8 @@ model_args["local_files_only"] = not model_args.pop('allow_remote_files')
 model_args["revision"] = model_args.pop('m_revision')
 model_args["load_in_4bit"] = model_args.pop('m_load_in_4bit')
 model_args["load_in_8bit"] = model_args.pop('m_load_in_8bit')
-if accelerator.use_distributed: # self.distributed_type != DistributedType.NO and self.num_processes > 1
-    print("Setting device map using Accelerator process index")
+if accelerator.distributed_type != "NO": # Meaning we require distributed training
+    print("Setting device map for distributed training")
     model_args["device_map"] = {"": Accelerator().process_index}
 
 # Load BitsAndBytesConfig
@@ -76,7 +76,6 @@ model = get_peft_model(model, lora_config)
 # Cache is only used for generation, not for training
 model.config.use_cache = False
 model.print_trainable_parameters()
-# model = accelerator.prepare(model)
 
 # Loading and Preparing the Dataset 
 # Data format: https://huggingface.co/docs/autotrain/en/llm_finetuning

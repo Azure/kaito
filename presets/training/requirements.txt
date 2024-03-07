@@ -1,11 +1,14 @@
 datasets==2.16.1
 peft==0.8.2
-transformers==4.36.0
+transformers==4.38.2
 torch==2.2.0
-accelerate==0.23.0
+accelerate==0.27.2
 fastapi==0.103.2
 pydantic==1.10.9
 uvicorn[standard]==0.23.2
 bitsandbytes==0.42.0
 gputil==1.4.0
-# loralib einops xformers
+loralib
+einops
+xformers
+deepspeed
