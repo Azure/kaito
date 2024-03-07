@@ -1,4 +1,4 @@
-name: Build and Push Preset Models
+name: Build and Push Preset Models 
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
