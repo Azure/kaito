@@ -27,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: e2e-test
     steps:
+      - run: env
+
       - name: Shorten SHA
         if: ${{ !github.event.client_payload.isRelease }}
         id: vars
@@ -62,7 +64,7 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
-      
+
       - name: Checkout
         uses: actions/checkout@v4
         if: ${{ github.event.client_payload.isRelease }}
@@ -70,7 +72,7 @@ jobs:
           fetch-depth: 0
           submodules: true
           ref: ${{ env.REPO_TAG }}
-          
+
       - uses: azure/login@v1.6.1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -161,14 +163,14 @@ jobs:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
-            
+
       - name: Add Secret Credentials
         run: |
           kubectl create secret docker-registry ${{secrets.AMRT_SECRET_NAME}} \
           --docker-server=${{secrets.ACR_AMRT_USERNAME}}.azurecr.io \
           --docker-username=${{secrets.ACR_AMRT_USERNAME}} \
           --docker-password=${{secrets.ACR_AMRT_PASSWORD}}
-            
+
       - name: Log kaito-workspace
         run: |
           kubectl get pods -n kaito-workspace -o name | grep "^pod/kaito-workspace" | sed 's/^pod\///' | xargs -I {} kubectl logs -n kaito-workspace {}
