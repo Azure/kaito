@@ -24,8 +24,7 @@ permissions:
 
 jobs:
   e2e-tests:
-    runs-on:
-      labels: [ self-hosted ]
+    runs-on: ubuntu-latest
     environment: e2e-test
     steps:
       - name: Shorten SHA
