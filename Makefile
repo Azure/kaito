@@ -1,5 +1,5 @@
 
-# Image URL to use all building/pushing image targets
+# Image URL to use for all building or pushing image targets
 REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
 VERSION ?= v0.2.0
