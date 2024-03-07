@@ -10,7 +10,7 @@ on:
     paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
   pull_request:
     branches: [main]
-    paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
+   
   repository_dispatch:
     types: [ release-tag ]
     branches: [ release-** ]
