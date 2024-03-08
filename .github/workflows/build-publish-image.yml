@@ -18,6 +18,7 @@ jobs:
   export-registry:
     if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'update manifest and helm charts')
     runs-on: ubuntu-20.04
+    environment: preset-env
     outputs:
       registry: ${{ steps.export.outputs.registry }}
     steps:
@@ -33,6 +34,7 @@ jobs:
     env:
       REGISTRY: ${{ needs.export-registry.outputs.registry }}
     runs-on: ubuntu-20.04
+    environment: preset-env
     steps:
       - id: get-tag
         name: Get tag

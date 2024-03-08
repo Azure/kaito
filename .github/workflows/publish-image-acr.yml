@@ -19,6 +19,7 @@ jobs:
   check-tag:
     runs-on:
       labels: [ self-hosted, "1ES.Pool=${{ matrix.runner }}" ]
+    environment: publish-mcr
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
