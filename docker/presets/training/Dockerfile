@@ -7,10 +7,6 @@ ARG VERSION
 # Set the working directory
 WORKDIR /workspace/tfs
 
-# Install Docker CLI
-RUN apt-get update && \
-    apt-get install -y docker.io
-
 # Write the version to a file
 RUN echo $VERSION > /workspace/tfs/version.txt
 
