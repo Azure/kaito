@@ -47,9 +47,53 @@ spec:
             type: string
           inference:
             properties:
+              adapters:
+                description: Adapters are integrated into the base model for inference.
+                  Users can specify multiple adapters for the model and the respective
+                  weight of using each of them.
+                items:
+                  properties:
+                    source:
+                      description: Source describe where to obtain the adapter data.
+                      properties:
+                        hostPath:
+                          description: The directory in the hsot that contains the
+                            data.
+                          type: string
+                        image:
+                          description: The name of the image that contains the source
+                            data. The assumption is that the source data locates in
+                            the `data` directory in the image.
+                          type: string
+                        imagePullSecrets:
+                          description: ImagePullSecrets is a list of secret names
+                            in the same namespace used for pulling the data image.
+                          items:
+                            type: string
+                          type: array
+                        name:
+                          description: The name of the dataset. The same name will
+                            be used as a container name. It must be a valid DNS subdomain
+                            value,
+                          type: string
+                        uRLs:
+                          description: URLs specifies the links to the public data
+                            sources. E.g., files in a public github repository.
+                          items:
+                            type: string
+                          type: array
+                      type: object
+                    strength:
+                      description: Strength specifies the default multiplier for applying
+                        the adapter weights to the raw model weights. It is usually
+                        a float number between 0 and 1. It is defined as a string
+                        type to be language agnostic.
+                      type: string
+                  type: object
+                type: array
               preset:
-                description: Preset describles the model that will be deployed with
-                  preset configurations.
+                description: Preset describles the base model that will be deployed
+                  with preset configurations.
                 properties:
                   accessMode:
                     description: AccessMode specifies whether the containerized model
@@ -72,7 +116,7 @@ spec:
                         type: string
                       imagePullSecrets:
                         description: ImagePullSecrets is a list of secret names in
-                          the same namespace used for pulling the image.
+                          the same namespace used for pulling the model image.
                         items:
                           type: string
                         type: array
@@ -244,6 +288,96 @@ spec:
                 items:
                   type: string
                 type: array
+            type: object
+          tuning:
+            properties:
+              config:
+                description: Config specifies the name of the configmap in the same
+                  namespace that contains the arguments used by the tuning method.
+                  If not specified, a default configmap is used based on the specified
+                  method.
+                type: string
+              input:
+                description: Input describes the input used by the tuning method.
+                properties:
+                  hostPath:
+                    description: The directory in the hsot that contains the data.
+                    type: string
+                  image:
+                    description: The name of the image that contains the source data.
+                      The assumption is that the source data locates in the `data`
+                      directory in the image.
+                    type: string
+                  imagePullSecrets:
+                    description: ImagePullSecrets is a list of secret names in the
+                      same namespace used for pulling the data image.
+                    items:
+                      type: string
+                    type: array
+                  name:
+                    description: The name of the dataset. The same name will be used
+                      as a container name. It must be a valid DNS subdomain value,
+                    type: string
+                  uRLs:
+                    description: URLs specifies the links to the public data sources.
+                      E.g., files in a public github repository.
+                    items:
+                      type: string
+                    type: array
+                type: object
+              method:
+                description: Method specifies the Parameter-Efficient Fine-Tuning(PEFT)
+                  method, such as lora, qlora, used for the tuning.
+                type: string
+              output:
+                description: Output specified where to store the tuning output.
+                properties:
+                  hostPath:
+                    description: The directory in the host that contains the output
+                      data.
+                    type: string
+                  image:
+                    description: Name of the image where the output data is pushed
+                      to.
+                    type: string
+                  imagePushSecret:
+                    description: ImagePushSecret is the name of the secret in the
+                      same namespace that contains the authentication information
+                      that is needed for running `docker push`.
+                    type: string
+                type: object
+              preset:
+                description: Preset describes which model to load for tuning.
+                properties:
+                  accessMode:
+                    description: AccessMode specifies whether the containerized model
+                      image is accessible via public registry or private registry.
+                      This field defaults to "public" if not specified. If this field
+                      is "private", user needs to provide the private image information
+                      in PresetOptions.
+                    enum:
+                    - public
+                    - private
+                    type: string
+                  name:
+                    description: Name of the supported models with preset configurations.
+                    type: string
+                  presetOptions:
+                    properties:
+                      image:
+                        description: Image is the name of the containerized model
+                          image.
+                        type: string
+                      imagePullSecrets:
+                        description: ImagePullSecrets is a list of secret names in
+                          the same namespace used for pulling the model image.
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                required:
+                - name
+                type: object
             type: object
         type: object
     served: true
