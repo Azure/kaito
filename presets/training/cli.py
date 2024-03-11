@@ -1,13 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import torch
 from peft import LoraConfig
 from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
-                          PreTrainedTokenizer)
+                          PreTrainedTokenizer, TrainerCallback)
 
+import docker
+
+client = docker.from_env()
 
 @dataclass
 class ExtDataCollator(DataCollatorForLanguageModeling):
@@ -109,3 +113,33 @@ class TrainingConfig:
     """
     save_output_path: str = field(default=".", metadata={"help": "Path where training output is saved"})
     # Other training-related configurations can go here
+
+class CheckpointCallback(TrainerCallback):
+    def docker_build_and_push(self, model_path, img_tag):
+        volume_mapping = {model_path: {'bind': '/model', 'mode': 'rw'}}
+        environment_vars = {"DOCKER_USERNAME": "your_username", "DOCKER_PASSWORD": "your_password"}
+
+        # Spin up a DinD container
+        container = client.containers.run(
+            image="docker:dind",
+            command=f"sh -c 'docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD && docker build -t {img_tag} /model && docker push {img_tag}'",
+            volumes=volume_mapping,
+            environment=environment_vars,
+            detach=True,
+            auto_remove=True,
+            privileged=True  # Required to run DinD
+        )
+
+        for line in container.logs(stream=True):
+            print(line.strip())
+
+    # This method is called at the end of training
+    def on_train_end(self, args, state, control, **kwargs): 
+        model_path = args.output_dir
+        timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        img_tag = f"ghcr.io/YOUR_USERNAME/LoRA-Adapter:{timestamp}"
+        self.docker_build_and_push(model_path, img_tag)
+
+    # This method is called whenever a checkpoint is saved.
+    # def on_save(self, args, state, control, **kwargs):
+    #     docker_build_and_push()

@@ -6,8 +6,9 @@ from dataclasses import asdict
 import torch
 import transformers
 from accelerate import Accelerator
-from cli import (DatasetConfig, ExtDataCollator, ExtLoraConfig, ModelConfig,
-                 QuantizationConfig, TokenizerParams, TrainingConfig)
+from cli import (CheckpointCallback, DatasetConfig, ExtDataCollator,
+                 ExtLoraConfig, ModelConfig, QuantizationConfig,
+                 TokenizerParams, TrainingConfig)
 from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
@@ -104,11 +105,13 @@ if ds_config.train_test_split < 1:
         test_size=1-ds_config.train_test_split, 
         seed=ds_config.shuffle_seed
     )
-    train_dataset, eval_dataset = split['train'], split['test']
+    train_dataset, eval_dataset = split_dataset['train'], split_dataset['test']
     print("Training Dataset Dimensions: ", train_dataset.shape)
     print("Test Dataset Dimensions: ", eval_dataset.shape)
 else:
     print(f"Using full dataset for training. Dimensions: {train_dataset.shape}")
+
+checkpoint_callback = CheckpointCallback()
 
 # Training the Model
 trainer = accelerator.prepare(transformers.Trainer(
@@ -117,6 +120,7 @@ trainer = accelerator.prepare(transformers.Trainer(
     eval_dataset=eval_dataset,
     args=ta_args,
     data_collator=dc_args,
+    callbacks=[checkpoint_callback]
 ))
 trainer.train()
 os.makedirs(train_config.save_output_path, exist_ok=True)
