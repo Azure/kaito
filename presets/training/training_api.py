@@ -112,7 +112,7 @@ if ds_config.train_test_split < 1:
 else:
     print(f"Using full dataset for training. Dimensions: {train_dataset.shape}")
 
-checkpoint_callback = CheckpointCallback()
+# checkpoint_callback = CheckpointCallback()
 
 # Training the Model
 trainer = accelerator.prepare(transformers.Trainer(
@@ -121,7 +121,7 @@ trainer = accelerator.prepare(transformers.Trainer(
     eval_dataset=eval_dataset,
     args=ta_args,
     data_collator=dc_args,
-    callbacks=[checkpoint_callback]
+    # callbacks=[checkpoint_callback]
 ))
 trainer.train()
 os.makedirs(train_config.save_output_path, exist_ok=True)
