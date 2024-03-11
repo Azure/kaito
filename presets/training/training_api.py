@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import os
 from dataclasses import asdict
+from datetime import datetime
 
 import torch
 import transformers
@@ -125,3 +126,9 @@ trainer = accelerator.prepare(transformers.Trainer(
 trainer.train()
 os.makedirs(train_config.save_output_path, exist_ok=True)
 trainer.save_model(train_config.save_output_path)
+
+# Write file to signify training completion
+timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+completion_indicator_path = os.path.join(train_config.save_output_path, "training_completed.txt")
+with open(completion_indicator_path, 'w') as f:
+    f.write(f"Training completed at {timestamp}\n")

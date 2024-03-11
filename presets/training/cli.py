@@ -115,17 +115,17 @@ class TrainingConfig:
     save_output_path: str = field(default=".", metadata={"help": "Path where training output is saved"})
     # Other training-related configurations can go here
 
-class CheckpointCallback(TrainerCallback):
-    def on_train_end(self, args, state, control, **kwargs):
-        model_path = args.output_dir
-        timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        img_tag = f"ghcr.io/YOUR_USERNAME/LoRA-Adapter:{timestamp}"
+# class CheckpointCallback(TrainerCallback):
+#     def on_train_end(self, args, state, control, **kwargs):
+#         model_path = args.output_dir
+#         timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+#         img_tag = f"ghcr.io/YOUR_USERNAME/LoRA-Adapter:{timestamp}"
         
-        # Write a file to indicate training completion
-        completion_indicator_path = os.path.join(model_path, "training_completed.txt")
-        with open(completion_indicator_path, 'w') as f:
-            f.write(f"Training completed at {timestamp}\n")
-            f.write(f"Image Tag: {img_tag}\n")
+#         # Write a file to indicate training completion
+#         completion_indicator_path = os.path.join(model_path, "training_completed.txt")
+#         with open(completion_indicator_path, 'w') as f:
+#             f.write(f"Training completed at {timestamp}\n")
+#             f.write(f"Image Tag: {img_tag}\n")
 
     # This method is called whenever a checkpoint is saved.
     # def on_save(self, args, state, control, **kwargs):
