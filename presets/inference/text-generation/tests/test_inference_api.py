@@ -127,3 +127,39 @@ def test_get_metrics_no_gpus(configured_app):
         response = client.get("/metrics")
         assert response.status_code == 200
         assert response.json()["gpu_info"] == []
+
+def test_default_generation_params(configured_app):
+    if configured_app.test_config['pipeline'] != 'text-generation':
+        pytest.skip("Skipping non-text-generation tests")
+    
+    client = TestClient(configured_app)
+
+    request_data = {
+        "prompt": "Test default params",
+        "return_full_text": True,
+        "clean_up_tokenization_spaces": False
+        # Note: generate_kwargs is not provided, so defaults should be used
+    }
+
+    with patch('inference_api.pipeline') as mock_pipeline:
+        mock_pipeline.return_value = [{"generated_text": "Mocked response"}]  # Mock the response of the pipeline function
+        
+        response = client.post("/chat", json=request_data)
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "Result" in data
+        assert len(data["Result"]) > 0
+        
+        # Check the default args
+        _, kwargs = mock_pipeline.call_args
+        assert kwargs['max_length'] == 200
+        assert kwargs['min_length'] == 0
+        assert kwargs['do_sample'] is True
+        assert kwargs['temperature'] == 1.0
+        assert kwargs['top_k'] == 50
+        assert kwargs['top_p'] == 1
+        assert kwargs['typical_p'] == 1
+        assert kwargs['repetition_penalty'] == 1
+        assert kwargs['num_beams'] == 1
+        assert kwargs['early_stopping'] is False
