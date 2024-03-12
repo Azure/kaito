@@ -222,6 +222,13 @@ def get_metrics():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/version")
+def health_check():
+    with open("/workspace/tfs/model_name.txt", "r") as f:
+        model_name = f.read()
+
+    return {"version": model_name}
+
 if __name__ == "__main__":
     local_rank = int(os.environ.get("LOCAL_RANK", 0)) # Default to 0 if not set
     port = 5000 + local_rank # Adjust port based on local rank

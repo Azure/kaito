@@ -180,6 +180,13 @@ def setup_main_routes():
         except Exception as e:
             return {"error": str(e)}
 
+    @app_main.get("/version")
+    def health_check():
+        with open("/workspace/tfs/model_name.txt", "r") as f:
+            model_name = f.read()
+
+        return {"version": model_name}
+
 def setup_worker_routes(): 
     @app_worker.get("/healthz")
     def health_check():
