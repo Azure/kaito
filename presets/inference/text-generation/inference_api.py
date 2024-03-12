@@ -157,7 +157,7 @@ class UnifiedRequestModel(BaseModel):
     clean_up_tokenization_spaces: Optional[bool] = Field(False, description="Clean up extra spaces in text output")
     prefix: Optional[str] = Field(None, description="Prefix added to prompt")
     handle_long_generation: Optional[str] = Field(None, description="Strategy to handle long generation")
-    generate_kwargs: Optional[GenerateKwargs] = Field(None, description="Additional kwargs for generate method")
+    generate_kwargs: Optional[GenerateKwargs] = Field(default_factory=GenerateKwargs, description="Additional kwargs for generate method")
 
     # Field for conversational model
     messages: Optional[List[Dict[str, str]]] = Field(None, description="Messages for conversational model")
