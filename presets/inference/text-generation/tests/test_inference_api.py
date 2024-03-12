@@ -155,7 +155,7 @@ def test_default_generation_params(configured_app):
         _, kwargs = mock_pipeline.call_args
         assert kwargs['max_length'] == 200
         assert kwargs['min_length'] == 0
-        assert kwargs['do_sample'] is True
+        assert kwargs['do_sample'] is False
         assert kwargs['temperature'] == 1.0
         assert kwargs['top_k'] == 50
         assert kwargs['top_p'] == 1
