@@ -73,7 +73,7 @@ type PresetSpec struct {
 }
 
 type InferenceSpec struct {
-	// Preset describles the base model that will be deployed with preset configurations.
+	// Preset describes the base model that will be deployed with preset configurations.
 	// +optional
 	Preset *PresetSpec `json:"preset,omitempty"`
 	// Template specifies the Pod template used to run the inference service. Users can specify custom Pod settings
@@ -90,7 +90,7 @@ type InferenceSpec struct {
 }
 
 type AdapterSpec struct {
-	// Source describe where to obtain the adapter data.
+	// Source describes where to obtain the adapter data.
 	// +optional
 	Source *DataSource `json:"source,omitempty"`
 	// Strength specifies the default multiplier for applying the adapter weights to the raw model weights.
@@ -105,7 +105,7 @@ type DataSource struct {
 	Name string `json:"name,omitempty"`
 	// URLs specifies the links to the public data sources. E.g., files in a public github repository.
 	// +optional
-	URLs []string `json:"uRLs,omitempty"`
+	URLs []string `json:"urls,omitempty"`
 	// The directory in the hsot that contains the data.
 	// +optional
 	HostPath string `json:"hostPath,omitempty"`
@@ -150,10 +150,8 @@ type TuningSpec struct {
 	// +optional
 	Config string `json:"config,omitempty"`
 	// Input describes the input used by the tuning method.
-	// +optional
 	Input *DataSource `json:"input,omitempty"`
 	// Output specified where to store the tuning output.
-	// +optional
 	Output *DataDestination `json:"output,omitempty"`
 }
 

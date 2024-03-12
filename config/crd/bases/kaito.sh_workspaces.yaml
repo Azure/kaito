@@ -54,7 +54,7 @@ spec:
                 items:
                   properties:
                     source:
-                      description: Source describe where to obtain the adapter data.
+                      description: Source describes where to obtain the adapter data.
                       properties:
                         hostPath:
                           description: The directory in the hsot that contains the
@@ -76,7 +76,7 @@ spec:
                             be used as a container name. It must be a valid DNS subdomain
                             value,
                           type: string
-                        uRLs:
+                        urls:
                           description: URLs specifies the links to the public data
                             sources. E.g., files in a public github repository.
                           items:
@@ -92,7 +92,7 @@ spec:
                   type: object
                 type: array
               preset:
-                description: Preset describles the base model that will be deployed
+                description: Preset describes the base model that will be deployed
                   with preset configurations.
                 properties:
                   accessMode:
@@ -318,7 +318,7 @@ spec:
                     description: The name of the dataset. The same name will be used
                       as a container name. It must be a valid DNS subdomain value,
                     type: string
-                  uRLs:
+                  urls:
                     description: URLs specifies the links to the public data sources.
                       E.g., files in a public github repository.
                     items:
