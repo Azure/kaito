@@ -24,7 +24,7 @@ func (in *AdapterSpec) DeepCopyInto(out *AdapterSpec) {
 	}
 	if in.Strength != nil {
 		in, out := &in.Strength, &out.Strength
-		*out = new(float32)
+		*out = new(string)
 		**out = **in
 	}
 }
