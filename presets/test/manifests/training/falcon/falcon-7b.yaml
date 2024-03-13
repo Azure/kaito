@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: falcon-7b-training
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: falcon
+  template:
+    metadata:
+      labels:
+        app: falcon
+    spec:
+      containers:
+        - name: falcon-container
+          image: aimodelsregistrytest.azurecr.io/training-falcon-7b:0.0.1
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          resources:
+            requests:
+              nvidia.com/gpu: 2
+            limits:
+              nvidia.com/gpu: 2  # Requesting 2 GPUs
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+            - name: workspace
+              mountPath: /workspace
+
+        - name: docker-sidecar
+          image: docker:latest
+          volumeMounts:
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
+            - name: workspace
+              mountPath: /workspace
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - |
+              while true; do
+                FILE_PATH=$(find /workspace/tfs -name 'training_completed.txt')
+                if [ ! -z "$FILE_PATH" ]; then
+                  echo "FOUND TRAINING COMPLETED FILE at $FILE_PATH"
+
+                  PARENT_DIR=$(dirname "$FILE_PATH")
+                  echo "Parent directory is $PARENT_DIR"
+
+                  TEMP_CONTEXT=$(mktemp -d)
+                  cp "$PARENT_DIR/adapter_config.json" "$TEMP_CONTEXT/adapter_config.json"
+                  cp -r "$PARENT_DIR/adapter_model.safetensors" "$TEMP_CONTEXT/adapter_model.safetensors"
+
+                  # Create a minimal Dockerfile
+                  echo 'FROM scratch
+                  ADD adapter_config.json /
+                  ADD adapter_model.safetensors /' > "$TEMP_CONTEXT/Dockerfile"
+
+                  docker build -t aimodelsregistrytest.azurecr.io/adapter-falcon-7b:0.0.1 "$TEMP_CONTEXT"
+                  docker push aimodelsregistrytest.azurecr.io/adapter-falcon-7b:0.0.1
+
+                  # Cleanup: Remove the temporary directory
+                  rm -rf "$TEMP_CONTEXT"
+
+                  # Remove the file to prevent repeated builds, or handle as needed
+                  # rm "$FILE_PATH"
+                fi
+                sleep 10  # Check every 10 seconds
+              done
+
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+        - name: workspace
+          emptyDir: {}
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock
+
+      tolerations:
+        - effect: NoSchedule
+          key: sku
+          operator: Equal
+          value: gpu
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
