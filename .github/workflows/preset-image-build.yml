@@ -24,6 +24,10 @@ on:
         default: false
         description: "Run all models for build"
 
+env:
+    GO_VERSION: "1.20"
+    BRANCH_NAME: ${{ github.head_ref || github.ref_name}} 
+    
 permissions:
   id-token: write
   contents: read
@@ -49,7 +53,7 @@ jobs:
       - name: Determine Affected Models
         id: affected_models
         run: |
-          PR_BRANCH=${{ github.head_ref }} \
+          PR_BRANCH=${{ env.BRANCH_NAME }} \
           FORCE_RUN_ALL=${{ env.FORCE_RUN_ALL }} \
           python3 .github/workflows/kind-cluster/determine_models.py
             
