@@ -14,28 +14,29 @@ spec:
     spec:
       containers:
       - name: falcon-container
-        image: REPO_HERE.azurecr.io/falcon-7b:TAG_HERE
+        image: aimodelsregistrytest.azurecr.io/falcon-7b:0.0.2
         command:
           - /bin/sh
           - -c
-          - accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference_api.py --pipeline text-generation --torch_dtype bfloat16
-        resources:
-          requests:
-            nvidia.com/gpu: 2
-          limits:
-            nvidia.com/gpu: 2  # Requesting 2 GPUs
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 5000
-          initialDelaySeconds: 600 # 10 Min
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /healthz
-            port: 5000
-          initialDelaySeconds: 30
-          periodSeconds: 10
+          - sleep infinity
+          # - accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference_api.py --pipeline text-generation --torch_dtype bfloat16
+        # resources:
+        #   requests:
+        #     nvidia.com/gpu: 2
+        #   limits:
+        #     nvidia.com/gpu: 2  # Requesting 2 GPUs
+        # livenessProbe:
+        #   httpGet:
+        #     path: /healthz
+        #     port: 5000
+        #   initialDelaySeconds: 600 # 10 Min
+        #   periodSeconds: 10
+        # readinessProbe:
+        #   httpGet:
+        #     path: /healthz
+        #     port: 5000
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
         volumeMounts:
         - name: dshm
           mountPath: /dev/shm
@@ -52,4 +53,4 @@ spec:
         key: nvidia.com/gpu
         operator: Exists
       nodeSelector:
-        pool: falcon7b
+        kubernetes.io/hostname: aks-maxlen-10810664-vmss000000
