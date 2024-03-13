@@ -137,6 +137,15 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	return depObj, nil
 }
 
+func CreatePresetFrontEnd(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) (client.Object, error) {
+	depObj := resources.GenerateFrontEndManifest(ctx, workspaceObj)
+	err := resources.CreateResource(ctx, depObj, kubeClient)
+	if client.IgnoreAlreadyExists(err) != nil {
+		return nil, err
+	}
+	return depObj, nil
+}
+
 // prepareInferenceParameters builds a PyTorch command:
 // torchrun <TORCH_PARAMS> <OPTIONAL_RDZV_PARAMS> baseCommand <MODEL_PARAMS>
 // and sets the GPU resources required for inference.

@@ -1,11 +1,11 @@
 import chainlit as cl
 import requests
+import os
 
-
+URL = os.environ.get('WORKSPACE_SERVICE_URL')
 @cl.step
 def inference(prompt):
     # Endpoint URL
-    url = "http://localhost:5000/chat"
     data = {
         "prompt": prompt,
         "return_full_text": False,
@@ -15,7 +15,7 @@ def inference(prompt):
         }
     }
 
-    response = requests.post(url, json=data)
+    response = requests.post(URL, json=data)
 
     if response.status_code == 200:
         response_data = response.json()
@@ -23,7 +23,7 @@ def inference(prompt):
     else:
         return f"Error: Received response code {response.status_code}"
 
-@cl.on_message  # this function will be called every time a user inputs a message in the UI
+@cl.on_message
 async def main(message: cl.Message):
     """
     This function is called every time a user inputs a message in the UI.

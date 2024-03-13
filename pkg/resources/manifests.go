@@ -5,6 +5,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"k8s.io/utils/pointer"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -49,6 +50,66 @@ func GenerateHeadlessServiceManifest(ctx context.Context, workspaceObj *kaitov1a
 				},
 			},
 			PublishNotReadyAddresses: true,
+		},
+	}
+}
+
+func GenerateFrontEndManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) *appsv1.Deployment {
+	deploymentName := workspaceObj.Name + "-chainlit-sample-frontend"
+	serviceDNSName := workspaceObj.Name + "." + workspaceObj.Namespace + ".svc.cluster.local"
+
+	return &appsv1.Deployment{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: workspaceObj.Namespace,
+			OwnerReferences: []v1.OwnerReference{
+				{
+					APIVersion: kaitov1alpha1.GroupVersion.String(),
+					Kind:       "Workspace",
+					Name:       workspaceObj.Name,
+					UID:        workspaceObj.UID,
+					Controller: pointer.BoolPtr(true),
+				},
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: pointer.Int32Ptr(1),
+			Selector: &v1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": deploymentName,
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: v1.ObjectMeta{
+					Labels: map[string]string{
+						"app": deploymentName,
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "chainlit-frontend",
+							Image: "python:3.10-slim",
+							Command: []string{
+								"/bin/sh", "-c",
+							},
+							Args: []string{
+								"apt-get update && apt-get install -y wget && " +
+									"pip install chainlit requests && " +
+									"wget -O /app/frontend/chainlit.py https://raw.githubusercontent.com/Azure/kaito/main/presets/inference/text-generation/frontend/chainlit.py && " +
+									"chainlit run frontend/chainlit.py -w",
+							},
+							Env: []corev1.EnvVar{
+								{
+									Name:  "WORKSPACE_SERVICE_URL",
+									Value: "http://" + serviceDNSName + ":80",
+								},
+							},
+							WorkingDir: "/app",
+						},
+					},
+				},
+			},
 		},
 	}
 }

@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-workspace-chainlit-frontend-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-workspace-chainlit-frontend
+  template:
+    metadata:
+      labels:
+        app: my-workspace-chainlit-frontend
+    spec:
+      containers:
+        - name: chainlit-frontend
+          image: python:3.10-slim
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - |
+              pip install chainlit requests && \
+              wget -O /app/frontend/chainlit.py https://raw.githubusercontent.com/Azure/kaito/main/presets/inference/text-generation/frontend/chainlit.py && \
+              chainlit run frontend/chainlit.py -w
+          env:
+            - name: WORKSPACE_SERVICE_URL
+              value: http://my-workspace.my-namespace.svc.cluster.local:80
+          workingDir: /app

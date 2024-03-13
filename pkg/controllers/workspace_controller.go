@@ -116,6 +116,17 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 			return reconcile.Result{}, updateErr
 		}
 		return reconcile.Result{}, err
+	} else {
+		// Given service and inference were successfully applied
+		wAnnotation := wObj.GetAnnotations()
+		if len(wAnnotation) != 0 {
+			val, found := wAnnotation[kaitov1alpha1.AnnotationEnableSampleFrontEnd]
+			if found && val == "True" {
+				if c.createSampleFrontEnd(ctx, wObj); err != nil {
+					klog.ErrorS(err, "failed to create sample front end", "workspace", klog.KObj(wObj))
+				}
+			}
+		}
 	}
 
 	// TODO apply TrainingSpec
@@ -450,7 +461,6 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 				existingObj = &appsv1.StatefulSet{}
 			} else {
 				existingObj = &appsv1.Deployment{}
-
 			}
 
 			if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
@@ -487,6 +497,27 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 		"WorkspaceInferenceStatusSuccess", "Inference has been deployed successfully"); err != nil {
 		klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
 		return err
+	}
+	return nil
+}
+
+func (c *WorkspaceReconciler) createSampleFrontEnd(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
+	deploymentName := wObj.Name + "-chainlit-sample-frontend"
+	if err := resources.GetResource(ctx, deploymentName, wObj.Namespace, c.Client, &appsv1.Deployment{}); err == nil {
+		klog.InfoS("A sample front end already exists for workspace", "workspace", klog.KObj(wObj))
+		if err = resources.CheckResourceStatus(&appsv1.Deployment{}, c.Client, time.Duration(10)*time.Minute); err != nil {
+			return err
+		}
+	} else if apierrors.IsNotFound(err) {
+		var frontEndObj client.Object
+		// Need to create a new workload
+		frontEndObj, err = inference.CreatePresetFrontEnd(ctx, wObj, c.Client)
+		if err != nil {
+			return err
+		}
+		if err = resources.CheckResourceStatus(frontEndObj, c.Client, time.Duration(10)*time.Minute); err != nil {
+			return err
+		}
 	}
 	return nil
 }
