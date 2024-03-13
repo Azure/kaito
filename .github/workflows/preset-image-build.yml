@@ -26,8 +26,8 @@ on:
 
 env:
     GO_VERSION: "1.20"
-    BRANCH_NAME: ${{ github.head_ref || github.ref_name}} 
-    
+    BRANCH_NAME: ${{ github.head_ref || github.ref_name || 'main' }}
+
 permissions:
   id-token: write
   contents: read
