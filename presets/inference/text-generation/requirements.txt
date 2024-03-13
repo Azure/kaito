@@ -11,3 +11,5 @@ gputil==1.4.0
 # For UTs
 pytest==8.0.0
 httpx==0.26.0
+# For Frontend
+chainlit
