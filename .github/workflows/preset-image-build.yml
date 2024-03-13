@@ -19,9 +19,10 @@ on:
       - 'presets/models/supported_models.yaml'
   workflow_dispatch:
     inputs:
-      image_tag_name:
-        description: 'Image Tag'
-        required: true
+      force-run-all:
+        type: boolean
+        default: false
+        description: "Test all models for E2E"
 
 permissions:
   id-token: write
@@ -41,11 +42,15 @@ jobs:
           submodules: true
           fetch-depth: 0
       
+      - name: Set FORCE_RUN_ALL Flag
+        run: echo "FORCE_RUN_ALL=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force-run-all == 'true' }}" >> $GITHUB_ENV
+      
       # This script should output a JSON array of model names
       - name: Determine Affected Models
         id: affected_models
         run: |
           PR_BRANCH=${{ github.head_ref }} \
+          FORCE_RUN_ALL=${{ env.FORCE_RUN_ALL }} \
           python3 .github/workflows/kind-cluster/determine_models.py
             
       - name: Print Determined Models
