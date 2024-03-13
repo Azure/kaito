@@ -22,7 +22,7 @@ on:
       force-run-all:
         type: boolean
         default: false
-        description: "Test all models for E2E"
+        description: "Run all models for build"
 
 permissions:
   id-token: write
