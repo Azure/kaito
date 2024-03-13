@@ -10,9 +10,6 @@ from peft import LoraConfig
 from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
                           PreTrainedTokenizer, TrainerCallback)
 
-import docker
-
-client = docker.from_env()
 
 @dataclass
 class ExtDataCollator(DataCollatorForLanguageModeling):

@@ -7,9 +7,8 @@ from datetime import datetime
 import torch
 import transformers
 from accelerate import Accelerator
-from cli import (CheckpointCallback, DatasetConfig, ExtDataCollator,
-                 ExtLoraConfig, ModelConfig, QuantizationConfig,
-                 TokenizerParams, TrainingConfig)
+from cli import (DatasetConfig, ExtDataCollator, ExtLoraConfig, ModelConfig,
+                 QuantizationConfig, TokenizerParams, TrainingConfig)
 from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
