@@ -18,6 +18,9 @@ from fastapi import FastAPI, HTTPException
 from llama import Llama
 from pydantic import BaseModel
 
+# Constants
+MODEL_INFO = "model_info.txt"
+
 # Setup argparse
 parser = argparse.ArgumentParser(description="Llama API server.")
 parser.add_argument("--ckpt_dir", default="weights/", help="Checkpoint directory.")
@@ -192,8 +195,8 @@ def setup_main_routes():
             return {"error": str(e)}
 
     @app_main.get("/version")
-    def health_check():
-        with open("/workspace/llama/model_name.txt", "r") as f:
+    def get_version():
+        with open(f"/workspace/llama/{MODEL_INFO}", "r") as f:
             model_name = f.read()
 
         return {"version": model_name}

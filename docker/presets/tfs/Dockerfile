@@ -8,9 +8,8 @@ ARG IMAGE_NAME
 # Set the working directory
 WORKDIR /workspace/tfs
 
-# Write metadata to .txt files
-RUN echo $VERSION > /workspace/tfs/version.txt
-RUN echo $IMAGE_NAME > /workspace/tfs/model_name.txt
+# Write metadata to model_info.txt file
+RUN echo -e "$VERSION\n$IMAGE_NAME" > /workspace/tfs/model_info.txt
 
 # First, copy just the preset files and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and

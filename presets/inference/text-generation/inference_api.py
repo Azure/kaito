@@ -13,6 +13,8 @@ from pydantic import BaseModel, Extra, Field
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
 
+# Constants
+MODEL_INFO = "model_info.txt"
 
 @dataclass
 class ModelConfig:
@@ -223,8 +225,8 @@ def get_metrics():
         return {"error": str(e)}
 
 @app.get("/version")
-def health_check():
-    with open("/workspace/tfs/model_name.txt", "r") as f:
+def get_version():
+    with open(f"/workspace/tfs/{MODEL_INFO}", "r") as f:
         model_name = f.read()
 
     return {"version": model_name}

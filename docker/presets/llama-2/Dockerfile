@@ -28,9 +28,8 @@ ARG MODEL_TYPE
 ARG VERSION
 ARG IMAGE_NAME
 
-# Write metadata to .txt files
-RUN echo $VERSION > /workspace/llama/version.txt
-RUN echo $IMAGE_NAME > /workspace/llama/model_name.txt
+# Write metadata to model_info.txt file
+RUN echo -e "$VERSION\n$IMAGE_NAME" > /workspace/llama/model_info.txt
 
 ADD ${WEIGHTS_PATH} /workspace/llama/llama-2/weights
 ADD kaito/presets/inference/${MODEL_TYPE} /workspace/llama/llama-2
