@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 import torch
 from fastapi.testclient import TestClient
+from transformers import AutoTokenizer
 
 # Get the parent directory of the current file
 parent_dir = str(Path(__file__).resolve().parent.parent)
@@ -127,3 +128,109 @@ def test_get_metrics_no_gpus(configured_app):
         response = client.get("/metrics")
         assert response.status_code == 200
         assert response.json()["gpu_info"] == []
+
+def test_default_generation_params(configured_app):
+    if configured_app.test_config['pipeline'] != 'text-generation':
+        pytest.skip("Skipping non-text-generation tests")
+    
+    client = TestClient(configured_app)
+
+    request_data = {
+        "prompt": "Test default params",
+        "return_full_text": True,
+        "clean_up_tokenization_spaces": False
+        # Note: generate_kwargs is not provided, so defaults should be used
+    }
+
+    with patch('inference_api.pipeline') as mock_pipeline:
+        mock_pipeline.return_value = [{"generated_text": "Mocked response"}]  # Mock the response of the pipeline function
+        
+        response = client.post("/chat", json=request_data)
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "Result" in data
+        assert data["Result"] == "Mocked response", "The response content doesn't match the expected mock response"
+        
+        # Check the default args
+        _, kwargs = mock_pipeline.call_args
+        assert kwargs['max_length'] == 200
+        assert kwargs['min_length'] == 0
+        assert kwargs['do_sample'] is False
+        assert kwargs['temperature'] == 1.0
+        assert kwargs['top_k'] == 50
+        assert kwargs['top_p'] == 1
+        assert kwargs['typical_p'] == 1
+        assert kwargs['repetition_penalty'] == 1
+        assert kwargs['num_beams'] == 1
+        assert kwargs['early_stopping'] is False
+
+def test_generation_with_max_length(configured_app):
+    if configured_app.test_config['pipeline'] != 'text-generation':
+        pytest.skip("Skipping non-text-generation tests")
+
+    client = TestClient(configured_app)
+    prompt = "This prompt requests a response of a certain minimum length to test the functionality."
+    avg_res_len = 15
+    max_length = 40  # Set to lower than default (200) to prevent test hanging
+
+    request_data = {
+        "prompt": prompt,
+        "return_full_text": True,
+        "clean_up_tokenization_spaces": False,
+        "generate_kwargs": {"max_length": max_length}
+    }
+
+    response = client.post("/chat", json=request_data)
+
+    assert response.status_code == 200
+    data = response.json()
+    print("Response: ", data["Result"])
+    assert "Result" in data, "The response should contain a 'Result' key"
+    
+    tokenizer = AutoTokenizer.from_pretrained(configured_app.test_config['model_path'])
+    prompt_tokens = tokenizer.tokenize(prompt)
+    total_tokens = tokenizer.tokenize(data["Result"])  # data["Result"] includes the input prompt
+
+    prompt_tokens_len = len(prompt_tokens)
+    max_new_tokens = max_length - prompt_tokens_len
+    new_tokens = len(total_tokens) - prompt_tokens_len
+
+    assert avg_res_len <= new_tokens, f"Ideally response should generate at least 15 tokens"
+    assert new_tokens <= max_new_tokens, "Response must not generate more than max new tokens"
+    assert len(total_tokens) <= max_length, "Total # of tokens has to be less than or equal to max_length"
+
+def test_generation_with_min_length(configured_app):
+    if configured_app.test_config['pipeline'] != 'text-generation':
+        pytest.skip("Skipping non-text-generation tests")
+
+    client = TestClient(configured_app)
+    prompt = "This prompt requests a response of a certain minimum length to test the functionality."
+    min_length = 30
+    max_length = 40  
+
+    request_data = {
+        "prompt": prompt,
+        "return_full_text": True,
+        "clean_up_tokenization_spaces": False,
+        "generate_kwargs": {"min_length": min_length, "max_length": max_length}
+    }
+
+    response = client.post("/chat", json=request_data)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "Result" in data, "The response should contain a 'Result' key"
+    
+    tokenizer = AutoTokenizer.from_pretrained(configured_app.test_config['model_path'])
+    prompt_tokens = tokenizer.tokenize(prompt)
+    total_tokens = tokenizer.tokenize(data["Result"])  # data["Result"] includes the input prompt
+
+    prompt_tokens_len = len(prompt_tokens)
+
+    min_new_tokens = min_length - prompt_tokens_len
+    max_new_tokens = max_length - prompt_tokens_len
+    new_tokens = len(total_tokens) - prompt_tokens_len
+
+    assert min_new_tokens <= new_tokens <= max_new_tokens, "Response should generate at least min_new_tokens and at most max_new_tokens new tokens"
+    assert len(total_tokens) <= max_length, "Total # of tokens has to be less than or equal to max_length"
