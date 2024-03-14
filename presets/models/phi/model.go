@@ -40,7 +40,7 @@ func (*phi2) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "Phi",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
-		DiskStorageRequirement:    "30Gi",
+		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "12Gi",
 		PerGPUMemoryRequirement:   "0Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.

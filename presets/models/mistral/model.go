@@ -46,7 +46,7 @@ func (*mistral7b) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "Mistral",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
-		DiskStorageRequirement:    "50Gi",
+		DiskStorageRequirement:    "100Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "14Gi",
 		PerGPUMemoryRequirement:   "0Gi", // We run Mistral using native vertical model parallel, no per GPU memory requirement.
@@ -70,7 +70,7 @@ func (*mistral7bInst) GetInferenceParameters() *model.PresetInferenceParam {
 	return &model.PresetInferenceParam{
 		ModelFamilyName:           "Mistral",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
-		DiskStorageRequirement:    "50Gi",
+		DiskStorageRequirement:    "100Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
 		PerGPUMemoryRequirement:   "0Gi", // We run mistral using native vertical model parallel, no per GPU memory requirement.
