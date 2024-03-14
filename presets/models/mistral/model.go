@@ -23,12 +23,12 @@ func init() {
 }
 
 var (
-	PresetMistral7BModel          = "mistral-7b"
-	PresetMistral7BInstructModel  = PresetMistral7BModel + "-instruct"
+	PresetMistral7BModel         = "mistral-7b"
+	PresetMistral7BInstructModel = PresetMistral7BModel + "-instruct"
 
 	PresetMistralTagMap = map[string]string{
-		"Mistral7B":          "0.0.2",
-		"Mistral7BInstruct":  "0.0.2",
+		"Mistral7B":         "0.0.3",
+		"Mistral7BInstruct": "0.0.3",
 	}
 
 	baseCommandPresetMistral = "accelerate launch"
