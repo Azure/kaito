@@ -13,7 +13,7 @@ RUN echo $VERSION > /workspace/tfs/version.txt
 # First, copy just the preset files and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and
 # avoid reinstalling dependencies unless the requirements file changes.
-COPY kaito/presets/training/${MODEL_TYPE}/requirements.txt /workspace/tfs/requirements.txt
+COPY kaito/presets/tuning/${MODEL_TYPE}/requirements.txt /workspace/tfs/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY kaito/presets/tuning/${MODEL_TYPE}/cli.py /workspace/tfs/cli.py
