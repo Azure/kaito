@@ -107,10 +107,10 @@ class QuantizationConfig(BitsAndBytesConfig):
 @dataclass
 class TrainingConfig:
     """
-    Configuration for training process
+    Configuration for fine_tuning process
     """
-    save_output_path: str = field(default=".", metadata={"help": "Path where training output is saved"})
-    # Other training-related configurations can go here
+    save_output_path: str = field(default=".", metadata={"help": "Path where fine_tuning output is saved"})
+    # Other fine_tuning-related configurations can go here
 
 # class CheckpointCallback(TrainerCallback):
 #     def on_train_end(self, args, state, control, **kwargs):
@@ -118,7 +118,7 @@ class TrainingConfig:
 #         timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 #         img_tag = f"ghcr.io/YOUR_USERNAME/LoRA-Adapter:{timestamp}"
         
-#         # Write a file to indicate training completion
+#         # Write a file to indicate fine_tuning completion
 #         completion_indicator_path = os.path.join(model_path, "training_completed.txt")
 #         with open(completion_indicator_path, 'w') as f:
 #             f.write(f"Training completed at {timestamp}\n")

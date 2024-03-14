@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: falcon-7b-training
+  name: falcon-7b-tuning
 spec:
   replicas: 1
   selector:
@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: falcon-container
-          image: aimodelsregistrytest.azurecr.io/training-falcon-7b:0.0.1
+          image: aimodelsregistrytest.azurecr.io/fine_tuning-falcon-7b:0.0.1
           command: ["/bin/sh", "-c", "sleep infinity"]
           resources:
             requests:
@@ -55,7 +55,7 @@ spec:
               echo 'Docker daemon started'
 
               while true; do
-                FILE_PATH=$(find /workspace/tfs -name 'training_completed.txt')
+                FILE_PATH=$(find /workspace/tfs -name 'fine_tuning_completed.txt')
                 if [ ! -z "$FILE_PATH" ]; then
                   echo "FOUND TRAINING COMPLETED FILE at $FILE_PATH"
 

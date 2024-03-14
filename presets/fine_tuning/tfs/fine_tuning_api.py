@@ -128,6 +128,6 @@ trainer.save_model(train_config.save_output_path)
 
 # Write file to signify training completion
 timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-completion_indicator_path = os.path.join(train_config.save_output_path, "training_completed.txt")
+completion_indicator_path = os.path.join(train_config.save_output_path, "fine_tuning_completed.txt")
 with open(completion_indicator_path, 'w') as f:
-    f.write(f"Training completed at {timestamp}\n")
+    f.write(f"Fine-Tuning completed at {timestamp}\n")
