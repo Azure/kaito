@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: falcon-container
-          image: aimodelsregistrytest.azurecr.io/fine_tuning-falcon-7b:0.0.1
+          image: aimodelsregistrytest.azurecr.io/tuning-falcon-7b:0.0.1
           command: ["/bin/sh", "-c", "sleep infinity"]
           resources:
             requests:
