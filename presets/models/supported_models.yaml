@@ -79,7 +79,8 @@ models:
     type: text-generation 
     version: https://huggingface.co/microsoft/phi-2/commit/b10c3eba545ad279e7208ee3a5d644566f001670
     runtime: tfs
-    tag: 0.0.2
+    tag: 0.0.3
     # Tag history:
+    # 0.0.3 - Version endpoint
     # 0.0.2 - Update Default Params (#294)
     # 0.0.1 - Initial Release
