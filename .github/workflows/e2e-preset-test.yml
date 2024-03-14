@@ -274,6 +274,11 @@ jobs:
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && (steps.check_prod_image.outputs.IMAGE_EXISTS == 'false' || env.FORCE_RUN_ALL == 'true')
         run: |
             curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/healthz
+
+      - name: Test version endpoint
+        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && (steps.check_prod_image.outputs.IMAGE_EXISTS == 'false' || env.FORCE_RUN_ALL == 'true')
+        run: |
+            curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/version
     
       - name: Test inference endpoint
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && (steps.check_prod_image.outputs.IMAGE_EXISTS == 'false' || env.FORCE_RUN_ALL == 'true')
