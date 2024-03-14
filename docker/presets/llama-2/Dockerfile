@@ -26,8 +26,10 @@ RUN pip install 'uvicorn[standard]'
 ARG WEIGHTS_PATH
 ARG MODEL_TYPE
 ARG VERSION
-# Write the version to a file
-RUN echo $VERSION > /workspace/llama/version.txt
+ARG IMAGE_NAME
+
+# Write metadata to model_info.txt file
+RUN echo -e "$VERSION: $IMAGE_NAME" > /workspace/llama/model_info.txt
 
 ADD ${WEIGHTS_PATH} /workspace/llama/llama-2/weights
 ADD kaito/presets/inference/${MODEL_TYPE} /workspace/llama/llama-2

@@ -4,12 +4,13 @@ FROM mcr.microsoft.com/aifx/acpt/stable-ubuntu2004-cu118-py38-torch211
 ARG WEIGHTS_PATH
 ARG MODEL_TYPE
 ARG VERSION
+ARG IMAGE_NAME
 
 # Set the working directory
 WORKDIR /workspace/tfs
 
-# Write the version to a file
-RUN echo $VERSION > /workspace/tfs/version.txt
+# Write metadata to model_info.txt file
+RUN echo -e "$VERSION: $IMAGE_NAME" > /workspace/tfs/model_info.txt
 
 # First, copy just the requirements.txt file and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and

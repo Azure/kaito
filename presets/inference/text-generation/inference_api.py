@@ -13,6 +13,8 @@ from pydantic import BaseModel, Extra, Field
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
 
+# Constants
+MODEL_INFO = "model_info.txt"
 
 @dataclass
 class ModelConfig:
@@ -209,6 +211,13 @@ def get_metrics():
         return {"gpu_info": gpu_info}
     except Exception as e:
         return {"error": str(e)}
+
+@app.get("/version")
+def get_version():
+    with open(f"/workspace/tfs/{MODEL_INFO}", "r") as f:
+        model_name = f.read()
+
+    return {"version": model_name}
 
 if __name__ == "__main__":
     local_rank = int(os.environ.get("LOCAL_RANK", 0)) # Default to 0 if not set
