@@ -10,7 +10,7 @@ ARG IMAGE_NAME
 WORKDIR /workspace/tfs
 
 # Write metadata to model_info.txt file
-RUN echo -e "$VERSION\n$IMAGE_NAME" > /workspace/tfs/model_info.txt
+RUN echo -e "$VERSION: $IMAGE_NAME" > /workspace/tfs/model_info.txt
 
 # First, copy just the requirements.txt file and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and
