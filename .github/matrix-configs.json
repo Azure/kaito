@@ -3,7 +3,7 @@
         "model": {
             "runs_on": "self-hosted",
             "name": "falcon-7b",
-            "dockerfile": "docker/presets/falcon/Dockerfile",
+            "dockerfile": "docker/presets/inference/falcon/Dockerfile",
             "build_args": "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b"
         },
         "shouldBuildFalcon": "true"
@@ -12,7 +12,7 @@
         "model": {
             "runs_on": "self-hosted",
             "name": "falcon-7b-instruct",
-            "dockerfile": "docker/presets/falcon/Dockerfile",
+            "dockerfile": "docker/presets/inference/falcon/Dockerfile",
             "build_args": "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-7b-instruct"
         },
         "shouldBuildFalcon": "true"
@@ -22,7 +22,7 @@
         "model": {
             "runs_on": "self-hosted",
             "name": "falcon-40b",
-            "dockerfile": "docker/presets/falcon/Dockerfile",
+            "dockerfile": "docker/presets/inference/falcon/Dockerfile",
             "build_args": "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b"
         },
         "shouldBuildFalcon": "true"
@@ -32,7 +32,7 @@
         "model": {
             "runs_on": "self-hosted",
             "name": "falcon-40b-instruct",
-            "dockerfile": "docker/presets/falcon/Dockerfile",
+            "dockerfile": "docker/presets/inference/falcon/Dockerfile",
             "build_args": "--build-arg FALCON_MODEL_NAME=tiiuae/falcon-40b-instruct"
         },
         "shouldBuildFalcon": "true"
@@ -42,7 +42,7 @@
         "model": {
             "runs_on": "self-hosted",
             "name": "llama-2-7b",
-            "dockerfile": "docker/presets/llama-2/Dockerfile",
+            "dockerfile": "docker/presets/inference/llama-2/Dockerfile",
             "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-7b --build-arg SRC_DIR=/home/presets/llama-2"
         },
         "shouldBuildLlama2": "true"
@@ -52,7 +52,7 @@
         "model": {
             "runs_on": "self-hosted",
             "name": "llama-2-13b",
-            "dockerfile": "docker/presets/llama-2/Dockerfile",
+            "dockerfile": "docker/presets/inference/llama-2/Dockerfile",
             "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-13b --build-arg SRC_DIR=/home/presets/llama-2"
         },
         "shouldBuildLlama2": "true"
@@ -62,7 +62,7 @@
         "model": {
             "runs_on": "self-hosted",
             "name": "llama-2-70b",
-            "dockerfile": "docker/presets/llama-2/Dockerfile",
+            "dockerfile": "docker/presets/inference/llama-2/Dockerfile",
             "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-70b --build-arg SRC_DIR=/home/presets/llama-2"
         },
         "shouldBuildLlama2": "true"
@@ -72,7 +72,7 @@
         "model": {
             "runs_on": "self-hosted",
             "name": "llama-2-7b-chat",
-            "dockerfile": "docker/presets/llama-2/Dockerfile",
+            "dockerfile": "docker/presets/inference/llama-2/Dockerfile",
             "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-7b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
         },
         "shouldBuildLlama2Chat": "true"
@@ -82,7 +82,7 @@
         "model": {
             "runs_on": "self-hosted",
             "name": "llama-2-13b-chat",
-            "dockerfile": "docker/presets/llama-2/Dockerfile",
+            "dockerfile": "docker/presets/inference/llama-2/Dockerfile",
             "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-13b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
         },
         "shouldBuildLlama2Chat": "true"
@@ -92,7 +92,7 @@
         "model": {
             "runs_on": "self-hosted",
             "name": "llama-2-70b-chat",
-            "dockerfile": "docker/presets/llama-2/Dockerfile",
+            "dockerfile": "docker/presets/inference/llama-2/Dockerfile",
             "build_args": "--build-arg LLAMA_WEIGHTS=/llama/llama-2-70b-chat --build-arg SRC_DIR=/home/presets/llama-2-chat"
         },
         "shouldBuildLlama2Chat": "true"
