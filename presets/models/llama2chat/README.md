@@ -29,7 +29,7 @@ export LLAMA_WEIGHTS_PATH=<path to your downloaded model weight files>
 Use the following command to build the llama2chat inference service image from the root of the repo.
 ```
 docker build \
-  --file docker/presets/llama-2/Dockerfile \
+  --file docker/presets/inference/llama-2/Dockerfile \
   --build-arg WEIGHTS_PATH=$LLAMA_WEIGHTS_PATH \
   --build-arg MODEL_TYPE=llama2-chat \
   --build-arg VERSION=0.0.1 \

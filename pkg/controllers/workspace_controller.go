@@ -130,7 +130,7 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 
 func (c *WorkspaceReconciler) deleteWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace) (reconcile.Result, error) {
 	klog.InfoS("deleteWorkspace", "workspace", klog.KObj(wObj))
-	// TODO delete workspace, machine(s), training and inference (deployment, service) obj ( ok to delete machines? which will delete nodes??)
+	// TODO delete workspace, machine(s), fine_tuning and inference (deployment, service) obj ( ok to delete machines? which will delete nodes??)
 	err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeDeleting, metav1.ConditionTrue, "workspaceDeleted", "workspace is being deleted")
 	if err != nil {
 		klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
