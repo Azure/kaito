@@ -56,7 +56,7 @@ rules:
     verbs: ["create", "patch"]
   - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["patch", "delete"]
+    verbs: ["create", "patch", "delete"]
   - apiGroups: [""]
     resources: ["pods/eviction"]
     verbs: ["create"]
