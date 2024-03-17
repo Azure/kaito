@@ -18,7 +18,7 @@ env:
 jobs:
   check-tag:
     runs-on:
-      labels: [ self-hosted, "1ES.Pool=${{ matrix.runner }}" ]
+      labels: [ "self-hosted", "1ES.Pool=1es-aks-kaito-agent-pool-ubuntu" ]
     environment: publish-mcr
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
@@ -57,7 +57,7 @@ jobs:
 
   publish:
     runs-on:
-      labels: [ self-hosted, "1ES.Pool=${{ matrix.runner }}" ]
+      labels: [ "self-hosted", "1ES.Pool=1es-aks-kaito-agent-pool-ubuntu" ]
     environment: publish-mcr
     needs:
       - check-tag
