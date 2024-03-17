@@ -208,8 +208,6 @@ gpu-provisioner-helm:  ## Update Azure client env vars and settings in helm valu
 	$(eval AZURE_TENANT_ID=$(shell az account show | jq -r ".tenantId"))
 	$(eval AZURE_SUBSCRIPTION_ID=$(shell az account show | jq -r ".id"))
 
-	yq -i '(.controller.image.repository)                                              = "mcr.microsoft.com/aks/kaito/gpu-provisioner"'       ./charts/kaito/gpu-provisioner/values.yaml
-	yq -i '(.controller.image.tag)                                                     = "0.1.0"'                                             ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.controller.env[] | select(.name=="ARM_SUBSCRIPTION_ID"))           .value = "$(AZURE_SUBSCRIPTION_ID)"'                          ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.controller.env[] | select(.name=="LOCATION"))                      .value = "$(AZURE_LOCATION)"'                                 ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.controller.env[] | select(.name=="ARM_RESOURCE_GROUP"))            .value = "$(AZURE_RESOURCE_GROUP)"'                           ./charts/kaito/gpu-provisioner/values.yaml
