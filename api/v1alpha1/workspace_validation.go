@@ -218,15 +218,6 @@ func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.Field
 	return errs
 }
 
-func (w *Workspace) validateCreate() (errs *apis.FieldError) {
-	inferenceSpecified := w.Inference.Preset != nil || w.Inference.Template != nil
-	tuningSpecified := w.Tuning.Input != nil
-	if inferenceSpecified != tuningSpecified {
-		return errs.Also(apis.ErrGeneric("Either Inference or Tuning must be specified, but not both", ""))
-	}
-	return errs
-}
-
 func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.FieldError) {
 	var presetName string
 	if inference.Preset != nil {
@@ -271,21 +262,6 @@ func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.Field
 		errs = errs.Also(apis.ErrInvalidValue(err.Error(), "labelSelector"))
 	}
 
-	return errs
-}
-
-func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
-	// Check inference specified
-	oldInferenceSpecified := old.Inference.Preset != nil || old.Inference.Template != nil
-	inferenceSpecified := w.Inference.Preset != nil || w.Inference.Template != nil
-	// Check tuning specified
-	oldTuningSpecified := old.Tuning.Input != nil
-	tuningSpecified := w.Tuning.Input != nil
-
-	// inference/tuning can be changed, but cannot be set/unset.
-	if (!oldInferenceSpecified && inferenceSpecified) || (!oldTuningSpecified && tuningSpecified) {
-		errs = errs.Also(apis.ErrGeneric("field cannot be unset/set if it was set/unset", "spec"))
-	}
 	return errs
 }
 
