@@ -37,6 +37,9 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		errs = errs.Also(
 			w.validateCreate().ViaField("spec"),
 			w.Inference.validateCreate().ViaField("inference"),
+			w.Tuning.validateCreate().ViaField("tuning"),
+			w.Tuning.Input.validateCreate().ViaField("input"),
+			w.Tuning.Output.validateCreate().ViaField("output"),
 			w.Resource.validateCreate(w.Inference).ViaField("resource"),
 		)
 	} else {
@@ -44,8 +47,11 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		old := base.(*Workspace)
 		errs = errs.Also(
 			w.validateUpdate(old).ViaField("spec"),
-			w.Resource.validateUpdate(&old.Resource).ViaField("resource"),
 			w.Inference.validateUpdate(&old.Inference).ViaField("inference"),
+			w.Tuning.validateUpdate(&old.Tuning).ViaField("tuning"),
+			w.Tuning.Input.validateUpdate(old.Tuning.Input).ViaField("input"),
+			w.Tuning.Output.validateUpdate(old.Tuning.Output).ViaField("output"),
+			w.Resource.validateUpdate(&old.Resource).ViaField("resource"),
 		)
 	}
 	return errs
@@ -55,8 +61,121 @@ func (w *Workspace) validateCreate() (errs *apis.FieldError) {
 	inferenceSpecified := w.Inference.Preset != nil || w.Inference.Template != nil
 	tuningSpecified := w.Tuning.Input != nil
 	if inferenceSpecified != tuningSpecified {
-		return errs.Also(apis.ErrGeneric("Either Inference or Tuning must be specified, but not both", ""))
+		errs = errs.Also(apis.ErrGeneric("Either Inference or Tuning must be specified, but not both", ""))
 	}
+	return errs
+}
+
+func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
+	// Check inference specified
+	oldInferenceSpecified := old.Inference.Preset != nil || old.Inference.Template != nil
+	inferenceSpecified := w.Inference.Preset != nil || w.Inference.Template != nil
+	// Check tuning specified
+	oldTuningSpecified := old.Tuning.Input != nil
+	tuningSpecified := w.Tuning.Input != nil
+
+	// inference/tuning can be changed, but cannot be set/unset.
+	if (!oldInferenceSpecified && inferenceSpecified) || (!oldTuningSpecified && tuningSpecified) {
+		errs = errs.Also(apis.ErrGeneric("field cannot be unset/set if it was set/unset", "spec"))
+	}
+	return errs
+}
+
+func (r *TuningSpec) validateCreate() (errs *apis.FieldError) {
+	if r.Input == nil {
+		errs = errs.Also(apis.ErrMissingField("Input"))
+	}
+	if r.Output == nil {
+		errs = errs.Also(apis.ErrMissingField("Output"))
+	}
+	// Currently require a preset to specified, in future we can consider defining a template
+	if r.Preset == nil {
+		errs = errs.Also(apis.ErrMissingField("Preset"))
+	}
+	// TODO: We have to register training plugins and check if it preset exists in plugins here
+	methodLowerCase := strings.ToLower(string(r.Method))
+	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
+		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
+	}
+	return errs
+}
+
+func (r *TuningSpec) validateUpdate(old *TuningSpec) (errs *apis.FieldError) {
+	if !reflect.DeepEqual(old.Input, r.Input) {
+		errs = errs.Also(apis.ErrGeneric("Input field cannot be changed", "Input"))
+	}
+	if !reflect.DeepEqual(old.Output, r.Output) {
+		errs = errs.Also(apis.ErrGeneric("Output field cannot be changed", "Output"))
+	}
+	if !reflect.DeepEqual(old.Preset, r.Preset) {
+		errs = errs.Also(apis.ErrGeneric("Preset cannot be changed", "Preset"))
+	}
+	// We will have to consider supporting tuning method and config fields changing
+	methodLowerCase := strings.ToLower(string(r.Method))
+	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
+		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
+	}
+	return errs
+}
+
+func (r *DataSource) validateCreate() (errs *apis.FieldError) {
+	sourcesSpecified := 0
+	if len(r.URLs) > 0 {
+		sourcesSpecified++
+	}
+	if r.HostPath != "" {
+		sourcesSpecified++
+	}
+	if r.Image != "" {
+		sourcesSpecified++
+	}
+
+	// Ensure exactly one of URLs, HostPath, or Image is specified
+	if sourcesSpecified != 1 {
+		errs = errs.Also(apis.ErrGeneric("Exactly one of URLs, HostPath, or Image must be specified", "URLs", "HostPath", "Image"))
+	}
+
+	return errs
+}
+
+func (r *DataSource) validateUpdate(old *DataSource) (errs *apis.FieldError) {
+	if !reflect.DeepEqual(old.URLs, r.URLs) {
+		errs = errs.Also(apis.ErrInvalidValue("URLs field cannot be changed once set", "URLs"))
+	}
+	if old.HostPath != r.HostPath {
+		errs = errs.Also(apis.ErrInvalidValue("HostPath field cannot be changed once set", "HostPath"))
+	}
+	if old.Image != r.Image {
+		errs = errs.Also(apis.ErrInvalidValue("Image field cannot be changed once set", "Image"))
+	}
+	// TODO: Ensure ImageSecrets can be changed
+	return errs
+}
+
+func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
+	destinationsSpecified := 0
+	if r.HostPath != "" {
+		destinationsSpecified++
+	}
+	if r.Image != "" {
+		destinationsSpecified++
+	}
+
+	// If no destination is specified, return an error
+	if destinationsSpecified == 0 {
+		errs = errs.Also(apis.ErrMissingField("At least one of HostPath or Image must be specified"))
+	}
+	return errs
+}
+
+func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.FieldError) {
+	if old.HostPath != r.HostPath {
+		errs = errs.Also(apis.ErrInvalidValue("HostPath field cannot be changed once set", "HostPath"))
+	}
+	if old.Image != r.Image {
+		errs = errs.Also(apis.ErrInvalidValue("Image field cannot be changed once set", "Image"))
+	}
+	// TODO: Ensure ImageSecrets can be changed
 	return errs
 }
 
@@ -104,21 +223,6 @@ func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.Field
 		errs = errs.Also(apis.ErrInvalidValue(err.Error(), "labelSelector"))
 	}
 
-	return errs
-}
-
-func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
-	// Check inference specified
-	oldInferenceSpecified := old.Inference.Preset != nil || old.Inference.Template != nil
-	inferenceSpecified := w.Inference.Preset != nil || w.Inference.Template != nil
-	// Check tuning specified
-	oldTuningSpecified := old.Tuning.Input != nil
-	tuningSpecified := w.Tuning.Input != nil
-
-	// inference/tuning can be changed, but cannot be set/unset.
-	if (!oldInferenceSpecified && inferenceSpecified) || (!oldTuningSpecified && tuningSpecified) {
-		errs = errs.Also(apis.ErrGeneric("field cannot be unset/set if it was set/unset", "spec"))
-	}
 	return errs
 }
 
