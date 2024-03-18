@@ -13,7 +13,7 @@ const (
 	ModelImageAccessModePrivate ModelImageAccessMode = "private"
 )
 
-// ResourceSpec desicribes the resource requirement of running the workload.
+// ResourceSpec describes the resource requirement of running the workload.
 // If the number of nodes in the cluster that meet the InstanceType and
 // LabelSelector requirements is small than the Count, controller
 // will provision new nodes before deploying the workload.
@@ -51,7 +51,7 @@ type PresetMeta struct {
 	// AccessMode specifies whether the containerized model image is accessible via public registry
 	// or private registry. This field defaults to "public" if not specified.
 	// If this field is "private", user needs to provide the private image information in PresetOptions.
-	// +bebuilder:default:="public"
+	// +kubebuilder:default:="public"
 	// +optional
 	AccessMode ModelImageAccessMode `json:"accessMode,omitempty"`
 }
