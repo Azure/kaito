@@ -106,7 +106,7 @@ type DataSource struct {
 	// URLs specifies the links to the public data sources. E.g., files in a public github repository.
 	// +optional
 	URLs []string `json:"urls,omitempty"`
-	// The directory in the hsot that contains the data.
+	// The directory in the host that contains the data.
 	// +optional
 	HostPath string `json:"hostPath,omitempty"`
 	// The name of the image that contains the source data. The assumption is that the source data locates in the
