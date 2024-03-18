@@ -73,10 +73,12 @@ func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
 	// Check tuning specified
 	oldTuningSpecified := old.Tuning.Input != nil
 	tuningSpecified := w.Tuning.Input != nil
+	if (!oldInferenceSpecified && inferenceSpecified) || (oldInferenceSpecified && !inferenceSpecified) {
+		errs = errs.Also(apis.ErrGeneric("Inference field cannot be toggled once set", "inference"))
+	}
 
-	// inference/tuning can be changed, but cannot be set/unset.
-	if (!oldInferenceSpecified && inferenceSpecified) || (!oldTuningSpecified && tuningSpecified) {
-		errs = errs.Also(apis.ErrGeneric("field cannot be unset/set if it was set/unset", "spec"))
+	if (!oldTuningSpecified && tuningSpecified) || (oldTuningSpecified && !tuningSpecified) {
+		errs = errs.Also(apis.ErrGeneric("Tuning field cannot be toggled once set", "tuning"))
 	}
 	return errs
 }
