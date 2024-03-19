@@ -2,7 +2,7 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
-VERSION ?= v0.2.0
+VERSION ?= v0.2.1
 IMG_TAG ?= $(subst v,,$(VERSION))
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -208,8 +208,6 @@ gpu-provisioner-helm:  ## Update Azure client env vars and settings in helm valu
 	$(eval AZURE_TENANT_ID=$(shell az account show | jq -r ".tenantId"))
 	$(eval AZURE_SUBSCRIPTION_ID=$(shell az account show | jq -r ".id"))
 
-	yq -i '(.controller.image.repository)                                              = "mcr.microsoft.com/aks/kaito/gpu-provisioner"'       ./charts/kaito/gpu-provisioner/values.yaml
-	yq -i '(.controller.image.tag)                                                     = "0.1.0"'                                             ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.controller.env[] | select(.name=="ARM_SUBSCRIPTION_ID"))           .value = "$(AZURE_SUBSCRIPTION_ID)"'                          ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.controller.env[] | select(.name=="LOCATION"))                      .value = "$(AZURE_LOCATION)"'                                 ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.controller.env[] | select(.name=="ARM_RESOURCE_GROUP"))            .value = "$(AZURE_RESOURCE_GROUP)"'                           ./charts/kaito/gpu-provisioner/values.yaml
@@ -266,7 +264,7 @@ lint: $(GOLANGCI_LINT)
 .PHONY: release-manifest
 release-manifest:
 	@sed -i -e 's/^VERSION ?= .*/VERSION ?= ${VERSION}/' ./Makefile
-	@sed -i -e "s/version: .*/version: ${IMG_TAG}/" ./charts/kaito/workspace/Chart.yaml
+	@sed -i -e "s/appVersion: .*/appVersion: ${IMG_TAG}/" ./charts/kaito/workspace/Chart.yaml
 	@sed -i -e "s/tag: .*/tag: ${IMG_TAG}/" ./charts/kaito/workspace/values.yaml
 	@sed -i -e 's/IMG_TAG=.*/IMG_TAG=${IMG_TAG}/' ./charts/kaito/workspace/README.md
 	git checkout -b release-${VERSION}
