@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/azure/kaito/pkg/utils/plugin"
@@ -60,7 +61,10 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 func (w *Workspace) validateCreate() (errs *apis.FieldError) {
 	inferenceSpecified := w.Inference.Preset != nil || w.Inference.Template != nil
 	tuningSpecified := w.Tuning.Input != nil
-	if inferenceSpecified != tuningSpecified {
+	if !inferenceSpecified && !tuningSpecified {
+		errs = errs.Also(apis.ErrGeneric("Either Inference or Tuning must be specified, not neither", ""))
+	}
+	if inferenceSpecified && tuningSpecified {
 		errs = errs.Also(apis.ErrGeneric("Either Inference or Tuning must be specified, but not both", ""))
 	}
 	return errs
@@ -93,8 +97,9 @@ func (r *TuningSpec) validateCreate() (errs *apis.FieldError) {
 	// Currently require a preset to specified, in future we can consider defining a template
 	if r.Preset == nil {
 		errs = errs.Also(apis.ErrMissingField("Preset"))
+	} else if presetName := string(r.Preset.Name); !isValidPreset(presetName) {
+		errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported tuning preset name %s", presetName), "presetName"))
 	}
-	// TODO: We have to register training plugins and check if it preset exists in plugins here
 	methodLowerCase := strings.ToLower(string(r.Method))
 	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
 		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
@@ -112,11 +117,11 @@ func (r *TuningSpec) validateUpdate(old *TuningSpec) (errs *apis.FieldError) {
 	if !reflect.DeepEqual(old.Preset, r.Preset) {
 		errs = errs.Also(apis.ErrGeneric("Preset cannot be changed", "Preset"))
 	}
-	// We will have to consider supporting tuning method and config fields changing
-	methodLowerCase := strings.ToLower(string(r.Method))
-	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
-		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
+	oldMethod, newMethod := strings.ToLower(string(old.Method)), strings.ToLower(string(r.Method))
+	if !reflect.DeepEqual(oldMethod, newMethod) {
+		errs = errs.Also(apis.ErrGeneric("Method cannot be changed", "Method"))
 	}
+	// Consider supporting config fields changing
 	return errs
 }
 
@@ -141,7 +146,15 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 }
 
 func (r *DataSource) validateUpdate(old *DataSource) (errs *apis.FieldError) {
-	if !reflect.DeepEqual(old.URLs, r.URLs) {
+	oldURLs := make([]string, len(old.URLs))
+	copy(oldURLs, old.URLs)
+	sort.Strings(old.URLs)
+
+	newURLs := make([]string, len(r.URLs))
+	copy(newURLs, r.URLs)
+	sort.Strings(r.URLs)
+
+	if !reflect.DeepEqual(oldURLs, newURLs) {
 		errs = errs.Also(apis.ErrInvalidValue("URLs field cannot be changed once set", "URLs"))
 	}
 	if old.HostPath != r.HostPath {
@@ -150,7 +163,18 @@ func (r *DataSource) validateUpdate(old *DataSource) (errs *apis.FieldError) {
 	if old.Image != r.Image {
 		errs = errs.Also(apis.ErrInvalidValue("Image field cannot be changed once set", "Image"))
 	}
-	// TODO: Ensure ImageSecrets can be changed
+
+	oldSecrets := make([]string, len(old.ImagePullSecrets))
+	copy(oldSecrets, old.ImagePullSecrets)
+	sort.Strings(oldSecrets)
+
+	newSecrets := make([]string, len(r.ImagePullSecrets))
+	copy(newSecrets, r.ImagePullSecrets)
+	sort.Strings(newSecrets)
+
+	if !reflect.DeepEqual(oldSecrets, newSecrets) {
+		errs = errs.Also(apis.ErrInvalidValue("ImagePullSecrets field cannot be changed once set", "ImagePullSecrets"))
+	}
 	return errs
 }
 
@@ -177,7 +201,10 @@ func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.Field
 	if old.Image != r.Image {
 		errs = errs.Also(apis.ErrInvalidValue("Image field cannot be changed once set", "Image"))
 	}
-	// TODO: Ensure ImageSecrets can be changed
+
+	if old.ImagePushSecret != r.ImagePushSecret {
+		errs = errs.Also(apis.ErrInvalidValue("ImagePushSecret field cannot be changed once set", "ImagePushSecret"))
+	}
 	return errs
 }
 
@@ -263,7 +290,7 @@ func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
 		presetName := string(i.Preset.Name)
 		// Validate preset name
 		if !isValidPreset(presetName) {
-			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported preset name %s", presetName), "presetName"))
+			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported inference preset name %s", presetName), "presetName"))
 		}
 		// Validate private preset has private image specified
 		if plugin.KaitoModelRegister.MustGet(string(i.Preset.Name)).GetInferenceParameters().ImageAccessMode == "private" &&
