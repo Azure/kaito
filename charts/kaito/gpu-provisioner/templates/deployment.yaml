@@ -75,6 +75,8 @@ spec:
           image: {{ include "gpu-provisioner.controller.image" . }}
           imagePullPolicy: {{ .Values.imagePullPolicy }}
           env:
+            - name: CONFIG_LOGGING_NAME
+              value: "gpu-provisioner-config-logging"
             - name: SYSTEM_NAMESPACE
               valueFrom:
                 fieldRef:
