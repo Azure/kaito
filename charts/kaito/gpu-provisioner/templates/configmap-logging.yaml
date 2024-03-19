@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: config-logging
+  name: gpu-provisioner-config-logging
   namespace:  {{ .Values.namespace }}
   labels:
     {{- include "gpu-provisioner.labels" . | nindent 4 }}
