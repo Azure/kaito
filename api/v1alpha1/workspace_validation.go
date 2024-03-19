@@ -148,11 +148,11 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 func (r *DataSource) validateUpdate(old *DataSource) (errs *apis.FieldError) {
 	oldURLs := make([]string, len(old.URLs))
 	copy(oldURLs, old.URLs)
-	sort.Strings(old.URLs)
+	sort.Strings(oldURLs)
 
 	newURLs := make([]string, len(r.URLs))
 	copy(newURLs, r.URLs)
-	sort.Strings(r.URLs)
+	sort.Strings(newURLs)
 
 	if !reflect.DeepEqual(oldURLs, newURLs) {
 		errs = errs.Also(apis.ErrInvalidValue("URLs field cannot be changed once set", "URLs"))
