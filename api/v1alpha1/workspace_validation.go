@@ -218,17 +218,6 @@ func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.Field
 	return errs
 }
 
-func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.FieldError) {
-	if old.HostPath != r.HostPath {
-		errs = errs.Also(apis.ErrInvalidValue("HostPath field cannot be changed once set", "HostPath"))
-	}
-	if old.Image != r.Image {
-		errs = errs.Also(apis.ErrInvalidValue("Image field cannot be changed once set", "Image"))
-	}
-	// TODO: Ensure ImageSecrets can be changed
-	return errs
-}
-
 func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.FieldError) {
 	var presetName string
 	if inference.Preset != nil {
