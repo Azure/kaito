@@ -1,9 +1,5 @@
 name: Create release
 on:
-  workflow_run:
-    workflows: [ "Create, Scan and Publish KAITO image" ]
-    types: [completed]
-    branches: [release-**]
   repository_dispatch:
     types: [ release-tag ]
     branches: [ release-** ]
@@ -18,7 +14,6 @@ env:
 
 jobs:
   create-release:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-20.04
     steps:
       - name: Harden Runner
