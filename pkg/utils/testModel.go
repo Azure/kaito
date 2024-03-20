@@ -12,8 +12,8 @@ import (
 
 type testModel struct{}
 
-func (*testModel) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*testModel) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		GPUCountRequirement: "1",
 		DeploymentTimeout:   time.Duration(30) * time.Minute,
 	}
@@ -24,8 +24,8 @@ func (*testModel) SupportDistributedInference() bool {
 
 type testDistributedModel struct{}
 
-func (*testDistributedModel) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*testDistributedModel) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		GPUCountRequirement: "1",
 		DeploymentTimeout:   time.Duration(30) * time.Minute,
 	}

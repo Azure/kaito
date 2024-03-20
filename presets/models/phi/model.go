@@ -36,8 +36,8 @@ var phiA phi2
 
 type phi2 struct{}
 
-func (*phi2) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*phi2) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "Phi",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
