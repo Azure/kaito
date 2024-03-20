@@ -16,6 +16,9 @@ const (
 	// WorkspaceConditionTypeInferenceStatus is the state when Inference has been created.
 	WorkspaceConditionTypeInferenceStatus = ConditionType("InferenceReady")
 
+	// WorkspaceConditionTypeTuningStatus is the state when Tuning has been created.
+	WorkspaceConditionTypeTuningStatus = ConditionType("TuningReady")
+
 	//WorkspaceConditionTypeDeleting is the Workspace state when starts to get deleted.
 	WorkspaceConditionTypeDeleting = ConditionType("WorkspaceDeleting")
 

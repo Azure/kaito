@@ -5,6 +5,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"github.com/azure/kaito/pkg/tuning"
 	"sort"
 	"strings"
 	"time"
@@ -109,16 +110,27 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 		return reconcile.Result{}, err
 	}
 
-	if err = c.applyInference(ctx, wObj); err != nil {
-		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
-			"workspaceFailed", err.Error()); updateErr != nil {
-			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
-			return reconcile.Result{}, updateErr
+	if wObj.Tuning != nil {
+		if err = c.applyTuning(ctx, wObj); err != nil {
+			if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
+				"workspaceFailed", err.Error()); updateErr != nil {
+				klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+				return reconcile.Result{}, updateErr
+			}
+			return reconcile.Result{}, err
 		}
-		return reconcile.Result{}, err
+	}
+	if wObj.Inference != nil {
+		if err = c.applyInference(ctx, wObj); err != nil {
+			if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
+				"workspaceFailed", err.Error()); updateErr != nil {
+				klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+				return reconcile.Result{}, updateErr
+			}
+			return reconcile.Result{}, err
+		}
 	}
 
-	// TODO apply TrainingSpec
 	if err = c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionTrue,
 		"workspaceReady", "workspace is ready"); err != nil {
 		klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
@@ -419,6 +431,55 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+func (c *WorkspaceReconciler) applyTuning(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
+	var err error
+	func() {
+		if wObj.Tuning.Preset != nil {
+			presetName := string(wObj.Tuning.Preset.Name)
+			model := plugin.KaitoModelRegister.MustGet(presetName)
+
+			trainingParam := model.GetTrainingParameters()
+
+			var existingObj client.Object
+			existingObj = &appsv1.Deployment{}
+			if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
+				klog.InfoS("A training workload already exists for workspace", "workspace", klog.KObj(wObj))
+				if err = resources.CheckResourceStatus(existingObj, c.Client, trainingParam.DeploymentTimeout); err != nil {
+					return
+				}
+			} else if apierrors.IsNotFound(err) {
+				var workloadObj client.Object
+				// Need to create a new workload
+				workloadObj, err = tuning.CreatePresetTuning(ctx, wObj, trainingParam, c.Client)
+				if err != nil {
+					return
+				}
+				if err = resources.CheckResourceStatus(workloadObj, c.Client, trainingParam.DeploymentTimeout); err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	if err != nil {
+		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeTuningStatus, metav1.ConditionFalse,
+			"WorkspaceTuningStatusFailed", err.Error()); updateErr != nil {
+			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+			return updateErr
+		} else {
+			return err
+
+		}
+	}
+
+	if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeTuningStatus, metav1.ConditionTrue,
+		"WorkspaceTuningStatusSuccess", "Tuning has been deployed successfully"); err != nil {
+		klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
+		return err
 	}
 	return nil
 }

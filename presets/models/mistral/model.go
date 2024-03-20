@@ -42,8 +42,8 @@ var mistralA mistral7b
 
 type mistral7b struct{}
 
-func (*mistral7b) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*mistral7b) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "Mistral",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "100Gi",
@@ -58,6 +58,22 @@ func (*mistral7b) GetInferenceParameters() *model.PresetInferenceParam {
 	}
 
 }
+func (*mistral7b) GetTrainingParameters() *model.PresetParam {
+	return &model.PresetParam{
+		ModelFamilyName:           "Mistral",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
+		DiskStorageRequirement:    "100Gi",
+		GPUCountRequirement:       "1",
+		TotalGPUMemoryRequirement: "16Gi",
+		PerGPUMemoryRequirement:   "16Gi", // We run Mistral using native vertical model parallel, no per GPU memory requirement.
+		//TorchRunParams:            tuning.DefaultAccelerateParams,
+		//ModelRunParams:            mistralRunParams,
+		DeploymentTimeout: time.Duration(30) * time.Minute,
+		BaseCommand:       baseCommandPresetMistral,
+		Tag:               PresetMistralTagMap["Mistral7B"],
+	}
+}
+
 func (*mistral7b) SupportDistributedInference() bool {
 	return false
 }
@@ -66,8 +82,8 @@ var mistralB mistral7bInst
 
 type mistral7bInst struct{}
 
-func (*mistral7bInst) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*mistral7bInst) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "Mistral",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "100Gi",
@@ -81,6 +97,9 @@ func (*mistral7bInst) GetInferenceParameters() *model.PresetInferenceParam {
 		Tag:                       PresetMistralTagMap["Mistral7BInstruct"],
 	}
 
+}
+func (*mistral7bInst) GetTrainingParameters() *model.PresetParam {
+	return nil // It is not recommended/ideal to further fine-tune instruct models - Already been fine-tuned
 }
 func (*mistral7bInst) SupportDistributedInference() bool {
 	return false

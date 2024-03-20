@@ -7,12 +7,13 @@ import (
 )
 
 type Model interface {
-	GetInferenceParameters() *PresetInferenceParam
+	GetInferenceParameters() *PresetParam
+	GetTrainingParameters() *PresetParam
 	SupportDistributedInference() bool //If true, the model workload will be a StatefulSet, using the torch elastic runtime framework.
 }
 
-// PresetInferenceParam defines the preset inference parameters for a model.
-type PresetInferenceParam struct {
+// PresetParam defines the preset inference parameters for a model.
+type PresetParam struct {
 	ModelFamilyName           string            // The name of the model family.
 	ImageAccessMode           string            // Defines where the Image is Public or Private.
 	DiskStorageRequirement    string            // Disk storage requirements for the model.
