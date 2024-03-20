@@ -54,8 +54,8 @@ var falconA falcon7b
 
 type falcon7b struct{}
 
-func (*falcon7b) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*falcon7b) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "Falcon",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
@@ -68,8 +68,23 @@ func (*falcon7b) GetInferenceParameters() *model.PresetInferenceParam {
 		BaseCommand:               baseCommandPresetFalcon,
 		Tag:                       PresetFalconTagMap["Falcon7B"],
 	}
-
 }
+func (*falcon7b) GetTrainingParameters() *model.PresetParam {
+	return &model.PresetParam{
+		ModelFamilyName:           "Falcon",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
+		DiskStorageRequirement:    "50Gi",
+		GPUCountRequirement:       "2",
+		TotalGPUMemoryRequirement: "16Gi",
+		PerGPUMemoryRequirement:   "16Gi",
+		//TorchRunParams:            tuning.DefaultAccelerateParams, // TODO
+		//ModelRunPrams:             falconRunTuningParams, // TODO
+		DeploymentTimeout: time.Duration(30) * time.Minute,
+		BaseCommand:       baseCommandPresetFalcon,
+		Tag:               PresetFalconTagMap["Falcon7B"],
+	}
+}
+
 func (*falcon7b) SupportDistributedInference() bool {
 	return false
 }
@@ -78,8 +93,8 @@ var falconB falcon7bInst
 
 type falcon7bInst struct{}
 
-func (*falcon7bInst) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*falcon7bInst) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "Falcon",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
@@ -94,6 +109,9 @@ func (*falcon7bInst) GetInferenceParameters() *model.PresetInferenceParam {
 	}
 
 }
+func (*falcon7bInst) GetTrainingParameters() *model.PresetParam {
+	return nil // It is not recommended/ideal to further fine-tune instruct models - Already been fine-tuned
+}
 func (*falcon7bInst) SupportDistributedInference() bool {
 	return false
 }
@@ -102,8 +120,8 @@ var falconC falcon40b
 
 type falcon40b struct{}
 
-func (*falcon40b) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*falcon40b) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "Falcon",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "400",
@@ -118,6 +136,21 @@ func (*falcon40b) GetInferenceParameters() *model.PresetInferenceParam {
 	}
 
 }
+func (*falcon40b) GetTrainingParameters() *model.PresetParam {
+	return &model.PresetParam{
+		ModelFamilyName:           "Falcon",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
+		DiskStorageRequirement:    "50Gi",
+		GPUCountRequirement:       "2",
+		TotalGPUMemoryRequirement: "90Gi",
+		PerGPUMemoryRequirement:   "16Gi",
+		//TorchRunParams:            tuning.DefaultAccelerateParams, // TODO
+		//ModelRunPrams:             falconRunTuningParams, // TODO
+		DeploymentTimeout: time.Duration(30) * time.Minute,
+		BaseCommand:       baseCommandPresetFalcon,
+		Tag:               PresetFalconTagMap["Falcon40B"],
+	}
+}
 func (*falcon40b) SupportDistributedInference() bool {
 	return false
 }
@@ -126,8 +159,8 @@ var falconD falcon40bInst
 
 type falcon40bInst struct{}
 
-func (*falcon40bInst) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*falcon40bInst) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "Falcon",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "400",
@@ -141,7 +174,9 @@ func (*falcon40bInst) GetInferenceParameters() *model.PresetInferenceParam {
 		Tag:                       PresetFalconTagMap["Falcon40BInstruct"],
 	}
 }
-
+func (*falcon40bInst) GetTrainingParameters() *model.PresetParam {
+	return nil // It is not recommended/ideal to further fine-tune instruct models - Already been fine-tuned
+}
 func (*falcon40bInst) SupportDistributedInference() bool {
 	return false
 }

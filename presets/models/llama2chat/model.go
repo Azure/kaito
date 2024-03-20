@@ -38,8 +38,8 @@ var llama2chatA llama2Chat7b
 
 type llama2Chat7b struct{}
 
-func (*llama2Chat7b) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*llama2Chat7b) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "LLaMa2",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "34Gi",
@@ -54,7 +54,9 @@ func (*llama2Chat7b) GetInferenceParameters() *model.PresetInferenceParam {
 		WorldSize:                 1,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
-
+}
+func (*llama2Chat7b) GetTrainingParameters() *model.PresetParam {
+	return nil // Currently doesn't support fine-tuning
 }
 func (*llama2Chat7b) SupportDistributedInference() bool {
 	return false
@@ -64,8 +66,8 @@ var llama2chatB llama2Chat13b
 
 type llama2Chat13b struct{}
 
-func (*llama2Chat13b) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*llama2Chat13b) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "LLaMa2",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "46Gi",
@@ -81,6 +83,9 @@ func (*llama2Chat13b) GetInferenceParameters() *model.PresetInferenceParam {
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
 }
+func (*llama2Chat13b) GetTrainingParameters() *model.PresetParam {
+	return nil // Currently doesn't support fine-tuning
+}
 func (*llama2Chat13b) SupportDistributedInference() bool {
 	return true
 }
@@ -89,8 +94,8 @@ var llama2chatC llama2Chat70b
 
 type llama2Chat70b struct{}
 
-func (*llama2Chat70b) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*llama2Chat70b) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "LLaMa2",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "158Gi",
@@ -105,6 +110,9 @@ func (*llama2Chat70b) GetInferenceParameters() *model.PresetInferenceParam {
 		WorldSize:                 8,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
+}
+func (*llama2Chat70b) GetTrainingParameters() *model.PresetParam {
+	return nil // Currently doesn't support fine-tuning
 }
 func (*llama2Chat70b) SupportDistributedInference() bool {
 	return true
