@@ -496,19 +496,16 @@ func TestWorkspaceValidateCreate(t *testing.T) {
 		errField  string
 	}{
 		{
-			name: "Neither Inference nor Tuning specified",
-			workspace: &Workspace{
-				Inference: InferenceSpec{},
-				Tuning:    TuningSpec{},
-			},
-			wantErr:  true,
-			errField: "neither",
+			name:      "Neither Inference nor Tuning specified",
+			workspace: &Workspace{},
+			wantErr:   true,
+			errField:  "neither",
 		},
 		{
 			name: "Both Inference and Tuning specified",
 			workspace: &Workspace{
-				Inference: InferenceSpec{Preset: &PresetSpec{}},
-				Tuning:    TuningSpec{Input: &DataSource{}},
+				Inference: &InferenceSpec{},
+				Tuning:    &TuningSpec{},
 			},
 			wantErr:  true,
 			errField: "both",
@@ -516,7 +513,7 @@ func TestWorkspaceValidateCreate(t *testing.T) {
 		{
 			name: "Only Inference specified",
 			workspace: &Workspace{
-				Inference: InferenceSpec{Preset: &PresetSpec{}},
+				Inference: &InferenceSpec{},
 			},
 			wantErr:  false,
 			errField: "",
@@ -524,7 +521,7 @@ func TestWorkspaceValidateCreate(t *testing.T) {
 		{
 			name: "Only Tuning specified",
 			workspace: &Workspace{
-				Tuning: TuningSpec{Input: &DataSource{}},
+				Tuning: &TuningSpec{Input: &DataSource{}},
 			},
 			wantErr:  false,
 			errField: "",
@@ -553,12 +550,10 @@ func TestWorkspaceValidateUpdate(t *testing.T) {
 		errFields    []string // Fields we expect to have errors
 	}{
 		{
-			name: "Inference toggled on",
-			oldWorkspace: &Workspace{
-				Inference: InferenceSpec{},
-			},
+			name:         "Inference toggled on",
+			oldWorkspace: &Workspace{},
 			newWorkspace: &Workspace{
-				Inference: InferenceSpec{Preset: &PresetSpec{}},
+				Inference: &InferenceSpec{},
 			},
 			expectErrs: true,
 			errFields:  []string{"inference"},
@@ -566,21 +561,17 @@ func TestWorkspaceValidateUpdate(t *testing.T) {
 		{
 			name: "Inference toggled off",
 			oldWorkspace: &Workspace{
-				Inference: InferenceSpec{Preset: &PresetSpec{}},
+				Inference: &InferenceSpec{Preset: &PresetSpec{}},
 			},
-			newWorkspace: &Workspace{
-				Inference: InferenceSpec{},
-			},
-			expectErrs: true,
-			errFields:  []string{"inference"},
+			newWorkspace: &Workspace{},
+			expectErrs:   true,
+			errFields:    []string{"inference"},
 		},
 		{
-			name: "Tuning toggled on",
-			oldWorkspace: &Workspace{
-				Tuning: TuningSpec{},
-			},
+			name:         "Tuning toggled on",
+			oldWorkspace: &Workspace{},
 			newWorkspace: &Workspace{
-				Tuning: TuningSpec{Input: &DataSource{}},
+				Tuning: &TuningSpec{Input: &DataSource{}},
 			},
 			expectErrs: true,
 			errFields:  []string{"tuning"},
@@ -588,21 +579,19 @@ func TestWorkspaceValidateUpdate(t *testing.T) {
 		{
 			name: "Tuning toggled off",
 			oldWorkspace: &Workspace{
-				Tuning: TuningSpec{Input: &DataSource{}},
+				Tuning: &TuningSpec{Input: &DataSource{}},
 			},
-			newWorkspace: &Workspace{
-				Tuning: TuningSpec{},
-			},
-			expectErrs: true,
-			errFields:  []string{"tuning"},
+			newWorkspace: &Workspace{},
+			expectErrs:   true,
+			errFields:    []string{"tuning"},
 		},
 		{
 			name: "No toggling",
 			oldWorkspace: &Workspace{
-				Tuning: TuningSpec{Input: &DataSource{}},
+				Tuning: &TuningSpec{Input: &DataSource{}},
 			},
 			newWorkspace: &Workspace{
-				Tuning: TuningSpec{Input: &DataSource{}},
+				Tuning: &TuningSpec{Input: &DataSource{}},
 			},
 			expectErrs: false,
 		},
@@ -639,7 +628,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 		{
 			name: "All fields valid",
 			tuningSpec: &TuningSpec{
-				Input:  &DataSource{Name: "valid-input"},
+				Input:  &DataSource{Name: "valid-input", HostPath: "valid-input"},
 				Output: &DataDestination{HostPath: "valid-output"},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
@@ -749,13 +738,15 @@ func TestTuningSpecValidateUpdate(t *testing.T) {
 		{
 			name: "Input changed",
 			oldTuning: &TuningSpec{
-				Input: &DataSource{Name: "input1"},
+				Input:  &DataSource{Name: "input", HostPath: "inputpath"},
+				Output: &DataDestination{HostPath: "outputpath"},
 			},
 			newTuning: &TuningSpec{
-				Input: &DataSource{Name: "input2"},
+				Input:  &DataSource{Name: "input", HostPath: "randompath"},
+				Output: &DataDestination{HostPath: "outputpath"},
 			},
 			expectErrs: true,
-			errFields:  []string{"Input"},
+			errFields:  []string{"HostPath"},
 		},
 		{
 			name: "Output changed",

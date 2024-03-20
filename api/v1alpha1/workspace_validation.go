@@ -37,51 +37,48 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		klog.InfoS("Validate creation", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
 		errs = errs.Also(
 			w.validateCreate().ViaField("spec"),
-			w.Inference.validateCreate().ViaField("inference"),
-			w.Tuning.validateCreate().ViaField("tuning"),
-			w.Tuning.Input.validateCreate().ViaField("input"),
-			w.Tuning.Output.validateCreate().ViaField("output"),
-			w.Resource.validateCreate(w.Inference).ViaField("resource"),
+			// TODO: Consider validate resource based on Tuning Spec
+			w.Resource.validateCreate(*w.Inference).ViaField("resource"),
 		)
+		if w.Inference != nil {
+			errs = errs.Also(w.Inference.validateCreate().ViaField("inference"))
+		}
+		if w.Tuning != nil {
+			errs = errs.Also(w.Tuning.validateCreate().ViaField("tuning"))
+		}
 	} else {
 		klog.InfoS("Validate update", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
 		old := base.(*Workspace)
 		errs = errs.Also(
 			w.validateUpdate(old).ViaField("spec"),
-			w.Inference.validateUpdate(&old.Inference).ViaField("inference"),
-			w.Tuning.validateUpdate(&old.Tuning).ViaField("tuning"),
-			w.Tuning.Input.validateUpdate(old.Tuning.Input).ViaField("input"),
-			w.Tuning.Output.validateUpdate(old.Tuning.Output).ViaField("output"),
 			w.Resource.validateUpdate(&old.Resource).ViaField("resource"),
 		)
+		if w.Inference != nil {
+			errs = errs.Also(w.Inference.validateUpdate(old.Inference).ViaField("inference"))
+		}
+		if w.Tuning != nil {
+			errs = errs.Also(w.Tuning.validateUpdate(old.Tuning).ViaField("tuning"))
+		}
 	}
 	return errs
 }
 
 func (w *Workspace) validateCreate() (errs *apis.FieldError) {
-	inferenceSpecified := w.Inference.Preset != nil || w.Inference.Template != nil
-	tuningSpecified := w.Tuning.Input != nil
-	if !inferenceSpecified && !tuningSpecified {
+	if w.Inference == nil && w.Tuning == nil {
 		errs = errs.Also(apis.ErrGeneric("Either Inference or Tuning must be specified, not neither", ""))
 	}
-	if inferenceSpecified && tuningSpecified {
+	if w.Inference != nil && w.Tuning != nil {
 		errs = errs.Also(apis.ErrGeneric("Either Inference or Tuning must be specified, but not both", ""))
 	}
 	return errs
 }
 
 func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
-	// Check inference specified
-	oldInferenceSpecified := old.Inference.Preset != nil || old.Inference.Template != nil
-	inferenceSpecified := w.Inference.Preset != nil || w.Inference.Template != nil
-	// Check tuning specified
-	oldTuningSpecified := old.Tuning.Input != nil
-	tuningSpecified := w.Tuning.Input != nil
-	if (!oldInferenceSpecified && inferenceSpecified) || (oldInferenceSpecified && !inferenceSpecified) {
+	if (old.Inference == nil && w.Inference != nil) || (old.Inference != nil && w.Inference == nil) {
 		errs = errs.Also(apis.ErrGeneric("Inference field cannot be toggled once set", "inference"))
 	}
 
-	if (!oldTuningSpecified && tuningSpecified) || (oldTuningSpecified && !tuningSpecified) {
+	if (old.Tuning == nil && w.Tuning != nil) || (old.Tuning != nil && w.Tuning == nil) {
 		errs = errs.Also(apis.ErrGeneric("Tuning field cannot be toggled once set", "tuning"))
 	}
 	return errs
@@ -90,9 +87,13 @@ func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
 func (r *TuningSpec) validateCreate() (errs *apis.FieldError) {
 	if r.Input == nil {
 		errs = errs.Also(apis.ErrMissingField("Input"))
+	} else {
+		errs = errs.Also(r.Input.validateCreate().ViaField("Input"))
 	}
 	if r.Output == nil {
 		errs = errs.Also(apis.ErrMissingField("Output"))
+	} else {
+		errs = errs.Also(r.Output.validateCreate().ViaField("Output"))
 	}
 	// Currently require a preset to specified, in future we can consider defining a template
 	if r.Preset == nil {
@@ -108,11 +109,15 @@ func (r *TuningSpec) validateCreate() (errs *apis.FieldError) {
 }
 
 func (r *TuningSpec) validateUpdate(old *TuningSpec) (errs *apis.FieldError) {
-	if !reflect.DeepEqual(old.Input, r.Input) {
-		errs = errs.Also(apis.ErrGeneric("Input field cannot be changed", "Input"))
+	if r.Input == nil {
+		errs = errs.Also(apis.ErrMissingField("Input"))
+	} else {
+		errs = errs.Also(r.Input.validateUpdate(old.Input).ViaField("Input"))
 	}
-	if !reflect.DeepEqual(old.Output, r.Output) {
-		errs = errs.Also(apis.ErrGeneric("Output field cannot be changed", "Output"))
+	if r.Output == nil {
+		errs = errs.Also(apis.ErrMissingField("Output"))
+	} else {
+		errs = errs.Also(r.Output.validateUpdate(old.Output).ViaField("Output"))
 	}
 	if !reflect.DeepEqual(old.Preset, r.Preset) {
 		errs = errs.Also(apis.ErrGeneric("Preset cannot be changed", "Preset"))

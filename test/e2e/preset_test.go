@@ -26,13 +26,13 @@ import (
 )
 
 const (
-	PresetLlama2AChat    = "llama-2-7b-chat"
-	PresetLlama2BChat    = "llama-2-13b-chat"
-	PresetFalcon7BModel  = "falcon-7b"
-	PresetFalcon40BModel = "falcon-40b"
-	PresetMistral7BModel = "mistral-7b"
+	PresetLlama2AChat            = "llama-2-7b-chat"
+	PresetLlama2BChat            = "llama-2-13b-chat"
+	PresetFalcon7BModel          = "falcon-7b"
+	PresetFalcon40BModel         = "falcon-40b"
+	PresetMistral7BModel         = "mistral-7b"
 	PresetMistral7BInstructModel = "mistral-7b-instruct"
-	PresetPhi2Model = "phi-2"
+	PresetPhi2Model              = "phi-2"
 )
 
 func createFalconWorkspaceWithPresetPublicMode(numOfNode int) *kaitov1alpha1.Workspace {
@@ -348,17 +348,17 @@ var _ = Describe("Workspace Preset", func() {
 			fmt.Print("Error: RUN_LLAMA_13B ENV Variable not set")
 			runLlama13B = false
 		}
-	
+
 		aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
 		aiModelsRegistrySecret = utils.GetEnv("AI_MODELS_REGISTRY_SECRET")
-		
+
 		// Load stable model versions
 		configs, err := utils.GetModelConfigInfo("/home/runner/work/kaito/kaito/presets/models/supported_models.yaml")
 		if err != nil {
 			fmt.Printf("Failed to load model configs: %v\n", err)
 			os.Exit(1)
 		}
-	
+
 		modelInfo, err = utils.ExtractModelVersion(configs)
 		if err != nil {
 			fmt.Printf("Failed to extract stable model versions: %v\n", err)
@@ -403,7 +403,6 @@ var _ = Describe("Workspace Preset", func() {
 
 		validateWorkspaceReadiness(workspaceObj)
 	})
-
 
 	It("should create a Phi-2 workspace with preset public mode successfully", func() {
 		numOfNode := 1
