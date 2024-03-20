@@ -899,6 +899,17 @@ func TestDataSourceValidateUpdate(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "Name changed",
+			oldSource: &DataSource{
+				Name: "original-dataset",
+			},
+			newSource: &DataSource{
+				Name: "new-dataset",
+			},
+			wantErr:   true,
+			errFields: []string{"Name"},
+		},
+		{
 			name: "URLs changed",
 			oldSource: &DataSource{
 				URLs: []string{"http://example.com/old"},
@@ -946,7 +957,7 @@ func TestDataSourceValidateUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.newSource.validateUpdate(tt.oldSource)
+			errs := tt.newSource.validateUpdate(tt.oldSource, true)
 			hasErrs := errs != nil
 
 			if hasErrs != tt.wantErr {

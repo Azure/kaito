@@ -41,6 +41,7 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 			w.Resource.validateCreate(*w.Inference).ViaField("resource"),
 		)
 		if w.Inference != nil {
+			// TODO: Add Adapter Spec Validation - Including DataSource Validation for Adapter
 			errs = errs.Also(w.Inference.validateCreate().ViaField("inference"))
 		}
 		if w.Tuning != nil {
@@ -54,6 +55,7 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 			w.Resource.validateUpdate(&old.Resource).ViaField("resource"),
 		)
 		if w.Inference != nil {
+			// TODO: Add Adapter Spec Validation - Including DataSource Validation for Adapter
 			errs = errs.Also(w.Inference.validateUpdate(old.Inference).ViaField("inference"))
 		}
 		if w.Tuning != nil {
@@ -112,7 +114,7 @@ func (r *TuningSpec) validateUpdate(old *TuningSpec) (errs *apis.FieldError) {
 	if r.Input == nil {
 		errs = errs.Also(apis.ErrMissingField("Input"))
 	} else {
-		errs = errs.Also(r.Input.validateUpdate(old.Input).ViaField("Input"))
+		errs = errs.Also(r.Input.validateUpdate(old.Input, true).ViaField("Input"))
 	}
 	if r.Output == nil {
 		errs = errs.Also(apis.ErrMissingField("Output"))
@@ -150,7 +152,10 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 	return errs
 }
 
-func (r *DataSource) validateUpdate(old *DataSource) (errs *apis.FieldError) {
+func (r *DataSource) validateUpdate(old *DataSource, isTuning bool) (errs *apis.FieldError) {
+	if isTuning && !reflect.DeepEqual(old.Name, r.Name) {
+		errs = errs.Also(apis.ErrInvalidValue("During tuning Name field cannot be changed once set", "Name"))
+	}
 	oldURLs := make([]string, len(old.URLs))
 	copy(oldURLs, old.URLs)
 	sort.Strings(oldURLs)
