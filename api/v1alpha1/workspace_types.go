@@ -13,7 +13,7 @@ const (
 	ModelImageAccessModePrivate ModelImageAccessMode = "private"
 )
 
-// ResourceSpec desicribes the resource requirement of running the workload.
+// ResourceSpec describes the resource requirement of running the workload.
 // If the number of nodes in the cluster that meet the InstanceType and
 // LabelSelector requirements is small than the Count, controller
 // will provision new nodes before deploying the workload.
@@ -51,7 +51,7 @@ type PresetMeta struct {
 	// AccessMode specifies whether the containerized model image is accessible via public registry
 	// or private registry. This field defaults to "public" if not specified.
 	// If this field is "private", user needs to provide the private image information in PresetOptions.
-	// +bebuilder:default:="public"
+	// +kubebuilder:default:="public"
 	// +optional
 	AccessMode ModelImageAccessMode `json:"accessMode,omitempty"`
 }
@@ -106,7 +106,7 @@ type DataSource struct {
 	// URLs specifies the links to the public data sources. E.g., files in a public github repository.
 	// +optional
 	URLs []string `json:"urls,omitempty"`
-	// The directory in the hsot that contains the data.
+	// The directory in the host that contains the data.
 	// +optional
 	HostPath string `json:"hostPath,omitempty"`
 	// The name of the image that contains the source data. The assumption is that the source data locates in the
@@ -150,9 +150,9 @@ type TuningSpec struct {
 	// +optional
 	Config string `json:"config,omitempty"`
 	// Input describes the input used by the tuning method.
-	Input *DataSource `json:"input,omitempty"`
+	Input *DataSource `json:"input"`
 	// Output specified where to store the tuning output.
-	Output *DataDestination `json:"output,omitempty"`
+	Output *DataDestination `json:"output"`
 }
 
 // WorkspaceStatus defines the observed state of Workspace
@@ -181,8 +181,8 @@ type Workspace struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Resource  ResourceSpec    `json:"resource,omitempty"`
-	Inference InferenceSpec   `json:"inference,omitempty"`
-	Tuning    TuningSpec      `json:"tuning,omitempty"`
+	Inference *InferenceSpec  `json:"inference,omitempty"`
+	Tuning    *TuningSpec     `json:"tuning,omitempty"`
 	Status    WorkspaceStatus `json:"status,omitempty"`
 }
 

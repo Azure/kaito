@@ -35,7 +35,7 @@ var (
 				},
 			},
 		},
-		Inference: v1alpha1.InferenceSpec{
+		Inference: &v1alpha1.InferenceSpec{
 			Preset: &v1alpha1.PresetSpec{
 				PresetMeta: v1alpha1.PresetMeta{
 					Name: "test-distributed-model",
@@ -60,7 +60,7 @@ var (
 				},
 			},
 		},
-		Inference: v1alpha1.InferenceSpec{
+		Inference: &v1alpha1.InferenceSpec{
 			Preset: &v1alpha1.PresetSpec{
 				PresetMeta: v1alpha1.PresetMeta{
 					Name: "test-model",
@@ -85,7 +85,7 @@ var (
 				},
 			},
 		},
-		Inference: v1alpha1.InferenceSpec{
+		Inference: &v1alpha1.InferenceSpec{
 			Template: &corev1.PodTemplateSpec{},
 		},
 	}

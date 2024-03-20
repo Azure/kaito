@@ -488,6 +488,623 @@ func TestInferenceSpecValidateUpdate(t *testing.T) {
 	}
 }
 
+func TestWorkspaceValidateCreate(t *testing.T) {
+	tests := []struct {
+		name      string
+		workspace *Workspace
+		wantErr   bool
+		errField  string
+	}{
+		{
+			name:      "Neither Inference nor Tuning specified",
+			workspace: &Workspace{},
+			wantErr:   true,
+			errField:  "neither",
+		},
+		{
+			name: "Both Inference and Tuning specified",
+			workspace: &Workspace{
+				Inference: &InferenceSpec{},
+				Tuning:    &TuningSpec{},
+			},
+			wantErr:  true,
+			errField: "both",
+		},
+		{
+			name: "Only Inference specified",
+			workspace: &Workspace{
+				Inference: &InferenceSpec{},
+			},
+			wantErr:  false,
+			errField: "",
+		},
+		{
+			name: "Only Tuning specified",
+			workspace: &Workspace{
+				Tuning: &TuningSpec{Input: &DataSource{}},
+			},
+			wantErr:  false,
+			errField: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := tt.workspace.validateCreate()
+			if (errs != nil) != tt.wantErr {
+				t.Errorf("validateCreate() error = %v, wantErr %v", errs, tt.wantErr)
+			}
+			if errs != nil && !strings.Contains(errs.Error(), tt.errField) {
+				t.Errorf("validateCreate() expected error to contain field %s, but got %s", tt.errField, errs.Error())
+			}
+		})
+	}
+}
+
+func TestWorkspaceValidateUpdate(t *testing.T) {
+	tests := []struct {
+		name         string
+		oldWorkspace *Workspace
+		newWorkspace *Workspace
+		expectErrs   bool
+		errFields    []string // Fields we expect to have errors
+	}{
+		{
+			name:         "Inference toggled on",
+			oldWorkspace: &Workspace{},
+			newWorkspace: &Workspace{
+				Inference: &InferenceSpec{},
+			},
+			expectErrs: true,
+			errFields:  []string{"inference"},
+		},
+		{
+			name: "Inference toggled off",
+			oldWorkspace: &Workspace{
+				Inference: &InferenceSpec{Preset: &PresetSpec{}},
+			},
+			newWorkspace: &Workspace{},
+			expectErrs:   true,
+			errFields:    []string{"inference"},
+		},
+		{
+			name:         "Tuning toggled on",
+			oldWorkspace: &Workspace{},
+			newWorkspace: &Workspace{
+				Tuning: &TuningSpec{Input: &DataSource{}},
+			},
+			expectErrs: true,
+			errFields:  []string{"tuning"},
+		},
+		{
+			name: "Tuning toggled off",
+			oldWorkspace: &Workspace{
+				Tuning: &TuningSpec{Input: &DataSource{}},
+			},
+			newWorkspace: &Workspace{},
+			expectErrs:   true,
+			errFields:    []string{"tuning"},
+		},
+		{
+			name: "No toggling",
+			oldWorkspace: &Workspace{
+				Tuning: &TuningSpec{Input: &DataSource{}},
+			},
+			newWorkspace: &Workspace{
+				Tuning: &TuningSpec{Input: &DataSource{}},
+			},
+			expectErrs: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := tt.newWorkspace.validateUpdate(tt.oldWorkspace)
+			hasErrs := errs != nil
+
+			if hasErrs != tt.expectErrs {
+				t.Errorf("validateUpdate() errors = %v, expectErrs %v", errs, tt.expectErrs)
+			}
+
+			if hasErrs {
+				for _, field := range tt.errFields {
+					if !strings.Contains(errs.Error(), field) {
+						t.Errorf("validateUpdate() expected errors to contain field %s, but got %s", field, errs.Error())
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestTuningSpecValidateCreate(t *testing.T) {
+	RegisterValidationTestModels()
+	tests := []struct {
+		name       string
+		tuningSpec *TuningSpec
+		wantErr    bool
+		errFields  []string // Fields we expect to have errors
+	}{
+		{
+			name: "All fields valid",
+			tuningSpec: &TuningSpec{
+				Input:  &DataSource{Name: "valid-input", HostPath: "valid-input"},
+				Output: &DataDestination{HostPath: "valid-output"},
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method: TuningMethodLora,
+			},
+			wantErr:   false,
+			errFields: nil,
+		},
+		{
+			name: "Missing Input",
+			tuningSpec: &TuningSpec{
+				Output: &DataDestination{HostPath: "valid-output"},
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method: TuningMethodLora,
+			},
+			wantErr:   true,
+			errFields: []string{"Input"},
+		},
+		{
+			name: "Missing Output",
+			tuningSpec: &TuningSpec{
+				Input:  &DataSource{Name: "valid-input"},
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method: TuningMethodLora,
+			},
+			wantErr:   true,
+			errFields: []string{"Output"},
+		},
+		{
+			name: "Missing Preset",
+			tuningSpec: &TuningSpec{
+				Input:  &DataSource{Name: "valid-input"},
+				Output: &DataDestination{HostPath: "valid-output"},
+				Method: TuningMethodLora,
+			},
+			wantErr:   true,
+			errFields: []string{"Preset"},
+		},
+		{
+			name: "Invalid Preset",
+			tuningSpec: &TuningSpec{
+				Input:  &DataSource{Name: "valid-input"},
+				Output: &DataDestination{HostPath: "valid-output"},
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("invalid-preset")}},
+				Method: TuningMethodLora,
+			},
+			wantErr:   true,
+			errFields: []string{"presetName"},
+		},
+		{
+			name: "Invalid Method",
+			tuningSpec: &TuningSpec{
+				Input:  &DataSource{Name: "valid-input"},
+				Output: &DataDestination{HostPath: "valid-output"},
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method: "invalid-method",
+			},
+			wantErr:   true,
+			errFields: []string{"Method"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := tt.tuningSpec.validateCreate()
+			hasErrs := errs != nil
+
+			if hasErrs != tt.wantErr {
+				t.Errorf("validateCreate() errors = %v, wantErr %v", errs, tt.wantErr)
+			}
+
+			if hasErrs {
+				for _, field := range tt.errFields {
+					if !strings.Contains(errs.Error(), field) {
+						t.Errorf("validateCreate() expected errors to contain field %s, but got %s", field, errs.Error())
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestTuningSpecValidateUpdate(t *testing.T) {
+	RegisterValidationTestModels()
+	tests := []struct {
+		name       string
+		oldTuning  *TuningSpec
+		newTuning  *TuningSpec
+		expectErrs bool
+		errFields  []string // Fields we expect to have errors
+	}{
+		{
+			name: "No changes",
+			oldTuning: &TuningSpec{
+				Input:  &DataSource{Name: "input1"},
+				Output: &DataDestination{HostPath: "path1"},
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method: TuningMethodLora,
+			},
+			newTuning: &TuningSpec{
+				Input:  &DataSource{Name: "input1"},
+				Output: &DataDestination{HostPath: "path1"},
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method: TuningMethodLora,
+			},
+			expectErrs: false,
+		},
+		{
+			name: "Input changed",
+			oldTuning: &TuningSpec{
+				Input:  &DataSource{Name: "input", HostPath: "inputpath"},
+				Output: &DataDestination{HostPath: "outputpath"},
+			},
+			newTuning: &TuningSpec{
+				Input:  &DataSource{Name: "input", HostPath: "randompath"},
+				Output: &DataDestination{HostPath: "outputpath"},
+			},
+			expectErrs: true,
+			errFields:  []string{"HostPath"},
+		},
+		{
+			name: "Output changed",
+			oldTuning: &TuningSpec{
+				Output: &DataDestination{HostPath: "path1"},
+			},
+			newTuning: &TuningSpec{
+				Output: &DataDestination{HostPath: "path2"},
+			},
+			expectErrs: true,
+			errFields:  []string{"Output"},
+		},
+		{
+			name: "Preset changed",
+			oldTuning: &TuningSpec{
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+			},
+			newTuning: &TuningSpec{
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("invalid-preset")}},
+			},
+			expectErrs: true,
+			errFields:  []string{"Preset"},
+		},
+		{
+			name: "Method changed",
+			oldTuning: &TuningSpec{
+				Method: TuningMethodLora,
+			},
+			newTuning: &TuningSpec{
+				Method: TuningMethodQLora,
+			},
+			expectErrs: true,
+			errFields:  []string{"Method"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := tt.newTuning.validateUpdate(tt.oldTuning)
+			hasErrs := errs != nil
+
+			if hasErrs != tt.expectErrs {
+				t.Errorf("validateUpdate() errors = %v, expectErrs %v", errs, tt.expectErrs)
+			}
+
+			if hasErrs {
+				for _, field := range tt.errFields {
+					if !strings.Contains(errs.Error(), field) {
+						t.Errorf("validateUpdate() expected errors to contain field %s, but got %s", field, errs.Error())
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDataSourceValidateCreate(t *testing.T) {
+	tests := []struct {
+		name       string
+		dataSource *DataSource
+		wantErr    bool
+		errField   string // The field we expect to have an error on
+	}{
+		{
+			name: "URLs specified only",
+			dataSource: &DataSource{
+				URLs: []string{"http://example.com/data"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "HostPath specified only",
+			dataSource: &DataSource{
+				HostPath: "/data/path",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Image specified only",
+			dataSource: &DataSource{
+				Image: "data-image:latest",
+			},
+			wantErr: false,
+		},
+		{
+			name:       "None specified",
+			dataSource: &DataSource{},
+			wantErr:    true,
+			errField:   "Exactly one of URLs, HostPath, or Image must be specified",
+		},
+		{
+			name: "URLs and HostPath specified",
+			dataSource: &DataSource{
+				URLs:     []string{"http://example.com/data"},
+				HostPath: "/data/path",
+			},
+			wantErr:  true,
+			errField: "Exactly one of URLs, HostPath, or Image must be specified",
+		},
+		{
+			name: "All fields specified",
+			dataSource: &DataSource{
+				URLs:     []string{"http://example.com/data"},
+				HostPath: "/data/path",
+				Image:    "data-image:latest",
+			},
+			wantErr:  true,
+			errField: "Exactly one of URLs, HostPath, or Image must be specified",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := tt.dataSource.validateCreate()
+			hasErrs := errs != nil
+
+			if hasErrs != tt.wantErr {
+				t.Errorf("validateCreate() error = %v, wantErr %v", errs, tt.wantErr)
+			}
+
+			if hasErrs && tt.errField != "" && !strings.Contains(errs.Error(), tt.errField) {
+				t.Errorf("validateCreate() expected error to contain %s, but got %s", tt.errField, errs.Error())
+			}
+		})
+	}
+}
+
+func TestDataSourceValidateUpdate(t *testing.T) {
+	tests := []struct {
+		name      string
+		oldSource *DataSource
+		newSource *DataSource
+		wantErr   bool
+		errFields []string // Fields we expect to have errors
+	}{
+		{
+			name: "No changes",
+			oldSource: &DataSource{
+				URLs:             []string{"http://example.com/data1", "http://example.com/data2"},
+				HostPath:         "/data/path",
+				Image:            "data-image:latest",
+				ImagePullSecrets: []string{"secret1", "secret2"},
+			},
+			newSource: &DataSource{
+				URLs:             []string{"http://example.com/data2", "http://example.com/data1"}, // Note the different order, should not matter
+				HostPath:         "/data/path",
+				Image:            "data-image:latest",
+				ImagePullSecrets: []string{"secret2", "secret1"}, // Note the different order, should not matter
+			},
+			wantErr: false,
+		},
+		{
+			name: "Name changed",
+			oldSource: &DataSource{
+				Name: "original-dataset",
+			},
+			newSource: &DataSource{
+				Name: "new-dataset",
+			},
+			wantErr:   true,
+			errFields: []string{"Name"},
+		},
+		{
+			name: "URLs changed",
+			oldSource: &DataSource{
+				URLs: []string{"http://example.com/old"},
+			},
+			newSource: &DataSource{
+				URLs: []string{"http://example.com/new"},
+			},
+			wantErr:   true,
+			errFields: []string{"URLs"},
+		},
+		{
+			name: "HostPath changed",
+			oldSource: &DataSource{
+				HostPath: "/old/path",
+			},
+			newSource: &DataSource{
+				HostPath: "/new/path",
+			},
+			wantErr:   true,
+			errFields: []string{"HostPath"},
+		},
+		{
+			name: "Image changed",
+			oldSource: &DataSource{
+				Image: "old-image:latest",
+			},
+			newSource: &DataSource{
+				Image: "new-image:latest",
+			},
+			wantErr:   true,
+			errFields: []string{"Image"},
+		},
+		{
+			name: "ImagePullSecrets changed",
+			oldSource: &DataSource{
+				ImagePullSecrets: []string{"old-secret"},
+			},
+			newSource: &DataSource{
+				ImagePullSecrets: []string{"new-secret"},
+			},
+			wantErr:   true,
+			errFields: []string{"ImagePullSecrets"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := tt.newSource.validateUpdate(tt.oldSource, true)
+			hasErrs := errs != nil
+
+			if hasErrs != tt.wantErr {
+				t.Errorf("validateUpdate() error = %v, wantErr %v", errs, tt.wantErr)
+			}
+
+			if hasErrs {
+				for _, field := range tt.errFields {
+					if !strings.Contains(errs.Error(), field) {
+						t.Errorf("validateUpdate() expected errors to contain field %s, but got %s", field, errs.Error())
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDataDestinationValidateCreate(t *testing.T) {
+	tests := []struct {
+		name            string
+		dataDestination *DataDestination
+		wantErr         bool
+		errField        string // The field we expect to have an error on
+	}{
+		{
+			name:            "No fields specified",
+			dataDestination: &DataDestination{},
+			wantErr:         true,
+			errField:        "At least one of HostPath or Image must be specified",
+		},
+		{
+			name: "HostPath specified only",
+			dataDestination: &DataDestination{
+				HostPath: "/data/path",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Image specified only",
+			dataDestination: &DataDestination{
+				Image: "data-image:latest",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Both fields specified",
+			dataDestination: &DataDestination{
+				HostPath: "/data/path",
+				Image:    "data-image:latest",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := tt.dataDestination.validateCreate()
+			hasErrs := errs != nil
+
+			if hasErrs != tt.wantErr {
+				t.Errorf("validateCreate() error = %v, wantErr %v", errs, tt.wantErr)
+			}
+
+			if hasErrs && tt.errField != "" && !strings.Contains(errs.Error(), tt.errField) {
+				t.Errorf("validateCreate() expected error to contain %s, but got %s", tt.errField, errs.Error())
+			}
+		})
+	}
+}
+
+func TestDataDestinationValidateUpdate(t *testing.T) {
+	tests := []struct {
+		name      string
+		oldDest   *DataDestination
+		newDest   *DataDestination
+		wantErr   bool
+		errFields []string // Fields we expect to have errors
+	}{
+		{
+			name: "No changes",
+			oldDest: &DataDestination{
+				HostPath:        "/data/old",
+				Image:           "old-image:latest",
+				ImagePushSecret: "old-secret",
+			},
+			newDest: &DataDestination{
+				HostPath:        "/data/old",
+				Image:           "old-image:latest",
+				ImagePushSecret: "old-secret",
+			},
+			wantErr: false,
+		},
+		{
+			name: "HostPath changed",
+			oldDest: &DataDestination{
+				HostPath: "/data/old",
+			},
+			newDest: &DataDestination{
+				HostPath: "/data/new",
+			},
+			wantErr:   true,
+			errFields: []string{"HostPath"},
+		},
+		{
+			name: "Image changed",
+			oldDest: &DataDestination{
+				Image: "old-image:latest",
+			},
+			newDest: &DataDestination{
+				Image: "new-image:latest",
+			},
+			wantErr:   true,
+			errFields: []string{"Image"},
+		},
+		{
+			name: "ImagePushSecret changed",
+			oldDest: &DataDestination{
+				ImagePushSecret: "old-secret",
+			},
+			newDest: &DataDestination{
+				ImagePushSecret: "new-secret",
+			},
+			wantErr:   true,
+			errFields: []string{"ImagePushSecret"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := tt.newDest.validateUpdate(tt.oldDest)
+			hasErrs := errs != nil
+
+			if hasErrs != tt.wantErr {
+				t.Errorf("validateUpdate() error = %v, wantErr %v", errs, tt.wantErr)
+			}
+
+			if hasErrs {
+				for _, field := range tt.errFields {
+					if !strings.Contains(errs.Error(), field) {
+						t.Errorf("validateUpdate() expected errors to contain field %s, but got %s", field, errs.Error())
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestGetSupportedSKUs(t *testing.T) {
 	tests := []struct {
 		name           string
