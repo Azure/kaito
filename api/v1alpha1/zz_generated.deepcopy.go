@@ -249,8 +249,16 @@ func (in *Workspace) DeepCopyInto(out *Workspace) {
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	in.Resource.DeepCopyInto(&out.Resource)
-	in.Inference.DeepCopyInto(&out.Inference)
-	in.Tuning.DeepCopyInto(&out.Tuning)
+	if in.Inference != nil {
+		in, out := &in.Inference, &out.Inference
+		*out = new(InferenceSpec)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.Tuning != nil {
+		in, out := &in.Tuning, &out.Tuning
+		*out = new(TuningSpec)
+		(*in).DeepCopyInto(*out)
+	}
 	in.Status.DeepCopyInto(&out.Status)
 }
 

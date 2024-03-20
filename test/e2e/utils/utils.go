@@ -60,23 +60,23 @@ func ExtractModelVersion(configs map[string]interface{}) (map[string]string, err
 	}
 
 	for _, modelItem := range models {
-        model, ok := modelItem.(map[interface{}]interface{})
-        if !ok {
-            return nil, fmt.Errorf("model item is not a map")
-        }
+		model, ok := modelItem.(map[interface{}]interface{})
+		if !ok {
+			return nil, fmt.Errorf("model item is not a map")
+		}
 
-        modelName, ok := model["name"].(string)
-        if !ok {
-            return nil, fmt.Errorf("model name is not a string or not found")
-        }
+		modelName, ok := model["name"].(string)
+		if !ok {
+			return nil, fmt.Errorf("model name is not a string or not found")
+		}
 
-        modelTag, ok := model["tag"].(string) // Using 'tag' as the version
-        if !ok {
-            return nil, fmt.Errorf("model version for %s is not a string or not found", modelName)
-        }
+		modelTag, ok := model["tag"].(string) // Using 'tag' as the version
+		if !ok {
+			return nil, fmt.Errorf("model version for %s is not a string or not found", modelName)
+		}
 
-        modelsInfo[modelName] = modelTag
-    }
+		modelsInfo[modelName] = modelTag
+	}
 
 	return modelsInfo, nil
 }
@@ -117,7 +117,7 @@ func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount 
 		workspaceInference.Template = podTemplate
 	}
 
-	workspace.Inference = workspaceInference
+	workspace.Inference = &workspaceInference
 
 	return workspace
 }

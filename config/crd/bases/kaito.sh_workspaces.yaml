@@ -57,7 +57,7 @@ spec:
                       description: Source describes where to obtain the adapter data.
                       properties:
                         hostPath:
-                          description: The directory in the hsot that contains the
+                          description: The directory in the host that contains the
                             data.
                           type: string
                         image:
@@ -96,6 +96,7 @@ spec:
                   with preset configurations.
                 properties:
                   accessMode:
+                    default: public
                     description: AccessMode specifies whether the containerized model
                       image is accessible via public registry or private registry.
                       This field defaults to "public" if not specified. If this field
@@ -139,7 +140,7 @@ spec:
           metadata:
             type: object
           resource:
-            description: ResourceSpec desicribes the resource requirement of running
+            description: ResourceSpec describes the resource requirement of running
               the workload. If the number of nodes in the cluster that meet the InstanceType
               and LabelSelector requirements is small than the Count, controller will
               provision new nodes before deploying the workload. The final list of
@@ -301,7 +302,7 @@ spec:
                 description: Input describes the input used by the tuning method.
                 properties:
                   hostPath:
-                    description: The directory in the hsot that contains the data.
+                    description: The directory in the host that contains the data.
                     type: string
                   image:
                     description: The name of the image that contains the source data.
@@ -350,6 +351,7 @@ spec:
                 description: Preset describes which model to load for tuning.
                 properties:
                   accessMode:
+                    default: public
                     description: AccessMode specifies whether the containerized model
                       image is accessible via public registry or private registry.
                       This field defaults to "public" if not specified. If this field
@@ -378,6 +380,9 @@ spec:
                 required:
                 - name
                 type: object
+            required:
+            - input
+            - output
             type: object
         type: object
     served: true
