@@ -28,6 +28,13 @@ func (*testModel) GetInferenceParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   perGPUMemoryRequirement,
 	}
 }
+func (*testModel) GetTrainingParameters() *model.PresetParam {
+	return &model.PresetParam{
+		GPUCountRequirement:       gpuCountRequirement,
+		TotalGPUMemoryRequirement: totalGPUMemoryRequirement,
+		PerGPUMemoryRequirement:   perGPUMemoryRequirement,
+	}
+}
 func (*testModel) SupportDistributedInference() bool {
 	return false
 }
@@ -35,6 +42,14 @@ func (*testModel) SupportDistributedInference() bool {
 type testModelPrivate struct{}
 
 func (*testModelPrivate) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
+		ImageAccessMode:           "private",
+		GPUCountRequirement:       gpuCountRequirement,
+		TotalGPUMemoryRequirement: totalGPUMemoryRequirement,
+		PerGPUMemoryRequirement:   perGPUMemoryRequirement,
+	}
+}
+func (*testModelPrivate) GetTrainingParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ImageAccessMode:           "private",
 		GPUCountRequirement:       gpuCountRequirement,
