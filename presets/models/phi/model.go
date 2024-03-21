@@ -50,7 +50,21 @@ func (*phi2) GetInferenceParameters() *model.PresetParam {
 		BaseCommand:               baseCommandPresetPhi,
 		Tag:                       PresetPhiTagMap["Phi2"],
 	}
-
+}
+func (*phi2) GetTrainingParameters() *model.PresetParam {
+	return &model.PresetParam{
+		ModelFamilyName:           "Phi",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
+		DiskStorageRequirement:    "50Gi",
+		GPUCountRequirement:       "1",
+		TotalGPUMemoryRequirement: "16Gi",
+		PerGPUMemoryRequirement:   "16Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		// TorchRunParams:            inference.DefaultAccelerateParams,
+		// ModelRunParams:            phiRunParams,
+		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		BaseCommand:               baseCommandPresetPhi,
+		Tag:                       PresetPhiTagMap["Phi2"],
+	}
 }
 func (*phi2) SupportDistributedInference() bool {
 	return false
