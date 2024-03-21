@@ -25,7 +25,6 @@ models:
     runtime: llama-2
     tag: 0.0.3
     # Tag history:
-    # 0.0.4 - Adjust default model params (#310)
     # 0.0.3 - Inference API Cleanup (#233)
     # 0.0.2 - Eliminate Unnecessary Process Group Creation in Worker Initialization (#244)
     # 0.0.1 - Initial Release
