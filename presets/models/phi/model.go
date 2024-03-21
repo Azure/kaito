@@ -46,7 +46,7 @@ func (*phi2) GetInferenceParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "0Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            phiRunParams,
-		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		WorkloadTimeout:           time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetPhi,
 		Tag:                       PresetPhiTagMap["Phi2"],
 	}
@@ -61,11 +61,14 @@ func (*phi2) GetTrainingParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "16Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
-		DeploymentTimeout:         time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetPhi,
-		Tag:                       PresetPhiTagMap["Phi2"],
+		WorkloadTimeout: time.Duration(30) * time.Minute,
+		BaseCommand:     baseCommandPresetPhi,
+		Tag:             PresetPhiTagMap["Phi2"],
 	}
 }
 func (*phi2) SupportDistributedInference() bool {
 	return false
+}
+func (*phi2) SupportTraining() bool {
+	return true
 }

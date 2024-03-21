@@ -52,7 +52,7 @@ func (*mistral7b) GetInferenceParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "0Gi", // We run Mistral using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            mistralRunParams,
-		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		WorkloadTimeout:           time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetMistral,
 		Tag:                       PresetMistralTagMap["Mistral7B"],
 	}
@@ -68,14 +68,17 @@ func (*mistral7b) GetTrainingParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "16Gi", // We run Mistral using native vertical model parallel, no per GPU memory requirement.
 		//TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunParams:            mistralRunParams,
-		DeploymentTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:       baseCommandPresetMistral,
-		Tag:               PresetMistralTagMap["Mistral7B"],
+		WorkloadTimeout: time.Duration(30) * time.Minute,
+		BaseCommand:     baseCommandPresetMistral,
+		Tag:             PresetMistralTagMap["Mistral7B"],
 	}
 }
 
 func (*mistral7b) SupportDistributedInference() bool {
 	return false
+}
+func (*mistral7b) SupportTraining() bool {
+	return true
 }
 
 var mistralB mistral7bInst
@@ -92,7 +95,7 @@ func (*mistral7bInst) GetInferenceParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "0Gi", // We run mistral using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            mistralRunParams,
-		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		WorkloadTimeout:           time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetMistral,
 		Tag:                       PresetMistralTagMap["Mistral7BInstruct"],
 	}
@@ -102,5 +105,8 @@ func (*mistral7bInst) GetTrainingParameters() *model.PresetParam {
 	return nil // It is not recommended/ideal to further fine-tune instruct models - Already been fine-tuned
 }
 func (*mistral7bInst) SupportDistributedInference() bool {
+	return false
+}
+func (*mistral7bInst) SupportTraining() bool {
 	return false
 }

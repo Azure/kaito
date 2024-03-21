@@ -64,7 +64,7 @@ func (*falcon7b) GetInferenceParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            falconRunParams,
-		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		WorkloadTimeout:           time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetFalcon,
 		Tag:                       PresetFalconTagMap["Falcon7B"],
 	}
@@ -79,14 +79,17 @@ func (*falcon7b) GetTrainingParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "16Gi",
 		//TorchRunParams:            tuning.DefaultAccelerateParams, // TODO
 		//ModelRunPrams:             falconRunTuningParams, // TODO
-		DeploymentTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:       baseCommandPresetFalcon,
-		Tag:               PresetFalconTagMap["Falcon7B"],
+		WorkloadTimeout: time.Duration(30) * time.Minute,
+		BaseCommand:     baseCommandPresetFalcon,
+		Tag:             PresetFalconTagMap["Falcon7B"],
 	}
 }
 
 func (*falcon7b) SupportDistributedInference() bool {
 	return false
+}
+func (*falcon7b) SupportTraining() bool {
+	return true
 }
 
 var falconB falcon7bInst
@@ -103,7 +106,7 @@ func (*falcon7bInst) GetInferenceParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            falconRunParams,
-		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		WorkloadTimeout:           time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetFalcon,
 		Tag:                       PresetFalconTagMap["Falcon7BInstruct"],
 	}
@@ -113,6 +116,9 @@ func (*falcon7bInst) GetTrainingParameters() *model.PresetParam {
 	return nil // It is not recommended/ideal to further fine-tune instruct models - Already been fine-tuned
 }
 func (*falcon7bInst) SupportDistributedInference() bool {
+	return false
+}
+func (*falcon7bInst) SupportTraining() bool {
 	return false
 }
 
@@ -130,7 +136,7 @@ func (*falcon40b) GetInferenceParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            falconRunParams,
-		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		WorkloadTimeout:           time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetFalcon,
 		Tag:                       PresetFalconTagMap["Falcon40B"],
 	}
@@ -146,13 +152,16 @@ func (*falcon40b) GetTrainingParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "16Gi",
 		//TorchRunParams:            tuning.DefaultAccelerateParams, // TODO
 		//ModelRunPrams:             falconRunTuningParams, // TODO
-		DeploymentTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:       baseCommandPresetFalcon,
-		Tag:               PresetFalconTagMap["Falcon40B"],
+		WorkloadTimeout: time.Duration(30) * time.Minute,
+		BaseCommand:     baseCommandPresetFalcon,
+		Tag:             PresetFalconTagMap["Falcon40B"],
 	}
 }
 func (*falcon40b) SupportDistributedInference() bool {
 	return false
+}
+func (*falcon40b) SupportTraining() bool {
+	return true
 }
 
 var falconD falcon40bInst
@@ -169,7 +178,7 @@ func (*falcon40bInst) GetInferenceParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            falconRunParams,
-		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		WorkloadTimeout:           time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetFalcon,
 		Tag:                       PresetFalconTagMap["Falcon40BInstruct"],
 	}
@@ -178,5 +187,8 @@ func (*falcon40bInst) GetTrainingParameters() *model.PresetParam {
 	return nil // It is not recommended/ideal to further fine-tune instruct models - Already been fine-tuned
 }
 func (*falcon40bInst) SupportDistributedInference() bool {
+	return false
+}
+func (*falcon40bInst) SupportTraining() bool {
 	return false
 }

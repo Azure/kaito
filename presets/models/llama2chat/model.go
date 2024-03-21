@@ -49,7 +49,7 @@ func (*llama2Chat7b) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		DeploymentTimeout:         time.Duration(10) * time.Minute,
+		WorkloadTimeout:           time.Duration(10) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 1,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
@@ -59,6 +59,9 @@ func (*llama2Chat7b) GetTrainingParameters() *model.PresetParam {
 	return nil // Currently doesn't support fine-tuning
 }
 func (*llama2Chat7b) SupportDistributedInference() bool {
+	return false
+}
+func (*llama2Chat7b) SupportTraining() bool {
 	return false
 }
 
@@ -77,7 +80,7 @@ func (*llama2Chat13b) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		DeploymentTimeout:         time.Duration(20) * time.Minute,
+		WorkloadTimeout:           time.Duration(20) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 2,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
@@ -88,6 +91,9 @@ func (*llama2Chat13b) GetTrainingParameters() *model.PresetParam {
 }
 func (*llama2Chat13b) SupportDistributedInference() bool {
 	return true
+}
+func (*llama2Chat13b) SupportTraining() bool {
+	return false
 }
 
 var llama2chatC llama2Chat70b
@@ -105,7 +111,7 @@ func (*llama2Chat70b) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		WorkloadTimeout:           time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 8,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
@@ -116,4 +122,7 @@ func (*llama2Chat70b) GetTrainingParameters() *model.PresetParam {
 }
 func (*llama2Chat70b) SupportDistributedInference() bool {
 	return true
+}
+func (*llama2Chat70b) SupportTraining() bool {
+	return false
 }

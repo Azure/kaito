@@ -38,6 +38,9 @@ func (*testModel) GetTrainingParameters() *model.PresetParam {
 func (*testModel) SupportDistributedInference() bool {
 	return false
 }
+func (*testModel) SupportTraining() bool {
+	return true
+}
 
 type testModelPrivate struct{}
 
@@ -59,6 +62,9 @@ func (*testModelPrivate) GetTrainingParameters() *model.PresetParam {
 }
 func (*testModelPrivate) SupportDistributedInference() bool {
 	return false
+}
+func (*testModelPrivate) SupportTraining() bool {
+	return true
 }
 
 func RegisterValidationTestModels() {
