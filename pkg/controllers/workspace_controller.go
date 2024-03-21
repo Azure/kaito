@@ -444,8 +444,7 @@ func (c *WorkspaceReconciler) applyTuning(ctx context.Context, wObj *kaitov1alph
 
 			trainingParam := model.GetTrainingParameters()
 
-			var existingObj client.Object
-			existingObj = &appsv1.Deployment{}
+			existingObj := &appsv1.Deployment{}
 			if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
 				klog.InfoS("A training workload already exists for workspace", "workspace", klog.KObj(wObj))
 				if err = resources.CheckResourceStatus(existingObj, c.Client, trainingParam.WorkloadTimeout); err != nil {
