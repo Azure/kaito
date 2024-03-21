@@ -8,9 +8,9 @@ import (
 
 type Model interface {
 	GetInferenceParameters() *PresetParam
-	GetTrainingParameters() *PresetParam
+	GetTuningParameters() *PresetParam
 	SupportDistributedInference() bool //If true, the model workload will be a StatefulSet, using the torch elastic runtime framework.
-	SupportTraining() bool
+	SupportTuning() bool
 }
 
 // PresetParam defines the preset inference parameters for a model.

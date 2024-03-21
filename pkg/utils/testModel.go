@@ -18,7 +18,7 @@ func (*testModel) GetInferenceParameters() *model.PresetParam {
 		WorkloadTimeout:     time.Duration(30) * time.Minute,
 	}
 }
-func (*testModel) GetTrainingParameters() *model.PresetParam {
+func (*testModel) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
 		GPUCountRequirement: "1",
 		WorkloadTimeout:     time.Duration(30) * time.Minute,
@@ -27,7 +27,7 @@ func (*testModel) GetTrainingParameters() *model.PresetParam {
 func (*testModel) SupportDistributedInference() bool {
 	return false
 }
-func (*testModel) SupportTraining() bool {
+func (*testModel) SupportTuning() bool {
 	return true
 }
 
@@ -39,7 +39,7 @@ func (*testDistributedModel) GetInferenceParameters() *model.PresetParam {
 		WorkloadTimeout:     time.Duration(30) * time.Minute,
 	}
 }
-func (*testDistributedModel) GetTrainingParameters() *model.PresetParam {
+func (*testDistributedModel) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
 		GPUCountRequirement: "1",
 		WorkloadTimeout:     time.Duration(30) * time.Minute,
@@ -48,7 +48,7 @@ func (*testDistributedModel) GetTrainingParameters() *model.PresetParam {
 func (*testDistributedModel) SupportDistributedInference() bool {
 	return true
 }
-func (*testDistributedModel) SupportTraining() bool {
+func (*testDistributedModel) SupportTuning() bool {
 	return true
 }
 

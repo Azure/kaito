@@ -5,13 +5,12 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"github.com/azure/kaito/pkg/tuning"
 	"sort"
 	"strings"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/utils/clock"
+	"github.com/azure/kaito/pkg/tuning"
+	batchv1 "k8s.io/api/batch/v1"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -22,6 +21,7 @@ import (
 	"github.com/azure/kaito/pkg/utils/plugin"
 	"github.com/go-logr/logr"
 	"github.com/samber/lo"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/clock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -442,22 +443,21 @@ func (c *WorkspaceReconciler) applyTuning(ctx context.Context, wObj *kaitov1alph
 			presetName := string(wObj.Tuning.Preset.Name)
 			model := plugin.KaitoModelRegister.MustGet(presetName)
 
-			trainingParam := model.GetTrainingParameters()
-
-			existingObj := &appsv1.Deployment{}
+			tuningParam := model.GetTuningParameters()
+			existingObj := &batchv1.Job{}
 			if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
-				klog.InfoS("A training workload already exists for workspace", "workspace", klog.KObj(wObj))
-				if err = resources.CheckResourceStatus(existingObj, c.Client, trainingParam.WorkloadTimeout); err != nil {
+				klog.InfoS("A tuning workload already exists for workspace", "workspace", klog.KObj(wObj))
+				if err = resources.CheckResourceStatus(existingObj, c.Client, tuningParam.WorkloadTimeout); err != nil {
 					return
 				}
 			} else if apierrors.IsNotFound(err) {
 				var workloadObj client.Object
 				// Need to create a new workload
-				workloadObj, err = tuning.CreatePresetTuning(ctx, wObj, trainingParam, c.Client)
+				workloadObj, err = tuning.CreatePresetTuning(ctx, wObj, tuningParam, c.Client)
 				if err != nil {
 					return
 				}
-				if err = resources.CheckResourceStatus(workloadObj, c.Client, trainingParam.WorkloadTimeout); err != nil {
+				if err = resources.CheckResourceStatus(workloadObj, c.Client, tuningParam.WorkloadTimeout); err != nil {
 					return
 				}
 			}
@@ -465,7 +465,7 @@ func (c *WorkspaceReconciler) applyTuning(ctx context.Context, wObj *kaitov1alph
 	}()
 
 	if err != nil {
-		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeTuningStatus, metav1.ConditionFalse,
+		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeTuningFailed, metav1.ConditionFalse,
 			"WorkspaceTuningStatusFailed", err.Error()); updateErr != nil {
 			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
 			return updateErr
@@ -475,8 +475,8 @@ func (c *WorkspaceReconciler) applyTuning(ctx context.Context, wObj *kaitov1alph
 		}
 	}
 
-	if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeTuningStatus, metav1.ConditionTrue,
-		"WorkspaceTuningStatusSuccess", "Tuning has been deployed successfully"); err != nil {
+	if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeTuningStarted, metav1.ConditionTrue,
+		"WorkspaceTuningStatusStarted", "Tuning has been deployed successfully"); err != nil {
 		klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
 		return err
 	}

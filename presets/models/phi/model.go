@@ -51,7 +51,7 @@ func (*phi2) GetInferenceParameters() *model.PresetParam {
 		Tag:                       PresetPhiTagMap["Phi2"],
 	}
 }
-func (*phi2) GetTrainingParameters() *model.PresetParam {
+func (*phi2) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "Phi",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
@@ -69,6 +69,6 @@ func (*phi2) GetTrainingParameters() *model.PresetParam {
 func (*phi2) SupportDistributedInference() bool {
 	return false
 }
-func (*phi2) SupportTraining() bool {
+func (*phi2) SupportTuning() bool {
 	return true
 }

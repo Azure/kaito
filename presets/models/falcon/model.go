@@ -69,7 +69,7 @@ func (*falcon7b) GetInferenceParameters() *model.PresetParam {
 		Tag:                       PresetFalconTagMap["Falcon7B"],
 	}
 }
-func (*falcon7b) GetTrainingParameters() *model.PresetParam {
+func (*falcon7b) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "Falcon",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
@@ -88,7 +88,7 @@ func (*falcon7b) GetTrainingParameters() *model.PresetParam {
 func (*falcon7b) SupportDistributedInference() bool {
 	return false
 }
-func (*falcon7b) SupportTraining() bool {
+func (*falcon7b) SupportTuning() bool {
 	return true
 }
 
@@ -112,13 +112,13 @@ func (*falcon7bInst) GetInferenceParameters() *model.PresetParam {
 	}
 
 }
-func (*falcon7bInst) GetTrainingParameters() *model.PresetParam {
+func (*falcon7bInst) GetTuningParameters() *model.PresetParam {
 	return nil // It is not recommended/ideal to further fine-tune instruct models - Already been fine-tuned
 }
 func (*falcon7bInst) SupportDistributedInference() bool {
 	return false
 }
-func (*falcon7bInst) SupportTraining() bool {
+func (*falcon7bInst) SupportTuning() bool {
 	return false
 }
 
@@ -142,7 +142,7 @@ func (*falcon40b) GetInferenceParameters() *model.PresetParam {
 	}
 
 }
-func (*falcon40b) GetTrainingParameters() *model.PresetParam {
+func (*falcon40b) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "Falcon",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
@@ -160,7 +160,7 @@ func (*falcon40b) GetTrainingParameters() *model.PresetParam {
 func (*falcon40b) SupportDistributedInference() bool {
 	return false
 }
-func (*falcon40b) SupportTraining() bool {
+func (*falcon40b) SupportTuning() bool {
 	return true
 }
 
@@ -183,12 +183,12 @@ func (*falcon40bInst) GetInferenceParameters() *model.PresetParam {
 		Tag:                       PresetFalconTagMap["Falcon40BInstruct"],
 	}
 }
-func (*falcon40bInst) GetTrainingParameters() *model.PresetParam {
+func (*falcon40bInst) GetTuningParameters() *model.PresetParam {
 	return nil // It is not recommended/ideal to further fine-tune instruct models - Already been fine-tuned
 }
 func (*falcon40bInst) SupportDistributedInference() bool {
 	return false
 }
-func (*falcon40bInst) SupportTraining() bool {
+func (*falcon40bInst) SupportTuning() bool {
 	return false
 }

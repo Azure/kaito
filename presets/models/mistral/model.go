@@ -58,7 +58,7 @@ func (*mistral7b) GetInferenceParameters() *model.PresetParam {
 	}
 
 }
-func (*mistral7b) GetTrainingParameters() *model.PresetParam {
+func (*mistral7b) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "Mistral",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
@@ -77,7 +77,7 @@ func (*mistral7b) GetTrainingParameters() *model.PresetParam {
 func (*mistral7b) SupportDistributedInference() bool {
 	return false
 }
-func (*mistral7b) SupportTraining() bool {
+func (*mistral7b) SupportTuning() bool {
 	return true
 }
 
@@ -101,12 +101,12 @@ func (*mistral7bInst) GetInferenceParameters() *model.PresetParam {
 	}
 
 }
-func (*mistral7bInst) GetTrainingParameters() *model.PresetParam {
+func (*mistral7bInst) GetTuningParameters() *model.PresetParam {
 	return nil // It is not recommended/ideal to further fine-tune instruct models - Already been fine-tuned
 }
 func (*mistral7bInst) SupportDistributedInference() bool {
 	return false
 }
-func (*mistral7bInst) SupportTraining() bool {
+func (*mistral7bInst) SupportTuning() bool {
 	return false
 }

@@ -55,13 +55,13 @@ func (*llama2Chat7b) GetInferenceParameters() *model.PresetParam {
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
 }
-func (*llama2Chat7b) GetTrainingParameters() *model.PresetParam {
+func (*llama2Chat7b) GetTuningParameters() *model.PresetParam {
 	return nil // Currently doesn't support fine-tuning
 }
 func (*llama2Chat7b) SupportDistributedInference() bool {
 	return false
 }
-func (*llama2Chat7b) SupportTraining() bool {
+func (*llama2Chat7b) SupportTuning() bool {
 	return false
 }
 
@@ -86,13 +86,13 @@ func (*llama2Chat13b) GetInferenceParameters() *model.PresetParam {
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
 }
-func (*llama2Chat13b) GetTrainingParameters() *model.PresetParam {
+func (*llama2Chat13b) GetTuningParameters() *model.PresetParam {
 	return nil // Currently doesn't support fine-tuning
 }
 func (*llama2Chat13b) SupportDistributedInference() bool {
 	return true
 }
-func (*llama2Chat13b) SupportTraining() bool {
+func (*llama2Chat13b) SupportTuning() bool {
 	return false
 }
 
@@ -117,12 +117,12 @@ func (*llama2Chat70b) GetInferenceParameters() *model.PresetParam {
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
 }
-func (*llama2Chat70b) GetTrainingParameters() *model.PresetParam {
+func (*llama2Chat70b) GetTuningParameters() *model.PresetParam {
 	return nil // Currently doesn't support fine-tuning
 }
 func (*llama2Chat70b) SupportDistributedInference() bool {
 	return true
 }
-func (*llama2Chat70b) SupportTraining() bool {
+func (*llama2Chat70b) SupportTuning() bool {
 	return false
 }
