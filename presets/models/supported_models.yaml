@@ -44,12 +44,12 @@ models:
     type: text-generation
     version: https://huggingface.co/tiiuae/falcon-40b/commit/4a70170c215b36a3cce4b4253f6d0612bb7d4146
     runtime: tfs
-    tag: 0.0.4
+    tag: 0.0.5
   - name: falcon-40b-instruct
     type: text-generation
     version: https://huggingface.co/tiiuae/falcon-40b-instruct/commit/ecb78d97ac356d098e79f0db222c9ce7c5d9ee5f
     runtime: tfs
-    tag: 0.0.4
+    tag: 0.0.5
     # Tag history:
     # 0.0.4 - Adjust default model params (#310)
     # 0.0.3 - Update Default Params (#294)
