@@ -27,6 +27,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: e2e-test
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+        with:
+          egress-policy: audit
+
       - name: Shorten SHA
         if: ${{ !github.event.client_payload.isRelease }}
         id: vars
@@ -52,32 +57,32 @@ jobs:
               echo "VERSION=$(echo ${{ github.event.client_payload.tag }} | tr -d v)" >> $GITHUB_ENV
 
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: ${{ env.GO_VERSION  }}
 
       - name: Checkout
         if: ${{ !github.event.client_payload.isRelease }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           submodules: true
           fetch-depth: 0
       
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         if: ${{ github.event.client_payload.isRelease }}
         with:
           fetch-depth: 0
           submodules: true
           ref: ${{ env.REPO_TAG }}
           
-      - uses: azure/login@v1.6.1
+      - uses: azure/login@cb79c773a3cfa27f31f25eb3f677781210c9ce3d # v1.6.1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@b7246b12e77f7134dc2d460a3d5bad15bbe29390 # v4.1.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
         id: install
@@ -98,7 +103,7 @@ jobs:
           AZURE_ACR_NAME: ${{ env.CLUSTER_NAME }}
 
       - name: Create Azure Identity
-        uses: azure/CLI@v1.0.9
+        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
         with:
           inlineScript: |
             az identity create --name gpuIdentity --resource-group  ${{ env.CLUSTER_NAME }}
@@ -130,21 +135,21 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
 
-      - uses: azure/login@v1.6.1
+      - uses: azure/login@cb79c773a3cfa27f31f25eb3f677781210c9ce3d # v1.6.1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Create Role Assignment
-        uses: azure/CLI@v1.0.9
+        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
         with:
           inlineScript: |
             IDENTITY_PRINCIPAL_ID="$(az identity show --name gpuIdentity --resource-group ${{ env.CLUSTER_NAME }} --query 'principalId' -otsv)"
             az role assignment create --assignee ${IDENTITY_PRINCIPAL_ID} --scope "/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.CLUSTER_NAME }}"  --role "Contributor"
 
       - name: Create Azure Federated Identity
-        uses: azure/CLI@v1.0.9
+        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
         with:
           inlineScript: |
             AKS_OIDC_ISSUER="$(az aks show -n "${{ env.CLUSTER_NAME }}" -g "${{ env.CLUSTER_NAME }}" --query 'oidcIssuerProfile.issuerUrl' -otsv)"
@@ -184,7 +189,7 @@ jobs:
 
       - name: Cleanup e2e resources
         if: ${{ always() }}
-        uses: azure/CLI@v1.0.9
+        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
         with:
           inlineScript: |
             set +e

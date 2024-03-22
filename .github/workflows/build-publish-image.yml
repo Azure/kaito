@@ -23,6 +23,11 @@ jobs:
     outputs:
       registry: ${{ steps.export.outputs.registry }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+        with:
+          egress-policy: audit
+
       - id: export
         run: |
           # registry must be in lowercase
@@ -37,10 +42,15 @@ jobs:
     runs-on: ubuntu-20.04
     environment: preset-env
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+        with:
+          egress-policy: audit
+
       - id: get-tag
         name: Get tag
         run: echo "IMG_TAG=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_ENV
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           submodules: true
           fetch-depth: 0
@@ -63,7 +73,7 @@ jobs:
           VERSION: ${{ env.IMG_TAG }}
 
       - name: Scan ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMG_TAG }}
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@062f2592684a31eb3aa050cc61e7ca1451cecd3d # master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMG_TAG }}
           format: 'table'
@@ -77,7 +87,7 @@ jobs:
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 'Dispatch release tag'
-        uses: peter-evans/repository-dispatch@v3
+        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           event-type: release-tag
