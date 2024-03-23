@@ -264,16 +264,19 @@ jobs:
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && (steps.check_prod_image.outputs.IMAGE_EXISTS == 'false' || env.FORCE_RUN_ALL == 'true')
         run: |
             kubectl rollout status ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} --timeout=1800s
+            sleep 30
         
       - name: Test home endpoint
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && (steps.check_prod_image.outputs.IMAGE_EXISTS == 'false' || env.FORCE_RUN_ALL == 'true')
         run: |
             curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/
+            sleep 30
 
       - name: Test healthz endpoint
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && (steps.check_prod_image.outputs.IMAGE_EXISTS == 'false' || env.FORCE_RUN_ALL == 'true')
         run: |
             curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/healthz
+            sleep 30
     
       - name: Test inference endpoint
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && (steps.check_prod_image.outputs.IMAGE_EXISTS == 'false' || env.FORCE_RUN_ALL == 'true')
