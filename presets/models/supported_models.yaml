@@ -40,6 +40,7 @@ models:
     version: https://huggingface.co/tiiuae/falcon-7b-instruct/commit/cf4b3c42ce2fdfe24f753f0f0d179202fea59c99
     runtime: tfs
     tag: 0.0.4
+  # Note: 0.0.5 - Corrected image version after incomplete upload issue with 0.0.4
   - name: falcon-40b
     type: text-generation
     version: https://huggingface.co/tiiuae/falcon-40b/commit/4a70170c215b36a3cce4b4253f6d0612bb7d4146
