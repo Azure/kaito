@@ -36,11 +36,16 @@ jobs:
       is_matrix_empty: ${{ steps.check_matrix_empty.outputs.is_empty }}
       full_matrix: ${{ steps.images.outputs.full_matrix }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Harden Runner
+        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
         with:
-            submodules: true
-            fetch-depth: 0
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          submodules: true
+          fetch-depth: 0
 
       # This script should output a JSON array of model names
       - name: Determine Affected Models

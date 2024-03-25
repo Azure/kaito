@@ -21,7 +21,7 @@ jobs:
           egress-policy: audit
 
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: ${{ env.GO_VERSION  }}
 
@@ -33,7 +33,7 @@ jobs:
           ref: ${{ github.event.client_payload.tag }}
 
       - name: Goreleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@7ec5c2b0c6cdda6e8bbb49444bc797dd33d74dd8 # v5.0.0
         with:
           version: latest
           args: release --rm-dist --timeout 60m --debug

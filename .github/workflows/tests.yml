@@ -1,27 +1,27 @@
 name: unit-tests
 
 concurrency:
-  group:  ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 on:
   push:
     branches: [main]
-    paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
+    paths-ignore: ["docs/**", "**.md", "**.mdx", "**.png", "**.jpg"]
   pull_request:
     branches: [main, release-**]
-    paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
+    paths-ignore: ["docs/**", "**.md", "**.mdx", "**.png", "**.jpg"]
 
 permissions:
   contents: read
   packages: write
-      
+
 env:
-  GO_VERSION: '1.22'
+  GO_VERSION: "1.22"
 
 jobs:
   unit-tests:
-    runs-on: ubuntu-latest 
+    runs-on: ubuntu-latest
     environment: unit-tests
     steps:
       - name: Harden Runner
@@ -35,8 +35,8 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      - name:  Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v5
+      - name: Set up Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: ${{ env.GO_VERSION  }}
 
@@ -49,7 +49,7 @@ jobs:
           make inference-api-e2e
 
       - name: Upload Codecov report
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@54bcd8715eee62d40e33596ef5e8f0f48dbbccab # v4.1.0
         with:
           ## Comma-separated list of files to upload
           files: ./coverage.txt

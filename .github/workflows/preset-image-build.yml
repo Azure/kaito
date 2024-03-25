@@ -39,9 +39,14 @@ jobs:
     outputs:
       matrix: ${{ steps.affected_models.outputs.matrix }}
       is_matrix_empty: ${{ steps.check_matrix_empty.outputs.is_empty }}
-    steps: 
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           submodules: true
           fetch-depth: 0
@@ -81,8 +86,13 @@ jobs:
         model: ${{fromJson(needs.determine-models.outputs.matrix)}}
       max-parallel: 3
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           submodules: true
           fetch-depth: 0
