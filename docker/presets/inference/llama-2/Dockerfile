@@ -4,7 +4,7 @@
 #              --build-arg VERSION={{VERSION}} \
 #              --build-arg MODEL_TYPE={{MODEL_TYPE}} \
 
-FROM python:3.8-slim
+FROM python:3.8-slim@sha256:95bfecec648356cdd0b28c8b00ce00009baff10c99d1126a82d1aca716453a1a
 WORKDIR /workspace
 
 # Install git
