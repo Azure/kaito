@@ -152,4 +152,4 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 <!-- markdown-link-check-enable -->
 ## Contact
 
-"Kaito devs" <kaito@microsoft.com>
+"Kaito devs" <kaito-dev@microsoft.com>
