@@ -40,7 +40,11 @@ models:
     version: https://huggingface.co/tiiuae/falcon-7b-instruct/commit/cf4b3c42ce2fdfe24f753f0f0d179202fea59c99
     runtime: tfs
     tag: 0.0.4
-  # Note: 0.0.5 - Corrected image version after incomplete upload issue with 0.0.4
+    # Tag history:
+    # 0.0.4 - Adjust default model params (#310)
+    # 0.0.3 - Update Default Params (#294)
+    # 0.0.2 - Inference API Cleanup (#233)
+    # 0.0.1 - Initial Release
   - name: falcon-40b
     type: text-generation
     version: https://huggingface.co/tiiuae/falcon-40b/commit/4a70170c215b36a3cce4b4253f6d0612bb7d4146
@@ -51,8 +55,9 @@ models:
     version: https://huggingface.co/tiiuae/falcon-40b-instruct/commit/ecb78d97ac356d098e79f0db222c9ce7c5d9ee5f
     runtime: tfs
     tag: 0.0.5
-    # Tag history:
-    # 0.0.4 - Adjust default model params (#310)
+    # Tag history for 40b models:
+    # 0.0.5 - Adjust default model params (#310)
+    # 0.0.4 - Skipped due to incomplete upload issue
     # 0.0.3 - Update Default Params (#294)
     # 0.0.2 - Inference API Cleanup (#233)
     # 0.0.1 - Initial Release
