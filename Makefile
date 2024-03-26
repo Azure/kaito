@@ -187,7 +187,7 @@ ifndef ignore-not-found
 endif
 
 ##@ gpu-provider
-.PHONE: gpu-provisioner-identity-perm
+.PHONY: gpu-provisioner-identity-perm
 gpu-provisioner-identity-perm: ## Create identity for gpu-provisioner
 	az identity create --name gpuIdentity --resource-group $(AZURE_RESOURCE_GROUP)
 
