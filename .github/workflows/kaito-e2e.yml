@@ -1,0 +1,29 @@
+name: pr-e2e-test
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
+
+env:
+  GO_VERSION: "1.20"
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read # This is required for actions/checkout
+
+jobs:
+  run-e2e:
+    uses: ./.github/workflows/e2e-workflow.yml
+    with:
+      git_sha: ${{ github.event.pull_request.head.sha }}
+    secrets:
+      E2E_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      E2E_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      E2E_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      E2E_AMRT_SECRET_NAME: ${{ secrets.AMRT_SECRET_NAME }}
+      E2E_ACR_AMRT_USERNAME: ${{ secrets.ACR_AMRT_USERNAME }}
+      E2E_ACR_AMRT_PASSWORD: ${{ secrets.ACR_AMRT_PASSWORD }}
