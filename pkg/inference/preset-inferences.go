@@ -67,7 +67,7 @@ var (
 	}
 )
 
-func updateTorchParamsForDistributedInference(ctx context.Context, kubeClient client.Client, wObj *kaitov1alpha1.Workspace, inferenceObj *model.PresetInferenceParam) error {
+func updateTorchParamsForDistributedInference(ctx context.Context, kubeClient client.Client, wObj *kaitov1alpha1.Workspace, inferenceObj *model.PresetParam) error {
 	existingService := &corev1.Service{}
 	err := resources.GetResource(ctx, wObj.Name, wObj.Namespace, kubeClient, existingService)
 	if err != nil {
@@ -92,7 +92,7 @@ func updateTorchParamsForDistributedInference(ctx context.Context, kubeClient cl
 	return nil
 }
 
-func GetImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, inferenceObj *model.PresetInferenceParam) (string, []corev1.LocalObjectReference) {
+func GetImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, inferenceObj *model.PresetParam) (string, []corev1.LocalObjectReference) {
 	imageName := string(workspaceObj.Inference.Preset.Name)
 	imageTag := inferenceObj.Tag
 	imagePullSecretRefs := []corev1.LocalObjectReference{}
@@ -110,7 +110,7 @@ func GetImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, in
 }
 
 func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
-	inferenceObj *model.PresetInferenceParam, supportDistributedInference bool, kubeClient client.Client) (client.Object, error) {
+	inferenceObj *model.PresetParam, supportDistributedInference bool, kubeClient client.Client) (client.Object, error) {
 	if inferenceObj.TorchRunParams != nil && supportDistributedInference {
 		if err := updateTorchParamsForDistributedInference(ctx, kubeClient, workspaceObj, inferenceObj); err != nil {
 			klog.ErrorS(err, "failed to update torch params", "workspace", workspaceObj)
@@ -141,7 +141,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 // torchrun <TORCH_PARAMS> <OPTIONAL_RDZV_PARAMS> baseCommand <MODEL_PARAMS>
 // and sets the GPU resources required for inference.
 // Returns the command and resource configuration.
-func prepareInferenceParameters(ctx context.Context, inferenceObj *model.PresetInferenceParam) ([]string, corev1.ResourceRequirements) {
+func prepareInferenceParameters(ctx context.Context, inferenceObj *model.PresetParam) ([]string, corev1.ResourceRequirements) {
 	torchCommand := buildCommandStr(inferenceObj.BaseCommand, inferenceObj.TorchRunParams)
 	torchCommand = buildCommandStr(torchCommand, inferenceObj.TorchRunRdzvParams)
 	modelCommand := buildCommandStr(InferenceFile, inferenceObj.ModelRunParams)
@@ -159,7 +159,7 @@ func prepareInferenceParameters(ctx context.Context, inferenceObj *model.PresetI
 	return commands, resourceRequirements
 }
 
-func configVolume(wObj *kaitov1alpha1.Workspace, inferenceObj *model.PresetInferenceParam) ([]corev1.Volume, []corev1.VolumeMount) {
+func configVolume(wObj *kaitov1alpha1.Workspace, inferenceObj *model.PresetParam) ([]corev1.Volume, []corev1.VolumeMount) {
 	volume := []corev1.Volume{}
 	volumeMount := []corev1.VolumeMount{}
 
