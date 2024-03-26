@@ -25,7 +25,7 @@ on:
         description: "Run all models for build"
 
 env:
-    GO_VERSION: "1.20"
+    GO_VERSION: "1.21"
     BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
 permissions:
