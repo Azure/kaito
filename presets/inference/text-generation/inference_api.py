@@ -125,11 +125,11 @@ def health_check():
 class GenerateKwargs(BaseModel):
     max_length: int = 200 # Length of input prompt+max_new_tokens
     min_length: int = 0
-    do_sample: bool = False
+    do_sample: bool = True
     early_stopping: bool = False
     num_beams: int = 1
     temperature: float = 1.0
-    top_k: int = 50
+    top_k: int = 10
     top_p: float = 1
     typical_p: float = 1
     repetition_penalty: float = 1
