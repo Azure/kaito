@@ -15,18 +15,29 @@ helm install chainlit-frontend ./charts/frontend/chainlit/values.yaml -f values.
 
 ## Values
 
-| Key                                      | Type   | Default                           | Description |
-|------------------------------------------|--------|-----------------------------------|-------------|
-| affinity                                 | object | `{}`                              |             |
-| image.pullPolicy                         | string | `"IfNotPresent"`                  |             |
-| image.repository                         | string | `"python"`                        |             |
-| image.tag                                | string | `"3.8"`                           |             |
-| imagePullSecrets                         | list   | `[]`                              |             |
-| nodeSelector                             | object | `{}`                              |             |
-| podAnnotations                           | object | `{}`                              |             |
-| replicaCount                             | int    | `1`                               |             |
-| resources.limits.cpu                     | string | `"500m"`                          |             |
-| resources.limits.memory                  | string | `"128Mi"`                         |             |
-| resources.requests.cpu                   | string | `"10m"`                           |             |
-| resources.requests.memory                | string | `"64Mi"`                          |             |
-| tolerations                              | list   | `[]`                              |             |
+| Key                                      | Type    | Default                                   | Description |
+|------------------------------------------|---------|-------------------------------------------|-------------|
+| `replicaCount`                           | int     | `1`                                       | Number of replicas |
+| `image.repository`                       | string  | `"python"`                                | Image repository |
+| `image.pullPolicy`                       | string  | `"IfNotPresent"`                          | Image pull policy |
+| `image.tag`                              | string  | `"3.8"`                                   | Image tag |
+| `imagePullSecrets`                       | list    | `[]`                                      | Specify image pull secrets |
+| `podAnnotations`                         | object  | `{}`                                      | Annotations to add to the pod |
+| `serviceAccount.create`                  | bool    | `false`                                   | Specifies whether a service account should be created |
+| `serviceAccount.name`                    | string  | `""`                                      | The name of the service account to use |
+| `service.type`                           | string  | `"ClusterIP"`                             | Service type |
+| `service.port`                           | int     | `8000`                                    | Service port |
+| `env.workspaceServiceURL`                | string  | `"<YOUR_SERVICE_URL>"`                    | Workspace Service URL for the inference endpoint |
+| `resources.limits.cpu`                   | string  | `"500m"`                                  | CPU limit |
+| `resources.limits.memory`                | string  | `"256Mi"`                                 | Memory limit |
+| `resources.requests.cpu`                 | string  | `"10m"`                                   | CPU request |
+| `resources.requests.memory`              | string  | `"128Mi"`                                 | Memory request |
+| `livenessProbe.exec.command`             | list    | `["pgrep", "chainlit"]`                   | Command for liveness probe |
+| `readinessProbe.exec.command`            | list    | `["pgrep", "chainlit"]`                   | Command for readiness probe |
+| `nodeSelector`                           | object  | `{}`                                      | Node labels for pod assignment |
+| `tolerations`                            | list    | `[]`                                      | Tolerations for pod assignment |
+| `affinity`                               | object  | `{}`                                      | Affinity for pod assignment |
+
+### Liveness and Readiness Probes
+
+The `livenessProbe` and `readinessProbe` are configured to check if the Chainlit application is running by using `pgrep` to find the process. Adjust these probes as necessary for your deployment.

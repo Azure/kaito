@@ -37,6 +37,7 @@ spec:
           args:
             - -c
             - |
+              mkdir -p /app/frontend && \
               pip install chainlit requests && \
               wget -O /app/frontend/chainlit.py https://raw.githubusercontent.com/Azure/kaito/main/presets/inference/frontend/chainlit.py && \
               chainlit run frontend/chainlit.py -w
