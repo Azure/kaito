@@ -1,0 +1,49 @@
+# values.yaml for Chainlit Front-end
+
+replicaCount: 1
+image:
+  repository: python
+  pullPolicy: IfNotPresent
+  tag: "3.8"
+imagePullSecrets: []
+podAnnotations: {}
+serviceAccount:
+  create: false
+  name: ""
+service:
+  type: ClusterIP
+  port: 80
+# env:
+# Workspace Service URL environment variable
+# Users must override this value to point to their actual Workspace Service URL inference endpoint when deploying
+# e.g. "http://<CLUSTER_IP>:80/chat"
+#   workspaceServiceURL: "<YOUR_SERVICE_URL>"
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+livenessProbe:
+  exec:
+    command:
+      - pgrep
+      - python
+  initialDelaySeconds: 90
+readinessProbe:
+  exec:
+    command:
+      - pgrep
+      - python
+  initialDelaySeconds: 60
+nodeSelector: {}
+tolerations: []
+affinity: {}
+ingress:
+  enabled: true
+  hosts:
+  - host: myfrontend.example.com
+    paths:
+      - path: /
+        pathType: ImplementationSpecific
