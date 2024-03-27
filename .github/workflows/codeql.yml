@@ -7,6 +7,9 @@ on:
   schedule:
     - cron: "0 7 * * 1" # Mondays at 7:00 AM
 
+permissions:
+  contents: read
+
 jobs:
   analyze:
     name: Analyze
@@ -17,8 +20,13 @@ jobs:
       actions: read
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+        with:
+          egress-policy: audit
+
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           submodules: true
           fetch-depth: 0

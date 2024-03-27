@@ -6,12 +6,20 @@ on:
       - '**.md'
       - 'docs/**'
 
+permissions:
+  contents: read
+
 jobs:
   markdown-link-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: gaurav-nelson/github-action-markdown-link-check@v1
+      - name: Harden Runner
+        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: gaurav-nelson/github-action-markdown-link-check@5c5dfc0ac2e225883c0e5f03a85311ec2830d368 # v1
         with:
           # this will only show errors in the output
           use-quiet-mode: 'yes'
