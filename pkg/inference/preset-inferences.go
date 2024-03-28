@@ -118,17 +118,21 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		}
 	}
 
-	volume, volumeMount := utils.ConfigVolume(workspaceObj)
+	var volumes []corev1.Volume
+	var volumeMounts []corev1.VolumeMount
+	volume, volumeMount := utils.ConfigSHMVolume(workspaceObj)
+	volumes = append(volumes, volume)
+	volumeMounts = append(volumeMounts, volumeMount)
 	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj)
 	image, imagePullSecrets := GetInferenceImageInfo(ctx, workspaceObj, inferenceObj)
 
 	var depObj client.Object
 	if supportDistributedInference {
 		depObj = resources.GenerateStatefulSetManifest(ctx, workspaceObj, image, imagePullSecrets, *workspaceObj.Resource.Count, commands,
-			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
+			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volumes, volumeMounts)
 	} else {
 		depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, image, imagePullSecrets, *workspaceObj.Resource.Count, commands,
-			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
+			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volumes, volumeMounts)
 	}
 	err := resources.CreateResource(ctx, depObj, kubeClient)
 	if client.IgnoreAlreadyExists(err) != nil {
