@@ -1,4 +1,4 @@
-name: Push image to ACR
+name: Push image to MCR
 on:
   repository_dispatch:
     types: [ publish-mcr-image ]
