@@ -33,19 +33,18 @@ jobs:
           submodules: true
           ref: ${{ github.event.client_payload.tag }}
 
-
       - name: Authenticate to ACR
         run: |
           az login --identity
           az acr login -n ${{ secrets.KAITO_MCR_REGISTRY }}
-  
-          - name: 'Build and Publish to MCR'
-            id: Publish
-            run: |
-              OUTPUT_TYPE=type=registry make docker-build-kaito
-            env:
-              VERSION: ${{ needs.get-tag.outputs.release-tag }}
-              REGISTRY: ${{ secrets.KAITO_MCR_REGISTRY }}/public/aks/kaito
+
+      - name: 'Build and Publish to MCR'
+        id: Publish
+        run: |
+          OUTPUT_TYPE=type=registry make docker-build-kaito
+        env:
+          VERSION: ${{ needs.get-tag.outputs.release-tag }}
+          REGISTRY: ${{ secrets.KAITO_MCR_REGISTRY }}/public/aks/kaito
 
   run-e2e-mcr:
     permissions:
