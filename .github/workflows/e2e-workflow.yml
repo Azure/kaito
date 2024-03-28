@@ -1,40 +1,66 @@
-name: e2e-test
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+name: kaito-e2e-workflow
 
 on:
-  push:
-    branches: [main]
-    paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
-  pull_request:
-    branches: [main]
-    paths-ignore: ['docs/**', '**.md', '**.mdx', '**.png', '**.jpg']
-  repository_dispatch:
-    types: [ release-tag ]
-    branches: [ release-** ]
-
-env:
-  GO_VERSION: "1.20"
+  workflow_call:
+    inputs:
+      git_sha:
+        type: string
+        required: true
+      tag:
+        type: string
+      isRelease:
+        type: boolean
+        default: false
+      registry:
+        type: string
+      region:
+        type: string
+        description: "the azure location to run the e2e test in"
+        default: "eastus"
+      k8s_version:
+        type: string
+        default: "1.27"
+    secrets:
+      E2E_CLIENT_ID:
+        required: true
+      E2E_TENANT_ID:
+        required: true
+      E2E_SUBSCRIPTION_ID:
+        required: true
+      E2E_AMRT_SECRET_NAME:
+        required: true
+      E2E_ACR_AMRT_USERNAME:
+        required: true
+      E2E_ACR_AMRT_PASSWORD:
+        required: true
 
 permissions:
-  id-token: write # This is required for requesting the JWT
   contents: read # This is required for actions/checkout
 
 jobs:
   e2e-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # This is required for requesting the JWT
     environment: e2e-test
+    env:
+      GO_VERSION: "1.20"
+
     steps:
-      - name: Shorten SHA
-        if: ${{ !github.event.client_payload.isRelease }}
-        id: vars
-        run: echo "pr_sha_short=$(git rev-parse --short ${{ github.event.pull_request.head.sha }})" >> $GITHUB_OUTPUT
+      - name: Harden Runner
+        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          ref: ${{ inputs.git_sha }}
 
       - name: Set e2e Resource and Cluster Name
         run: |
-          rand=${{ steps.vars.outputs.pr_sha_short }}
+          rand=$(git rev-parse --short ${{ inputs.git_sha }})
 
           if [ "$rand" = "" ]; then
              rand=$RANDOM
@@ -46,36 +72,22 @@ jobs:
           echo "REGISTRY=kaito${rand}.azurecr.io" >> $GITHUB_ENV
 
       - name: Set Registry
-        if: ${{ github.event.client_payload.isRelease }}
+        if: ${{ inputs.isRelease }}
         run: |
-              echo "REGISTRY=${{ github.event.client_payload.registry }}" >> $GITHUB_ENV
-              echo "VERSION=$(echo ${{ github.event.client_payload.tag }} | tr -d v)" >> $GITHUB_ENV
+              echo "REGISTRY=${{ inputs.registry }}" >> $GITHUB_ENV
+              echo "VERSION=$(echo ${{ inputs.tag }} | tr -d v)" >> $GITHUB_ENV
 
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION  }}
 
-      - name: Checkout
-        if: ${{ !github.event.client_payload.isRelease }}
-        uses: actions/checkout@v4
+      - name: Az login
+        uses: azure/login@8c334a195cbb38e46038007b304988d888bf676a # v2.0.0
         with:
-          submodules: true
-          fetch-depth: 0
-      
-      - name: Checkout
-        uses: actions/checkout@v4
-        if: ${{ github.event.client_payload.isRelease }}
-        with:
-          fetch-depth: 0
-          submodules: true
-          ref: ${{ env.REPO_TAG }}
-          
-      - uses: azure/login@v1.6.1
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.E2E_CLIENT_ID }}
+          tenant-id: ${{ secrets.E2E_TENANT_ID }}
+          subscription-id: ${{ secrets.E2E_SUBSCRIPTION_ID }}
 
       - uses: azure/setup-helm@v4
         with:
@@ -104,7 +116,7 @@ jobs:
             az identity create --name gpuIdentity --resource-group  ${{ env.CLUSTER_NAME }}
 
       - name: build KAITO image
-        if: ${{ !github.event.client_payload.isRelease }}
+        if: ${{ !inputs.isRelease }}
         shell: bash
         run: |
           make docker-build-kaito
@@ -120,6 +132,8 @@ jobs:
           AZURE_ACR_NAME: ${{ env.CLUSTER_NAME }}
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
+          AZURE_LOCATION: ${{ inputs.region }}
+          AKS_K8S_VERSION: ${{ inputs.k8s_version }}
 
       - name: Install gpu-provisioner helm chart
         shell: bash
@@ -130,18 +144,18 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
 
-      - uses: azure/login@v1.6.1
+      - uses: azure/login@8c334a195cbb38e46038007b304988d888bf676a # v2.0.0
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.E2E_CLIENT_ID }}
+          tenant-id: ${{ secrets.E2E_TENANT_ID }}
+          subscription-id: ${{ secrets.E2E_SUBSCRIPTION_ID }}
 
       - name: Create Role Assignment
         uses: azure/CLI@v1.0.9
         with:
           inlineScript: |
             IDENTITY_PRINCIPAL_ID="$(az identity show --name gpuIdentity --resource-group ${{ env.CLUSTER_NAME }} --query 'principalId' -otsv)"
-            az role assignment create --assignee ${IDENTITY_PRINCIPAL_ID} --scope "/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.CLUSTER_NAME }}"  --role "Contributor"
+            az role assignment create --assignee ${IDENTITY_PRINCIPAL_ID} --scope "/subscriptions/${{ secrets.E2E_SUBSCRIPTION_ID }}/resourceGroups/${{ env.CLUSTER_NAME }}"  --role "Contributor"
 
       - name: Create Azure Federated Identity
         uses: azure/CLI@v1.0.9
@@ -164,10 +178,10 @@ jobs:
             
       - name: Add Secret Credentials
         run: |
-          kubectl create secret docker-registry ${{secrets.AMRT_SECRET_NAME}} \
-          --docker-server=${{secrets.ACR_AMRT_USERNAME}}.azurecr.io \
-          --docker-username=${{secrets.ACR_AMRT_USERNAME}} \
-          --docker-password=${{secrets.ACR_AMRT_PASSWORD}}
+          kubectl create secret docker-registry ${{ secrets.E2E_AMRT_SECRET_NAME }} \
+          --docker-server=${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io \
+          --docker-username=${{ secrets.E2E_ACR_AMRT_USERNAME }} \
+          --docker-password=${{ secrets.E2E_ACR_AMRT_PASSWORD }}
             
       - name: Log kaito-workspace
         run: |
@@ -179,8 +193,8 @@ jobs:
         env:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           RUN_LLAMA_13B: ${{ env.RUN_LLAMA_13B }}
-          AI_MODELS_REGISTRY: ${{secrets.ACR_AMRT_USERNAME}}.azurecr.io
-          AI_MODELS_REGISTRY_SECRET: ${{secrets.AMRT_SECRET_NAME}}
+          AI_MODELS_REGISTRY: ${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io
+          AI_MODELS_REGISTRY_SECRET: ${{ secrets.E2E_AMRT_SECRET_NAME }}
 
       - name: Cleanup e2e resources
         if: ${{ always() }}
