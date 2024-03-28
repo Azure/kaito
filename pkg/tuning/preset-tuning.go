@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 )
 
 const (
@@ -19,16 +20,22 @@ const (
 
 func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	tuningObj *model.PresetParam, kubeClient client.Client) (client.Object, error) {
-	volume, volumeMount := utils.ConfigVolume(workspaceObj)
+	initContainers, volumes, volumeMounts, err := prepareDataSource(ctx, workspaceObj, kubeClient)
+	if err != nil {
+		return nil, err
+	}
+	shmVolume, shmVolumeMount := utils.ConfigSHMVolume(workspaceObj)
+	volumes = append(volumes, shmVolume)
+	volumeMounts = append(volumeMounts, shmVolumeMount)
+
 	commands, resourceReq := prepareTuningParameters(ctx, tuningObj)
 
-	getDataSource(ctx, workspaceObj, tuningObj, kubeClient)
-
-	jobObj = resources.GenerateTuningJobManifest(ctx, workspaceObj /*TODO*/)
+	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, *workspaceObj.Resource.Count, commands,
+		containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, initContainers, volume, volumeMount)
 	//depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, image, imagePullSecrets, *workspaceObj.Resource.Count, commands,
 	//	containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
 
-	err := resources.CreateResource(ctx, jobObj, kubeClient)
+	err = resources.CreateResource(ctx, jobObj, kubeClient)
 	if client.IgnoreAlreadyExists(err) != nil {
 		return nil, err
 	}
@@ -43,24 +50,114 @@ func getDataDestinationImage(ctx context.Context, workspaceObj *kaitov1alpha1.Wo
 
 func getDataSourceImage(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) (string, []corev1.LocalObjectReference) {
 	imagePullSecretRefs := []corev1.LocalObjectReference{}
-	imageName := workspaceObj.Tuning.Input.Image
 	for _, secretName := range workspaceObj.Tuning.Input.ImagePullSecrets {
 		imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
 	}
-	return imageName, imagePullSecretRefs
+	return workspaceObj.Tuning.Input.Image, imagePullSecretRefs
+}
+
+func handleImageDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.Volume, []corev1.VolumeMount) {
+	var initContainers []corev1.Container
+	var volumes []corev1.Volume
+	var volumeMounts []corev1.VolumeMount
+	imageName, imagePullSecrets := getDataSourceImage(ctx, workspaceObj)
+	initContainers = append(initContainers, corev1.Container{
+		Name:    "data-extractor",
+		Image:   imageName,
+		Command: []string{"sh", "-c", "your-extraction-script.sh"}, // Your script to extract data
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "data-volume",
+				MountPath: "/data",
+			},
+		},
+		// Optionally, use the imagePullSecrets if the image is from a private registry
+		ImagePullSecrets: imagePullSecrets,
+	})
+
+	volumes = append(volumes, corev1.Volume{
+		Name: "data-volume",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	})
+
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      "data-volume",
+		MountPath: "/data",
+	})
+	return initContainers, volumes, volumeMounts
+}
+
+func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.Volume, []corev1.VolumeMount) {
+	var initContainers []corev1.Container
+	var volumes []corev1.Volume
+	var volumeMounts []corev1.VolumeMount
+	initContainers = append(initContainers, corev1.Container{
+		Name:    "data-downloader",
+		Image:   "appropriate-image-for-downloading",
+		Command: []string{"sh", "-c", "download-script.sh"},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "data-volume",
+				MountPath: "/data",
+			},
+		},
+		Env: []corev1.EnvVar{
+			{
+				Name:  "DATA_URLS",
+				Value: strings.Join(workspaceObj.Tuning.Input.URLs, " "), // Assuming `dataSourceValue` is a slice of URLs
+			},
+		},
+	})
+	volumes = append(volumes, corev1.Volume{
+		Name: "data-volume",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	})
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      "data-volume",
+		MountPath: "/data",
+	})
+	return initContainers, volumes, volumeMounts
+}
+
+func handleHostPathDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.Volume, []corev1.VolumeMount) {
+	var initContainers []corev1.Container
+	var volumes []corev1.Volume
+	var volumeMounts []corev1.VolumeMount
+	volumes = append(volumes, corev1.Volume{
+		Name: "data-volume",
+		VolumeSource: corev1.VolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: workspaceObj.Tuning.Input.HostPath,
+			},
+		},
+	})
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      "data-volume",
+		MountPath: "/data",
+	})
+	return initContainers, volumes, volumeMounts
 }
 
 // Now there are three options for DataSource: 1. URL - 2. HostPath - 3. Image
-func getDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
-	tuningObj *model.PresetParam, kubeClient client.Client) (client.Object, error) {
-	if workspaceObj.Tuning.Input.Image != "" {
-		imageName, imagePullSecrets := getDataSourceImage(ctx, workspaceObj)
-	} else if len(workspaceObj.Tuning.Input.URLs) > 0 {
-		// TODO
-	} else if workspaceObj.Tuning.Input.HostPath != "" {
-		// TODO
+func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) ([]corev1.Container, []corev1.Volume, []corev1.VolumeMount, error) {
+	var initContainers []corev1.Container
+	var volumes []corev1.Volume
+	var volumeMounts []corev1.VolumeMount
+
+	switch {
+	case workspaceObj.Tuning.Input.Image != "":
+		initContainers, volumes, volumeMounts = handleImageDataSource(ctx, workspaceObj)
+	case len(workspaceObj.Tuning.Input.URLs) > 0:
+		initContainers, volumes, volumeMounts = handleURLDataSource(ctx, workspaceObj)
+	case workspaceObj.Tuning.Input.HostPath != "":
+		initContainers, volumes, volumeMounts = handleHostPathDataSource(ctx, workspaceObj)
 	}
-	return nil, nil
+
+	return initContainers, volumes, volumeMounts, nil
 }
 
 func getDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
