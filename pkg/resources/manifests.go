@@ -5,8 +5,9 @@ package resources
 import (
 	"context"
 	"fmt"
-
+	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/samber/lo"
@@ -182,6 +183,107 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 	return ss
 }
 
+func dockerSidecarScript() string {
+	return `# docker-sidecar script here...`
+}
+
+func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, acrUsername, acrPassword, tag string,
+	imageName string, resourceRequirements corev1.ResourceRequirements, livenessProbe, readinessProbe *corev1.Probe,
+	containerPorts []corev1.ContainerPort, volumeMounts []corev1.VolumeMount, tolerations []corev1.Toleration) *batchv1.Job {
+	labels := map[string]string{
+		kaitov1alpha1.LabelWorkspaceName: workspaceObj.Name,
+	}
+
+	return &batchv1.Job{
+		TypeMeta: v1.TypeMeta{
+			APIVersion: "batch/v1",
+			Kind:       "Job",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name:      workspaceObj.Name,
+			Namespace: workspaceObj.Namespace,
+			Labels:    labels,
+			OwnerReferences: []v1.OwnerReference{
+				{
+					APIVersion: kaitov1alpha1.GroupVersion.String(),
+					Kind:       "Workspace",
+					Name:       workspaceObj.Name,
+					UID:        workspaceObj.UID,
+					Controller: pointer.BoolPtr(true),
+				},
+			},
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: v1.ObjectMeta{
+					Labels: labels,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:           workspaceObj.Name,
+							Image:          imageName,
+							Command:        []string{"/bin/sh", "-c", "actual command here"}, // Placeholder for actual command
+							Resources:      resourceRequirements,
+							LivenessProbe:  livenessProbe,
+							ReadinessProbe: readinessProbe,
+							Ports:          containerPorts,
+							VolumeMounts:   volumeMounts,
+						},
+						{
+							Name:  "docker-sidecar",
+							Image: "docker:dind",
+							SecurityContext: &corev1.SecurityContext{
+								Privileged: pointer.BoolPtr(true),
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "workspace",
+									MountPath: "/workspace",
+								},
+							},
+							Env: []corev1.EnvVar{
+								{
+									Name:  "ACR_USERNAME",
+									Value: acrUsername,
+								},
+								{
+									Name:  "ACR_PASSWORD",
+									Value: acrPassword,
+								},
+								{
+									Name:  "TAG",
+									Value: tag,
+								},
+							},
+							Command: []string{"/bin/sh", "-c"},
+							Args:    []string{"docker-sidecar script here..."}, // Placeholder for the actual script
+						},
+					},
+					RestartPolicy: corev1.RestartPolicyNever,
+					Volumes: []corev1.Volume{
+						{
+							Name: "dshm",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{
+									Medium: corev1.StorageMediumMemory,
+								},
+							},
+						},
+						{
+							Name: "workspace",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{},
+							},
+						},
+					},
+					Tolerations: tolerations, // Use passed-in tolerations
+				},
+			},
+		},
+	}
+}
+
 func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imageName string,
 	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements,
@@ -318,5 +420,4 @@ func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj
 			Template: *templateCopy,
 		},
 	}
-
 }

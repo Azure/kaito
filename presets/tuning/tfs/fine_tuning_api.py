@@ -50,10 +50,12 @@ tokenizer = AutoTokenizer.from_pretrained(**model_args)
 if not tokenizer.pad_token:
     tokenizer.pad_token = tokenizer.eos_token
 if dc_args.mlm and tokenizer.mask_token is None:
-    raise ValueError(
+    print(
         "This tokenizer does not have a mask token which is necessary for masked language modeling. "
-        "You should pass `mlm=False` to train on causal language modeling instead."
+        "You should pass `mlm=False` to train on causal language modeling instead. " 
+        "Setting mlm=False"
     )
+    dc_args.mlm = False
 dc_args.tokenizer = tokenizer
 
 # Load the Pre-Trained Model
@@ -62,12 +64,12 @@ model = AutoModelForCausalLM.from_pretrained(
     quantization_config=bnb_config if enable_qlora else None,
 )
 
-print("model loaded")
+print("Model Loaded")
 
 if enable_qlora:
-    print("enable_qlora")
     # Preparing the Model for QLoRA
     model = prepare_model_for_kbit_training(model)
+    print("QLoRA Enabled")
 
 assert ext_lora_config is not None, "LoraConfig must be specified"
 lora_config_args = asdict(ext_lora_config)
