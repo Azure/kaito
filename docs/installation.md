@@ -41,7 +41,7 @@ az aks install-cli
 Install the Workspace controller.
 
 ```bash
-helm install workspace ./charts/kaito/workspace
+helm install workspace ./charts/kaito/workspace --namespace kaito-workspace --create-namespace
 ```
 
 Note that if you have installed another node provisioning controller that supports Karpenter-core APIs, the following steps for installing `gpu-provisioner` can be skipped.
@@ -105,7 +105,8 @@ settings:
 EOF
 
 # install gpu-provisioner using values override file
-helm install gpu-provisioner ./charts/kaito/gpu-provisioner -f values.override.yaml
+helm install gpu-provisioner ./charts/kaito/gpu-provisioner \
+--namespace gpu-provisioner --create-namespace -f values.override.yaml
 ```
 
 #### Create the federated credential
