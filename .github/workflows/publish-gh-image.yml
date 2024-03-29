@@ -130,7 +130,7 @@ jobs:
     with:
       git_sha: ${{ github.sha }}
       isRelease: true
-      registry: ${{ needs.get-registry.outputs.registry_repository }}
+      registry: ${{ needs.build-scan-publish-gh-images.outputs.registry_repository }}
       tag: ${{ needs.check-tag.outputs.tag }}
     secrets:
       E2E_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
