@@ -77,6 +77,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [ check-tag ]
     environment: preset-env
+    outputs:
+      registry_repository: ${{ steps.get-registry.outputs.registry_repository }}
     steps:
       - id: get-registry
         run: |
