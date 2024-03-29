@@ -9,7 +9,7 @@ A Helm chart for gpu-provisioner
 To install the chart with the release name `gpu-provisioner`:
 
 ```bash
-helm install gpu-provisioner ./charts/gpu-provisioner
+helm install gpu-provisioner ./charts/gpu-provisioner --namespace=gpu-provisioner --create-namespace
 ```
 
 ## Values
