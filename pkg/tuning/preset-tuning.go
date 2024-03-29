@@ -8,6 +8,7 @@ import (
 	"github.com/azure/kaito/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 )
@@ -16,6 +17,48 @@ const (
 	ProbePath  = "/healthz"
 	Port5000   = int32(5000)
 	TuningFile = "fine_tuning_api.py"
+)
+
+var (
+	containerPorts = []corev1.ContainerPort{{
+		ContainerPort: Port5000,
+	},
+	}
+
+	livenessProbe = &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Port: intstr.FromInt(5000),
+				Path: ProbePath,
+			},
+		},
+		InitialDelaySeconds: 600, // 10 minutes
+		PeriodSeconds:       10,
+	}
+
+	readinessProbe = &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Port: intstr.FromInt(5000),
+				Path: ProbePath,
+			},
+		},
+		InitialDelaySeconds: 30,
+		PeriodSeconds:       10,
+	}
+
+	tolerations = []corev1.Toleration{
+		{
+			Effect:   corev1.TaintEffectNoSchedule,
+			Operator: corev1.TolerationOpEqual,
+			Key:      resources.GPUString,
+		},
+		{
+			Effect: corev1.TaintEffectNoSchedule,
+			Value:  resources.GPUString,
+			Key:    "sku",
+		},
+	}
 )
 
 func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
@@ -31,9 +74,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	commands, resourceReq := prepareTuningParameters(ctx, tuningObj)
 
 	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, *workspaceObj.Resource.Count, commands,
-		containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, initContainers, volume, volumeMount)
-	//depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, image, imagePullSecrets, *workspaceObj.Resource.Count, commands,
-	//	containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volume, volumeMount)
+		containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, initContainers, volumes, volumeMounts)
 
 	err = resources.CreateResource(ctx, jobObj, kubeClient)
 	if client.IgnoreAlreadyExists(err) != nil {
@@ -156,7 +197,6 @@ func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspac
 	case workspaceObj.Tuning.Input.HostPath != "":
 		initContainers, volumes, volumeMounts = handleHostPathDataSource(ctx, workspaceObj)
 	}
-
 	return initContainers, volumes, volumeMounts, nil
 }
 

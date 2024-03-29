@@ -187,12 +187,38 @@ func dockerSidecarScript() string {
 	return `# docker-sidecar script here...`
 }
 
-func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, acrUsername, acrPassword, tag string,
-	imageName string, resourceRequirements corev1.ResourceRequirements, livenessProbe, readinessProbe *corev1.Probe,
-	containerPorts []corev1.ContainerPort, volumeMounts []corev1.VolumeMount, tolerations []corev1.Toleration) *batchv1.Job {
+func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, replicas int,
+	commands []string, containerPorts []corev1.ContainerPort, livenessProbe, readinessProbe *corev1.Probe,
+	resourceRequirements corev1.ResourceRequirements, tolerations []corev1.Toleration, initContainers []corev1.Container,
+	volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) *batchv1.Job {
 	labels := map[string]string{
 		kaitov1alpha1.LabelWorkspaceName: workspaceObj.Name,
 	}
+
+	containers := []corev1.Container{
+		{
+			Name:           workspaceObj.Name,
+			Image:          imageName,
+			Command:        []string{"/bin/sh", "-c", "actual command here"}, // Placeholder for actual command
+			Resources:      resourceRequirements,
+			LivenessProbe:  livenessProbe,
+			ReadinessProbe: readinessProbe,
+			Ports:          containerPorts,
+			VolumeMounts:   volumeMounts,
+		},
+		{
+			Name:  "docker-sidecar",
+			Image: "docker:dind",
+			SecurityContext: &corev1.SecurityContext{
+				Privileged: pointer.BoolPtr(true),
+			},
+			VolumeMounts: volumeMounts,
+			Command:      []string{"/bin/sh", "-c"},
+			Args:         []string{"docker-sidecar script here..."}, // Placeholder for the actual script
+		},
+	}
+
+	containers = append(containers, initContainers...)
 
 	return &batchv1.Job{
 		TypeMeta: v1.TypeMeta{
@@ -219,65 +245,10 @@ func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.
 					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:           workspaceObj.Name,
-							Image:          imageName,
-							Command:        []string{"/bin/sh", "-c", "actual command here"}, // Placeholder for actual command
-							Resources:      resourceRequirements,
-							LivenessProbe:  livenessProbe,
-							ReadinessProbe: readinessProbe,
-							Ports:          containerPorts,
-							VolumeMounts:   volumeMounts,
-						},
-						{
-							Name:  "docker-sidecar",
-							Image: "docker:dind",
-							SecurityContext: &corev1.SecurityContext{
-								Privileged: pointer.BoolPtr(true),
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "workspace",
-									MountPath: "/workspace",
-								},
-							},
-							Env: []corev1.EnvVar{
-								{
-									Name:  "ACR_USERNAME",
-									Value: acrUsername,
-								},
-								{
-									Name:  "ACR_PASSWORD",
-									Value: acrPassword,
-								},
-								{
-									Name:  "TAG",
-									Value: tag,
-								},
-							},
-							Command: []string{"/bin/sh", "-c"},
-							Args:    []string{"docker-sidecar script here..."}, // Placeholder for the actual script
-						},
-					},
+					Containers:    containers,
 					RestartPolicy: corev1.RestartPolicyNever,
-					Volumes: []corev1.Volume{
-						{
-							Name: "dshm",
-							VolumeSource: corev1.VolumeSource{
-								EmptyDir: &corev1.EmptyDirVolumeSource{
-									Medium: corev1.StorageMediumMemory,
-								},
-							},
-						},
-						{
-							Name: "workspace",
-							VolumeSource: corev1.VolumeSource{
-								EmptyDir: &corev1.EmptyDirVolumeSource{},
-							},
-						},
-					},
-					Tolerations: tolerations, // Use passed-in tolerations
+					Volumes:       volumes,
+					Tolerations:   tolerations,
 				},
 			},
 		},
