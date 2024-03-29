@@ -2,7 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ include "gpu-provisioner.fullname" . }}
-  namespace:  {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "gpu-provisioner.labels" . | nindent 4 }}
   {{- with .Values.additionalAnnotations }}
