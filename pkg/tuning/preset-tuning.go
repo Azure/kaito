@@ -129,6 +129,7 @@ func handleImageDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 
 func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.Volume, []corev1.VolumeMount) {
 	var initContainers []corev1.Container
+	// TODO: Fix up init container placeholders
 	initContainers = append(initContainers, corev1.Container{
 		Name:    "data-downloader",
 		Image:   "appropriate-image-for-downloading",
@@ -142,7 +143,7 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 		Env: []corev1.EnvVar{
 			{
 				Name:  "DATA_URLS",
-				Value: strings.Join(workspaceObj.Tuning.Input.URLs, " "), // Assuming `dataSourceValue` is a slice of URLs
+				Value: strings.Join(workspaceObj.Tuning.Input.URLs, " "),
 			},
 		},
 	})
