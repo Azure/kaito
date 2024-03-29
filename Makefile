@@ -147,7 +147,7 @@ az-patch-install-helm: ## Update Azure client env vars and settings in helm valu
 	yq -i '(.image.repository)                                              = "$(REGISTRY)/workspace"'                    ./charts/kaito/workspace/values.yaml
 	yq -i '(.image.tag)                                                     = "$(IMG_TAG)"'                               ./charts/kaito/workspace/values.yaml
 
-	helm install kaito-workspace ./charts/kaito/workspace
+	helm install kaito-workspace ./charts/kaito/workspace --namespace $(KAITO_NAMESPACE) --create-namespace
 
 ##@ Build
 
@@ -219,7 +219,7 @@ gpu-provisioner-helm:  ## Update Azure client env vars and settings in helm valu
 	yq -i '(.workloadIdentity.clientId)                                                = "$(IDENTITY_CLIENT_ID)"'                             ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.workloadIdentity.tenantId)                                                = "$(AZURE_TENANT_ID)"'                                ./charts/kaito/gpu-provisioner/values.yaml
 
-	helm install kaito-gpu-provisioner ./charts/kaito/gpu-provisioner
+	helm install kaito-gpu-provisioner ./charts/kaito/gpu-provisioner --namespace $(GPU_NAMESPACE) --create-namespace
 
 ##@ Build Dependencies
 
