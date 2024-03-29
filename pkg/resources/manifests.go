@@ -187,38 +187,13 @@ func dockerSidecarScript() string {
 	return `# docker-sidecar script here...`
 }
 
-func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, replicas int,
-	commands []string, containerPorts []corev1.ContainerPort, livenessProbe, readinessProbe *corev1.Probe,
+func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imagePullSecretRefs []corev1.LocalObjectReference,
+	replicas int, commands []string, containerPorts []corev1.ContainerPort, livenessProbe, readinessProbe *corev1.Probe,
 	resourceRequirements corev1.ResourceRequirements, tolerations []corev1.Toleration, initContainers []corev1.Container,
 	volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) *batchv1.Job {
 	labels := map[string]string{
 		kaitov1alpha1.LabelWorkspaceName: workspaceObj.Name,
 	}
-
-	containers := []corev1.Container{
-		{
-			Name:           workspaceObj.Name,
-			Image:          imageName,
-			Command:        []string{"/bin/sh", "-c", "actual command here"}, // Placeholder for actual command
-			Resources:      resourceRequirements,
-			LivenessProbe:  livenessProbe,
-			ReadinessProbe: readinessProbe,
-			Ports:          containerPorts,
-			VolumeMounts:   volumeMounts,
-		},
-		{
-			Name:  "docker-sidecar",
-			Image: "docker:dind",
-			SecurityContext: &corev1.SecurityContext{
-				Privileged: pointer.BoolPtr(true),
-			},
-			VolumeMounts: volumeMounts,
-			Command:      []string{"/bin/sh", "-c"},
-			Args:         []string{"docker-sidecar script here..."}, // Placeholder for the actual script
-		},
-	}
-
-	containers = append(containers, initContainers...)
 
 	return &batchv1.Job{
 		TypeMeta: v1.TypeMeta{
@@ -245,10 +220,33 @@ func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.
 					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
-					Containers:    containers,
-					RestartPolicy: corev1.RestartPolicyNever,
-					Volumes:       volumes,
-					Tolerations:   tolerations,
+					InitContainers: initContainers,
+					Containers: []corev1.Container{
+						{
+							Name:           workspaceObj.Name,
+							Image:          workspaceObj.Tuning.Preset.Image,
+							Command:        []string{"/bin/sh", "-c", "actual command here"}, // Placeholder for actual command
+							Resources:      resourceRequirements,
+							LivenessProbe:  livenessProbe,
+							ReadinessProbe: readinessProbe,
+							Ports:          containerPorts,
+							VolumeMounts:   volumeMounts,
+						},
+						{
+							Name:  "docker-sidecar",
+							Image: "docker:dind",
+							SecurityContext: &corev1.SecurityContext{
+								Privileged: pointer.BoolPtr(true),
+							},
+							VolumeMounts: volumeMounts,
+							Command:      []string{"/bin/sh", "-c"},
+							Args:         []string{"docker-sidecar script here..."}, // Placeholder for the actual script
+						},
+					},
+					RestartPolicy:    corev1.RestartPolicyNever,
+					Volumes:          volumes,
+					Tolerations:      tolerations,
+					ImagePullSecrets: imagePullSecretRefs,
 				},
 			},
 		},

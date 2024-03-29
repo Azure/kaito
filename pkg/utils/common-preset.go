@@ -37,6 +37,23 @@ func ConfigSHMVolume(wObj *kaitov1alpha1.Workspace) (corev1.Volume, corev1.Volum
 	return volume, volumeMount
 }
 
+func ConfigDataVolume() ([]corev1.Volume, []corev1.VolumeMount) {
+	var volumes []corev1.Volume
+	var volumeMounts []corev1.VolumeMount
+	volumes = append(volumes, corev1.Volume{
+		Name: "data-volume",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	})
+
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      "data-volume",
+		MountPath: "/data",
+	})
+	return volumes, volumeMounts
+}
+
 func ShellCmd(command string) []string {
 	return []string{
 		"/bin/sh",
