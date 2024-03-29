@@ -5,9 +5,6 @@ on:
       release_version:
         description: 'tag to be created for this image (i.e. vxx.xx.xx)'
         required: true
-  pull_request:
-    types: [ closed ]
-
 
 permissions:
   id-token: write
@@ -21,31 +18,19 @@ env:
 
 jobs:
   check-tag:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'pull_request' &&
-        github.event.pull_request.merged == true && 
-        contains(github.event.pull_request.title, 'update manifest and helm charts')
-       )
     runs-on: ubuntu-latest
     environment: preset-env
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
       - name: validate version
-        if: github.event_name == 'workflow_dispatch'
         run: |
           echo "${{ github.event.inputs.release_version }}" | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$'
 
       - id: get-tag
         name: Get tag
         run: |
-          if [[ ${{ github.event_name }} == 'workflow_dispatch' ]]; then
             echo "tag=$(echo ${{ github.event.inputs.release_version }})" >> $GITHUB_OUTPUT
-          else
-            echo "tag=$(echo ${{ github.event.pull_request.head.ref }} | tr -d release-)" >> $GITHUB_OUTPUT
-          fi
 
       - name: Checkout
         uses: actions/checkout@v4
