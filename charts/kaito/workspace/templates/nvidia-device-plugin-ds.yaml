@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: nvidia-device-plugin-daemonset
-  namespace: {{ include "kaito.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "kaito.labels" . | nindent 4 }}
 spec:
