@@ -3,9 +3,9 @@ entries:
   gpu-provisioner:
   - apiVersion: v2
     appVersion: 0.2.0
-    created: "2024-03-19T21:38:11.932103713Z"
+    created: "2024-03-30T01:51:36.482332027Z"
     description: A Helm chart for gpu-provisioner
-    digest: 37088642bb0697775a3bf66c66c06288ee795d20ee5ad02e272f6444082dc721
+    digest: 9497f423045f15a6049aa3b4f574bd5e963a92e2b5a57237dbc4fae70b71f574
     maintainers:
     - email: vrgf2003@gmail.com
       name: Fei-Guo
@@ -36,6 +36,26 @@ entries:
     - https://Azure.github.io/kaito/charts/kaito/gpu-provisioner-0.1.0.tgz
     version: 0.1.0
   workspace:
+  - apiVersion: v2
+    appVersion: 0.2.2
+    created: "2024-03-30T01:51:36.482884319Z"
+    description: A Helm chart to install AI Toolchain Operator Workspace
+    digest: b7e8ebf11d3566a6a3bcbfb9964b4ff93b53e8e7d90c3d77f3bff6b725cb28e8
+    home: https://github.com/Azure/kaito
+    maintainers:
+    - email: vrgf2003@gmail.com
+      name: Fei-Guo
+    - email: hebaelayoty@gmail.com
+      name: helayoty
+    - email: ishaanforthewin@gmail.com
+      name: ishaansehgal99
+    name: workspace
+    sources:
+    - https://github.com/Azure/kaito
+    type: application
+    urls:
+    - https://Azure.github.io/kaito/charts/kaito/workspace-0.2.2.tgz
+    version: 0.2.2
   - apiVersion: v2
     appVersion: 0.2.1
     created: "2024-03-19T21:38:11.932572749Z"
@@ -76,4 +96,4 @@ entries:
     urls:
     - https://Azure.github.io/kaito/charts/kaito/workspace-0.1.0.tgz
     version: 0.1.0
-generated: "2024-03-19T21:38:11.93034544Z"
+generated: "2024-03-30T01:51:36.48133281Z"
