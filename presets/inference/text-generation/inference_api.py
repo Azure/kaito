@@ -110,13 +110,15 @@ try:
 except Exception as e:
     default_generate_config = {}
 
-@app.get('/', response_class=Response, summary="Home Endpoint")
+class HomeResponse(BaseModel):
+    message: str = Field(..., example="Server is running")
+@app.get('/', response_model=HomeResponse, summary="Home Endpoint")
 def home():
     """
     A simple endpoint that indicates the server is running.
     No parameters are required. Returns a message indicating the server status.
     """
-    return Response(content="Server is running", media_type="text/plain", status_code=200)
+    return {"message": "Server is running"}
 
 class HealthStatus(BaseModel):
     status: str = Field(..., example="Healthy")
@@ -205,7 +207,18 @@ class UnifiedRequestModel(BaseModel):
 
     # Field for conversational model
     messages: Optional[Conversation] = Field(None, description="Messages for conversational model. Required for conversational pipeline.")
-
+    class Config:
+        schema_extra = {
+            "example": {
+                "prompt": "Tell me a joke",
+                "return_full_text": True,
+                "clean_up_tokenization_spaces": False,
+                "prefix": None,  # Explicitly set to None to indicate it's optional and has no default value
+                "handle_long_generation": None, # Same as above
+                "generate_kwargs": GenerateKwargs().dict(),
+                "messages": None # Example uses text-generation so this is omitted
+            }
+        }
 class ErrorResponse(BaseModel):
     detail: str
 
@@ -261,7 +274,7 @@ class ErrorResponse(BaseModel):
 def generate_text(request_model: UnifiedRequestModel):
     """
     Processes chat requests, generating text based on the specified pipeline (text generation or conversational).
-    Validates required parameters based on the pipeline and returns the generated text or conversational response.
+    Validates required parameters based on the pipeline and returns the generated text.
     """
     user_generate_kwargs = request_model.generate_kwargs.dict() if request_model.generate_kwargs else {}
     generate_kwargs = {**default_generate_config, **user_generate_kwargs}
