@@ -2,14 +2,14 @@
 # Licensed under the MIT license.
 import os
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 import GPUtil
 import psutil
 import torch
 import transformers
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Extra, Field
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
@@ -185,20 +185,13 @@ class GenerateKwargs(BaseModel):
             }
         }
 
-class Conversation(BaseModel):
-    messages: Optional[List[Dict[str, str]]] = Field(None, description="Messages for conversational model. Required for conversational pipeline.")
-    class Config:
-        schema_extra = {
-            "example":  [
-                {"role": "user", "content": "What is your favourite condiment?"},
-                {"role": "assistant", "content": "Well, im quite partial to a good squeeze of fresh lemon juice. It adds just the right amount of zesty flavour to whatever im cooking up in the kitchen!"},
-                {"role": "user", "content": "Do you have mayonnaise recipes?"}
-            ],
-        }
+class Message(BaseModel):
+    role: str
+    content: str
 
 class UnifiedRequestModel(BaseModel):
     # Fields for text generation
-    prompt: Optional[str] = Field(None, description="Prompt for text generation. Required for text-generation pipeline.")
+    prompt: Optional[str] = Field(None, description="Prompt for text generation. Required for text-generation pipeline. Do not use with 'messages'.")
     return_full_text: Optional[bool] = Field(True, description="Return full text if True, else only added text")
     clean_up_tokenization_spaces: Optional[bool] = Field(False, description="Clean up extra spaces in text output")
     prefix: Optional[str] = Field(None, description="Prefix added to prompt")
@@ -206,19 +199,10 @@ class UnifiedRequestModel(BaseModel):
     generate_kwargs: Optional[GenerateKwargs] = Field(default_factory=GenerateKwargs, description="Additional kwargs for generate method")
 
     # Field for conversational model
-    messages: Optional[Conversation] = Field(None, description="Messages for conversational model. Required for conversational pipeline.")
-    class Config:
-        schema_extra = {
-            "example": {
-                "prompt": "Tell me a joke",
-                "return_full_text": True,
-                "clean_up_tokenization_spaces": False,
-                "prefix": None,  # Explicitly set to None to indicate it's optional and has no default value
-                "handle_long_generation": None, # Same as above
-                "generate_kwargs": GenerateKwargs().dict(),
-                "messages": None # Example uses text-generation so this is omitted
-            }
-        }
+    messages: Optional[List[Message]] = Field(None, description="Messages for conversational model. Required for conversational pipeline. Do not use with 'prompt'.")
+    def messages_to_dict_list(self):
+        return [message.dict() for message in self.messages] if self.messages else []
+
 class ErrorResponse(BaseModel):
     detail: str
 
@@ -271,7 +255,43 @@ class ErrorResponse(BaseModel):
         }
     }
 )
-def generate_text(request_model: UnifiedRequestModel):
+def generate_text(
+        request_model: Annotated[
+            UnifiedRequestModel,
+            Body(
+                openapi_examples={
+                    "text_generation_example": {
+                        "summary": "Text Generation Example",
+                        "description": "An example of a text generation request.",
+                        "value": {
+                            "prompt": "Tell me a joke",
+                            "return_full_text": True,
+                            "clean_up_tokenization_spaces": False,
+                            "prefix": None,
+                            "handle_long_generation": None,
+                            "generate_kwargs": GenerateKwargs().dict(),
+                        },
+                    },
+                    "conversation_example": {
+                        "summary": "Conversation Example",
+                        "description": "An example of a conversational request.",
+                        "value": {
+                            "messages": [
+                                {"role": "user", "content": "What is your favourite condiment?"},
+                                {"role": "assistant", "content": "Well, im quite partial to a good squeeze of fresh lemon juice. It adds just the right amount of zesty flavour to whatever im cooking up in the kitchen!"},
+                                {"role": "user", "content": "Do you have mayonnaise recipes?"}
+                            ],
+                            "return_full_text": True,
+                            "clean_up_tokenization_spaces": False,
+                            "prefix": None,
+                            "handle_long_generation": None,
+                            "generate_kwargs": GenerateKwargs().dict(),
+                        },
+                    },
+                },
+            ),
+        ],
+):
     """
     Processes chat requests, generating text based on the specified pipeline (text generation or conversational).
     Validates required parameters based on the pipeline and returns the generated text.
@@ -305,7 +325,7 @@ def generate_text(request_model: UnifiedRequestModel):
             raise HTTPException(status_code=400, detail="Conversational parameter messages required")
 
         response = pipeline(
-            request_model.messages,
+            request_model.messages_to_dict_list(),
             clean_up_tokenization_spaces=request_model.clean_up_tokenization_spaces,
             **generate_kwargs
         )
@@ -322,7 +342,7 @@ class CPUInfo(BaseModel):
     load_percentage: float
     physical_cores: int
     total_cores: int
-    memory_usage: MemoryInfo
+    memory: MemoryInfo
 
 class GPUInfo(BaseModel):
     id: str
@@ -383,8 +403,8 @@ def get_metrics():
                 load=f"{gpu.load * 100:.2f}%",
                 temperature=f"{gpu.temperature} C",
                 memory=MemoryInfo(
-                    used=f"{gpu.memoryUsed / 1024:.2f} GB",
-                    total=f"{gpu.memoryTotal / 1024:.2f} GB"
+                    used=f"{gpu.memoryUsed / (1024 ** 3):.2f} GB",
+                    total=f"{gpu.memoryTotal / (1024 ** 3):.2f} GB"
                 )
             ) for gpu in gpus]
             return MetricsResponse(gpu_info=gpu_info)
