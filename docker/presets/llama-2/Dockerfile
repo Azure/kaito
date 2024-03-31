@@ -4,6 +4,7 @@
 #              --build-arg VERSION={{VERSION}} \
 #              --build-arg MODEL_TYPE={{MODEL_TYPE}} \
 #              --build-arg IMAGE_NAME={{IMAGE_NAME}} \
+#              --build-arg MODEL_VERSION={{MODEL_VERSION}} \
 
 FROM python:3.8-slim
 WORKDIR /workspace
@@ -28,9 +29,10 @@ ARG WEIGHTS_PATH
 ARG MODEL_TYPE
 ARG VERSION
 ARG IMAGE_NAME
+ARG MODEL_VERSION
 
 # Write metadata to model_info.txt file
-RUN echo -e "$MODEL_TYPE\n$VERSION\n$IMAGE_NAME" > /workspace/llama/model_info.txt
+RUN echo -e "Model Type: $MODEL_TYPE\nVersion: $VERSION\nImage Name: $IMAGE_NAME\nModel Version URL: $MODEL_VERSION" > /workspace/llama/model_info.txt
 
 ADD ${WEIGHTS_PATH} /workspace/llama/llama-2/weights
 ADD kaito/presets/inference/${MODEL_TYPE} /workspace/llama/llama-2

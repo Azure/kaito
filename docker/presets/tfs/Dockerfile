@@ -4,12 +4,13 @@ ARG WEIGHTS_PATH
 ARG MODEL_TYPE
 ARG VERSION
 ARG IMAGE_NAME
+ARG MODEL_VERSION
 
 # Set the working directory
 WORKDIR /workspace/tfs
 
 # Write metadata to model_info.txt file
-RUN echo -e "$MODEL_TYPE\n$VERSION\n$IMAGE_NAME" > /workspace/tfs/model_info.txt
+RUN echo -e "Model Type: $MODEL_TYPE\nVersion: $VERSION\nImage Name: $IMAGE_NAME\nModel Version URL: $MODEL_VERSION" > /workspace/tfs/model_info.txt
 
 # First, copy just the preset files and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and

@@ -8,6 +8,7 @@ import os
 import signal
 import sys
 import threading
+import json
 from typing import Optional
 
 import GPUtil
@@ -188,7 +189,9 @@ def setup_main_routes():
         with open(f"/workspace/tfs/{MODEL_INFO}", "r") as f:
             model_name = f.read()
 
-        return {"version": model_name}
+        # Convert readable text file to json
+        data = json.dumps(dict(map(str.strip, line.split(':'))) for line in model_name.split('\n'))
+        return data
 
 def setup_worker_routes(): 
     @app_worker.get("/healthz")
