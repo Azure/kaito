@@ -4,7 +4,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import torch
 from fastapi.testclient import TestClient
 from transformers import AutoTokenizer
 
@@ -44,7 +43,7 @@ def test_conversational(configured_app):
     client = TestClient(configured_app)
     messages = [
         {"role": "user", "content": "What is your favourite condiment?"},
-        {"role": "assistant", "content": "Well, Im quite partial to a good squeeze of fresh lemon juice. It adds just the right amount of zesty flavour to whatever Im cooking up in the kitchen!"},
+        {"role": "assistant", "content": "Well, im quite partial to a good squeeze of fresh lemon juice. It adds just the right amount of zesty flavour to whatever im cooking up in the kitchen!"},
         {"role": "user", "content": "Do you have mayonnaise recipes?"}
     ]
     request_data = {
@@ -102,17 +101,12 @@ def test_missing_prompt(configured_app):
 def test_read_main(configured_app):
     client = TestClient(configured_app)
     response = client.get("/")
-    server_msg, status_code = response.json()
-    assert server_msg == "Server is running"
-    assert status_code == 200
+    assert response.status_code == 200
+    assert response.json() == {"message": "Server is running"}
 
 def test_health_check(configured_app):
-    device = "GPU" if torch.cuda.is_available() else "CPU"
-    if device != "GPU":
-        pytest.skip("Skipping healthz endpoint check - running on CPU")
     client = TestClient(configured_app)
     response = client.get("/healthz")
-    # Assuming we have a GPU available
     assert response.status_code == 200
     assert response.json() == {"status": "Healthy"}
 
@@ -122,17 +116,73 @@ def test_get_metrics(configured_app):
     assert response.status_code == 200
     assert "gpu_info" in response.json()
 
-def test_get_metrics_no_gpus(configured_app):
+def test_get_metrics_with_gpus(configured_app):
     client = TestClient(configured_app)
-    with patch('GPUtil.getGPUs', return_value=[]) as mock_getGPUs:
+    # Define a simple mock GPU object with the necessary attributes
+    class MockGPU:
+        def __init__(self, id, name, load, temperature, memoryUsed, memoryTotal):
+            self.id = id
+            self.name = name
+            self.load = load
+            self.temperature = temperature
+            self.memoryUsed = memoryUsed
+            self.memoryTotal = memoryTotal
+
+    # Create a mock GPU object with the desired attributes
+    mock_gpu = MockGPU(
+        id="GPU-1234",
+        name="GeForce GTX 950",
+        load=0.25,  # 25%
+        temperature=55,  # 55 C
+        memoryUsed=1 * (1024 ** 3),  # 1 GB
+        memoryTotal=2 * (1024 ** 3)  # 2 GB
+    )
+
+    # Mock torch.cuda.is_available to simulate an environment with GPUs
+    # Mock GPUtil.getGPUs to return a list containing the mock GPU object
+    with patch('torch.cuda.is_available', return_value=True), \
+            patch('GPUtil.getGPUs', return_value=[mock_gpu]):
         response = client.get("/metrics")
         assert response.status_code == 200
-        assert response.json()["gpu_info"] == []
+        data = response.json()
+
+        # Assertions to verify that the GPU info is correctly returned in the response
+        assert data["gpu_info"] != []
+        assert len(data["gpu_info"]) == 1
+        gpu_data = data["gpu_info"][0]
+
+        assert gpu_data["id"] == "GPU-1234"
+        assert gpu_data["name"] == "GeForce GTX 950"
+        assert gpu_data["load"] == "25.00%"
+        assert gpu_data["temperature"] == "55 C"
+        assert gpu_data["memory"]["used"] == "1.00 GB"
+        assert gpu_data["memory"]["total"] == "2.00 GB"
+        assert data["cpu_info"] is None  # Assuming CPU info is not present when GPUs are available
+
+def test_get_metrics_no_gpus(configured_app):
+    client = TestClient(configured_app)
+    # Mock GPUtil.getGPUs to simulate an environment without GPUs
+    with patch('torch.cuda.is_available', return_value=False), \
+            patch('psutil.cpu_percent', return_value=20.0), \
+            patch('psutil.cpu_count', side_effect=[4, 8]), \
+            patch('psutil.virtual_memory') as mock_virtual_memory:
+        mock_virtual_memory.return_value.used = 4 * (1024 ** 3)  # 4 GB
+        mock_virtual_memory.return_value.total = 16 * (1024 ** 3)  # 16 GB
+        response = client.get("/metrics")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["gpu_info"] is None  # No GPUs available
+        assert data["cpu_info"] is not None  # CPU info should be present
+        assert data["cpu_info"]["load_percentage"] == 20.0
+        assert data["cpu_info"]["physical_cores"] == 4
+        assert data["cpu_info"]["total_cores"] == 8
+        assert data["cpu_info"]["memory"]["used"] == "4.00 GB"
+        assert data["cpu_info"]["memory"]["total"] == "16.00 GB"
 
 def test_default_generation_params(configured_app):
     if configured_app.test_config['pipeline'] != 'text-generation':
         pytest.skip("Skipping non-text-generation tests")
-    
+
     client = TestClient(configured_app)
 
     request_data = {
@@ -144,14 +194,14 @@ def test_default_generation_params(configured_app):
 
     with patch('inference_api.pipeline') as mock_pipeline:
         mock_pipeline.return_value = [{"generated_text": "Mocked response"}]  # Mock the response of the pipeline function
-        
+
         response = client.post("/chat", json=request_data)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "Result" in data
         assert data["Result"] == "Mocked response", "The response content doesn't match the expected mock response"
-        
+
         # Check the default args
         _, kwargs = mock_pipeline.call_args
         assert kwargs['max_length'] == 200
@@ -187,7 +237,7 @@ def test_generation_with_max_length(configured_app):
     data = response.json()
     print("Response: ", data["Result"])
     assert "Result" in data, "The response should contain a 'Result' key"
-    
+
     tokenizer = AutoTokenizer.from_pretrained(configured_app.test_config['model_path'])
     prompt_tokens = tokenizer.tokenize(prompt)
     total_tokens = tokenizer.tokenize(data["Result"])  # data["Result"] includes the input prompt
@@ -207,7 +257,7 @@ def test_generation_with_min_length(configured_app):
     client = TestClient(configured_app)
     prompt = "This prompt requests a response of a certain minimum length to test the functionality."
     min_length = 30
-    max_length = 40  
+    max_length = 40
 
     request_data = {
         "prompt": prompt,
@@ -221,7 +271,7 @@ def test_generation_with_min_length(configured_app):
     assert response.status_code == 200
     data = response.json()
     assert "Result" in data, "The response should contain a 'Result' key"
-    
+
     tokenizer = AutoTokenizer.from_pretrained(configured_app.test_config['model_path'])
     prompt_tokens = tokenizer.tokenize(prompt)
     total_tokens = tokenizer.tokenize(data["Result"])  # data["Result"] includes the input prompt

@@ -2,13 +2,15 @@
 # Licensed under the MIT license.
 import os
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 import GPUtil
+import psutil
 import torch
 import transformers
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Extra, Field
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
@@ -35,7 +37,7 @@ class ModelConfig:
     load_in_8bit: bool = field(default=False, metadata={"help": "Load model in 8-bit mode"})
     torch_dtype: Optional[str] = field(default=None, metadata={"help": "The torch dtype for the pre-trained model"})
     device_map: str = field(default="auto", metadata={"help": "The device map for the pre-trained model"})
-    
+
     # Method to process additional arguments
     def process_additional_args(self, addt_args: List[str]):
         """
@@ -51,7 +53,7 @@ class ModelConfig:
             else:
                 value = True  # Assign a True value for standalone flags
                 i += 1  # Move to the next item
-            
+
             addt_args_dict[key] = value
 
         # Update the ModelConfig instance with the additional args
@@ -102,20 +104,57 @@ pipeline = transformers.pipeline(
 try:
     # Attempt to load the generation configuration
     default_generate_config = GenerationConfig.from_pretrained(
-        args.pretrained_model_name_or_path, 
+        args.pretrained_model_name_or_path,
         local_files_only=args.local_files_only
     ).to_dict()
 except Exception as e:
     default_generate_config = {}
 
-@app.get('/')
+class HomeResponse(BaseModel):
+    message: str = Field(..., example="Server is running")
+@app.get('/', response_model=HomeResponse, summary="Home Endpoint")
 def home():
-    return "Server is running", 200
+    """
+    A simple endpoint that indicates the server is running.
+    No parameters are required. Returns a message indicating the server status.
+    """
+    return {"message": "Server is running"}
 
-@app.get("/healthz")
+class HealthStatus(BaseModel):
+    status: str = Field(..., example="Healthy")
+@app.get(
+    "/healthz",
+    response_model=HealthStatus,
+    summary="Health Check Endpoint",
+    responses={
+        200: {
+            "description": "Successful Response",
+            "content": {
+                "application/json": {
+                    "example": {"status": "Healthy"}
+                }
+            }
+        },
+        500: {
+            "description": "Error Response",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "model_uninitialized": {
+                            "summary": "Model not initialized",
+                            "value": {"detail": "Model not initialized"}
+                        },
+                        "pipeline_uninitialized": {
+                            "summary": "Pipeline not initialized",
+                            "value": {"detail": "Pipeline not initialized"}
+                        }
+                    }
+                }
+            }
+        }
+    }
+)
 def health_check():
-    if not torch.cuda.is_available():
-        raise HTTPException(status_code=500, detail="No GPU available")
     if not model:
         raise HTTPException(status_code=500, detail="Model not initialized")
     if not pipeline:
@@ -137,10 +176,22 @@ class GenerateKwargs(BaseModel):
     eos_token_id: Optional[int] = tokenizer.eos_token_id
     class Config:
         extra = Extra.allow # Allows for additional fields not explicitly defined
+        schema_extra = {
+            "example": {
+                "max_length": 200,
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "additional_param": "Example value"
+            }
+        }
+
+class Message(BaseModel):
+    role: str
+    content: str
 
 class UnifiedRequestModel(BaseModel):
     # Fields for text generation
-    prompt: Optional[str] = Field(None, description="Prompt for text generation")
+    prompt: Optional[str] = Field(None, description="Prompt for text generation. Required for text-generation pipeline. Do not use with 'messages'.")
     return_full_text: Optional[bool] = Field(True, description="Return full text if True, else only added text")
     clean_up_tokenization_spaces: Optional[bool] = Field(False, description="Clean up extra spaces in text output")
     prefix: Optional[str] = Field(None, description="Prefix added to prompt")
@@ -148,10 +199,103 @@ class UnifiedRequestModel(BaseModel):
     generate_kwargs: Optional[GenerateKwargs] = Field(default_factory=GenerateKwargs, description="Additional kwargs for generate method")
 
     # Field for conversational model
-    messages: Optional[List[Dict[str, str]]] = Field(None, description="Messages for conversational model")
+    messages: Optional[List[Message]] = Field(None, description="Messages for conversational model. Required for conversational pipeline. Do not use with 'prompt'.")
+    def messages_to_dict_list(self):
+        return [message.dict() for message in self.messages] if self.messages else []
 
-@app.post("/chat")
-def generate_text(request_model: UnifiedRequestModel):
+class ErrorResponse(BaseModel):
+    detail: str
+
+@app.post(
+    "/chat",
+    summary="Chat Endpoint",
+    responses={
+        200: {
+            "description": "Successful Response",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "text_generation": {
+                            "summary": "Text Generation Response",
+                            "value": {
+                                "Result": "Generated text based on the prompt."
+                            }
+                        },
+                        "conversation": {
+                            "summary": "Conversation Response",
+                            "value": {
+                                "Result": "Response to the last message in the conversation."
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        400: {
+            "model": ErrorResponse,
+            "description": "Validation Error",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "missing_prompt": {
+                            "summary": "Missing Prompt",
+                            "value": {"detail": "Text generation parameter prompt required"}
+                        },
+                        "missing_messages": {
+                            "summary": "Missing Messages",
+                            "value": {"detail": "Conversational parameter messages required"}
+                        }
+                    }
+                }
+            }
+        },
+        500: {
+            "model": ErrorResponse,
+            "description": "Internal Server Error"
+        }
+    }
+)
+def generate_text(
+        request_model: Annotated[
+            UnifiedRequestModel,
+            Body(
+                openapi_examples={
+                    "text_generation_example": {
+                        "summary": "Text Generation Example",
+                        "description": "An example of a text generation request.",
+                        "value": {
+                            "prompt": "Tell me a joke",
+                            "return_full_text": True,
+                            "clean_up_tokenization_spaces": False,
+                            "prefix": None,
+                            "handle_long_generation": None,
+                            "generate_kwargs": GenerateKwargs().dict(),
+                        },
+                    },
+                    "conversation_example": {
+                        "summary": "Conversation Example",
+                        "description": "An example of a conversational request.",
+                        "value": {
+                            "messages": [
+                                {"role": "user", "content": "What is your favourite condiment?"},
+                                {"role": "assistant", "content": "Well, im quite partial to a good squeeze of fresh lemon juice. It adds just the right amount of zesty flavour to whatever im cooking up in the kitchen!"},
+                                {"role": "user", "content": "Do you have mayonnaise recipes?"}
+                            ],
+                            "return_full_text": True,
+                            "clean_up_tokenization_spaces": False,
+                            "prefix": None,
+                            "handle_long_generation": None,
+                            "generate_kwargs": GenerateKwargs().dict(),
+                        },
+                    },
+                },
+            ),
+        ],
+):
+    """
+    Processes chat requests, generating text based on the specified pipeline (text generation or conversational).
+    Validates required parameters based on the pipeline and returns the generated text.
+    """
     user_generate_kwargs = request_model.generate_kwargs.dict() if request_model.generate_kwargs else {}
     generate_kwargs = {**default_generate_config, **user_generate_kwargs}
 
@@ -176,12 +320,12 @@ def generate_text(request_model: UnifiedRequestModel):
 
         return {"Result": result}
 
-    elif args.pipeline == "conversational": 
+    elif args.pipeline == "conversational":
         if not request_model.messages:
             raise HTTPException(status_code=400, detail="Conversational parameter messages required")
 
         response = pipeline(
-            request_model.messages, 
+            request_model.messages_to_dict_list(),
             clean_up_tokenization_spaces=request_model.clean_up_tokenization_spaces,
             **generate_kwargs
         )
@@ -190,25 +334,99 @@ def generate_text(request_model: UnifiedRequestModel):
     else:
         raise HTTPException(status_code=400, detail="Invalid pipeline type")
 
-@app.get("/metrics")
-def get_metrics():
-    try:
-        gpus = GPUtil.getGPUs()
-        gpu_info = []
-        for gpu in gpus:
-            gpu_info.append({
-                "id": gpu.id,
-                "name": gpu.name,
-                "load": f"{gpu.load * 100:.2f}%",  # Format as percentage
-                "temperature": f"{gpu.temperature} C",
-                "memory": {
-                    "used": f"{gpu.memoryUsed / 1024:.2f} GB",
-                    "total": f"{gpu.memoryTotal / 1024:.2f} GB"
+class MemoryInfo(BaseModel):
+    used: str
+    total: str
+
+class CPUInfo(BaseModel):
+    load_percentage: float
+    physical_cores: int
+    total_cores: int
+    memory: MemoryInfo
+
+class GPUInfo(BaseModel):
+    id: str
+    name: str
+    load: str
+    temperature: str
+    memory: MemoryInfo
+
+class MetricsResponse(BaseModel):
+    gpu_info: Optional[List[GPUInfo]] = None
+    cpu_info: Optional[CPUInfo] = None
+
+@app.get(
+    "/metrics",
+    response_model=MetricsResponse,
+    summary="Metrics Endpoint",
+    responses={
+        200: {
+            "description": "Successful Response",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "gpu_metrics": {
+                            "summary": "Example when GPUs are available",
+                            "value": {
+                                "gpu_info": [{"id": "GPU-1234", "name": "GeForce GTX 950", "load": "25.00%", "temperature": "55 C", "memory": {"used": "1.00 GB", "total": "2.00 GB"}}],
+                                "cpu_info": None  # Indicates CPUs info might not be present when GPUs are available
+                            }
+                        },
+                        "cpu_metrics": {
+                            "summary": "Example when only CPU is available",
+                            "value": {
+                                "gpu_info": None,  # Indicates GPU info might not be present when only CPU is available
+                                "cpu_info": {"load_percentage": 20.0, "physical_cores": 4, "total_cores": 8, "memory": {"used": "4.00 GB", "total": "16.00 GB"}}
+                            }
+                        }
+                    }
                 }
-            })
-        return {"gpu_info": gpu_info}
+            }
+        },
+        500: {
+            "description": "Internal Server Error",
+            "model": ErrorResponse,
+        }
+    }
+)
+def get_metrics():
+    """
+    Provides system metrics, including GPU details if available, or CPU and memory usage otherwise.
+    Useful for monitoring the resource utilization of the server running the ML models.
+    """
+    try:
+        if torch.cuda.is_available():
+            gpus = GPUtil.getGPUs()
+            gpu_info = [GPUInfo(
+                id=gpu.id,
+                name=gpu.name,
+                load=f"{gpu.load * 100:.2f}%",
+                temperature=f"{gpu.temperature} C",
+                memory=MemoryInfo(
+                    used=f"{gpu.memoryUsed / (1024 ** 3):.2f} GB",
+                    total=f"{gpu.memoryTotal / (1024 ** 3):.2f} GB"
+                )
+            ) for gpu in gpus]
+            return MetricsResponse(gpu_info=gpu_info)
+        else:
+            # Gather CPU metrics
+            cpu_usage = psutil.cpu_percent(interval=1, percpu=False)
+            physical_cores = psutil.cpu_count(logical=False)
+            total_cores = psutil.cpu_count(logical=True)
+            virtual_memory = psutil.virtual_memory()
+            memory = MemoryInfo(
+                used=f"{virtual_memory.used / (1024 ** 3):.2f} GB",
+                total=f"{virtual_memory.total / (1024 ** 3):.2f} GB"
+            )
+            cpu_info = CPUInfo(
+                load_percentage=cpu_usage,
+                physical_cores=physical_cores,
+                total_cores=total_cores,
+                memory=memory
+            )
+            return MetricsResponse(cpu_info=cpu_info)
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     local_rank = int(os.environ.get("LOCAL_RANK", 0)) # Default to 0 if not set
