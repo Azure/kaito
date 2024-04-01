@@ -13,8 +13,15 @@ def inference(prompt):
         "clean_up_tokenization_spaces": True,
         "generate_kwargs": {
             "max_length": 1024,
+            "min_length": 0,
             "do_sample": True,
             "top_k": 10,
+            "early_stopping": False,
+            "num_beams": 1,
+            "temperature": 1.0,
+            "top_p": 1,
+            "typical_p": 1,
+            "repetition_penalty": 1
         }
     }
 

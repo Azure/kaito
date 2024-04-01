@@ -1,5 +1,5 @@
 apiVersion: v2
-name: chainlit
+name: inference
 description: A Helm chart for chainlit
 type: application
 version: 0.1.0

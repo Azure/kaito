@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "chainlit.fullname" . }}
+  name: {{ include "inference.fullname" . }}
   labels:
-    {{- include "chainlit.labels" . | nindent 4 }}
+    {{- include "inference.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -12,4 +12,4 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "chainlit.selectorLabels" . | nindent 4 }}
+    {{- include "inference.selectorLabels" . | nindent 4 }}

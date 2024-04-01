@@ -13,7 +13,7 @@ serviceAccount:
 service:
   type: ClusterIP
   port: 8000
-# env:
+  # env:
   # Workspace Service URL
   # Specify the URL for the Workspace Service inference endpoint. Use the DNS name within the cluster for reliability.
   #
@@ -43,3 +43,5 @@ readinessProbe:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+ingress:
+  enabled: false

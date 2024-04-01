@@ -1,13 +1,13 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "chainlit.fullname" . }}
+  name: {{ include "inference.fullname" . }}
   labels:
-    {{- include "chainlit.labels" . | nindent 4 }}
+    {{- include "inference.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      {{- include "chainlit.selectorLabels" . | nindent 6 }}
+      {{- include "inference.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -15,16 +15,16 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "chainlit.labels" . | nindent 8 }}
-        {{- with .Values.podLabels }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
+        {{- include "inference.labels" . | nindent 8 }}
+          {{- with .Values.podLabels }}
+          {{- toYaml . | nindent 8 }}
+          {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "chainlit.serviceAccountName" . }}
+      serviceAccountName: {{ include "inference.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -39,8 +39,8 @@ spec:
             - |
               mkdir -p /app/frontend && \
               pip install chainlit requests && \
-              wget -O /app/frontend/chainlit.py https://raw.githubusercontent.com/Azure/kaito/main/presets/inference/frontend/chainlit.py && \
-              chainlit run frontend/chainlit.py -w
+              wget -O /app/frontend/inference.py https://raw.githubusercontent.com/Azure/kaito/main/demo/inferenceUI/chainlit.py && \
+              chainlit run frontend/inference.py -w
           env:
             - name: WORKSPACE_SERVICE_URL
               value: "{{ .Values.env.workspaceServiceURL }}"
