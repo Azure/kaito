@@ -38,8 +38,8 @@ var llama2A llama2Text7b
 
 type llama2Text7b struct{}
 
-func (*llama2Text7b) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*llama2Text7b) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "LLaMa2",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "34Gi",
@@ -49,14 +49,20 @@ func (*llama2Text7b) GetInferenceParameters() *model.PresetInferenceParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		DeploymentTimeout:         time.Duration(10) * time.Minute,
+		ReadinessTimeout:          time.Duration(10) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 1,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
 
 }
+func (*llama2Text7b) GetTuningParameters() *model.PresetParam {
+	return nil // Currently doesn't support fine-tuning
+}
 func (*llama2Text7b) SupportDistributedInference() bool {
+	return false
+}
+func (*llama2Text7b) SupportTuning() bool {
 	return false
 }
 
@@ -64,8 +70,8 @@ var llama2B llama2Text13b
 
 type llama2Text13b struct{}
 
-func (*llama2Text13b) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*llama2Text13b) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "LLaMa2",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "46Gi",
@@ -75,22 +81,28 @@ func (*llama2Text13b) GetInferenceParameters() *model.PresetInferenceParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		DeploymentTimeout:         time.Duration(20) * time.Minute,
+		ReadinessTimeout:          time.Duration(20) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 2,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
 }
+func (*llama2Text13b) GetTuningParameters() *model.PresetParam {
+	return nil // Currently doesn't support fine-tuning
+}
 func (*llama2Text13b) SupportDistributedInference() bool {
 	return true
+}
+func (*llama2Text13b) SupportTuning() bool {
+	return false
 }
 
 var llama2C llama2Text70b
 
 type llama2Text70b struct{}
 
-func (*llama2Text70b) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*llama2Text70b) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "LLaMa2",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "158Gi",
@@ -100,12 +112,18 @@ func (*llama2Text70b) GetInferenceParameters() *model.PresetInferenceParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		ReadinessTimeout:          time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 8,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
 }
+func (*llama2Text70b) GetTuningParameters() *model.PresetParam {
+	return nil // Currently doesn't support fine-tuning
+}
 func (*llama2Text70b) SupportDistributedInference() bool {
 	return true
+}
+func (*llama2Text70b) SupportTuning() bool {
+	return false
 }

@@ -12,25 +12,43 @@ import (
 
 type testModel struct{}
 
-func (*testModel) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*testModel) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		GPUCountRequirement: "1",
-		DeploymentTimeout:   time.Duration(30) * time.Minute,
+		ReadinessTimeout:    time.Duration(30) * time.Minute,
+	}
+}
+func (*testModel) GetTuningParameters() *model.PresetParam {
+	return &model.PresetParam{
+		GPUCountRequirement: "1",
+		ReadinessTimeout:    time.Duration(30) * time.Minute,
 	}
 }
 func (*testModel) SupportDistributedInference() bool {
 	return false
 }
+func (*testModel) SupportTuning() bool {
+	return true
+}
 
 type testDistributedModel struct{}
 
-func (*testDistributedModel) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*testDistributedModel) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		GPUCountRequirement: "1",
-		DeploymentTimeout:   time.Duration(30) * time.Minute,
+		ReadinessTimeout:    time.Duration(30) * time.Minute,
+	}
+}
+func (*testDistributedModel) GetTuningParameters() *model.PresetParam {
+	return &model.PresetParam{
+		GPUCountRequirement: "1",
+		ReadinessTimeout:    time.Duration(30) * time.Minute,
 	}
 }
 func (*testDistributedModel) SupportDistributedInference() bool {
+	return true
+}
+func (*testDistributedModel) SupportTuning() bool {
 	return true
 }
 

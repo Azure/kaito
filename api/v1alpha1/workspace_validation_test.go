@@ -21,8 +21,15 @@ var perGPUMemoryRequirement string
 
 type testModel struct{}
 
-func (*testModel) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*testModel) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
+		GPUCountRequirement:       gpuCountRequirement,
+		TotalGPUMemoryRequirement: totalGPUMemoryRequirement,
+		PerGPUMemoryRequirement:   perGPUMemoryRequirement,
+	}
+}
+func (*testModel) GetTuningParameters() *model.PresetParam {
+	return &model.PresetParam{
 		GPUCountRequirement:       gpuCountRequirement,
 		TotalGPUMemoryRequirement: totalGPUMemoryRequirement,
 		PerGPUMemoryRequirement:   perGPUMemoryRequirement,
@@ -31,11 +38,22 @@ func (*testModel) GetInferenceParameters() *model.PresetInferenceParam {
 func (*testModel) SupportDistributedInference() bool {
 	return false
 }
+func (*testModel) SupportTuning() bool {
+	return true
+}
 
 type testModelPrivate struct{}
 
-func (*testModelPrivate) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*testModelPrivate) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
+		ImageAccessMode:           "private",
+		GPUCountRequirement:       gpuCountRequirement,
+		TotalGPUMemoryRequirement: totalGPUMemoryRequirement,
+		PerGPUMemoryRequirement:   perGPUMemoryRequirement,
+	}
+}
+func (*testModelPrivate) GetTuningParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ImageAccessMode:           "private",
 		GPUCountRequirement:       gpuCountRequirement,
 		TotalGPUMemoryRequirement: totalGPUMemoryRequirement,
@@ -44,6 +62,9 @@ func (*testModelPrivate) GetInferenceParameters() *model.PresetInferenceParam {
 }
 func (*testModelPrivate) SupportDistributedInference() bool {
 	return false
+}
+func (*testModelPrivate) SupportTuning() bool {
+	return true
 }
 
 func RegisterValidationTestModels() {
