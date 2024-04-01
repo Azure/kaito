@@ -20,10 +20,9 @@ import (
 )
 
 const (
-	ProbePath              = "/healthz"
-	Port5000               = int32(5000)
-	InferenceFile          = "inference_api.py"
-	DefaultVolumeMountPath = "/dev/shm"
+	ProbePath     = "/healthz"
+	Port5000      = int32(5000)
+	InferenceFile = "inference_api.py"
 )
 
 var (
@@ -163,46 +162,4 @@ func prepareInferenceParameters(ctx context.Context, inferenceObj *model.PresetP
 	}
 
 	return commands, resourceRequirements
-}
-
-func configVolume(wObj *kaitov1alpha1.Workspace, inferenceObj *model.PresetParam) ([]corev1.Volume, []corev1.VolumeMount) {
-	volume := []corev1.Volume{}
-	volumeMount := []corev1.VolumeMount{}
-
-	// Signifies multinode inference requirement
-	if *wObj.Resource.Count > 1 {
-		// Append share memory volume to any existing volumes
-		volume = append(volume, corev1.Volume{
-			Name: "dshm",
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{
-					Medium: "Memory",
-				},
-			},
-		})
-
-		volumeMount = append(volumeMount, corev1.VolumeMount{
-			Name:      volume[0].Name,
-			MountPath: DefaultVolumeMountPath,
-		})
-	}
-
-	return volume, volumeMount
-}
-
-func shellCommand(command string) []string {
-	return []string{
-		"/bin/sh",
-		"-c",
-		command,
-	}
-}
-
-func buildCommandStr(baseCommand string, torchRunParams map[string]string) string {
-	updatedBaseCommand := baseCommand
-	for key, value := range torchRunParams {
-		updatedBaseCommand = fmt.Sprintf("%s --%s=%s", updatedBaseCommand, key, value)
-	}
-
-	return updatedBaseCommand
 }
