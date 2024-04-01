@@ -49,7 +49,7 @@ func (*llama2Text7b) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		WorkloadTimeout:           time.Duration(10) * time.Minute,
+		ReadinessTimeout:          time.Duration(10) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 1,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
@@ -81,7 +81,7 @@ func (*llama2Text13b) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		WorkloadTimeout:           time.Duration(20) * time.Minute,
+		ReadinessTimeout:          time.Duration(20) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 2,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
@@ -112,7 +112,7 @@ func (*llama2Text70b) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
-		WorkloadTimeout:           time.Duration(30) * time.Minute,
+		ReadinessTimeout:          time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetLlama,
 		WorldSize:                 8,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.

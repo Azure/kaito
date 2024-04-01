@@ -5,9 +5,10 @@ package inference
 import (
 	"context"
 	"fmt"
-	"github.com/azure/kaito/pkg/utils"
 	"os"
 	"strconv"
+
+	"github.com/azure/kaito/pkg/utils"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/model"

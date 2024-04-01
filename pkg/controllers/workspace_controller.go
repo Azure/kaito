@@ -113,11 +113,6 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 
 	if wObj.Tuning != nil {
 		if err = c.applyTuning(ctx, wObj); err != nil {
-			if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
-				"workspaceFailed", err.Error()); updateErr != nil {
-				klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
-				return reconcile.Result{}, updateErr
-			}
 			return reconcile.Result{}, err
 		}
 	}
@@ -447,7 +442,7 @@ func (c *WorkspaceReconciler) applyTuning(ctx context.Context, wObj *kaitov1alph
 			existingObj := &batchv1.Job{}
 			if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
 				klog.InfoS("A tuning workload already exists for workspace", "workspace", klog.KObj(wObj))
-				if err = resources.CheckResourceStatus(existingObj, c.Client, tuningParam.WorkloadTimeout); err != nil {
+				if err = resources.CheckResourceStatus(existingObj, c.Client, tuningParam.ReadinessTimeout); err != nil {
 					return
 				}
 			} else if apierrors.IsNotFound(err) {
@@ -457,7 +452,7 @@ func (c *WorkspaceReconciler) applyTuning(ctx context.Context, wObj *kaitov1alph
 				if err != nil {
 					return
 				}
-				if err = resources.CheckResourceStatus(workloadObj, c.Client, tuningParam.WorkloadTimeout); err != nil {
+				if err = resources.CheckResourceStatus(workloadObj, c.Client, tuningParam.ReadinessTimeout); err != nil {
 					return
 				}
 			}
@@ -465,21 +460,9 @@ func (c *WorkspaceReconciler) applyTuning(ctx context.Context, wObj *kaitov1alph
 	}()
 
 	if err != nil {
-		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeTuningStarted, metav1.ConditionFalse,
-			"WorkspaceTuningStatusFailed", err.Error()); updateErr != nil {
-			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
-			return updateErr
-		} else {
-			return err
-
-		}
-	}
-
-	if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeTuningStarted, metav1.ConditionTrue,
-		"WorkspaceTuningStatusStarted", "Tuning has been deployed successfully"); err != nil {
-		klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
 		return err
 	}
+
 	return nil
 }
 
@@ -515,7 +498,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 
 			if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
 				klog.InfoS("An inference workload already exists for workspace", "workspace", klog.KObj(wObj))
-				if err = resources.CheckResourceStatus(existingObj, c.Client, inferenceParam.WorkloadTimeout); err != nil {
+				if err = resources.CheckResourceStatus(existingObj, c.Client, inferenceParam.ReadinessTimeout); err != nil {
 					return
 				}
 			} else if apierrors.IsNotFound(err) {
@@ -525,7 +508,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 				if err != nil {
 					return
 				}
-				if err = resources.CheckResourceStatus(workloadObj, c.Client, inferenceParam.WorkloadTimeout); err != nil {
+				if err = resources.CheckResourceStatus(workloadObj, c.Client, inferenceParam.ReadinessTimeout); err != nil {
 					return
 				}
 			}

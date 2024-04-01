@@ -2,6 +2,8 @@ package tuning
 
 import (
 	"context"
+	"strings"
+
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/resources"
@@ -10,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 const (

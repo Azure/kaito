@@ -26,10 +26,10 @@ type PresetParam struct {
 	// BaseCommand is the initial command (e.g., 'torchrun', 'accelerate launch') used in the command line.
 	BaseCommand    string
 	ModelRunParams map[string]string // Parameters for running the model training/inference.
-	// WorkloadTimeout defines the maximum duration for creating the workload.
+	// ReadinessTimeout defines the maximum duration for creating the workload.
 	// This timeout accommodates the size of the image, ensuring pull completion
 	// even under slower network conditions or unforeseen delays.
-	WorkloadTimeout time.Duration
+	ReadinessTimeout time.Duration
 	// WorldSize defines the number of processes required for distributed inference.
 	WorldSize int
 	Tag       string // The model image tag

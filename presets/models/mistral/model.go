@@ -27,8 +27,8 @@ var (
 	PresetMistral7BInstructModel = PresetMistral7BModel + "-instruct"
 
 	PresetMistralTagMap = map[string]string{
-		"Mistral7B":         "0.0.3",
-		"Mistral7BInstruct": "0.0.3",
+		"Mistral7B":         "0.0.4",
+		"Mistral7BInstruct": "0.0.4",
 	}
 
 	baseCommandPresetMistral = "accelerate launch"
@@ -52,7 +52,7 @@ func (*mistral7b) GetInferenceParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "0Gi", // We run Mistral using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            mistralRunParams,
-		WorkloadTimeout:           time.Duration(30) * time.Minute,
+		ReadinessTimeout:          time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetMistral,
 		Tag:                       PresetMistralTagMap["Mistral7B"],
 	}
@@ -68,9 +68,9 @@ func (*mistral7b) GetTuningParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "16Gi", // We run Mistral using native vertical model parallel, no per GPU memory requirement.
 		//TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunParams:            mistralRunParams,
-		WorkloadTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:     baseCommandPresetMistral,
-		Tag:             PresetMistralTagMap["Mistral7B"],
+		ReadinessTimeout: time.Duration(30) * time.Minute,
+		BaseCommand:      baseCommandPresetMistral,
+		Tag:              PresetMistralTagMap["Mistral7B"],
 	}
 }
 
@@ -95,7 +95,7 @@ func (*mistral7bInst) GetInferenceParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "0Gi", // We run mistral using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            mistralRunParams,
-		WorkloadTimeout:           time.Duration(30) * time.Minute,
+		ReadinessTimeout:          time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetMistral,
 		Tag:                       PresetMistralTagMap["Mistral7BInstruct"],
 	}
