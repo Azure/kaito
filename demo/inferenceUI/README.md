@@ -7,42 +7,53 @@ as well as how to run the Python application independently.
 
 ### Prerequisites
 
-- Kubernetes cluster with Helm installed (if using helm chart)
-- Python environment (if running the Python file directly)
+- A Kubernetes cluster with Helm installed
 - Access to the KAITO Workspace Service endpoint
 
+## Deployment with Helm
+Deploy the KAITO InferenceUI Demo by setting the 
+workspaceServiceURL environment variable to your 
+Workspace Service endpoint.
 
-## Deploying with Helm
-To deploy the KAITO InferenceUI Demo using Helm, set the `workspaceServiceURL` environment variable to your 
-Workspace Service  endpoint.
 
 ### Configuring the Workspace Service URL
 - Using the --set flag:
 
-```
-helm install inference-frontend ./charts/DemoUI/inference --set env.workspaceServiceURL="http://<CLUSTER_IP>:80/chat"
-```
+   ```
+   helm install inference-frontend ./charts/DemoUI/inference --set env.workspaceServiceURL="http://<SERVICE_NAME>.<NAMESPACE>.svc.cluster.local:80/chat"
+   ```
  - Using a custom `values.override.yaml` file:
    ```
-    env:
-        workspaceServiceURL: "http://<CLUSTER_IP>:80/chat"
+   env:
+      workspaceServiceURL: "http://<SERVICE_NAME>.<NAMESPACE>.svc.cluster.local:80/chat"
    ```
    Then deploy with custom values file:
     ```
-    helm install inference-frontend ./charts/DemoUI/inference -f values.override.yaml
+    helm install inference-frontend ./charts/DemoUI/inference -f ./charts/DemoUI/inference/values.override.yaml
     ```
 
-Replace `<CLUSTER_IP>` with the IP address of your Kubernetes cluster. 
-For enhanced reliability, consider using the DNS name of the service within your cluster, 
-formatted as `http://<SERVICE_NAME>.<NAMESPACE>.svc.cluster.local:80/chat`
+Replace `<SERVICE_NAME>` and `<NAMESPACE>` with your service's name and Kubernetes namespace.
+This DNS naming convention ensures reliable service resolution within your cluster.
 
-## Running the Python File Directly
-1. Setup the environment \
-   `pip install chainlit requests`
-2. Download the Python file \
-   `wget -O inference.py https://raw.githubusercontent.com/Azure/kaito/main/demo/inferenceUI/chainlit.py`
-3. Run the application (Replace `<URL_TO_KAITO_WORKSPACE>` with the URL to your Kaito Workspace) \
-   `WORKSPACE_SERVICE_URL=<URL_TO_KAITO_WORKSPACE> chainlit run inference.py -w`
+## Accessing the Application
+After deploying, access the KAITO InferenceUI based on your service type:
+- NodePort
+   ```
+  export NODE_PORT=$(kubectl get --namespace default -o jsonpath="{.spec.ports[0].nodePort}" services inference-frontend)
+  export NODE_IP=$(kubectl get nodes --namespace default -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "Access your application at http://$NODE_IP:$NODE_PORT"
+   ```
+- LoadBalancer (It may take a few minutes for the LoadBalancer IP to be available):
+   ```
+   export SERVICE_IP=$(kubectl get svc --namespace default inference-frontend --template "{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}")
+   echo "Access your application at http://$SERVICE_IP:8000"
+   ```
+- ClusterIP (Use port-forwarding to access your application locally):
+   ```
+   export POD_NAME=$(kubectl get pods --namespace default -l "app.kubernetes.io/name=inference" -o jsonpath="{.items[0].metadata.name}")
+   kubectl --namespace default port-forward $POD_NAME 8080:8000
+   echo "Visit http://127.0.0.1:8080 to use your application"
+   ```
 
 ---
 
