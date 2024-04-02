@@ -5,10 +5,9 @@ package inference
 import (
 	"context"
 	"fmt"
+	"github.com/azure/kaito/pkg/utils"
 	"os"
 	"strconv"
-
-	"github.com/azure/kaito/pkg/utils"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/model"
@@ -122,8 +121,12 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
 	volume, volumeMount := utils.ConfigSHMVolume(workspaceObj)
-	volumes = append(volumes, volume)
-	volumeMounts = append(volumeMounts, volumeMount)
+	if volume.Name != "" {
+		volumes = append(volumes, volume)
+	}
+	if volumeMount.Name != "" {
+		volumeMounts = append(volumeMounts, volumeMount)
+	}
 	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj)
 	image, imagePullSecrets := GetInferenceImageInfo(ctx, workspaceObj, inferenceObj)
 
