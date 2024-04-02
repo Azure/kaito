@@ -49,25 +49,7 @@ var (
 		"torch_dtype": "bfloat16",
 		"pipeline":    "text-generation",
 	}
-	falconRunTuningParams = map[string]string{
-		"output_dir":                  ".",
-		"mlm":                         "false",
-		"torch_dtype":                 "bfloat16",
-		"num_train_epochs":            "4",
-		"truncation":                  "true",
-		"padding":                     "true",
-		"r":                           "16",
-		"lora_alpha":                  "32",
-		"target_modules":              "query_key_value",
-		"load_in_4bit":                "", // No explict value set. Boolean flag set to true
-		"bnb_4bit_quant_type":         "nf4",
-		"bnb_4bit_compute_dtype":      "bfloat16",
-		"bnb_4bit_use_double_quant":   "", // No explict value set. Boolean flag set to true
-		"lora_dropout":                "0.05",
-		"bias":                        "none",
-		"train_test_split":            "1",
-		"per_device_train_batch_size": "2",
-	}
+	falconRunTuningParams = map[string]string{}
 )
 
 var falconA falcon7b

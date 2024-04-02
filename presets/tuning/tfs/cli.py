@@ -24,9 +24,9 @@ class ExtLoraConfig(LoraConfig):
     target_modules: Optional[List[str]] = field(default=None, metadata={"help": ("List of module names to replace with LoRA.")})
     layers_to_transform: Optional[List[int]] = field(default=None, metadata={"help": "Layer indices to apply LoRA"})
     layers_pattern: Optional[List[str]] = field(default=None, metadata={"help": "Pattern to match layers for LoRA"})
-    loftq_config: Dict[str, any] = field(default_factory=dict, metadata={"help": "LoftQ configuration for quantization"}) 
+    loftq_config: Dict[str, any] = field(default_factory=dict, metadata={"help": "LoftQ configuration for quantization"})
 
-@dataclass 
+@dataclass
 class DatasetConfig: 
     """
     Config for Dataset 
@@ -49,8 +49,8 @@ class TokenizerParams:
     max_length: Optional[int] = field(default=None, metadata={"help": ""})
     stride: int = field(default=0, metadata={"help": ""})
     is_split_into_words: bool = field(default=False, metadata={"help": ""})
-    tok_pad_to_multiple_of: Optional[int] = field(default=None, metadata={"help": ""})
-    tok_return_tensors: Optional[str] = field(default=None, metadata={"help": ""})
+    pad_to_multiple_of: Optional[int] = field(default=None, metadata={"help": ""})
+    return_tensors: Optional[str] = field(default=None, metadata={"help": ""})
     return_token_type_ids: Optional[bool] = field(default=None, metadata={"help": ""})
     return_attention_mask: Optional[bool] = field(default=None, metadata={"help": ""})
     return_overflowing_tokens: bool = field(default=False, metadata={"help": ""})
@@ -72,11 +72,11 @@ class ModelConfig:
     resume_download: bool = field(default=False, metadata={"help": "Resume an interrupted download"})
     proxies: Optional[str] = field(default=None, metadata={"help": "Proxy configuration for downloading the model"})
     output_loading_info: bool = field(default=False, metadata={"help": "Output additional loading information"})
-    allow_remote_files: bool = field(default=False, metadata={"help": "Allow using remote files, default is local only"})
-    m_revision: str = field(default="main", metadata={"help": "Specific model version to use"})
+    local_files_only: bool = field(default=False, metadata={"help": "Allow using remote files, default is local only"})
+    revision: str = field(default="main", metadata={"help": "Specific model version to use"})
     trust_remote_code: bool = field(default=False, metadata={"help": "Enable trusting remote code when loading the model"})
-    m_load_in_4bit: bool = field(default=False, metadata={"help": "Load model in 4-bit mode"})
-    m_load_in_8bit: bool = field(default=False, metadata={"help": "Load model in 8-bit mode"})
+    load_in_4bit: bool = field(default=False, metadata={"help": "Load model in 4-bit mode"})
+    load_in_8bit: bool = field(default=False, metadata={"help": "Load model in 8-bit mode"})
     torch_dtype: Optional[str] = field(default=None, metadata={"help": "The torch dtype for the pre-trained model"})
     device_map: str = field(default="auto", metadata={"help": "The device map for the pre-trained model"})
 
@@ -103,14 +103,6 @@ class QuantizationConfig(BitsAndBytesConfig):
     bnb_4bit_compute_dtype: str = field(default="float32", metadata={"help": "Compute dtype for 4-bit quantization"})
     bnb_4bit_quant_type: str = field(default="fp4", metadata={"help": "Quantization type for 4-bit"})
     bnb_4bit_use_double_quant: bool = field(default=False, metadata={"help": "Use double quantization for 4-bit"})
-
-@dataclass
-class TrainingConfig:
-    """
-    Configuration for fine_tuning process
-    """
-    save_output_path: str = field(default=".", metadata={"help": "Path where fine_tuning output is saved"})
-    # Other fine_tuning-related configurations can go here
 
 # class CheckpointCallback(TrainerCallback):
 #     def on_train_end(self, args, state, control, **kwargs):

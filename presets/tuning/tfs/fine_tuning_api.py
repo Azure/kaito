@@ -3,23 +3,72 @@
 import os
 from dataclasses import asdict
 from datetime import datetime
+import yaml
 
 import torch
 import transformers
 from accelerate import Accelerator
 from cli import (DatasetConfig, ExtDataCollator, ExtLoraConfig, ModelConfig,
-                 QuantizationConfig, TokenizerParams, TrainingConfig)
+                 QuantizationConfig, TokenizerParams)
 from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           BitsAndBytesConfig, HfArgumentParser,
                           TrainingArguments)
 
+def flatten_config_to_cli_args(config, prefix=''):
+    cli_args = []
+    for key, value in config.items():
+        if isinstance(value, dict):
+            cli_args.extend(flatten_config_to_cli_args(value, prefix=f'{prefix}{key}_'))
+        else:
+            cli_arg = f'--{prefix}{key}'
+            cli_args.append(cli_arg)
+            if isinstance(value, bool):
+                if value is False:
+                    cli_args.remove(cli_arg)
+            else:
+                cli_args.append(str(value))
+    return cli_args
+
+# Function to parse a single section
+def parse_section(section_name, section_config, class_mapping):
+    parser = HfArgumentParser((class_mapping[section_name],))
+    # Flatten section_config to CLI-like arguments
+    cli_args = flatten_config_to_cli_args(section_config, prefix='')
+    # Parse the CLI-like arguments into a data class instance
+    return parser.parse_args_into_dataclasses(cli_args)[0]
+
+# Load the YAML configuration
+CONFIG_YAML = os.environ.get('YAML_FILE_PATH', 'default_path_to_yaml')
+with open(CONFIG_YAML, 'r') as file:
+    full_config = yaml.safe_load(file)
+training_config = full_config['training_config']
+
+# Mapping from config section names to data classes
+config_class_mapping = {
+    'ModelConfig': ModelConfig,
+    'TokenizerParams': TokenizerParams,
+    'QuantizationConfig': QuantizationConfig,
+    'LoraConfig': ExtLoraConfig,
+    'TrainingArguments': TrainingArguments,
+    'DatasetConfig': DatasetConfig,
+    'DataCollator': ExtDataCollator,
+}
+
 # Parsing
-parser = HfArgumentParser((ModelConfig, QuantizationConfig, ExtLoraConfig, TrainingConfig, TrainingArguments, ExtDataCollator, DatasetConfig, TokenizerParams))
-model_config, bnb_config, ext_lora_config, train_config, ta_args, dc_args, ds_config, tk_params, additional_args = parser.parse_args_into_dataclasses(
-    return_remaining_strings=True
-)
+parsed_configs = {}
+for section_name, section_config in training_config.items():
+    if section_name in config_class_mapping:
+        parsed_configs[section_name] = parse_section(section_name, section_config, config_class_mapping)
+
+model_config = parsed_configs.get('ModelConfig')
+tk_params = parsed_configs.get('TokenizerParams')
+bnb_config = parsed_configs.get('QuantizationConfig')
+ext_lora_config = parsed_configs.get('LoraConfig')
+ta_args = parsed_configs.get('TrainingArguments')
+ds_config = parsed_configs.get('DatasetConfig')
+dc_args = parsed_configs.get('DataCollator')
 
 print("Unmatched arguments:", additional_args)
 
@@ -27,11 +76,7 @@ accelerator = Accelerator()
 
 # Load Model Args
 model_args = asdict(model_config)
-model_args["local_files_only"] = not model_args.pop('allow_remote_files')
-model_args["revision"] = model_args.pop('m_revision')
-model_args["load_in_4bit"] = model_args.pop('m_load_in_4bit')
-model_args["load_in_8bit"] = model_args.pop('m_load_in_8bit')
-if accelerator.distributed_type != "NO": # Meaning we require distributed training
+if accelerator.distributed_type != "NO":  # Meaning we require distributed training
     print("Setting device map for distributed training")
     model_args["device_map"] = {"": Accelerator().process_index}
 
@@ -42,8 +87,6 @@ enable_qlora = bnb_config.is_quantizable()
 
 # Load Tokenizer Params
 tk_params = asdict(tk_params)
-tk_params["pad_to_multiple_of"] = tk_params.pop("tok_pad_to_multiple_of")
-tk_params["return_tensors"] = tk_params.pop("tok_return_tensors")
 
 # Load the Pre-Trained Tokenizer
 tokenizer = AutoTokenizer.from_pretrained(**model_args)
@@ -125,11 +168,11 @@ trainer = accelerator.prepare(transformers.Trainer(
     # callbacks=[checkpoint_callback]
 ))
 trainer.train()
-os.makedirs(train_config.save_output_path, exist_ok=True)
-trainer.save_model(train_config.save_output_path)
+os.makedirs(ta_args.output_dir, exist_ok=True)
+trainer.save_model(ta_args.output_dir)
 
 # Write file to signify training completion
 timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-completion_indicator_path = os.path.join(train_config.save_output_path, "fine_tuning_completed.txt")
+completion_indicator_path = os.path.join(ta_args.output_dir, "fine_tuning_completed.txt")
 with open(completion_indicator_path, 'w') as f:
     f.write(f"Fine-Tuning completed at {timestamp}\n")

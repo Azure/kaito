@@ -11,7 +11,7 @@ const (
 
 var (
 	DefaultAccelerateParams = map[string]string{
-		"config_file": "naive_mp_config.yaml",
+		"config_file": "torch_ddp.yaml", // TODO
 	}
 
 	DefaultImagePullSecrets = []corev1.LocalObjectReference{}

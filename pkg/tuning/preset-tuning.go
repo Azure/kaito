@@ -69,8 +69,12 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		return nil, err
 	}
 	shmVolume, shmVolumeMount := utils.ConfigSHMVolume(workspaceObj)
-	volumes = append(volumes, shmVolume)
-	volumeMounts = append(volumeMounts, shmVolumeMount)
+	if shmVolume.Name != "" {
+		volumes = append(volumes, shmVolume)
+	}
+	if shmVolumeMount.Name != "" {
+		volumeMounts = append(volumeMounts, shmVolumeMount)
+	}
 
 	commands, resourceReq := prepareTuningParameters(ctx, tuningObj)
 
@@ -103,7 +107,7 @@ func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspac
 }
 
 func getImageSecrets(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) []corev1.LocalObjectReference {
-	var imagePullSecretRefs []corev1.LocalObjectReference
+	imagePullSecretRefs := []corev1.LocalObjectReference{}
 	for _, secretName := range workspaceObj.Tuning.Input.ImagePullSecrets {
 		imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
 	}
