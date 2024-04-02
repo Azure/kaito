@@ -3,6 +3,7 @@
 package falcon
 
 import (
+	"github.com/azure/kaito/pkg/tuning"
 	"time"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -48,6 +49,25 @@ var (
 		"torch_dtype": "bfloat16",
 		"pipeline":    "text-generation",
 	}
+	falconRunTuningParams = map[string]string{
+		"output_dir":                  ".",
+		"mlm":                         "false",
+		"torch_dtype":                 "bfloat16",
+		"num_train_epochs":            "4",
+		"truncation":                  "true",
+		"padding":                     "true",
+		"r":                           "16",
+		"lora_alpha":                  "32",
+		"target_modules":              "query_key_value",
+		"load_in_4bit":                "", // No explict value set. Boolean flag set to true
+		"bnb_4bit_quant_type":         "nf4",
+		"bnb_4bit_compute_dtype":      "bfloat16",
+		"bnb_4bit_use_double_quant":   "", // No explict value set. Boolean flag set to true
+		"lora_dropout":                "0.05",
+		"bias":                        "none",
+		"train_test_split":            "1",
+		"per_device_train_batch_size": "2",
+	}
 )
 
 var falconA falcon7b
@@ -77,11 +97,11 @@ func (*falcon7b) GetTuningParameters() *model.PresetParam {
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "16Gi",
 		PerGPUMemoryRequirement:   "16Gi",
-		//TorchRunParams:            tuning.DefaultAccelerateParams, // TODO
-		//ModelRunPrams:             falconRunTuningParams, // TODO
-		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetFalcon,
-		Tag:              PresetFalconTagMap["Falcon7B"],
+		TorchRunParams:            tuning.DefaultAccelerateParams,
+		ModelRunParams:            falconRunTuningParams,
+		ReadinessTimeout:          time.Duration(30) * time.Minute,
+		BaseCommand:               baseCommandPresetFalcon,
+		Tag:                       PresetFalconTagMap["Falcon7B"],
 	}
 }
 
@@ -150,11 +170,11 @@ func (*falcon40b) GetTuningParameters() *model.PresetParam {
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "90Gi",
 		PerGPUMemoryRequirement:   "16Gi",
-		//TorchRunParams:            tuning.DefaultAccelerateParams, // TODO
-		//ModelRunPrams:             falconRunTuningParams, // TODO
-		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetFalcon,
-		Tag:              PresetFalconTagMap["Falcon40B"],
+		TorchRunParams:            tuning.DefaultAccelerateParams,
+		ModelRunParams:            falconRunTuningParams,
+		ReadinessTimeout:          time.Duration(30) * time.Minute,
+		BaseCommand:               baseCommandPresetFalcon,
+		Tag:                       PresetFalconTagMap["Falcon40B"],
 	}
 }
 func (*falcon40b) SupportDistributedInference() bool {

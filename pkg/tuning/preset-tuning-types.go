@@ -11,10 +11,7 @@ const (
 
 var (
 	DefaultAccelerateParams = map[string]string{
-		"num_processes": DefaultNumProcesses,
-		"num_machines":  DefaultNumMachines,
-		"machine_rank":  DefaultMachineRank,
-		"gpu_ids":       DefaultGPUIds,
+		"config_file": "naive_mp_config.yaml",
 	}
 
 	DefaultImagePullSecrets = []corev1.LocalObjectReference{}
