@@ -412,7 +412,7 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 		return nil
 	}
 
-	if wObj.Inference.Preset != nil {
+	if wObj.Inference != nil && wObj.Inference.Preset != nil {
 		presetName := string(wObj.Inference.Preset.Name)
 		model := plugin.KaitoModelRegister.MustGet(presetName)
 		serviceObj := resources.GenerateServiceManifest(ctx, wObj, serviceType, model.SupportDistributedInference())
