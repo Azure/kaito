@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import os
+import sys
 from dataclasses import asdict
 from datetime import datetime
 import yaml
@@ -16,41 +17,12 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           BitsAndBytesConfig, HfArgumentParser,
                           TrainingArguments)
 
-def flatten_config_to_cli_args(config, prefix=''):
-    cli_args = []
-    for key, value in config.items():
-        if isinstance(value, dict):
-            cli_args.extend(flatten_config_to_cli_args(value, prefix=f'{prefix}{key}_'))
-        else:
-            cli_arg = f'--{prefix}{key}'
-            cli_args.append(cli_arg)
-            cli_args.append(str(value))
-    return cli_args
 
-# Function to parse a single section
-def parse_section(section_name, section_config, class_mapping):
-    parser = HfArgumentParser((class_mapping[section_name],))
-    # Flatten section_config to CLI-like arguments
-    cli_args = flatten_config_to_cli_args(section_config, prefix='')
-    # Parse the CLI-like arguments into a data class instance
-    return parser.parse_args_into_dataclasses(cli_args)[0]
-
-# Load the YAML configuration
 CONFIG_YAML = os.environ.get('YAML_FILE_PATH', 'default_path_to_yaml')
-with open(CONFIG_YAML, 'r') as file:
-    full_config = yaml.safe_load(file)
-training_config = full_config['training_config']
+parsed_configs = parse_configs(CONFIG_YAML)
 
-# Mapping from config section names to data classes
-config_class_mapping = {
-    'ModelConfig': ModelConfig,
-    'TokenizerParams': TokenizerParams,
-    'QuantizationConfig': QuantizationConfig,
-    'LoraConfig': ExtLoraConfig,
-    'TrainingArguments': TrainingArguments,
-    'DatasetConfig': DatasetConfig,
-    'DataCollator': ExtDataCollator,
-}
+raw_cli_args = sys.argv[1:]  # Exclude the script name
+organized_cli_args = organize_cli_args(raw_cli_args, namespaces)
 
 # Parsing
 parsed_configs = {}
@@ -125,8 +97,6 @@ def preprocess_data(example):
 
 # Loading the dataset
 dataset = load_dataset(ds_config.dataset_name, split="train")
-
-dataset = load("/data-volume")
 
 # Shuffling the dataset (if needed)
 if ds_config.shuffle_dataset: 
