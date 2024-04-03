@@ -24,11 +24,7 @@ def flatten_config_to_cli_args(config, prefix=''):
         else:
             cli_arg = f'--{prefix}{key}'
             cli_args.append(cli_arg)
-            if isinstance(value, bool):
-                if value is False:
-                    cli_args.remove(cli_arg)
-            else:
-                cli_args.append(str(value))
+            cli_args.append(str(value))
     return cli_args
 
 # Function to parse a single section
@@ -69,8 +65,6 @@ ext_lora_config = parsed_configs.get('LoraConfig')
 ta_args = parsed_configs.get('TrainingArguments')
 ds_config = parsed_configs.get('DatasetConfig')
 dc_args = parsed_configs.get('DataCollator')
-
-print("Unmatched arguments:", additional_args)
 
 accelerator = Accelerator()
 
@@ -131,6 +125,8 @@ def preprocess_data(example):
 
 # Loading the dataset
 dataset = load_dataset(ds_config.dataset_name, split="train")
+
+dataset = load("/data-volume")
 
 # Shuffling the dataset (if needed)
 if ds_config.shuffle_dataset: 
