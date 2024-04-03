@@ -41,7 +41,7 @@ az aks install-cli
 Install the Workspace controller.
 
 ```bash
-helm install workspace ./charts/kaito/workspace --namespace kaito-workspace --create-namespace
+helm install workspace ./charts/kaito/workspace --namespace workspace --create-namespace
 ```
 
 Note that if you have installed another node provisioning controller that supports Karpenter-core APIs, the following steps for installing `gpu-provisioner` can be skipped.
