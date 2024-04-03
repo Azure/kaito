@@ -10,7 +10,7 @@ webhooks:
     clientConfig:
       service:
         name: {{ include "kaito.fullname" . }}
-        namespace: {{ include "kaito.fullname" . }}
+        namespace: {{ .Release.Namespace }}
         port: {{ .Values.webhook.port }}
     failurePolicy: Fail
     sideEffects: None
