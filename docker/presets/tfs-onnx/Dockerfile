@@ -10,8 +10,9 @@ ARG MODEL_VERSION
 # Set the working directory
 WORKDIR /workspace/tfs
 
-# Write metadata to model_info.txt file
-RUN echo -e "Model Type: $MODEL_TYPE\nVersion: $VERSION\nImage Name: $IMAGE_NAME\nModel Version URL: $MODEL_VERSION" > /workspace/tfs/model_info.txt
+# Write metadata to model_info.json file
+RUN MODEL_VERSION_HASH=$(echo "$MODEL_VERSION" | awk -F'/' '{print $NF}') && \
+    echo "{\"Model Type\": \"$MODEL_TYPE\", \"Version\": \"$VERSION\", \"Image Name\": \"$IMAGE_NAME\", \"Model Version URL\": \"$MODEL_VERSION\", \"REVISION_ID\": \"$MODEL_VERSION_HASH\"}" > /workspace/tfs/model_info.json
 
 # First, copy just the requirements.txt file and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and

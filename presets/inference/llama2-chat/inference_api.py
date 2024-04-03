@@ -8,6 +8,7 @@ import os
 import signal
 import sys
 import threading
+import json
 from typing import Optional
 
 import GPUtil
@@ -19,7 +20,7 @@ from llama import Llama
 from pydantic import BaseModel
 
 # Constants
-MODEL_INFO = "model_info.txt"
+MODEL_INFO = "model_info.json"
 
 # Setup argparse
 parser = argparse.ArgumentParser(description="Llama API server.")
@@ -197,9 +198,9 @@ def setup_main_routes():
     @app_main.get("/version")
     def get_version():
         with open(f"/workspace/llama/{MODEL_INFO}", "r") as f:
-            model_name = f.read()
+            model_info = json.load(f)
 
-        return {"version": model_name}
+        return model_info
 
 def setup_worker_routes():
     @app_worker.get("/healthz")

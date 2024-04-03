@@ -3,6 +3,7 @@
 import os
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
+import json
 
 import GPUtil
 import torch
@@ -14,7 +15,7 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
 
 # Constants
-MODEL_INFO = "model_info.txt"
+MODEL_INFO = "model_info.json"
 
 @dataclass
 class ModelConfig:
@@ -215,9 +216,9 @@ def get_metrics():
 @app.get("/version")
 def get_version():
     with open(f"/workspace/tfs/{MODEL_INFO}", "r") as f:
-        model_name = f.read()
+        model_info = json.load(f)
 
-    return {"version": model_name}
+    return model_info
 
 if __name__ == "__main__":
     local_rank = int(os.environ.get("LOCAL_RANK", 0)) # Default to 0 if not set

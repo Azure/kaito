@@ -31,8 +31,9 @@ ARG VERSION
 ARG IMAGE_NAME
 ARG MODEL_VERSION
 
-# Write metadata to model_info.txt file
-RUN echo -e "Model Type: $MODEL_TYPE\nVersion: $VERSION\nImage Name: $IMAGE_NAME\nModel Version URL: $MODEL_VERSION" > /workspace/llama/model_info.txt
+# Write metadata to model_info.json file
+RUN MODEL_VERSION_HASH=$(echo "$MODEL_VERSION" | awk -F'/' '{print $NF}') && \
+    echo "{\"Model Type\": \"$MODEL_TYPE\", \"Version\": \"$VERSION\", \"Image Name\": \"$IMAGE_NAME\", \"Model Version URL\": \"$MODEL_VERSION\", \"REVISION_ID\": \"$MODEL_VERSION_HASH\"}" > /workspace/llama/model_info.json
 
 ADD ${WEIGHTS_PATH} /workspace/llama/llama-2/weights
 ADD kaito/presets/inference/${MODEL_TYPE} /workspace/llama/llama-2
