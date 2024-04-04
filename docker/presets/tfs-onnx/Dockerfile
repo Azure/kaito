@@ -11,7 +11,7 @@ ARG MODEL_VERSION
 WORKDIR /workspace/tfs
 
 # Write metadata to model_info.json file
-RUN MODEL_VERSION_HASH=$(echo "$MODEL_VERSION" | awk -F'/' '{print $NF}') && \
+RUN MODEL_VERSION_HASH="${MODEL_VERSION##*/}" && \
     echo "{\"Model Type\": \"$MODEL_TYPE\", \"Version\": \"$VERSION\", \"Image Name\": \"$IMAGE_NAME\", \"Model Version URL\": \"$MODEL_VERSION\", \"REVISION_ID\": \"$MODEL_VERSION_HASH\"}" > /workspace/tfs/model_info.json
 
 # First, copy just the requirements.txt file and install dependencies

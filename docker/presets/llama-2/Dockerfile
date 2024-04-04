@@ -32,7 +32,7 @@ ARG IMAGE_NAME
 ARG MODEL_VERSION
 
 # Write metadata to model_info.json file
-RUN MODEL_VERSION_HASH=$(echo "$MODEL_VERSION" | awk -F'/' '{print $NF}') && \
+RUN MODEL_VERSION_HASH="${MODEL_VERSION##*/}" && \
     echo "{\"Model Type\": \"$MODEL_TYPE\", \"Version\": \"$VERSION\", \"Image Name\": \"$IMAGE_NAME\", \"Model Version URL\": \"$MODEL_VERSION\", \"REVISION_ID\": \"$MODEL_VERSION_HASH\"}" > /workspace/llama/model_info.json
 
 ADD ${WEIGHTS_PATH} /workspace/llama/llama-2/weights
