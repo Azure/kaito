@@ -25,7 +25,7 @@ models:
     runtime: llama-2
     tag: 0.0.4
     # Tag history:
-    # 0.0.4 - Version endpoint
+    # 0.0.4 - Version endpoint (#297)
     # 0.0.3 - Inference API Cleanup (#233)
     # 0.0.2 - Eliminate Unnecessary Process Group Creation in Worker Initialization (#244)
     # 0.0.1 - Initial Release
@@ -42,7 +42,7 @@ models:
     runtime: tfs
     tag: 0.0.5
     # Tag history:
-    # 0.0.5 - Version endpoint
+    # 0.0.5 - Version endpoint (#297)
     # 0.0.4 - Adjust default model params (#310)
     # 0.0.3 - Update Default Params (#294)
     # 0.0.2 - Inference API Cleanup (#233)
@@ -59,7 +59,7 @@ models:
     runtime: tfs
     tag: 0.0.6
     # Tag history for 40b models:
-    # 0.0.6 - Version endpoint
+    # 0.0.6 - Version endpoint (#297)
     # 0.0.5 - Adjust default model params (#310)
     # 0.0.4 - Skipped due to incomplete upload issue
     # 0.0.3 - Update Default Params (#294)
@@ -78,7 +78,7 @@ models:
     runtime: tfs
     tag: 0.0.5
     # Tag history:
-    # 0.0.5 - Version endpoint
+    # 0.0.5 - Version endpoint (#297)
     # 0.0.4 - Adjust default model params (#310)
     # 0.0.3 - Update Default Params (#294)
     # 0.0.2 - Inference API Cleanup (#233)
@@ -91,7 +91,7 @@ models:
     runtime: tfs
     tag: 0.0.4
     # Tag history:
-    # 0.0.4 - Version endpoint
+    # 0.0.4 - Version endpoint (#297)
     # 0.0.3 - Adjust default model params (#310)
     # 0.0.2 - Update Default Params (#294)
     # 0.0.1 - Initial Release
