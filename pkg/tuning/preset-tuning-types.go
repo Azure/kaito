@@ -11,7 +11,10 @@ const (
 
 var (
 	DefaultAccelerateParams = map[string]string{
-		"config_file": "torch_ddp.yaml", // TODO
+		"num_processes": DefaultNumProcesses,
+		"num_machines":  DefaultNumMachines,
+		"machine_rank":  DefaultMachineRank,
+		"gpu_ids":       DefaultGPUIds,
 	}
 
 	DefaultImagePullSecrets = []corev1.LocalObjectReference{}
