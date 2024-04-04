@@ -16,19 +16,11 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           BitsAndBytesConfig, HfArgumentParser,
                           TrainingArguments)
+from parser import parse_configs
 
 
 CONFIG_YAML = os.environ.get('YAML_FILE_PATH', 'default_path_to_yaml')
 parsed_configs = parse_configs(CONFIG_YAML)
-
-raw_cli_args = sys.argv[1:]  # Exclude the script name
-organized_cli_args = organize_cli_args(raw_cli_args, namespaces)
-
-# Parsing
-parsed_configs = {}
-for section_name, section_config in training_config.items():
-    if section_name in config_class_mapping:
-        parsed_configs[section_name] = parse_section(section_name, section_config, config_class_mapping)
 
 model_config = parsed_configs.get('ModelConfig')
 tk_params = parsed_configs.get('TokenizerParams')
