@@ -3,12 +3,15 @@ FROM python:3.10-slim
 ARG WEIGHTS_PATH
 ARG MODEL_TYPE
 ARG VERSION
+ARG IMAGE_NAME
+ARG MODEL_VERSION
 
 # Set the working directory
 WORKDIR /workspace/tfs
 
-# Write the version to a file
-RUN echo $VERSION > /workspace/tfs/version.txt
+# Write metadata to model_info.json file
+RUN MODEL_VERSION_HASH="${MODEL_VERSION##*/}" && \
+    echo "{\"Model Type\": \"$MODEL_TYPE\", \"Version\": \"$VERSION\", \"Image Name\": \"$IMAGE_NAME\", \"Model Version URL\": \"$MODEL_VERSION\", \"REVISION_ID\": \"$MODEL_VERSION_HASH\"}" > /workspace/tfs/model_info.json
 
 # First, copy just the preset files and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and

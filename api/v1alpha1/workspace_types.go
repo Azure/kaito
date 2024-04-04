@@ -60,7 +60,7 @@ type PresetOptions struct {
 	// Image is the name of the containerized model image.
 	// +optional
 	Image string `json:"image,omitempty"`
-	// ImagePullSecrets is a list of secret names in the same namespace used for pulling the image.
+	// ImagePullSecrets is a list of secret names in the same namespace used for pulling the model image.
 	// +optional
 	ImagePullSecrets []string `json:"imagePullSecrets,omitempty"`
 }
@@ -73,7 +73,7 @@ type PresetSpec struct {
 }
 
 type InferenceSpec struct {
-	// Preset describles the model that will be deployed with preset configurations.
+	// Preset describes the base model that will be deployed with preset configurations.
 	// +optional
 	Preset *PresetSpec `json:"preset,omitempty"`
 	// Template specifies the Pod template used to run the inference service. Users can specify custom Pod settings
@@ -83,6 +83,76 @@ type InferenceSpec struct {
 	// +kubebuilder:validation:Schemaless
 	// +optional
 	Template *v1.PodTemplateSpec `json:"template,omitempty"`
+	// Adapters are integrated into the base model for inference.
+	// Users can specify multiple adapters for the model and the respective weight of using each of them.
+	// +optional
+	Adapters []AdapterSpec `json:"adapters,omitempty"`
+}
+
+type AdapterSpec struct {
+	// Source describes where to obtain the adapter data.
+	// +optional
+	Source *DataSource `json:"source,omitempty"`
+	// Strength specifies the default multiplier for applying the adapter weights to the raw model weights.
+	// It is usually a float number between 0 and 1. It is defined as a string type to be language agnostic.
+	// +optional
+	Strength *string `json:"strength,omitempty"`
+}
+
+type DataSource struct {
+	// The name of the dataset. The same name will be used as a container name.
+	// It must be a valid DNS subdomain value,
+	Name string `json:"name,omitempty"`
+	// URLs specifies the links to the public data sources. E.g., files in a public github repository.
+	// +optional
+	URLs []string `json:"urls,omitempty"`
+	// The directory in the hsot that contains the data.
+	// +optional
+	HostPath string `json:"hostPath,omitempty"`
+	// The name of the image that contains the source data. The assumption is that the source data locates in the
+	// `data` directory in the image.
+	// +optional
+	Image string `json:"image,omitempty"`
+	// ImagePullSecrets is a list of secret names in the same namespace used for pulling the data image.
+	// +optional
+	ImagePullSecrets []string `json:"imagePullSecrets,omitempty"`
+}
+
+type DataDestination struct {
+	// The directory in the host that contains the output data.
+	// +optional
+	HostPath string `json:"hostPath,omitempty"`
+	// Name of the image where the output data is pushed to.
+	// +optional
+	Image string `json:"image,omitempty"`
+	// ImagePushSecret is the name of the secret in the same namespace that contains the authentication
+	// information that is needed for running `docker push`.
+	// +optional
+	ImagePushSecret string `json:"imagePushSecret,omitempty"`
+}
+
+type TuningMethod string
+
+const (
+	TuningMethodLora  TuningMethod = "lora"
+	TuningMethodQLora TuningMethod = "qlora"
+)
+
+type TuningSpec struct {
+	// Preset describes which model to load for tuning.
+	// +optional
+	Preset *PresetSpec `json:"preset,omitempty"`
+	// Method specifies the Parameter-Efficient Fine-Tuning(PEFT) method, such as lora, qlora, used for the tuning.
+	// +optional
+	Method TuningMethod `json:"method,omitempty"`
+	// Config specifies the name of the configmap in the same namespace that contains the arguments used by the tuning method.
+	// If not specified, a default configmap is used based on the specified method.
+	// +optional
+	Config string `json:"config,omitempty"`
+	// Input describes the input used by the tuning method.
+	Input *DataSource `json:"input,omitempty"`
+	// Output specified where to store the tuning output.
+	Output *DataDestination `json:"output,omitempty"`
 }
 
 // WorkspaceStatus defines the observed state of Workspace
@@ -112,6 +182,7 @@ type Workspace struct {
 
 	Resource  ResourceSpec    `json:"resource,omitempty"`
 	Inference InferenceSpec   `json:"inference,omitempty"`
+	Tuning    TuningSpec      `json:"tuning,omitempty"`
 	Status    WorkspaceStatus `json:"status,omitempty"`
 }
 

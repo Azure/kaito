@@ -3,28 +3,29 @@ models:
   - name: llama-2-7b
     type: llama2-completion
     runtime: llama-2
-    tag: 0.0.3
+    tag: 0.0.4
   - name: llama-2-7b-chat
     type: llama2-chat
     runtime: llama-2
-    tag: 0.0.3
+    tag: 0.0.4
   - name: llama-2-13b
     type: llama2-completion
     runtime: llama-2
-    tag: 0.0.3
+    tag: 0.0.4
   - name: llama-2-13b-chat
     type: llama2-chat
     runtime: llama-2
-    tag: 0.0.3
+    tag: 0.0.4
   - name: llama-2-70b
     type: llama2-completion
     runtime: llama-2
-    tag: 0.0.3
+    tag: 0.0.4
   - name: llama-2-70b-chat
     type: llama2-chat
     runtime: llama-2
-    tag: 0.0.3
+    tag: 0.0.4
     # Tag history:
+    # 0.0.4 - Version endpoint
     # 0.0.3 - Inference API Cleanup (#233)
     # 0.0.2 - Eliminate Unnecessary Process Group Creation in Worker Initialization (#244)
     # 0.0.1 - Initial Release
@@ -34,23 +35,25 @@ models:
     type: text-generation
     version: https://huggingface.co/tiiuae/falcon-7b/commit/898df1396f35e447d5fe44e0a3ccaaaa69f30d36
     runtime: tfs
-    tag: 0.0.2
+    tag: 0.0.4
   - name: falcon-7b-instruct
     type: text-generation
     version: https://huggingface.co/tiiuae/falcon-7b-instruct/commit/cf4b3c42ce2fdfe24f753f0f0d179202fea59c99
     runtime: tfs
-    tag: 0.0.2
+    tag: 0.0.4
   - name: falcon-40b
     type: text-generation
     version: https://huggingface.co/tiiuae/falcon-40b/commit/4a70170c215b36a3cce4b4253f6d0612bb7d4146
     runtime: tfs
-    tag: 0.0.2
+    tag: 0.0.4
   - name: falcon-40b-instruct
     type: text-generation
     version: https://huggingface.co/tiiuae/falcon-40b-instruct/commit/ecb78d97ac356d098e79f0db222c9ce7c5d9ee5f
     runtime: tfs
-    tag: 0.0.2
+    tag: 0.0.4
     # Tag history:
+    # 0.0.4 - Version endpoint
+    # 0.0.3 - Update Default Params (#294)
     # 0.0.2 - Inference API Cleanup (#233)
     # 0.0.1 - Initial Release
 
@@ -59,13 +62,15 @@ models:
     type: text-generation 
     version: https://huggingface.co/mistralai/Mistral-7B-v0.1/commit/26bca36bde8333b5d7f72e9ed20ccda6a618af24
     runtime: tfs
-    tag: 0.0.2
+    tag: 0.0.4
   - name: mistral-7b-instruct
     type: text-generation
     version: https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2/commit/b70aa86578567ba3301b21c8a27bea4e8f6d6d61
     runtime: tfs
-    tag: 0.0.2
+    tag: 0.0.4
     # Tag history:
+    # 0.0.4 - Version endpoint
+    # 0.0.3 - Update Default Params (#294)
     # 0.0.2 - Inference API Cleanup (#233)
     # 0.0.1 - Initial Release
 
@@ -74,6 +79,8 @@ models:
     type: text-generation 
     version: https://huggingface.co/microsoft/phi-2/commit/b10c3eba545ad279e7208ee3a5d644566f001670
     runtime: tfs
-    tag: 0.0.1
+    tag: 0.0.3
     # Tag history:
+    # 0.0.3 - Version endpoint
+    # 0.0.2 - Update Default Params (#294)
     # 0.0.1 - Initial Release
