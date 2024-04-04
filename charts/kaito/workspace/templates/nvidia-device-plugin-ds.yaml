@@ -63,7 +63,7 @@ apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
   name: high-priority-nonpreempting
-  namespace: {{ include "kaito.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "kaito.labels" . | nindent 4 }}
 value: 1000000
