@@ -6,7 +6,7 @@
 export REGISTRY=<your_docker_registry>
 export IMG_NAME=workspace
 export IMG_TAG=0.2.2
-helm install workspace ./charts/kaito/workspace  \
+helm install kaito-workspace ./charts/kaito/workspace  \
 --set image.repository=${REGISTRY}/$(IMG_NAME) --set image.tag=$(IMG_TAG) \
 --namespace kaito-workspace --create-namespace
 ```
