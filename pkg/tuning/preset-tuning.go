@@ -2,6 +2,7 @@ package tuning
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -76,7 +77,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		volumeMounts = append(volumeMounts, shmVolumeMount)
 	}
 
-	commands, resourceReq := prepareTuningParameters(ctx, tuningObj)
+	commands, resourceReq := prepareTuningParameters(ctx, workspaceObj, tuningObj)
 
 	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, imagePullSecrets, *workspaceObj.Resource.Count, commands,
 		containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, initContainers, volumes, volumeMounts)
@@ -178,7 +179,10 @@ func getDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 // accelerate launch <TORCH_PARAMS> baseCommand <MODEL_PARAMS>
 // and sets the GPU resources required for inference.
 // Returns the command and resource configuration.
-func prepareTuningParameters(ctx context.Context, tuningObj *model.PresetParam) ([]string, corev1.ResourceRequirements) {
+func prepareTuningParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, tuningObj *model.PresetParam) ([]string, corev1.ResourceRequirements) {
+	// Set # of processes to GPU Count
+	num_processes := utils.GetInstanceGPUCount(wObj)
+	tuningObj.TorchRunParams["num_processes"] = fmt.Sprintf("%d", num_processes)
 	torchCommand := utils.BuildCmdStr(tuningObj.BaseCommand, tuningObj.TorchRunParams)
 	torchCommand = utils.BuildCmdStr(torchCommand, tuningObj.TorchRunRdzvParams)
 	modelCommand := utils.BuildCmdStr(TuningFile, tuningObj.ModelRunParams)

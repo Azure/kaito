@@ -5,7 +5,9 @@ package utils
 import (
 	"fmt"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/tuning"
 	corev1 "k8s.io/api/core/v1"
+	"strconv"
 )
 
 const (
@@ -52,6 +54,19 @@ func ConfigDataVolume() ([]corev1.Volume, []corev1.VolumeMount) {
 		MountPath: "/data",
 	})
 	return volumes, volumeMounts
+}
+
+func GetInstanceGPUCount(wObj *kaitov1alpha1.Workspace) int {
+	sku := wObj.Resource.InstanceType
+	gpuConfig, exists := kaitov1alpha1.SupportedGPUConfigs[sku]
+	if !exists {
+		numProcesses, err := strconv.Atoi(tuning.DefaultNumProcesses)
+		if err != nil {
+			return 1
+		}
+		return numProcesses
+	}
+	return gpuConfig.GPUCount
 }
 
 func ShellCmd(command string) []string {
