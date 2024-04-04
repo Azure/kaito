@@ -12,7 +12,7 @@ def get_weights_path(model_name):
     return f"/datadrive/{model_name}/weights"
 
 def get_dockerfile_path(model_runtime): 
-    return f"/kaito/docker/presets/{model_runtime}/Dockerfile"
+    return f"/kaito/docker/presets/inference/{model_runtime}/Dockerfile"
 
 def generate_unique_id():
     """Generate a unique identifier for a job."""

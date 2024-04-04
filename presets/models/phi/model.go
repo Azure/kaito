@@ -22,7 +22,7 @@ var (
 	PresetPhi2Model = "phi-2"
 
 	PresetPhiTagMap = map[string]string{
-		"Phi2": "0.0.2",
+		"Phi2": "0.0.3",
 	}
 
 	baseCommandPresetPhi = "accelerate launch"
@@ -36,8 +36,8 @@ var phiA phi2
 
 type phi2 struct{}
 
-func (*phi2) GetInferenceParameters() *model.PresetInferenceParam {
-	return &model.PresetInferenceParam{
+func (*phi2) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
 		ModelFamilyName:           "Phi",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
@@ -46,12 +46,29 @@ func (*phi2) GetInferenceParameters() *model.PresetInferenceParam {
 		PerGPUMemoryRequirement:   "0Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            phiRunParams,
-		DeploymentTimeout:         time.Duration(30) * time.Minute,
+		ReadinessTimeout:          time.Duration(30) * time.Minute,
 		BaseCommand:               baseCommandPresetPhi,
 		Tag:                       PresetPhiTagMap["Phi2"],
 	}
-
+}
+func (*phi2) GetTuningParameters() *model.PresetParam {
+	return &model.PresetParam{
+		ModelFamilyName:           "Phi",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
+		DiskStorageRequirement:    "50Gi",
+		GPUCountRequirement:       "1",
+		TotalGPUMemoryRequirement: "16Gi",
+		PerGPUMemoryRequirement:   "16Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		// TorchRunParams:            inference.DefaultAccelerateParams,
+		// ModelRunParams:            phiRunParams,
+		ReadinessTimeout: time.Duration(30) * time.Minute,
+		BaseCommand:      baseCommandPresetPhi,
+		Tag:              PresetPhiTagMap["Phi2"],
+	}
 }
 func (*phi2) SupportDistributedInference() bool {
 	return false
+}
+func (*phi2) SupportTuning() bool {
+	return true
 }

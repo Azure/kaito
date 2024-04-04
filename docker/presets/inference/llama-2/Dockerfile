@@ -22,7 +22,7 @@ WORKDIR /workspace/llama
 RUN ["/bin/bash", "-c", "sed -i $'/torch.distributed.init_process_group(\"nccl\")/c\\            import datetime\\\n            torch.distributed.init_process_group(\"nccl\", timeout=datetime.timedelta(days=365*100))' /workspace/llama/llama/generation.py"]
 
 RUN pip install -e .
-RUN pip install torch==2.1.0 fastapi==0.103.2 pydantic==1.10.9 gputil==1.4.0
+RUN pip install torch==2.1.0 fastapi==0.109.1 pydantic==1.10.9 gputil==1.4.0
 RUN pip install 'uvicorn[standard]'
 
 ARG WEIGHTS_PATH

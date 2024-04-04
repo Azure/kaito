@@ -1,10 +1,8 @@
 name: publish_helm_chart
 
 on:
-  workflow_run:
-    workflows: [ "Create, Scan and Publish KAITO image" ]
-    types: [ completed ]
-    branches: [ release-** ]
+  repository_dispatch:
+    types: [ create-release ]
 
 permissions:
   id-token: write # This is required for requesting the JWT
@@ -15,15 +13,15 @@ permissions:
   pull-requests: read
 
 jobs:
-  release:
+  publish-helm:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           submodules: true
           fetch-depth: 0
+          ref: ${{ github.event.client_payload.tag }}
 
       - name: Publish Workspace Helm chart
         uses: stefanprodan/helm-gh-pages@v1.7.0

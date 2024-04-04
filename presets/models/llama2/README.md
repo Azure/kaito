@@ -1,9 +1,9 @@
 ## Supported Models
 |Model name| Model source | Sample workspace|Kubernetes Workload|Distributed inference|
 |----|:----:|:----:| :----: |:----: |
-|llama2-7b |[meta](https://github.com/facebookresearch/llama/blob/main/MODEL_CARD.md)|[link](../../../examples/kaito_workspace_llama2_7b.yaml)|Deployment| false|
-|llama2-13b|[meta](https://github.com/facebookresearch/llama/blob/main/MODEL_CARD.md)|[link](../../../examples/kaito_workspace_llama2_13b.yaml)|StatefulSet| true|
-|llama2-70b|[meta](https://github.com/facebookresearch/llama/blob/main/MODEL_CARD.md)|[link](../../../examples/kaito_workspace_llama2_70b.yaml)|StatefulSet| true|
+|llama2-7b |[meta](https://github.com/facebookresearch/llama/blob/main/MODEL_CARD.md)|[link](../../../examples/inference/kaito_workspace_llama2_7b.yaml)|Deployment| false|
+|llama2-13b|[meta](https://github.com/facebookresearch/llama/blob/main/MODEL_CARD.md)|[link](../../../examples/inference/kaito_workspace_llama2_13b.yaml)|StatefulSet| true|
+|llama2-70b|[meta](https://github.com/facebookresearch/llama/blob/main/MODEL_CARD.md)|[link](../../../examples/inference/kaito_workspace_llama2_70b.yaml)|StatefulSet| true|
 
 ## Image Source
 - **Private**: User needs to manage the lifecycle of the inference service images that contain model weights (e.g., managing image tags). The images are available in user's private container registry.
@@ -29,7 +29,7 @@ export LLAMA_WEIGHTS_PATH=<path to your downloaded model weight files>
 Use the following command to build the llama2 inference service image from the root of the repo.
 ```
 docker build \
-  --file docker/presets/llama-2/Dockerfile \
+  --file docker/presets/inference/llama-2/Dockerfile \
   --build-arg WEIGHTS_PATH=$LLAMA_WEIGHTS_PATH \
   --build-arg MODEL_TYPE=llama2-completion \
   --build-arg VERSION=0.0.1 \

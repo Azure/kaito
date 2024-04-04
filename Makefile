@@ -2,7 +2,7 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
-VERSION ?= v0.2.0
+VERSION ?= v0.2.2
 IMG_TAG ?= $(subst v,,$(VERSION))
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -24,6 +24,7 @@ GINKGO := $(TOOLS_BIN_DIR)/$(GINKGO_BIN)-$(GINKGO_VER)
 
 AZURE_SUBSCRIPTION_ID ?= $(AZURE_SUBSCRIPTION_ID)
 AZURE_LOCATION ?= eastus
+AKS_K8S_VERSION ?= 1.27.2
 AZURE_RESOURCE_GROUP ?= demo
 AZURE_CLUSTER_NAME ?= kaito-demo
 AZURE_RESOURCE_GROUP_MC=MC_$(AZURE_RESOURCE_GROUP)_$(AZURE_CLUSTER_NAME)_$(AZURE_LOCATION)
@@ -118,12 +119,13 @@ create-acr:  ## Create test ACR
 
 .PHONY: create-aks-cluster
 create-aks-cluster: ## Create test AKS cluster (with msi, oidc, and workload identity enabled)
-	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --attach-acr $(AZURE_ACR_NAME) \
-	--node-count 1 --generate-ssh-keys --enable-managed-identity --enable-workload-identity --enable-oidc-issuer -o none
+	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --location $(AZURE_LOCATION) \
+	--attach-acr $(AZURE_ACR_NAME) 	--kubernetes-version $(AKS_K8S_VERSION) --node-count 1 --generate-ssh-keys  \
+	--enable-managed-identity --enable-workload-identity --enable-oidc-issuer -o none
 
 .PHONY: create-aks-cluster-with-kaito
 create-aks-cluster-with-kaito: ## Create test AKS cluster (with msi, oidc and kaito enabled)
-	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --node-count 1 \
+	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --location $(AZURE_LOCATION) --node-count 1 \
  	--generate-ssh-keys --enable-managed-identity --enable-oidc-issuer --enable-ai-toolchain-operator -o none
 
 	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
@@ -145,7 +147,7 @@ az-patch-install-helm: ## Update Azure client env vars and settings in helm valu
 	yq -i '(.image.repository)                                              = "$(REGISTRY)/workspace"'                    ./charts/kaito/workspace/values.yaml
 	yq -i '(.image.tag)                                                     = "$(IMG_TAG)"'                               ./charts/kaito/workspace/values.yaml
 
-	helm install kaito-workspace ./charts/kaito/workspace
+	helm install kaito-workspace ./charts/kaito/workspace --namespace $(KAITO_NAMESPACE) --create-namespace
 
 ##@ Build
 
@@ -187,7 +189,7 @@ ifndef ignore-not-found
 endif
 
 ##@ gpu-provider
-.PHONE: gpu-provisioner-identity-perm
+.PHONY: gpu-provisioner-identity-perm
 gpu-provisioner-identity-perm: ## Create identity for gpu-provisioner
 	az identity create --name gpuIdentity --resource-group $(AZURE_RESOURCE_GROUP)
 
@@ -208,8 +210,6 @@ gpu-provisioner-helm:  ## Update Azure client env vars and settings in helm valu
 	$(eval AZURE_TENANT_ID=$(shell az account show | jq -r ".tenantId"))
 	$(eval AZURE_SUBSCRIPTION_ID=$(shell az account show | jq -r ".id"))
 
-	yq -i '(.controller.image.repository)                                              = "mcr.microsoft.com/aks/kaito/gpu-provisioner"'       ./charts/kaito/gpu-provisioner/values.yaml
-	yq -i '(.controller.image.tag)                                                     = "0.1.0"'                                             ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.controller.env[] | select(.name=="ARM_SUBSCRIPTION_ID"))           .value = "$(AZURE_SUBSCRIPTION_ID)"'                          ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.controller.env[] | select(.name=="LOCATION"))                      .value = "$(AZURE_LOCATION)"'                                 ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.controller.env[] | select(.name=="ARM_RESOURCE_GROUP"))            .value = "$(AZURE_RESOURCE_GROUP)"'                           ./charts/kaito/gpu-provisioner/values.yaml
@@ -219,7 +219,7 @@ gpu-provisioner-helm:  ## Update Azure client env vars and settings in helm valu
 	yq -i '(.workloadIdentity.clientId)                                                = "$(IDENTITY_CLIENT_ID)"'                             ./charts/kaito/gpu-provisioner/values.yaml
 	yq -i '(.workloadIdentity.tenantId)                                                = "$(AZURE_TENANT_ID)"'                                ./charts/kaito/gpu-provisioner/values.yaml
 
-	helm install kaito-gpu-provisioner ./charts/kaito/gpu-provisioner
+	helm install kaito-gpu-provisioner ./charts/kaito/gpu-provisioner --namespace $(GPU_NAMESPACE) --create-namespace
 
 ##@ Build Dependencies
 
@@ -267,6 +267,7 @@ lint: $(GOLANGCI_LINT)
 release-manifest:
 	@sed -i -e 's/^VERSION ?= .*/VERSION ?= ${VERSION}/' ./Makefile
 	@sed -i -e "s/version: .*/version: ${IMG_TAG}/" ./charts/kaito/workspace/Chart.yaml
+	@sed -i -e "s/appVersion: .*/appVersion: ${IMG_TAG}/" ./charts/kaito/workspace/Chart.yaml
 	@sed -i -e "s/tag: .*/tag: ${IMG_TAG}/" ./charts/kaito/workspace/values.yaml
 	@sed -i -e 's/IMG_TAG=.*/IMG_TAG=${IMG_TAG}/' ./charts/kaito/workspace/README.md
 	git checkout -b release-${VERSION}

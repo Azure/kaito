@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/utils/clock"
+	"github.com/azure/kaito/pkg/tuning"
+	batchv1 "k8s.io/api/batch/v1"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -21,6 +21,7 @@ import (
 	"github.com/azure/kaito/pkg/utils/plugin"
 	"github.com/go-logr/logr"
 	"github.com/samber/lo"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/clock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -109,16 +111,22 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 		return reconcile.Result{}, err
 	}
 
-	if err = c.applyInference(ctx, wObj); err != nil {
-		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
-			"workspaceFailed", err.Error()); updateErr != nil {
-			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
-			return reconcile.Result{}, updateErr
+	if wObj.Tuning != nil {
+		if err = c.applyTuning(ctx, wObj); err != nil {
+			return reconcile.Result{}, err
 		}
-		return reconcile.Result{}, err
+	}
+	if wObj.Inference != nil {
+		if err = c.applyInference(ctx, wObj); err != nil {
+			if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
+				"workspaceFailed", err.Error()); updateErr != nil {
+				klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+				return reconcile.Result{}, updateErr
+			}
+			return reconcile.Result{}, err
+		}
 	}
 
-	// TODO apply TrainingSpec
 	if err = c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionTrue,
 		"workspaceReady", "workspace is ready"); err != nil {
 		klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
@@ -130,7 +138,7 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 
 func (c *WorkspaceReconciler) deleteWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace) (reconcile.Result, error) {
 	klog.InfoS("deleteWorkspace", "workspace", klog.KObj(wObj))
-	// TODO delete workspace, machine(s), training and inference (deployment, service) obj ( ok to delete machines? which will delete nodes??)
+	// TODO delete workspace, machine(s), fine_tuning and inference (deployment, service) obj ( ok to delete machines? which will delete nodes??)
 	err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeDeleting, metav1.ConditionTrue, "workspaceDeleted", "workspace is being deleted")
 	if err != nil {
 		klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
@@ -423,6 +431,41 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 	return nil
 }
 
+func (c *WorkspaceReconciler) applyTuning(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
+	var err error
+	func() {
+		if wObj.Tuning.Preset != nil {
+			presetName := string(wObj.Tuning.Preset.Name)
+			model := plugin.KaitoModelRegister.MustGet(presetName)
+
+			tuningParam := model.GetTuningParameters()
+			existingObj := &batchv1.Job{}
+			if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
+				klog.InfoS("A tuning workload already exists for workspace", "workspace", klog.KObj(wObj))
+				if err = resources.CheckResourceStatus(existingObj, c.Client, tuningParam.ReadinessTimeout); err != nil {
+					return
+				}
+			} else if apierrors.IsNotFound(err) {
+				var workloadObj client.Object
+				// Need to create a new workload
+				workloadObj, err = tuning.CreatePresetTuning(ctx, wObj, tuningParam, c.Client)
+				if err != nil {
+					return
+				}
+				if err = resources.CheckResourceStatus(workloadObj, c.Client, tuningParam.ReadinessTimeout); err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // applyInference applies inference spec.
 func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
 	var err error
@@ -455,7 +498,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 
 			if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
 				klog.InfoS("An inference workload already exists for workspace", "workspace", klog.KObj(wObj))
-				if err = resources.CheckResourceStatus(existingObj, c.Client, inferenceParam.DeploymentTimeout); err != nil {
+				if err = resources.CheckResourceStatus(existingObj, c.Client, inferenceParam.ReadinessTimeout); err != nil {
 					return
 				}
 			} else if apierrors.IsNotFound(err) {
@@ -465,7 +508,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 				if err != nil {
 					return
 				}
-				if err = resources.CheckResourceStatus(workloadObj, c.Client, inferenceParam.DeploymentTimeout); err != nil {
+				if err = resources.CheckResourceStatus(workloadObj, c.Client, inferenceParam.ReadinessTimeout); err != nil {
 					return
 				}
 			}

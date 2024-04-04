@@ -5,8 +5,10 @@
 ```bash
 export REGISTRY=<your_docker_registry>
 export IMG_NAME=workspace
-export IMG_TAG=0.2.0
-helm install workspace ./charts/kaito/workspace  --set image.repository=${REGISTRY}/$(IMG_NAME) --set image.tag=$(IMG_TAG)
+export IMG_TAG=0.2.2
+helm install workspace ./charts/kaito/workspace  \
+--set image.repository=${REGISTRY}/$(IMG_NAME) --set image.tag=$(IMG_TAG) \
+--namespace kaito-workspace --create-namespace
 ```
 
 ## Values
