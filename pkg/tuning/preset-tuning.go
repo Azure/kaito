@@ -129,7 +129,7 @@ func handleImageDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		},
 	})
 
-	volumes, volumeMounts := utils.ConfigDataVolume()
+	volumes, volumeMounts := utils.ConfigDataVolume("")
 	return initContainers, volumes, volumeMounts
 }
 
@@ -153,13 +153,14 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 			},
 		},
 	})
-	volumes, volumeMounts := utils.ConfigDataVolume()
+	volumes, volumeMounts := utils.ConfigDataVolume("")
 	return initContainers, volumes, volumeMounts
 }
 
 func handleHostPathDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.Volume, []corev1.VolumeMount) {
 	var initContainers []corev1.Container
-	volumes, volumeMounts := utils.ConfigDataVolume()
+	hostPath := workspaceObj.Tuning.Input.HostPath
+	volumes, volumeMounts := utils.ConfigDataVolume(hostPath)
 	return initContainers, volumes, volumeMounts
 }
 

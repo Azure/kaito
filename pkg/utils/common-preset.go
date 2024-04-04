@@ -39,14 +39,24 @@ func ConfigSHMVolume(wObj *kaitov1alpha1.Workspace) (corev1.Volume, corev1.Volum
 	return volume, volumeMount
 }
 
-func ConfigDataVolume() ([]corev1.Volume, []corev1.VolumeMount) {
+func ConfigDataVolume(hostPath string) ([]corev1.Volume, []corev1.VolumeMount) {
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
-	volumes = append(volumes, corev1.Volume{
-		Name: "data-volume",
-		VolumeSource: corev1.VolumeSource{
+	var volumeSource corev1.VolumeSource
+	if hostPath != "" {
+		volumeSource = corev1.VolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: hostPath,
+			},
+		}
+	} else {
+		volumeSource = corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
+		}
+	}
+	volumes = append(volumes, corev1.Volume{
+		Name:         "data-volume",
+		VolumeSource: volumeSource,
 	})
 
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
