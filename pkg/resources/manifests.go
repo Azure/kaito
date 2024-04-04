@@ -184,7 +184,50 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 }
 
 func dockerSidecarScript() string {
-	return `# docker-sidecar script here...`
+	return `
+# Start the Docker daemon in the background with specific options for DinD
+dockerd &
+# Wait for the Docker daemon to be ready
+while ! docker info > /dev/null 2>&1; do
+  echo "Waiting for Docker daemon to start..."
+  sleep 1
+done
+echo 'Docker daemon started'
+
+while true; do
+  FILE_PATH=$(find /workspace/tfs -name 'fine_tuning_completed.txt')
+  if [ ! -z "$FILE_PATH" ]; then
+    echo "FOUND TRAINING COMPLETED FILE at $FILE_PATH"
+
+    PARENT_DIR=$(dirname "$FILE_PATH")
+    echo "Parent directory is $PARENT_DIR"
+
+    TEMP_CONTEXT=$(mktemp -d)
+    cp "$PARENT_DIR/adapter_config.json" "$TEMP_CONTEXT/adapter_config.json"
+    cp -r "$PARENT_DIR/adapter_model.safetensors" "$TEMP_CONTEXT/adapter_model.safetensors"
+
+    # Create a minimal Dockerfile
+    echo 'FROM scratch
+    ADD adapter_config.json /
+    ADD adapter_model.safetensors /' > "$TEMP_CONTEXT/Dockerfile"
+
+    # Login to Docker registry
+    echo $ACR_PASSWORD | docker login $ACR_USERNAME.azurecr.io -u $ACR_USERNAME --password-stdin
+
+    docker build -t $ACR_USERNAME.azurecr.io/adapter-falcon-7b:$TAG "$TEMP_CONTEXT"
+    docker push $ACR_USERNAME.azurecr.io/adapter-falcon-7b:$TAG
+
+    # Cleanup: Remove the temporary directory
+    rm -rf "$TEMP_CONTEXT"
+
+    # Remove the file to prevent repeated builds, or handle as needed
+    # rm "$FILE_PATH"
+    echo "Upload complete"
+    exit 0
+  fi
+  sleep 10  # Check every 10 seconds
+done
+`
 }
 
 func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imagePullSecretRefs []corev1.LocalObjectReference,
@@ -240,7 +283,7 @@ func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.
 							},
 							VolumeMounts: volumeMounts,
 							Command:      []string{"/bin/sh", "-c"},
-							Args:         []string{"docker-sidecar script here..."}, // Placeholder for the actual script
+							Args:         []string{dockerSidecarScript()},
 						},
 					},
 					RestartPolicy:    corev1.RestartPolicyNever,

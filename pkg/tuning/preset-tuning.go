@@ -182,8 +182,8 @@ func getDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 // Returns the command and resource configuration.
 func prepareTuningParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, tuningObj *model.PresetParam) ([]string, corev1.ResourceRequirements) {
 	// Set # of processes to GPU Count
-	num_processes := utils.GetInstanceGPUCount(wObj)
-	tuningObj.TorchRunParams["num_processes"] = fmt.Sprintf("%d", num_processes)
+	numProcesses := utils.GetInstanceGPUCount(wObj)
+	tuningObj.TorchRunParams["num_processes"] = fmt.Sprintf("%d", numProcesses)
 	torchCommand := utils.BuildCmdStr(tuningObj.BaseCommand, tuningObj.TorchRunParams)
 	torchCommand = utils.BuildCmdStr(torchCommand, tuningObj.TorchRunRdzvParams)
 	modelCommand := utils.BuildCmdStr(TuningFile, tuningObj.ModelRunParams)
