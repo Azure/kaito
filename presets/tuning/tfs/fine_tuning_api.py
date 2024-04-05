@@ -3,35 +3,32 @@
 import os
 from dataclasses import asdict
 from datetime import datetime
+from parser import parse_configs
 
 import torch
 import transformers
 from accelerate import Accelerator
-from cli import (DatasetConfig, ExtDataCollator, ExtLoraConfig, ModelConfig,
-                 QuantizationConfig, TokenizerParams, TrainingConfig)
 from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
-                          BitsAndBytesConfig, HfArgumentParser,
-                          TrainingArguments)
+                          BitsAndBytesConfig)
 
-# Parsing
-parser = HfArgumentParser((ModelConfig, QuantizationConfig, ExtLoraConfig, TrainingConfig, TrainingArguments, ExtDataCollator, DatasetConfig, TokenizerParams))
-model_config, bnb_config, ext_lora_config, train_config, ta_args, dc_args, ds_config, tk_params, additional_args = parser.parse_args_into_dataclasses(
-    return_remaining_strings=True
-)
+CONFIG_YAML = os.environ.get('YAML_FILE_PATH', 'default_path_to_yaml')
+parsed_configs = parse_configs(CONFIG_YAML)
 
-print("Unmatched arguments:", additional_args)
+model_config = parsed_configs.get('ModelConfig')
+tk_params = parsed_configs.get('TokenizerParams')
+bnb_config = parsed_configs.get('QuantizationConfig')
+ext_lora_config = parsed_configs.get('LoraConfig')
+ta_args = parsed_configs.get('TrainingArguments')
+ds_config = parsed_configs.get('DatasetConfig')
+dc_args = parsed_configs.get('DataCollator')
 
 accelerator = Accelerator()
 
 # Load Model Args
 model_args = asdict(model_config)
-model_args["local_files_only"] = not model_args.pop('allow_remote_files')
-model_args["revision"] = model_args.pop('m_revision')
-model_args["load_in_4bit"] = model_args.pop('m_load_in_4bit')
-model_args["load_in_8bit"] = model_args.pop('m_load_in_8bit')
-if accelerator.distributed_type != "NO": # Meaning we require distributed training
+if accelerator.distributed_type != "NO":  # Meaning we require distributed training
     print("Setting device map for distributed training")
     model_args["device_map"] = {"": Accelerator().process_index}
 
@@ -42,18 +39,18 @@ enable_qlora = bnb_config.is_quantizable()
 
 # Load Tokenizer Params
 tk_params = asdict(tk_params)
-tk_params["pad_to_multiple_of"] = tk_params.pop("tok_pad_to_multiple_of")
-tk_params["return_tensors"] = tk_params.pop("tok_return_tensors")
 
 # Load the Pre-Trained Tokenizer
 tokenizer = AutoTokenizer.from_pretrained(**model_args)
 if not tokenizer.pad_token:
     tokenizer.pad_token = tokenizer.eos_token
 if dc_args.mlm and tokenizer.mask_token is None:
-    raise ValueError(
+    print(
         "This tokenizer does not have a mask token which is necessary for masked language modeling. "
-        "You should pass `mlm=False` to train on causal language modeling instead."
+        "You should pass `mlm=False` to train on causal language modeling instead. " 
+        "Setting mlm=False"
     )
+    dc_args.mlm = False
 dc_args.tokenizer = tokenizer
 
 # Load the Pre-Trained Model
@@ -62,12 +59,12 @@ model = AutoModelForCausalLM.from_pretrained(
     quantization_config=bnb_config if enable_qlora else None,
 )
 
-print("model loaded")
+print("Model Loaded")
 
 if enable_qlora:
-    print("enable_qlora")
     # Preparing the Model for QLoRA
     model = prepare_model_for_kbit_training(model)
+    print("QLoRA Enabled")
 
 assert ext_lora_config is not None, "LoraConfig must be specified"
 lora_config_args = asdict(ext_lora_config)
@@ -85,6 +82,7 @@ def preprocess_data(example):
     return tokenizer(prompt, **tk_params)
 
 # Loading the dataset
+# TODO: Replace with standardized reference to /dataset-dir
 dataset = load_dataset(ds_config.dataset_name, split="train")
 
 # Shuffling the dataset (if needed)
@@ -123,11 +121,11 @@ trainer = accelerator.prepare(transformers.Trainer(
     # callbacks=[checkpoint_callback]
 ))
 trainer.train()
-os.makedirs(train_config.save_output_path, exist_ok=True)
-trainer.save_model(train_config.save_output_path)
+os.makedirs(ta_args.output_dir, exist_ok=True)
+trainer.save_model(ta_args.output_dir)
 
 # Write file to signify training completion
 timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-completion_indicator_path = os.path.join(train_config.save_output_path, "fine_tuning_completed.txt")
+completion_indicator_path = os.path.join(ta_args.output_dir, "fine_tuning_completed.txt")
 with open(completion_indicator_path, 'w') as f:
     f.write(f"Fine-Tuning completed at {timestamp}\n")
