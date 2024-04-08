@@ -15,6 +15,7 @@ var (
 		"num_machines":  DefaultNumMachines,
 		"machine_rank":  DefaultMachineRank,
 		"gpu_ids":       DefaultGPUIds,
+		"multi_gpu":     "",
 	}
 
 	DefaultImagePullSecrets = []corev1.LocalObjectReference{}
