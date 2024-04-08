@@ -31,20 +31,17 @@ func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
 }
 
 func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
-
 	base := apis.GetBaseline(ctx)
 	if base == nil {
 		klog.InfoS("Validate creation", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
-		errs = errs.Also(
-			w.validateCreate().ViaField("spec"),
-			// TODO: Consider validate resource based on Tuning Spec
-			w.Resource.validateCreate(*w.Inference).ViaField("resource"),
-		)
+		errs = errs.Also(w.validateCreate().ViaField("spec"))
 		if w.Inference != nil {
 			// TODO: Add Adapter Spec Validation - Including DataSource Validation for Adapter
-			errs = errs.Also(w.Inference.validateCreate().ViaField("inference"))
+			errs = errs.Also(w.Resource.validateCreate(*w.Inference).ViaField("resource"),
+				w.Inference.validateCreate().ViaField("inference"))
 		}
 		if w.Tuning != nil {
+			// TODO: Add validate resource based on Tuning Spec
 			errs = errs.Also(w.Tuning.validateCreate().ViaField("tuning"))
 		}
 	} else {
@@ -251,7 +248,7 @@ func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.Field
 			}
 		}
 	} else {
-		// Check for other instancetypes pattern matches
+		// Check for other instance types pattern matches
 		if !strings.HasPrefix(instanceType, N_SERIES_PREFIX) && !strings.HasPrefix(instanceType, D_SERIES_PREFIX) {
 			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported instance type %s. Supported SKUs: %s", instanceType, getSupportedSKUs()), "instanceType"))
 		}

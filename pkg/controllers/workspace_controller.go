@@ -77,7 +77,7 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		}
 	}
 
-	if workspaceObj.Inference.Preset != nil {
+	if workspaceObj.Inference != nil && workspaceObj.Inference.Preset != nil {
 		if !plugin.KaitoModelRegister.Has(string(workspaceObj.Inference.Preset.Name)) {
 			return reconcile.Result{}, fmt.Errorf("The preset model name %s is not registered for workspace %s/%s", string(workspaceObj.Inference.Preset.Name), workspaceObj.Namespace, workspaceObj.Name)
 		}
@@ -316,7 +316,7 @@ func (c *WorkspaceReconciler) validateNodeInstanceType(ctx context.Context, wObj
 // createAndValidateNode creates a new machine and validates status.
 func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *kaitov1alpha1.Workspace) (*corev1.Node, error) {
 	var machineOSDiskSize string
-	if wObj.Inference.Preset != nil && wObj.Inference.Preset.Name != "" {
+	if wObj.Inference != nil && wObj.Inference.Preset != nil && wObj.Inference.Preset.Name != "" {
 		presetName := string(wObj.Inference.Preset.Name)
 		machineOSDiskSize = plugin.KaitoModelRegister.MustGet(presetName).GetInferenceParameters().DiskStorageRequirement
 	}
@@ -480,7 +480,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 			if err = resources.CheckResourceStatus(workloadObj, c.Client, time.Duration(10)*time.Minute); err != nil {
 				return
 			}
-		} else if wObj.Inference.Preset != nil {
+		} else if wObj.Inference != nil && wObj.Inference.Preset != nil {
 			presetName := string(wObj.Inference.Preset.Name)
 			model := plugin.KaitoModelRegister.MustGet(presetName)
 
