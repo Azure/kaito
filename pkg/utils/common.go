@@ -15,3 +15,17 @@ func Contains(s []string, e string) bool {
 	}
 	return false
 }
+
+func MergeConfigMaps(baseMap, overrideMap map[string]string) map[string]string {
+	merged := make(map[string]string)
+	for k, v := range baseMap {
+		merged[k] = v
+	}
+
+	// Override with values from overrideMap
+	for k, v := range overrideMap {
+		merged[k] = v
+	}
+
+	return merged
+}

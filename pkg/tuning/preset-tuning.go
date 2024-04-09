@@ -3,6 +3,7 @@ package tuning
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -16,9 +17,10 @@ import (
 )
 
 const (
-	ProbePath  = "/healthz"
-	Port5000   = int32(5000)
-	TuningFile = "fine_tuning_api.py"
+	ProbePath        = "/healthz"
+	Port5000         = int32(5000)
+	TuningFile       = "fine_tuning_api.py"
+	DefaultConfigMap = "default-tuning-params"
 )
 
 var (
@@ -63,6 +65,16 @@ var (
 	}
 )
 
+func GetTuningImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, presetObj *model.PresetParam) (string, []corev1.LocalObjectReference) {
+	// Only support public presets for tuning for now
+	imagePullSecretRefs := []corev1.LocalObjectReference{}
+	imageName := string(workspaceObj.Tuning.Preset.Name)
+	imageTag := presetObj.Tag
+	registryName := os.Getenv("PRESET_REGISTRY_NAME")
+	imageName = fmt.Sprintf("%s/kaito-%s-tuning:%s", registryName, imageName, imageTag)
+	return imageName, imagePullSecretRefs
+}
+
 func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	tuningObj *model.PresetParam, kubeClient client.Client) (client.Object, error) {
 	initContainers, imagePullSecrets, volumes, volumeMounts, err := prepareDataSource(ctx, workspaceObj, kubeClient)
@@ -77,9 +89,11 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		volumeMounts = append(volumeMounts, shmVolumeMount)
 	}
 
-	commands, resourceReq := prepareTuningParameters(ctx, workspaceObj, tuningObj)
+	modelCommand, err := prepareModelRunParameters(ctx, workspaceObj, kubeClient, tuningObj)
+	commands, resourceReq := prepareTuningParameters(ctx, workspaceObj, modelCommand, tuningObj)
+	image, imagePullSecrets := GetTuningImageInfo(ctx, workspaceObj, tuningObj)
 
-	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, imagePullSecrets, *workspaceObj.Resource.Count, commands,
+	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, image, imagePullSecrets, *workspaceObj.Resource.Count, commands,
 		containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, initContainers, volumes, volumeMounts)
 
 	err = resources.CreateResource(ctx, jobObj, kubeClient)
@@ -176,17 +190,48 @@ func getDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	return nil, nil
 }
 
+func prepareModelRunParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, kubeClient client.Client, tuningObj *model.PresetParam) (string, error) {
+	configMapName := DefaultConfigMap
+	if wObj.Tuning != nil && wObj.Tuning.Config != "" {
+		configMapName = wObj.Tuning.Config
+	}
+	configMap := &corev1.ConfigMap{}
+	err := resources.GetResource(ctx, configMapName, wObj.Namespace, kubeClient, configMap)
+	if err != nil {
+		return "", fmt.Errorf("failed to load ConfigMap '%s' in namespace '%s': %w", configMapName, wObj.Namespace, err)
+	}
+
+	// Retrieve training_config YAML String
+	trainingConfigStr, ok := configMap.Data["training_config.yaml"]
+	if !ok {
+		return "", fmt.Errorf("configmap '%s' does not contain required 'training_config.yaml'", configMapName)
+	}
+
+	trainingConfigMap, err := ParseTrainingConfig(trainingConfigStr)
+	if err != nil {
+		return "", fmt.Errorf("could not parse training_config.yaml for configmap '%s'", configMapName)
+	}
+
+	prefixedConfigMap, err := AddPrefixesToConfigMap(trainingConfigMap)
+	if err != nil {
+		return "", err
+	}
+
+	mergedParams := utils.MergeConfigMaps(prefixedConfigMap, tuningObj.ModelRunParams)
+	modelCommand := utils.BuildCmdStr(TuningFile, mergedParams)
+	return modelCommand, nil
+}
+
 // prepareTuningParameters builds a PyTorch command:
 // accelerate launch <TORCH_PARAMS> baseCommand <MODEL_PARAMS>
 // and sets the GPU resources required for inference.
 // Returns the command and resource configuration.
-func prepareTuningParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, tuningObj *model.PresetParam) ([]string, corev1.ResourceRequirements) {
+func prepareTuningParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, modelCommand string, tuningObj *model.PresetParam) ([]string, corev1.ResourceRequirements) {
 	// Set # of processes to GPU Count
 	numProcesses := utils.GetInstanceGPUCount(wObj)
 	tuningObj.TorchRunParams["num_processes"] = fmt.Sprintf("%d", numProcesses)
 	torchCommand := utils.BuildCmdStr(tuningObj.BaseCommand, tuningObj.TorchRunParams)
 	torchCommand = utils.BuildCmdStr(torchCommand, tuningObj.TorchRunRdzvParams)
-	modelCommand := utils.BuildCmdStr(TuningFile, tuningObj.ModelRunParams)
 	commands := utils.ShellCmd(torchCommand + " " + modelCommand)
 
 	resourceRequirements := corev1.ResourceRequirements{

@@ -84,6 +84,19 @@ func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
 }
 
 func (r *TuningSpec) validateCreate() (errs *apis.FieldError) {
+	// Check if custom ConfigMap specified and validate its existence
+	if r.Config != "" {
+		// TODO: Verify User Defined Custom ConfigMap Exists
+		//var cm corev1.ConfigMap
+		//err := client.Get(ctx, client.ObjectKey{Name: r.Config, Namespace: namespace}, &cm)
+		//if err != nil {
+		//	if errors.IsNotFound(err) {
+		//		errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' specified in 'config' not found in namespace '%s'", r.Config, namespace), "config"))
+		//	} else {
+		//		errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to get ConfigMap '%s' in namespace '%s': %v", r.Config, namespace, err), "config"))
+		//	}
+		//}
+	}
 	if r.Input == nil {
 		errs = errs.Also(apis.ErrMissingField("Input"))
 	} else {

@@ -230,10 +230,10 @@ done
 `
 }
 
-func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imagePullSecretRefs []corev1.LocalObjectReference,
-	replicas int, commands []string, containerPorts []corev1.ContainerPort, livenessProbe, readinessProbe *corev1.Probe,
-	resourceRequirements corev1.ResourceRequirements, tolerations []corev1.Toleration, initContainers []corev1.Container,
-	volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) *batchv1.Job {
+func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imageName string,
+	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
+	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements, tolerations []corev1.Toleration,
+	initContainers []corev1.Container, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) *batchv1.Job {
 	labels := map[string]string{
 		kaitov1alpha1.LabelWorkspaceName: workspaceObj.Name,
 	}
@@ -267,8 +267,8 @@ func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.
 					Containers: []corev1.Container{
 						{
 							Name:           workspaceObj.Name,
-							Image:          workspaceObj.Tuning.Preset.Image,
-							Command:        []string{"/bin/sh", "-c", "actual command here"}, // Placeholder for actual command
+							Image:          imageName,
+							Command:        commands, // Placeholder for actual command
 							Resources:      resourceRequirements,
 							LivenessProbe:  livenessProbe,
 							ReadinessProbe: readinessProbe,
