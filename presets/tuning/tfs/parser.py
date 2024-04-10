@@ -35,8 +35,25 @@ def filter_unsupported_init_args(dataclass_type, config_dict):
     filtered_config = {k: v for k, v in config_dict.items() if k in supported_fields}
     return filtered_config
 
-# Function to extract and organize namespaced CLI arguments
+def convert_value(value):
+    """Convert the string value to bool, int, float, or keep as string based on its content."""
+    lower_value = value.lower()
+    if lower_value == "true":
+        return True
+    elif lower_value == "false":
+        return False
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    return value
+
 def organize_cli_args(cli_args):
+    """Function to extract and organize namespaced CLI arguments"""
     organized_args = defaultdict(dict)
     for arg in cli_args:
         if arg.startswith('-'):
@@ -44,7 +61,8 @@ def organize_cli_args(cli_args):
             prefix, param = key.lstrip('-').split('_', 1)
             if prefix in NAMESPACES:
                 class_name = NAMESPACES[prefix]
-                organized_args[class_name][param] = value
+                converted_value = convert_value(value)
+                organized_args[class_name][param] = converted_value
     return organized_args
 
 
