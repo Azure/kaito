@@ -36,7 +36,6 @@ data:
         save_strategy: "epoch"
     
       DatasetConfig:
-        dataset_name: "Amod/mental_health_counseling_conversations"
         shuffle_dataset: true
         train_test_split: 1
     
