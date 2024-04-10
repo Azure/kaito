@@ -71,7 +71,7 @@ func GetTuningImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	imageName := string(workspaceObj.Tuning.Preset.Name)
 	imageTag := presetObj.Tag
 	registryName := os.Getenv("PRESET_REGISTRY_NAME")
-	imageName = fmt.Sprintf("%s/kaito-%s-tuning:%s", registryName, imageName, imageTag)
+	imageName = fmt.Sprintf("%s/kaito-tuning-%s:%s", registryName, imageName, imageTag)
 	return imageName, imagePullSecretRefs
 }
 
@@ -90,6 +90,9 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	}
 
 	modelCommand, err := prepareModelRunParameters(ctx, workspaceObj, kubeClient, tuningObj)
+	if err != nil {
+		return nil, err
+	}
 	commands, resourceReq := prepareTuningParameters(ctx, workspaceObj, modelCommand, tuningObj)
 	image, imagePullSecrets := GetTuningImageInfo(ctx, workspaceObj, tuningObj)
 
@@ -196,9 +199,10 @@ func prepareModelRunParameters(ctx context.Context, wObj *kaitov1alpha1.Workspac
 		configMapName = wObj.Tuning.Config
 	}
 	configMap := &corev1.ConfigMap{}
-	err := resources.GetResource(ctx, configMapName, wObj.Namespace, kubeClient, configMap)
+	releaseNamespace := os.Getenv("RELEASE_NAMESPACE")
+	err := resources.GetResource(ctx, configMapName, releaseNamespace, kubeClient, configMap)
 	if err != nil {
-		return "", fmt.Errorf("failed to load ConfigMap '%s' in namespace '%s': %w", configMapName, wObj.Namespace, err)
+		return "", fmt.Errorf("failed to load ConfigMap '%s' in namespace '%s': %w", configMapName, releaseNamespace, err)
 	}
 
 	// Retrieve training_config YAML String

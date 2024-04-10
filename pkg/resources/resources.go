@@ -5,6 +5,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	batchv1 "k8s.io/api/batch/v1"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -74,6 +75,11 @@ func CheckResourceStatus(obj client.Object, kubeClient client.Client, timeoutDur
 			case *appsv1.StatefulSet:
 				if k8sResource.Status.ReadyReplicas == *k8sResource.Spec.Replicas {
 					klog.InfoS("statefulset status is ready", "statefulset", k8sResource.Name)
+					return nil
+				}
+			case *batchv1.Job:
+				klog.InfoS("checking job status", "name", k8sResource.Name, "namespace", k8sResource.Namespace, "succeeded", k8sResource.Status.Succeeded, "active", k8sResource.Status.Active, "failed", k8sResource.Status.Failed)
+				if k8sResource.Status.Failed == 0 {
 					return nil
 				}
 			default:

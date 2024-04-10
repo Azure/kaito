@@ -268,7 +268,7 @@ func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.
 						{
 							Name:           workspaceObj.Name,
 							Image:          imageName,
-							Command:        commands, // Placeholder for actual command
+							Command:        commands,
 							Resources:      resourceRequirements,
 							LivenessProbe:  livenessProbe,
 							ReadinessProbe: readinessProbe,
