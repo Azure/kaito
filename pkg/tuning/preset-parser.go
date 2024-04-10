@@ -13,7 +13,7 @@ type TrainingConfig struct {
 	DataCollator       map[string]interface{} `yaml:"DataCollator"`
 }
 
-// parseTrainingConfig parses the YAML string into a nested map
+// ParseTrainingConfig parses the YAML string into a nested map
 func ParseTrainingConfig(trainingConfigStr string) (map[string]map[string]string, error) {
 	var trainingConfigWrapper struct {
 		TrainingConfig TrainingConfig `yaml:"training_config"`
@@ -65,9 +65,9 @@ func GetCmdPrefixForSection(section string) (string, error) {
 	prefixMap := map[string]string{
 		"ModelConfig":        "MC",
 		"QuantizationConfig": "QC",
-		"ExtLoraConfig":      "ELC",
+		"LoraConfig":         "ELC",
 		"TrainingArguments":  "TA",
-		"ExtDataCollator":    "EDC",
+		"DataCollator":       "EDC",
 		"DatasetConfig":      "DC",
 		"TokenizerParams":    "TP",
 	}

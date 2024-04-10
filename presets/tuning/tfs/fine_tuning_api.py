@@ -17,8 +17,8 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
 from parser import parse_configs
 
 
-CONFIG_YAML = os.environ.get('YAML_FILE_PATH', 'default_path_to_yaml')
-parsed_configs = parse_configs(CONFIG_YAML)
+DATASET_PATH = os.environ.get('DATASET_FILE_PATH', '/data')
+parsed_configs = parse_configs()
 
 model_config = parsed_configs.get('ModelConfig')
 tk_params = parsed_configs.get('TokenizerParams')
@@ -86,7 +86,8 @@ def preprocess_data(example):
     return tokenizer(prompt, **tk_params)
 
 # Loading the dataset
-dataset = load_dataset(ds_config.dataset_name, split="train")
+_, file_ext = os.path.splitext(DATASET_PATH)
+dataset = load_dataset(file_ext[1:], data_files=DATASET_PATH, split="train")
 
 # Shuffling the dataset (if needed)
 if ds_config.shuffle_dataset: 
