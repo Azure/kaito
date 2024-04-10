@@ -43,8 +43,6 @@ spec:
                   fieldPath: metadata.namespace
             - name: PRESET_REGISTRY_NAME
               value: {{ .Values.presetRegistryName }}
-            - name: RELEASE_NAMESPACE
-              value: {{ .Release.Namespace }}
           ports:
             - name: http-metrics
               containerPort: 8080
