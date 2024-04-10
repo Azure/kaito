@@ -1,9 +1,14 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
+
+// common-presets.go provides utilities specific to preset configuration and management.
 package utils
 
 import (
-	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
+
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -54,19 +59,20 @@ func ConfigDataVolume() ([]corev1.Volume, []corev1.VolumeMount) {
 	return volumes, volumeMounts
 }
 
-func ShellCmd(command string) []string {
-	return []string{
-		"/bin/sh",
-		"-c",
-		command,
-	}
-}
+func GetReleaseNamespace() string {
+	// Path to the namespace file inside a Kubernetes pod
+	namespaceFilePath := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
-func BuildCmdStr(baseCommand string, torchRunParams map[string]string) string {
-	updatedBaseCommand := baseCommand
-	for key, value := range torchRunParams {
-		updatedBaseCommand = fmt.Sprintf("%s --%s=%s", updatedBaseCommand, key, value)
+	// Attempt to read the namespace from the file
+	if content, err := ioutil.ReadFile(namespaceFilePath); err == nil {
+		return string(content)
 	}
 
-	return updatedBaseCommand
+	// Fallback: Read the namespace from an environment variable
+	if namespace, exists := os.LookupEnv("RELEASE_NAMESPACE"); exists {
+		return namespace
+	}
+
+	log.Fatal("Failed to determine namespace from file and environment variable")
+	return ""
 }
