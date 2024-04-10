@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: default-tuning-params
+  name: qlora-params
   namespace: {{ .Release.Namespace }}
 data:
   training_config.yaml: |
