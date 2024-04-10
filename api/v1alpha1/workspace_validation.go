@@ -10,7 +10,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/azure/kaito/pkg/tuning"
 	"github.com/azure/kaito/pkg/utils"
+	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -95,21 +97,64 @@ func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
 	return errs
 }
 
+func validateConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *apis.FieldError {
+	trainingConfigYAML, ok := cm.Data["training_config.yaml"]
+	if !ok {
+		return apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' does not contain 'training_config.yaml' in namespace '%s'", cm.Name, cm.Namespace), "config")
+	}
+
+	var trainingConfig tuning.TrainingConfig
+	if err := yaml.Unmarshal([]byte(trainingConfigYAML), &trainingConfig); err != nil {
+		return apis.ErrGeneric(fmt.Sprintf("Failed to parse 'training_config.yaml' in ConfigMap '%s' in namespace '%s': %v", cm.Name, cm.Namespace, err), "config")
+	}
+
+	quantConfig, quantConfigExists := trainingConfig.QuantizationConfig, trainingConfig.QuantizationConfig != nil
+	if quantConfigExists {
+		loadIn4bit, ok4bit := quantConfig["load_in_4bit"].(bool)
+		loadIn8bit, ok8bit := quantConfig["load_in_8bit"].(bool)
+		if ok4bit && ok8bit && loadIn4bit && loadIn8bit {
+			return apis.ErrGeneric(fmt.Sprintf("Cannot set both 'load_in_4bit' and 'load_in_8bit' to true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
+		}
+		if methodLowerCase == string(TuningMethodLora) {
+			if (ok4bit && loadIn4bit) || (ok8bit && loadIn8bit) {
+				return apis.ErrGeneric(fmt.Sprintf("For method 'lora', 'load_in_4bit' or 'load_in_8bit' in ConfigMap '%s' must not be true", cm.Name), "QuantizationConfig")
+			}
+		} else if methodLowerCase == string(TuningMethodQLora) {
+			if !(ok4bit && loadIn4bit) && !(ok8bit && loadIn8bit) {
+				return apis.ErrMissingField(fmt.Sprintf("For method 'qlora', either 'load_in_4bit' or 'load_in_8bit' must be true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
+			}
+		}
+	} else if methodLowerCase == string(TuningMethodQLora) {
+		return apis.ErrMissingField(fmt.Sprintf("For method 'qlora', either 'load_in_4bit' or 'load_in_8bit' must be true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
+	}
+	return nil
+}
+
 func (r *TuningSpec) validateCreate(ctx context.Context) (errs *apis.FieldError) {
-	// Check if custom ConfigMap specified and validate its existence
+	methodLowerCase := strings.ToLower(string(r.Method))
+	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
+		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
+	}
 	if r.Config == "" {
 		errs = errs.Also(apis.ErrMissingField("Config"))
 	} else {
 		cl := getClient(ctx)
-		namespace := utils.GetReleaseNamespace()
+		namespace, err := utils.GetReleaseNamespace()
+		if err != nil {
+			errMsg := fmt.Sprintf("Failed to determine release namespace: %v", err)
+			errs = errs.Also(apis.ErrGeneric(errMsg, "namespace"))
+		}
 		var cm corev1.ConfigMap
-		err := cl.Get(ctx, client.ObjectKey{Name: r.Config, Namespace: namespace}, &cm)
+		err = cl.Get(ctx, client.ObjectKey{Name: r.Config, Namespace: namespace}, &cm)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' specified in 'config' not found in namespace '%s'", r.Config, namespace), "config"))
 			} else {
 				errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to get ConfigMap '%s' in namespace '%s': %v", r.Config, namespace, err), "config"))
 			}
+		}
+		if err := validateConfigMap(&cm, methodLowerCase); err != nil {
+			errs = errs.Also(err)
 		}
 	}
 	if r.Input == nil {
@@ -127,10 +172,6 @@ func (r *TuningSpec) validateCreate(ctx context.Context) (errs *apis.FieldError)
 		errs = errs.Also(apis.ErrMissingField("Preset"))
 	} else if presetName := string(r.Preset.Name); !isValidPreset(presetName) {
 		errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported tuning preset name %s", presetName), "presetName"))
-	}
-	methodLowerCase := strings.ToLower(string(r.Method))
-	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
-		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
 	}
 	return errs
 }

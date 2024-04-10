@@ -5,8 +5,8 @@
 package utils
 
 import (
+	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -15,6 +15,7 @@ import (
 
 const (
 	DefaultVolumeMountPath = "/dev/shm"
+	DefaultReleaseNamespaceEnvVar = "RELEASE_NAMESPACE"
 )
 
 func ConfigSHMVolume(wObj *kaitov1alpha1.Workspace) (corev1.Volume, corev1.VolumeMount) {
@@ -59,20 +60,18 @@ func ConfigDataVolume() ([]corev1.Volume, []corev1.VolumeMount) {
 	return volumes, volumeMounts
 }
 
-func GetReleaseNamespace() string {
+func GetReleaseNamespace() (string, error) {
 	// Path to the namespace file inside a Kubernetes pod
 	namespaceFilePath := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
 	// Attempt to read the namespace from the file
 	if content, err := ioutil.ReadFile(namespaceFilePath); err == nil {
-		return string(content)
+		return string(content), nil
 	}
 
 	// Fallback: Read the namespace from an environment variable
-	if namespace, exists := os.LookupEnv("RELEASE_NAMESPACE"); exists {
-		return namespace
+	if namespace, exists := os.LookupEnv(DefaultReleaseNamespaceEnvVar); exists {
+		return namespace, nil
 	}
-
-	log.Fatal("Failed to determine namespace from file and environment variable")
-	return ""
+	return "", fmt.Errorf("failed to determine release namespace from file %s and env var %s", namespaceFilePath, ReleaseNamespaceEnvVar)
 }
