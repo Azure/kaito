@@ -20,7 +20,7 @@ const (
 	ProbePath        = "/healthz"
 	Port5000         = int32(5000)
 	TuningFile       = "fine_tuning_api.py"
-	DefaultConfigMap = "default-tuning-params"
+	DefaultConfigMap = "qlora-params"
 )
 
 var (

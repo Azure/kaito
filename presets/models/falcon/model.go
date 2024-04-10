@@ -54,7 +54,9 @@ var (
 		"torch_dtype": "bfloat16",
 		"pipeline":    "text-generation",
 	}
-	falconRunTuningParams = map[string]string{}
+	falconRunTuningParams = map[string]string{
+		"EDC_mlm": "false",
+	}
 )
 
 var falconA falcon7b
