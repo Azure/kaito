@@ -2,6 +2,10 @@
 // Licensed under the MIT license.
 package utils
 
+import (
+	"fmt"
+)
+
 const (
 	// WorkspaceFinalizer is used to make sure that workspace controller handles garbage collection.
 	WorkspaceFinalizer = "workspace.finalizer.kaito.sh"
@@ -28,4 +32,25 @@ func MergeConfigMaps(baseMap, overrideMap map[string]string) map[string]string {
 	}
 
 	return merged
+}
+
+func BuildCmdStr(baseCommand string, runParams map[string]string) string {
+	updatedBaseCommand := baseCommand
+	for key, value := range runParams {
+		if value == "" {
+			updatedBaseCommand = fmt.Sprintf("%s --%s", updatedBaseCommand, key)
+		} else {
+			updatedBaseCommand = fmt.Sprintf("%s --%s=%s", updatedBaseCommand, key, value)
+		}
+	}
+
+	return updatedBaseCommand
+}
+
+func ShellCmd(command string) []string {
+	return []string{
+		"/bin/sh",
+		"-c",
+		command,
+	}
 }

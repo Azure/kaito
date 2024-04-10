@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	"strconv"
@@ -131,6 +132,7 @@ func main() {
 				Port:        p,
 				SecretName:  "workspace-webhook-cert",
 			})
+			ctx = context.WithValue(ctx, "clientKey", mgr.GetClient())
 			ctx = sharedmain.WithHealthProbesDisabled(ctx)
 			ctx = sharedmain.WithHADisabled(ctx)
 			sharedmain.MainWithConfig(ctx, "webhook", ctrl.GetConfigOrDie(), webhooks.NewWebhooks()...)

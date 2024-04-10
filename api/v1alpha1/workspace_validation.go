@@ -6,7 +6,11 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"github.com/azure/kaito/pkg/utils"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"reflect"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sort"
 	"strings"
 
@@ -22,6 +26,13 @@ const (
 	N_SERIES_PREFIX = "Standard_N"
 	D_SERIES_PREFIX = "Standard_D"
 )
+
+func getClient(ctx context.Context) client.Client {
+	if cl, ok := ctx.Value("clientKey").(client.Client); ok {
+		return cl
+	}
+	return nil
+}
 
 func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
 	return []admissionregistrationv1.OperationType{
@@ -42,7 +53,7 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		}
 		if w.Tuning != nil {
 			// TODO: Add validate resource based on Tuning Spec
-			errs = errs.Also(w.Tuning.validateCreate().ViaField("tuning"))
+			errs = errs.Also(w.Tuning.validateCreate(ctx).ViaField("tuning"))
 		}
 	} else {
 		klog.InfoS("Validate update", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
@@ -83,19 +94,22 @@ func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
 	return errs
 }
 
-func (r *TuningSpec) validateCreate() (errs *apis.FieldError) {
+func (r *TuningSpec) validateCreate(ctx context.Context) (errs *apis.FieldError) {
 	// Check if custom ConfigMap specified and validate its existence
-	if r.Config != "" {
-		// TODO: Verify User Defined Custom ConfigMap Exists
-		//var cm corev1.ConfigMap
-		//err := client.Get(ctx, client.ObjectKey{Name: r.Config, Namespace: namespace}, &cm)
-		//if err != nil {
-		//	if errors.IsNotFound(err) {
-		//		errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' specified in 'config' not found in namespace '%s'", r.Config, namespace), "config"))
-		//	} else {
-		//		errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to get ConfigMap '%s' in namespace '%s': %v", r.Config, namespace, err), "config"))
-		//	}
-		//}
+	if r.Config == "" {
+		errs = errs.Also(apis.ErrMissingField("Config"))
+	} else {
+		cl := getClient(ctx)
+		namespace := utils.GetReleaseNamespace()
+		var cm corev1.ConfigMap
+		err := cl.Get(ctx, client.ObjectKey{Name: r.Config, Namespace: namespace}, &cm)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' specified in 'config' not found in namespace '%s'", r.Config, namespace), "config"))
+			} else {
+				errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to get ConfigMap '%s' in namespace '%s': %v", r.Config, namespace, err), "config"))
+			}
+		}
 	}
 	if r.Input == nil {
 		errs = errs.Also(apis.ErrMissingField("Input"))
