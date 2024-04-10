@@ -84,7 +84,11 @@ func ShellCmd(command string) []string {
 func BuildCmdStr(baseCommand string, torchRunParams map[string]string) string {
 	updatedBaseCommand := baseCommand
 	for key, value := range torchRunParams {
-		updatedBaseCommand = fmt.Sprintf("%s --%s=%s", updatedBaseCommand, key, value)
+		if value == "" {
+			updatedBaseCommand = fmt.Sprintf("%s --%s", updatedBaseCommand, key)
+		} else {
+			updatedBaseCommand = fmt.Sprintf("%s --%s=%s", updatedBaseCommand, key, value)
+		}
 	}
 
 	return updatedBaseCommand
