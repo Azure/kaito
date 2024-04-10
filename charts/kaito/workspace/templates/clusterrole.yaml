@@ -26,7 +26,7 @@ rules:
     verbs: ["get","list","watch", "create", "update", "patch" ]
   - apiGroups: [ "" ]
     resources: [ "configmaps" ]
-    verbs: [ "get","list","watch","create", "delete" ]
+    verbs: [ "get","list","watch" ]
   - apiGroups: ["apps"]
     resources: ["daemonsets"]
     verbs: ["get","list","watch","update", "patch"]
