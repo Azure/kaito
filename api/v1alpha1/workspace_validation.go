@@ -130,13 +130,43 @@ func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *a
 	return nil
 }
 
-func validateSection(trainingConfig map[string]map[string]string, sectionName string, sectionStruct interface{}) *apis.FieldError {
-	sectionMap, exists := trainingConfig[sectionName]
-	if !exists {
-		// Section not present, which is currently okay since no fields are required
-		return nil
+// isFieldRecognized dynamically checks if the field is recognized within a section using reflection.
+func isFieldRecognized(section, field string) bool {
+	// Instantiate each section struct to use for reflection. These structs should be zero-valued.
+	sectionStructs := map[string]any{
+		"ModelConfig":        config.ModelConfig{},
+		"TokenizerParams":    config.TokenizerParams{},
+		"QuantizationConfig": config.QuantizationConfig{},
+		"LoraConfig":         config.LoraConfig{},
+		"TrainingArguments":  config.TrainingArguments{},
+		"DatasetConfig":      config.DatasetConfig{},
+		"DataCollator":       config.DataCollator{},
 	}
-	return nil
+
+	structInstance, ok := sectionStructs[section]
+	if !ok {
+		return false // Section not recognized
+	}
+
+	fields := utils.GetFieldNamesFromStruct(structInstance)
+	for _, f := range fields {
+		if f == field {
+			return true
+		}
+	}
+	return false
+}
+
+func isSectionRecognized(section string) bool {
+	trainingConfig := tuning.TrainingConfig{}
+	recognizedSections := utils.GetSectionNamesFromStruct(trainingConfig)
+
+	for _, s := range recognizedSections {
+		if s == section {
+			return true
+		}
+	}
+	return false
 }
 
 func validateConfigMapSchema(cm *corev1.ConfigMap) *apis.FieldError {
@@ -145,25 +175,32 @@ func validateConfigMapSchema(cm *corev1.ConfigMap) *apis.FieldError {
 		return apis.ErrMissingField("training_config.yaml in ConfigMap")
 	}
 
-	trainingConfig, err := tuning.ParseTrainingConfig(trainingConfigData)
+	var rawConfig map[string]interface{}
+	err := yaml.Unmarshal([]byte(trainingConfigData), &rawConfig)
 	if err != nil {
-		return apis.ErrGeneric(fmt.Sprintf("Failed to parse 'training_config.yaml' in ConfigMap '%s': %v", cm.Name, err), "config")
+		return apis.ErrInvalidValue(err.Error(), "training_config.yaml")
 	}
 
-	// Validate each section of the training config
-	if err := validateSection(trainingConfig, "DatasetConfig", config.DatasetConfig{}); err != nil {
-		return err
-	}
-	if err := validateSection(trainingConfig, "TokenizerParams", config.TokenizerParams{}); err != nil {
-		return err
-	}
-	if err := validateSection(trainingConfig, "ModelConfig", config.ModelConfig{}); err != nil {
-		return err
-	}
-	if err := validateSection(trainingConfig, "QuantizationConfig", config.QuantizationConfig{}); err != nil {
-		return err
-	}
+	for section, contents := range rawConfig {
+		// Check if section is recognized
+		if !isSectionRecognized(section) {
+			return apis.ErrInvalidValue(fmt.Sprintf("Unrecognized section: %s", section), "training_config.yaml")
+		}
 
+		// Assuming contents is a map, check each field in the section
+		fieldMap, ok := contents.(map[interface{}]interface{})
+		if !ok {
+			continue // or handle the error
+		}
+
+		for key := range fieldMap {
+			if !isFieldRecognized(section, fmt.Sprint(key)) {
+				return apis.ErrInvalidValue(fmt.Sprintf("Unrecognized field: %s in section %s", key, section), "training_config.yaml")
+			}
+
+			// Here you could also attempt to validate the type of fieldMap[key]
+		}
+	}
 	return nil
 }
 

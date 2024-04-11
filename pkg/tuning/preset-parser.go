@@ -1,16 +1,20 @@
 package tuning
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/azure/kaito/pkg/config"
+	"reflect"
+)
 import "gopkg.in/yaml.v2"
 
 type TrainingConfig struct {
-	ModelConfig        map[string]interface{} `yaml:"ModelConfig"`
-	TokenizerParams    map[string]interface{} `yaml:"TokenizerParams"`
-	QuantizationConfig map[string]interface{} `yaml:"QuantizationConfig"`
-	LoraConfig         map[string]interface{} `yaml:"LoraConfig"`
-	TrainingArguments  map[string]interface{} `yaml:"TrainingArguments"`
-	DatasetConfig      map[string]interface{} `yaml:"DatasetConfig"`
-	DataCollator       map[string]interface{} `yaml:"DataCollator"`
+	ModelConfig        *config.ModelConfig        `yaml:"ModelConfig"`
+	TokenizerParams    *config.TokenizerParams    `yaml:"TokenizerParams"`
+	QuantizationConfig *config.QuantizationConfig `yaml:"QuantizationConfig"`
+	LoraConfig         *config.LoraConfig         `yaml:"LoraConfig"`
+	TrainingArguments  *config.TrainingArguments  `yaml:"TrainingArguments"`
+	DatasetConfig      *config.DatasetConfig      `yaml:"DatasetConfig"`
+	DataCollator       *config.DataCollator       `yaml:"DataCollator"`
 }
 
 // ParseTrainingConfig parses the YAML string into a nested map
@@ -26,23 +30,36 @@ func ParseTrainingConfig(trainingConfigStr string) (map[string]map[string]string
 
 	// Convert to map[string]map[string]string
 	result := make(map[string]map[string]string)
-	for section, params := range map[string]map[string]interface{}{
-		"ModelConfig":        trainingConfigWrapper.TrainingConfig.ModelConfig,
-		"TokenizerParams":    trainingConfigWrapper.TrainingConfig.TokenizerParams,
-		"QuantizationConfig": trainingConfigWrapper.TrainingConfig.QuantizationConfig,
-		"LoraConfig":         trainingConfigWrapper.TrainingConfig.LoraConfig,
-		"TrainingArguments":  trainingConfigWrapper.TrainingConfig.TrainingArguments,
-		"DatasetConfig":      trainingConfigWrapper.TrainingConfig.DatasetConfig,
-		"DataCollator":       trainingConfigWrapper.TrainingConfig.DataCollator,
-	} {
-		sectionMap := make(map[string]string)
-		for key, value := range params {
-			// Assuming all values can be represented as strings
-			sectionMap[key] = fmt.Sprint(value)
-		}
-		result[section] = sectionMap
-	}
 
+	trainingConfigVal := reflect.ValueOf(trainingConfigWrapper.TrainingConfig)
+	for i := 0; i < trainingConfigVal.NumField(); i++ {
+		field := trainingConfigVal.Field(i)
+		if field.IsNil() {
+			continue // Skip if the entire section is nil
+		}
+
+		sectionName := trainingConfigVal.Type().Field(i).Tag.Get("yaml")
+		sectionMap := make(map[string]string)
+
+		// Reflect over each field in the section
+		for j := 0; j < field.Elem().NumField(); j++ {
+			innerField := field.Elem().Field(j)
+			key := field.Elem().Type().Field(j).Name
+
+			// Skip nil pointer fields or decide based on zero value
+			if innerField.Kind() == reflect.Ptr && innerField.IsNil() {
+				continue // Skip nil pointer fields
+			}
+
+			// Convert non-nil value to string
+			value := fmt.Sprint(innerField.Interface())
+			sectionMap[key] = value
+		}
+
+		if len(sectionMap) > 0 {
+			result[sectionName] = sectionMap
+		}
+	}
 	return result, nil
 }
 
