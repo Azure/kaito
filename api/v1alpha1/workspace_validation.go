@@ -110,8 +110,8 @@ func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *a
 
 	quantConfig, quantConfigExists := trainingConfig.QuantizationConfig, trainingConfig.QuantizationConfig != nil
 	if quantConfigExists {
-		loadIn4bit, ok4bit := quantConfig["load_in_4bit"].(bool)
-		loadIn8bit, ok8bit := quantConfig["load_in_8bit"].(bool)
+		loadIn4bit, ok4bit := *quantConfig.LoadIn4bit, quantConfig.LoadIn4bit != nil
+		loadIn8bit, ok8bit := *quantConfig.LoadIn8bit, quantConfig.LoadIn8bit != nil
 		if ok4bit && ok8bit && loadIn4bit && loadIn8bit {
 			return apis.ErrGeneric(fmt.Sprintf("Cannot set both 'load_in_4bit' and 'load_in_8bit' to true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
 		}
