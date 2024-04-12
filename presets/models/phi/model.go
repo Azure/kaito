@@ -34,6 +34,7 @@ var (
 		"torch_dtype": "float16",
 		"pipeline":    "text-generation",
 	}
+	phiRunTuningParams = map[string]string{}
 )
 
 var phiA phi2
@@ -63,8 +64,8 @@ func (*phi2) GetTuningParameters() *model.PresetParam {
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
 		PerGPUMemoryRequirement:   "16Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
-		// TorchRunParams:            inference.DefaultAccelerateParams,
-		// ModelRunParams:            phiRunParams,
+		TorchRunParams:            tuning.DefaultAccelerateParams,
+		ModelRunParams:            phiRunTuningParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
 		BaseCommand:      baseCommandPresetPhi,
 		Tag:              PresetTuningPhiTagMap["Phi2"],

@@ -40,6 +40,7 @@ var (
 		"torch_dtype": "bfloat16",
 		"pipeline":    "text-generation",
 	}
+	mistralRunTuningParams = map[string]string{}
 )
 
 var mistralA mistral7b
@@ -70,8 +71,8 @@ func (*mistral7b) GetTuningParameters() *model.PresetParam {
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
 		PerGPUMemoryRequirement:   "16Gi", // We run Mistral using native vertical model parallel, no per GPU memory requirement.
-		//TorchRunParams:            tuning.DefaultAccelerateParams,
-		//ModelRunParams:            mistralRunParams,
+		TorchRunParams:            tuning.DefaultAccelerateParams,
+		ModelRunParams:            mistralRunTuningParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
 		BaseCommand:      baseCommandPresetMistral,
 		Tag:              PresetTuningMistralTagMap["Mistral7B"],
