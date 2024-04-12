@@ -7,20 +7,10 @@ import (
 )
 import "gopkg.in/yaml.v2"
 
-type TrainingConfig struct {
-	ModelConfig        *config.ModelConfig        `yaml:"ModelConfig"`
-	TokenizerParams    *config.TokenizerParams    `yaml:"TokenizerParams"`
-	QuantizationConfig *config.QuantizationConfig `yaml:"QuantizationConfig"`
-	LoraConfig         *config.LoraConfig         `yaml:"LoraConfig"`
-	TrainingArguments  *config.TrainingArguments  `yaml:"TrainingArguments"`
-	DatasetConfig      *config.DatasetConfig      `yaml:"DatasetConfig"`
-	DataCollator       *config.DataCollator       `yaml:"DataCollator"`
-}
-
 // ParseTrainingConfig parses the YAML string into a nested map
 func ParseTrainingConfig(trainingConfigStr string) (map[string]map[string]string, error) {
 	var trainingConfigWrapper struct {
-		TrainingConfig TrainingConfig `yaml:"training_config"`
+		TrainingConfig config.TrainingConfig `yaml:"training_config"`
 	}
 
 	err := yaml.Unmarshal([]byte(trainingConfigStr), &trainingConfigWrapper)

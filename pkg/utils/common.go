@@ -4,8 +4,6 @@ package utils
 
 import (
 	"fmt"
-	"reflect"
-	"strings"
 )
 
 const (
@@ -55,25 +53,4 @@ func ShellCmd(command string) []string {
 		"-c",
 		command,
 	}
-}
-
-// GetFieldNamesFromStruct returns a slice of json tag names for fields in a given struct type.
-func GetFieldNamesFromStruct(section any) []string {
-	t := reflect.TypeOf(section)
-	fieldNames := make([]string, 0, t.NumField())
-
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		jsonTag := field.Tag.Get("json")
-		// If the field has a json tag, use the tag name, excluding any options like ",omitempty"
-		if jsonTag != "" {
-			tagName := strings.Split(jsonTag, ",")[0] // Get the name part of the json tag
-			fieldNames = append(fieldNames, tagName)
-		} else {
-			// If there's no json tag, use the field name
-			fieldNames = append(fieldNames, field.Name)
-		}
-	}
-
-	return fieldNames
 }
