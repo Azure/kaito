@@ -6,18 +6,12 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
-	"github.com/azure/kaito/pkg/config"
-	"github.com/azure/kaito/pkg/tuning"
-	"github.com/azure/kaito/pkg/utils"
-	"gopkg.in/yaml.v2"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	"github.com/azure/kaito/pkg/utils/plugin"
 	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sort"
 	"strings"
 
-	"github.com/azure/kaito/pkg/utils/plugin"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,7 +24,7 @@ const (
 	D_SERIES_PREFIX = "Standard_D"
 )
 
-func getClient(ctx context.Context) client.Client {
+func getTestClient(ctx context.Context) client.Client {
 	if cl, ok := ctx.Value("clientKey").(client.Client); ok {
 		return cl
 	}
@@ -97,113 +91,6 @@ func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
 	return errs
 }
 
-func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *apis.FieldError {
-	trainingConfigYAML, ok := cm.Data["training_config.yaml"]
-	if !ok {
-		return apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' does not contain 'training_config.yaml' in namespace '%s'", cm.Name, cm.Namespace), "config")
-	}
-
-	var trainingConfig tuning.TrainingConfig
-	if err := yaml.Unmarshal([]byte(trainingConfigYAML), &trainingConfig); err != nil {
-		return apis.ErrGeneric(fmt.Sprintf("Failed to parse 'training_config.yaml' in ConfigMap '%s' in namespace '%s': %v", cm.Name, cm.Namespace, err), "config")
-	}
-
-	quantConfig, quantConfigExists := trainingConfig.QuantizationConfig, trainingConfig.QuantizationConfig != nil
-	if quantConfigExists {
-		loadIn4bit, ok4bit := *quantConfig.LoadIn4bit, quantConfig.LoadIn4bit != nil
-		loadIn8bit, ok8bit := *quantConfig.LoadIn8bit, quantConfig.LoadIn8bit != nil
-		if ok4bit && ok8bit && loadIn4bit && loadIn8bit {
-			return apis.ErrGeneric(fmt.Sprintf("Cannot set both 'load_in_4bit' and 'load_in_8bit' to true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
-		}
-		if methodLowerCase == string(TuningMethodLora) {
-			if (ok4bit && loadIn4bit) || (ok8bit && loadIn8bit) {
-				return apis.ErrGeneric(fmt.Sprintf("For method 'lora', 'load_in_4bit' or 'load_in_8bit' in ConfigMap '%s' must not be true", cm.Name), "QuantizationConfig")
-			}
-		} else if methodLowerCase == string(TuningMethodQLora) {
-			if !(ok4bit && loadIn4bit) && !(ok8bit && loadIn8bit) {
-				return apis.ErrMissingField(fmt.Sprintf("For method 'qlora', either 'load_in_4bit' or 'load_in_8bit' must be true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
-			}
-		}
-	} else if methodLowerCase == string(TuningMethodQLora) {
-		return apis.ErrMissingField(fmt.Sprintf("For method 'qlora', either 'load_in_4bit' or 'load_in_8bit' must be true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
-	}
-	return nil
-}
-
-// isFieldRecognized dynamically checks if the field is recognized within a section using reflection.
-func isFieldRecognized(section, field string) bool {
-	// Instantiate each section struct to use for reflection. These structs should be zero-valued.
-	sectionStructs := map[string]any{
-		"ModelConfig":        config.ModelConfig{},
-		"TokenizerParams":    config.TokenizerParams{},
-		"QuantizationConfig": config.QuantizationConfig{},
-		"LoraConfig":         config.LoraConfig{},
-		"TrainingArguments":  config.TrainingArguments{},
-		"DatasetConfig":      config.DatasetConfig{},
-		"DataCollator":       config.DataCollator{},
-	}
-
-	structInstance, ok := sectionStructs[section]
-	if !ok {
-		return false // Section not recognized
-	}
-
-	fields := utils.GetFieldNamesFromStruct(structInstance)
-	for _, f := range fields {
-		if f == field {
-			return true
-		}
-	}
-	return false
-}
-
-func isSectionRecognized(section string) bool {
-	trainingConfig := tuning.TrainingConfig{}
-	recognizedSections := utils.GetSectionNamesFromStruct(trainingConfig)
-
-	for _, s := range recognizedSections {
-		if s == section {
-			return true
-		}
-	}
-	return false
-}
-
-func validateConfigMapSchema(cm *corev1.ConfigMap) *apis.FieldError {
-	trainingConfigData, ok := cm.Data["training_config.yaml"]
-	if !ok {
-		return apis.ErrMissingField("training_config.yaml in ConfigMap")
-	}
-
-	var rawConfig map[string]interface{}
-	err := yaml.Unmarshal([]byte(trainingConfigData), &rawConfig)
-	if err != nil {
-		return apis.ErrInvalidValue(err.Error(), "training_config.yaml")
-	}
-
-	for section, contents := range rawConfig {
-		// Check if section is recognized
-		if !isSectionRecognized(section) {
-			return apis.ErrInvalidValue(fmt.Sprintf("Unrecognized section: %s", section), "training_config.yaml")
-		}
-
-		// Assuming contents is a map, check each field in the section
-		fieldMap, ok := contents.(map[interface{}]interface{})
-		if !ok {
-			continue // or handle the error
-		}
-
-		for key := range fieldMap {
-			if !isFieldRecognized(section, fmt.Sprint(key)) {
-				return apis.ErrInvalidValue(fmt.Sprintf("Unrecognized field: %s in section %s", key, section), "training_config.yaml")
-			}
-
-			// Here you could also attempt to validate the type of fieldMap[key]
-		}
-	}
-	return nil
-}
-
 func (r *TuningSpec) validateCreate(ctx context.Context) (errs *apis.FieldError) {
 	methodLowerCase := strings.ToLower(string(r.Method))
 	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
@@ -212,26 +99,8 @@ func (r *TuningSpec) validateCreate(ctx context.Context) (errs *apis.FieldError)
 	if r.Config == "" {
 		errs = errs.Also(apis.ErrMissingField("Config"))
 	} else {
-		cl := getClient(ctx)
-		namespace, err := utils.GetReleaseNamespace()
-		if err != nil {
-			errMsg := fmt.Sprintf("Failed to determine release namespace: %v", err)
-			errs = errs.Also(apis.ErrGeneric(errMsg, "namespace"))
-		}
-		var cm corev1.ConfigMap
-		err = cl.Get(ctx, client.ObjectKey{Name: r.Config, Namespace: namespace}, &cm)
-		if err != nil {
-			if errors.IsNotFound(err) {
-				errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' specified in 'config' not found in namespace '%s'", r.Config, namespace), "config"))
-			} else {
-				errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to get ConfigMap '%s' in namespace '%s': %v", r.Config, namespace, err), "config"))
-			}
-		}
-		if err := validateConfigMapSchema(&cm); err != nil {
-			errs = errs.Also(err)
-		}
-		if err := validateMethodViaConfigMap(&cm, methodLowerCase); err != nil {
-			errs = errs.Also(err)
+		if err := r.validateConfigMap(ctx, methodLowerCase); err != nil {
+			errs = errs.Also(apis.ErrGeneric("Config"))
 		}
 	}
 	if r.Input == nil {
