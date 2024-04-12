@@ -1,6 +1,13 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
+
+// common.go contains general utility functions applicable across the application.
+
 package utils
+
+import (
+	"fmt"
+)
 
 const (
 	// WorkspaceFinalizer is used to make sure that workspace controller handles garbage collection.
@@ -14,4 +21,39 @@ func Contains(s []string, e string) bool {
 		}
 	}
 	return false
+}
+
+func MergeMaps(baseMap, overrideMap map[string]string) map[string]string {
+	merged := make(map[string]string)
+	for k, v := range baseMap {
+		merged[k] = v
+	}
+
+	// Override with values from overrideMap
+	for k, v := range overrideMap {
+		merged[k] = v
+	}
+
+	return merged
+}
+
+func BuildCmdStr(baseCommand string, runParams map[string]string) string {
+	updatedBaseCommand := baseCommand
+	for key, value := range runParams {
+		if value == "" {
+			updatedBaseCommand = fmt.Sprintf("%s --%s", updatedBaseCommand, key)
+		} else {
+			updatedBaseCommand = fmt.Sprintf("%s --%s=%s", updatedBaseCommand, key, value)
+		}
+	}
+
+	return updatedBaseCommand
+}
+
+func ShellCmd(command string) []string {
+	return []string{
+		"/bin/sh",
+		"-c",
+		command,
+	}
 }

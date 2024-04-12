@@ -3,7 +3,6 @@
 package utils
 
 import (
-	"fmt"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -37,14 +36,24 @@ func ConfigSHMVolume(wObj *kaitov1alpha1.Workspace) (corev1.Volume, corev1.Volum
 	return volume, volumeMount
 }
 
-func ConfigDataVolume() ([]corev1.Volume, []corev1.VolumeMount) {
+func ConfigDataVolume(hostPath string) ([]corev1.Volume, []corev1.VolumeMount) {
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
-	volumes = append(volumes, corev1.Volume{
-		Name: "data-volume",
-		VolumeSource: corev1.VolumeSource{
+	var volumeSource corev1.VolumeSource
+	if hostPath != "" {
+		volumeSource = corev1.VolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: hostPath,
+			},
+		}
+	} else {
+		volumeSource = corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
+		}
+	}
+	volumes = append(volumes, corev1.Volume{
+		Name:         "data-volume",
+		VolumeSource: volumeSource,
 	})
 
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
@@ -54,19 +63,11 @@ func ConfigDataVolume() ([]corev1.Volume, []corev1.VolumeMount) {
 	return volumes, volumeMounts
 }
 
-func ShellCmd(command string) []string {
-	return []string{
-		"/bin/sh",
-		"-c",
-		command,
+func GetInstanceGPUCount(wObj *kaitov1alpha1.Workspace) int {
+	sku := wObj.Resource.InstanceType
+	gpuConfig, exists := kaitov1alpha1.SupportedGPUConfigs[sku]
+	if !exists {
+		return 1
 	}
-}
-
-func BuildCmdStr(baseCommand string, torchRunParams map[string]string) string {
-	updatedBaseCommand := baseCommand
-	for key, value := range torchRunParams {
-		updatedBaseCommand = fmt.Sprintf("%s --%s=%s", updatedBaseCommand, key, value)
-	}
-
-	return updatedBaseCommand
+	return gpuConfig.GPUCount
 }
