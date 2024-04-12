@@ -40,7 +40,7 @@ var (
 		"torch_dtype": "bfloat16",
 		"pipeline":    "text-generation",
 	}
-	mistralRunTuningParams = map[string]string{}
+	mistralRunTuningParams = map[string]string{} // TODO: Populate
 )
 
 var mistralA mistral7b
