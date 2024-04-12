@@ -3,6 +3,7 @@
 package falcon
 
 import (
+	"github.com/azure/kaito/pkg/tuning"
 	"time"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -43,10 +44,18 @@ var (
 		"Falcon40BInstruct": "0.0.5",
 	}
 
+	PresetTuningFalconTagMap = map[string]string{
+		"Falcon7B":  "0.0.1",
+		"Falcon40B": "0.0.1",
+	}
+
 	baseCommandPresetFalcon = "accelerate launch"
 	falconRunParams         = map[string]string{
 		"torch_dtype": "bfloat16",
 		"pipeline":    "text-generation",
+	}
+	falconRunTuningParams = map[string]string{
+		"EDC_mlm": "false",
 	}
 )
 
@@ -77,11 +86,11 @@ func (*falcon7b) GetTuningParameters() *model.PresetParam {
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "16Gi",
 		PerGPUMemoryRequirement:   "16Gi",
-		//TorchRunParams:            tuning.DefaultAccelerateParams, // TODO
-		//ModelRunPrams:             falconRunTuningParams, // TODO
-		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetFalcon,
-		Tag:              PresetFalconTagMap["Falcon7B"],
+		TorchRunParams:            tuning.DefaultAccelerateParams,
+		ModelRunParams:            falconRunTuningParams,
+		ReadinessTimeout:          time.Duration(30) * time.Minute,
+		BaseCommand:               baseCommandPresetFalcon,
+		Tag:                       PresetTuningFalconTagMap["Falcon7B"],
 	}
 }
 
@@ -150,11 +159,11 @@ func (*falcon40b) GetTuningParameters() *model.PresetParam {
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "90Gi",
 		PerGPUMemoryRequirement:   "16Gi",
-		//TorchRunParams:            tuning.DefaultAccelerateParams, // TODO
-		//ModelRunPrams:             falconRunTuningParams, // TODO
-		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetFalcon,
-		Tag:              PresetFalconTagMap["Falcon40B"],
+		TorchRunParams:            tuning.DefaultAccelerateParams,
+		ModelRunParams:            falconRunTuningParams,
+		ReadinessTimeout:          time.Duration(30) * time.Minute,
+		BaseCommand:               baseCommandPresetFalcon,
+		Tag:                       PresetTuningFalconTagMap["Falcon40B"],
 	}
 }
 func (*falcon40b) SupportDistributedInference() bool {
