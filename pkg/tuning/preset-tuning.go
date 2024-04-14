@@ -81,7 +81,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	if err != nil {
 		return nil, err
 	}
-	shmVolume, shmVolumeMount := utils.ConfigSHMVolume(workspaceObj)
+	shmVolume, shmVolumeMount := utils.ConfigSHMVolume(*workspaceObj.Resource.Count)
 	if shmVolume.Name != "" {
 		volumes = append(volumes, shmVolume)
 	}
@@ -193,6 +193,14 @@ func getDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	return nil, nil
 }
 
+func getInstanceGPUCount(sku string) int {
+	gpuConfig, exists := kaitov1alpha1.SupportedGPUConfigs[sku]
+	if !exists {
+		return 1
+	}
+	return gpuConfig.GPUCount
+}
+
 func prepareModelRunParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, kubeClient client.Client, tuningObj *model.PresetParam) (string, error) {
 	configMapName := DefaultConfigMap
 	if wObj.Tuning != nil && wObj.Tuning.Config != "" {
@@ -232,7 +240,7 @@ func prepareModelRunParameters(ctx context.Context, wObj *kaitov1alpha1.Workspac
 // Returns the command and resource configuration.
 func prepareTuningParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, modelCommand string, tuningObj *model.PresetParam) ([]string, corev1.ResourceRequirements) {
 	// Set # of processes to GPU Count
-	numProcesses := utils.GetInstanceGPUCount(wObj)
+	numProcesses := getInstanceGPUCount(wObj.Resource.InstanceType)
 	tuningObj.TorchRunParams["num_processes"] = fmt.Sprintf("%d", numProcesses)
 	torchCommand := utils.BuildCmdStr(tuningObj.BaseCommand, tuningObj.TorchRunParams)
 	torchCommand = utils.BuildCmdStr(torchCommand, tuningObj.TorchRunRdzvParams)

@@ -20,6 +20,14 @@ func Contains(s []string, e string) bool {
 	return false
 }
 
+// SearchMap performs a search for a key in a map[string]interface{}.
+func SearchMap(m map[string]interface{}, key string) (value interface{}, exists bool) {
+	if val, ok := m[key]; ok {
+		return val, true
+	}
+	return nil, false
+}
+
 func MergeConfigMaps(baseMap, overrideMap map[string]string) map[string]string {
 	merged := make(map[string]string)
 	for k, v := range baseMap {

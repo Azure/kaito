@@ -5,9 +5,9 @@ package resources
 import (
 	"context"
 	"errors"
+	"github.com/azure/kaito/pkg/utils/test"
 	"testing"
 
-	"github.com/azure/kaito/pkg/utils"
 	"github.com/stretchr/testify/mock"
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -16,24 +16,24 @@ import (
 
 func TestUpdateNodeWithLabel(t *testing.T) {
 	testcases := map[string]struct {
-		callMocks     func(c *utils.MockClient)
+		callMocks     func(c *test.MockClient)
 		expectedError error
 	}{
 		"Fail to update node because it cannot be retrieved": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), client.ObjectKey{Name: "mockNode"}, mock.IsType(&corev1.Node{}), mock.Anything).Return(errors.New("Cannot retrieve node"))
 			},
 			expectedError: errors.New("Cannot retrieve node"),
 		},
 		"Fail to update node because node cannot be updated": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), client.ObjectKey{Name: "mockNode"}, mock.Anything, mock.Anything).Return(nil)
 				c.On("Update", mock.IsType(context.Background()), mock.IsType(&corev1.Node{}), mock.Anything).Return(errors.New("Cannot update node"))
 			},
 			expectedError: errors.New("Cannot update node"),
 		},
 		"Successfully updates node": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), client.ObjectKey{Name: "mockNode"}, mock.IsType(&corev1.Node{}), mock.Anything).Return(nil)
 				c.On("Update", mock.IsType(context.Background()), mock.IsType(&corev1.Node{}), mock.Anything).Return(nil)
 			},
@@ -43,7 +43,7 @@ func TestUpdateNodeWithLabel(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			mockClient := utils.NewClient()
+			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 
 			err := UpdateNodeWithLabel(context.Background(), "mockNode", "fakeKey", "fakeVal", mockClient)
@@ -58,21 +58,21 @@ func TestUpdateNodeWithLabel(t *testing.T) {
 
 func TestListNodes(t *testing.T) {
 	testcases := map[string]struct {
-		callMocks     func(c *utils.MockClient)
+		callMocks     func(c *test.MockClient)
 		expectedError error
 	}{
 		"Fails to list nodes": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(errors.New("Cannot retrieve node list"))
 			},
 			expectedError: errors.New("Cannot retrieve node list"),
 		},
 		"Successfully lists all nodes": {
-			callMocks: func(c *utils.MockClient) {
-				nodeList := utils.MockNodeList
+			callMocks: func(c *test.MockClient) {
+				nodeList := test.MockNodeList
 				relevantMap := c.CreateMapWithType(nodeList)
 				//insert node objects into the map
-				for _, obj := range utils.MockNodeList.Items {
+				for _, obj := range test.MockNodeList.Items {
 					n := obj
 					objKey := client.ObjectKeyFromObject(&n)
 
@@ -87,7 +87,7 @@ func TestListNodes(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			mockClient := utils.NewClient()
+			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 
 			labelSelector := client.MatchingLabels{}
@@ -111,11 +111,11 @@ func TestCheckNvidiaPlugin(t *testing.T) {
 		isNvidiaPlugin bool
 	}{
 		"Is not nvidia plugin": {
-			nodeObj:        &utils.MockNodeList.Items[1],
+			nodeObj:        &test.MockNodeList.Items[1],
 			isNvidiaPlugin: false,
 		},
 		"Is nvidia plugin": {
-			nodeObj:        &utils.MockNodeList.Items[0],
+			nodeObj:        &test.MockNodeList.Items[0],
 			isNvidiaPlugin: true,
 		},
 	}

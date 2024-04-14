@@ -120,7 +120,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
-	shmVolume, shmVolumeMount := utils.ConfigSHMVolume(workspaceObj)
+	shmVolume, shmVolumeMount := utils.ConfigSHMVolume(*workspaceObj.Resource.Count)
 	if shmVolume.Name != "" {
 		volumes = append(volumes, shmVolume)
 	}

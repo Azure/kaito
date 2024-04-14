@@ -5,6 +5,7 @@ package resources
 import (
 	"context"
 	"errors"
+	"github.com/azure/kaito/pkg/utils/test"
 	"testing"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/azure/kaito/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	goassert "gotest.tools/assert"
@@ -118,26 +118,26 @@ func TestCheckResourceStatus(t *testing.T) {
 
 func TestCreateResource(t *testing.T) {
 	testcases := map[string]struct {
-		callMocks        func(c *utils.MockClient)
+		callMocks        func(c *test.MockClient)
 		expectedResource client.Object
 		expectedError    error
 	}{
 		"Resource creation fails with Deployment object": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1.Deployment{}), mock.Anything).Return(errors.New("Failed to create resource"))
 			},
 			expectedResource: &v1.Deployment{},
 			expectedError:    errors.New("Failed to create resource"),
 		},
 		"Resource creation succeeds with Statefulset object": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1.StatefulSet{}), mock.Anything).Return(nil)
 			},
 			expectedResource: &v1.StatefulSet{},
 			expectedError:    nil,
 		},
 		"Resource creation succeeds with Service object": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
 			},
 			expectedResource: &corev1.Service{},
@@ -147,7 +147,7 @@ func TestCreateResource(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			mockClient := utils.NewClient()
+			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 
 			err := CreateResource(context.Background(), tc.expectedResource, mockClient)
@@ -162,17 +162,17 @@ func TestCreateResource(t *testing.T) {
 
 func TestGetResource(t *testing.T) {
 	testcases := map[string]struct {
-		callMocks     func(c *utils.MockClient)
+		callMocks     func(c *test.MockClient)
 		expectedError error
 	}{
 		"GetResource fails": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Node{}), mock.Anything).Return(errors.New("Failed to get resource"))
 			},
 			expectedError: errors.New("Failed to get resource"),
 		},
 		"Resource creation succeeds with Statefulset object": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Node{}), mock.Anything).Return(nil)
 			},
 			expectedError: nil,
@@ -181,7 +181,7 @@ func TestGetResource(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			mockClient := utils.NewClient()
+			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 
 			err := GetResource(context.Background(), "fakeName", "fakeNamespace", mockClient, &corev1.Node{})
