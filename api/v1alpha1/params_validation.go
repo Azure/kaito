@@ -3,7 +3,7 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
-	"github.com/azure/kaito/pkg/config"
+	"github.com/azure/kaito/pkg/utils"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	corev1 "k8s.io/api/core/v1"
@@ -12,12 +12,21 @@ import (
 	"os"
 	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 const (
 	DefaultReleaseNamespaceEnvVar = "RELEASE_NAMESPACE"
 )
+
+type TrainingConfig struct {
+	ModelConfig        map[string]interface{} `yaml:"ModelConfig"`
+	TokenizerParams    map[string]interface{} `yaml:"TokenizerParams"`
+	QuantizationConfig map[string]interface{} `yaml:"QuantizationConfig"`
+	LoraConfig         map[string]interface{} `yaml:"LoraConfig"`
+	TrainingArguments  map[string]interface{} `yaml:"TrainingArguments"`
+	DatasetConfig      map[string]interface{} `yaml:"DatasetConfig"`
+	DataCollator       map[string]interface{} `yaml:"DataCollator"`
+}
 
 func getReleaseNamespace() (string, error) {
 	// Path to the namespace file inside a Kubernetes pod
@@ -41,24 +50,30 @@ func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *a
 		return apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' does not contain 'training_config.yaml' in namespace '%s'", cm.Name, cm.Namespace), "config")
 	}
 
-	var trainingConfig config.TrainingConfig
+	var trainingConfig TrainingConfig
 	if err := yaml.Unmarshal([]byte(trainingConfigYAML), &trainingConfig); err != nil {
 		return apis.ErrGeneric(fmt.Sprintf("Failed to parse 'training_config.yaml' in ConfigMap '%s' in namespace '%s': %v", cm.Name, cm.Namespace, err), "config")
 	}
 
-	quantConfig, quantConfigExists := trainingConfig.QuantizationConfig, trainingConfig.QuantizationConfig != nil
-	if quantConfigExists {
-		loadIn4bit, ok4bit := *quantConfig.LoadIn4bit, quantConfig.LoadIn4bit != nil
-		loadIn8bit, ok8bit := *quantConfig.LoadIn8bit, quantConfig.LoadIn8bit != nil
-		if ok4bit && ok8bit && loadIn4bit && loadIn8bit {
+	// Validate QuantizationConfig if it exists
+	quantConfig := trainingConfig.QuantizationConfig
+	if quantConfig != nil {
+		// Dynamic field search for quantization settings within ModelConfig
+		loadIn4bit, _ := utils.SearchMap(quantConfig, "load_in_4bit")
+		loadIn8bit, _ := utils.SearchMap(quantConfig, "load_in_8bit")
+
+		loadIn4bitBool, ok4bitBool := loadIn4bit.(bool)
+		loadIn8bitBool, ok8bitBool := loadIn8bit.(bool)
+
+		if ok4bitBool && ok8bitBool && loadIn4bitBool && loadIn8bitBool {
 			return apis.ErrGeneric(fmt.Sprintf("Cannot set both 'load_in_4bit' and 'load_in_8bit' to true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
 		}
 		if methodLowerCase == string(TuningMethodLora) {
-			if (ok4bit && loadIn4bit) || (ok8bit && loadIn8bit) {
+			if (ok4bitBool && loadIn4bitBool) || (ok8bitBool && loadIn8bitBool) {
 				return apis.ErrGeneric(fmt.Sprintf("For method 'lora', 'load_in_4bit' or 'load_in_8bit' in ConfigMap '%s' must not be true", cm.Name), "QuantizationConfig")
 			}
 		} else if methodLowerCase == string(TuningMethodQLora) {
-			if !(ok4bit && loadIn4bit) && !(ok8bit && loadIn8bit) {
+			if !(ok4bitBool && loadIn4bitBool) && !(ok8bitBool && loadIn8bitBool) {
 				return apis.ErrMissingField(fmt.Sprintf("For method 'qlora', either 'load_in_4bit' or 'load_in_8bit' must be true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
 			}
 		}
@@ -66,26 +81,6 @@ func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *a
 		return apis.ErrMissingField(fmt.Sprintf("For method 'qlora', either 'load_in_4bit' or 'load_in_8bit' must be true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
 	}
 	return nil
-}
-
-// getTagsFromStruct returns a slice of yaml tag names for fields in the TrainingConfig struct.
-func getTagsFromStruct(s any, tagKey string) []string {
-	t := reflect.TypeOf(s)
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem() // Dereference pointer to get the struct type
-	}
-	tags := make([]string, 0, t.NumField())
-
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		tag := field.Tag.Get(tagKey)
-		if tag != "" {
-			tagName := strings.Split(tag, ",")[0] // Remove any tag options (like omitempty)
-			tags = append(tags, tagName)
-		}
-	}
-
-	return tags
 }
 
 // getStructInstances dynamically generates instances of all sections in any config struct.
@@ -99,24 +94,14 @@ func getStructInstances(s any) map[string]any {
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		yamlTag := field.Tag.Get("yaml")
-		if yamlTag != "" && field.Type.Kind() == reflect.Ptr {
+		if yamlTag != "" {
 			// Create a new instance of the type pointed to by the field
-			instance := reflect.New(field.Type.Elem()).Interface()
+			instance := reflect.MakeMap(field.Type).Interface()
 			instances[yamlTag] = instance
 		}
 	}
 
 	return instances
-}
-
-// containsString checks if a string is present in a slice.
-func containsString(key string, slice []string) bool {
-	for _, item := range slice {
-		if item == key {
-			return true
-		}
-	}
-	return false
 }
 
 func validateConfigMapSchema(cm *corev1.ConfigMap) *apis.FieldError {
@@ -136,33 +121,17 @@ func validateConfigMapSchema(cm *corev1.ConfigMap) *apis.FieldError {
 		return apis.ErrInvalidValue("Expected 'training_config' key to contain a map", "training_config.yaml")
 	}
 
-	sectionStructs := getStructInstances(config.TrainingConfig{})
+	sectionStructs := getStructInstances(TrainingConfig{})
 	recognizedSections := make([]string, 0, len(sectionStructs))
 	for section := range sectionStructs {
 		recognizedSections = append(recognizedSections, section)
 	}
 
-	for section, contents := range trainingConfigMap {
+	// Check if valid sections
+	for section, _ := range trainingConfigMap {
 		sectionStr := section.(string)
-		// Check if section is recognized
-		if !containsString(sectionStr, recognizedSections) {
+		if !utils.Contains(recognizedSections, sectionStr) {
 			return apis.ErrInvalidValue(fmt.Sprintf("Unrecognized section: %s", section), "training_config.yaml")
-		}
-
-		// Assuming contents is a map, check each field in the section
-		fieldMap, ok := contents.(map[interface{}]interface{})
-		if !ok {
-			continue // or handle the error
-		}
-
-		structInstance, _ := sectionStructs[sectionStr]
-		fieldTags := getTagsFromStruct(structInstance, "json")
-		for key := range fieldMap {
-			if !containsString(fmt.Sprint(key), fieldTags) {
-				return apis.ErrInvalidValue(fmt.Sprintf("Unrecognized field: %s in section %s", key, section), "training_config.yaml")
-			}
-
-			// TODO? Here could also attempt to validate the type of fieldMap[key]
 		}
 	}
 	return nil
