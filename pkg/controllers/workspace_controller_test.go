@@ -5,6 +5,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"github.com/azure/kaito/pkg/utils/test"
 	"reflect"
 	"sort"
 	"testing"
@@ -13,7 +14,6 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/machine"
-	"github.com/azure/kaito/pkg/utils"
 	"github.com/stretchr/testify/mock"
 	"gotest.tools/assert"
 	appsv1 "k8s.io/api/apps/v1"
@@ -25,7 +25,7 @@ import (
 )
 
 func TestSelectWorkspaceNodes(t *testing.T) {
-	utils.RegisterTestModel()
+	test.RegisterTestModel()
 	testcases := map[string]struct {
 		qualified []*corev1.Node
 		preferred []string
@@ -224,15 +224,15 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 }
 
 func TestCreateAndValidateNode(t *testing.T) {
-	utils.RegisterTestModel()
+	test.RegisterTestModel()
 	testcases := map[string]struct {
-		callMocks         func(c *utils.MockClient)
+		callMocks         func(c *test.MockClient)
 		machineConditions apis.Conditions
 		workspace         v1alpha1.Workspace
 		expectedError     error
 	}{
 		"Node is not created because machine creation fails": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
@@ -245,11 +245,11 @@ func TestCreateAndValidateNode(t *testing.T) {
 					Message: machine.ErrorInstanceTypesUnavailable,
 				},
 			},
-			workspace:     *utils.MockWorkspaceWithPreset,
+			workspace:     *test.MockWorkspaceWithPreset,
 			expectedError: errors.New(machine.ErrorInstanceTypesUnavailable),
 		},
 		"A machine is successfully created": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Node{}), mock.Anything).Return(nil)
@@ -260,14 +260,14 @@ func TestCreateAndValidateNode(t *testing.T) {
 					Status: corev1.ConditionTrue,
 				},
 			},
-			workspace:     *utils.MockWorkspaceDistributedModel,
+			workspace:     *test.MockWorkspaceDistributedModel,
 			expectedError: nil,
 		},
 	}
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			mockClient := utils.NewClient()
+			mockClient := test.NewClient()
 			mockMachine := &v1alpha5.Machine{}
 
 			mockClient.UpdateCb = func(key types.NamespacedName) {
@@ -280,7 +280,7 @@ func TestCreateAndValidateNode(t *testing.T) {
 
 			reconciler := &WorkspaceReconciler{
 				Client: mockClient,
-				Scheme: utils.NewTestScheme(),
+				Scheme: test.NewTestScheme(),
 			}
 			ctx := context.Background()
 
@@ -296,27 +296,27 @@ func TestCreateAndValidateNode(t *testing.T) {
 }
 
 func TestEnsureService(t *testing.T) {
-	utils.RegisterTestModel()
+	test.RegisterTestModel()
 	testcases := map[string]struct {
-		callMocks     func(c *utils.MockClient)
+		callMocks     func(c *test.MockClient)
 		expectedError error
 	}{
 		"Existing service is found for workspace": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
 			},
 			expectedError: nil,
 		},
 		"Service creation fails": {
-			callMocks: func(c *utils.MockClient) {
-				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(utils.NotFoundError())
+			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(test.NotFoundError())
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&corev1.Service{}), mock.Anything).Return(errors.New("cannot create service"))
 			},
 			expectedError: errors.New("cannot create service"),
 		},
 		"Successfully creates a new service": {
-			callMocks: func(c *utils.MockClient) {
-				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(utils.NotFoundError())
+			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(test.NotFoundError())
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
 			},
 			expectedError: nil,
@@ -325,16 +325,16 @@ func TestEnsureService(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			mockClient := utils.NewClient()
+			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 
 			reconciler := &WorkspaceReconciler{
 				Client: mockClient,
-				Scheme: utils.NewTestScheme(),
+				Scheme: test.NewTestScheme(),
 			}
 			ctx := context.Background()
 
-			err := reconciler.ensureService(ctx, utils.MockWorkspaceDistributedModel)
+			err := reconciler.ensureService(ctx, test.MockWorkspaceDistributedModel)
 			if tc.expectedError == nil {
 				assert.Check(t, err == nil, "Not expected to return error")
 			} else {
@@ -346,25 +346,25 @@ func TestEnsureService(t *testing.T) {
 }
 
 func TestApplyInferenceWithPreset(t *testing.T) {
-	utils.RegisterTestModel()
+	test.RegisterTestModel()
 	testcases := map[string]struct {
-		callMocks     func(c *utils.MockClient)
+		callMocks     func(c *test.MockClient)
 		workspace     v1alpha1.Workspace
 		expectedError error
 	}{
 		"Fail to get inference because associated workload with workspace cannot be retrieved": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(errors.New("Failed to get resource"))
 
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 			},
-			workspace:     *utils.MockWorkspaceDistributedModel,
+			workspace:     *test.MockWorkspaceDistributedModel,
 			expectedError: errors.New("Failed to get resource"),
 		},
 		"Create preset inference because inference workload did not exist": {
-			callMocks: func(c *utils.MockClient) {
-				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(utils.NotFoundError()).Times(4)
+			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(test.NotFoundError()).Times(4)
 				c.On("Get", mock.Anything, mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 					depObj := &appsv1.Deployment{}
 					key := client.ObjectKey{Namespace: "kaito", Name: "testWorkspace"}
@@ -379,11 +379,11 @@ func TestApplyInferenceWithPreset(t *testing.T) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 			},
-			workspace:     *utils.MockWorkspaceWithPreset,
+			workspace:     *test.MockWorkspaceWithPreset,
 			expectedError: nil,
 		},
 		"Apply inference from existing workload": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.Anything, mock.Anything, mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 					depObj := &appsv1.StatefulSet{}
 					key := client.ObjectKey{Namespace: "kaito", Name: "testWorkspace"}
@@ -397,19 +397,19 @@ func TestApplyInferenceWithPreset(t *testing.T) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 			},
-			workspace:     *utils.MockWorkspaceDistributedModel,
+			workspace:     *test.MockWorkspaceDistributedModel,
 			expectedError: nil,
 		},
 	}
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			mockClient := utils.NewClient()
+			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 
 			reconciler := &WorkspaceReconciler{
 				Client: mockClient,
-				Scheme: utils.NewTestScheme(),
+				Scheme: test.NewTestScheme(),
 			}
 			ctx := context.Background()
 
@@ -425,34 +425,34 @@ func TestApplyInferenceWithPreset(t *testing.T) {
 
 func TestApplyInferenceWithTemplate(t *testing.T) {
 	testcases := map[string]struct {
-		callMocks     func(c *utils.MockClient)
+		callMocks     func(c *test.MockClient)
 		workspace     v1alpha1.Workspace
 		expectedError error
 	}{
 		"Fail to apply inference from workspace template": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(errors.New("Failed to create deployment"))
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 			},
-			workspace:     *utils.MockWorkspaceWithInferenceTemplate,
+			workspace:     *test.MockWorkspaceWithInferenceTemplate,
 			expectedError: errors.New("Failed to create deployment"),
 		},
 		"Apply inference from workspace template": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 				c.On("Get", mock.Anything, mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 			},
-			workspace:     *utils.MockWorkspaceWithInferenceTemplate,
+			workspace:     *test.MockWorkspaceWithInferenceTemplate,
 			expectedError: nil,
 		},
 	}
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			mockClient := utils.NewClient()
+			mockClient := test.NewClient()
 			depObj := &appsv1.Deployment{}
 
 			mockClient.UpdateCb = func(key types.NamespacedName) {
@@ -465,7 +465,7 @@ func TestApplyInferenceWithTemplate(t *testing.T) {
 
 			reconciler := &WorkspaceReconciler{
 				Client: mockClient,
-				Scheme: utils.NewTestScheme(),
+				Scheme: test.NewTestScheme(),
 			}
 			ctx := context.Background()
 
@@ -481,18 +481,18 @@ func TestApplyInferenceWithTemplate(t *testing.T) {
 
 func TestGetAllQualifiedNodes(t *testing.T) {
 	testcases := map[string]struct {
-		callMocks     func(c *utils.MockClient)
+		callMocks     func(c *test.MockClient)
 		expectedError error
 	}{
 		"Fails to get qualified nodes because can't list nodes": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(errors.New("Failed to list nodes"))
 			},
 			expectedError: errors.New("Failed to list nodes"),
 		},
 		"Gets all qualified nodes": {
-			callMocks: func(c *utils.MockClient) {
-				nodeList := utils.MockNodeList
+			callMocks: func(c *test.MockClient) {
+				nodeList := test.MockNodeList
 				deletedNode := corev1.Node{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node4",
@@ -506,7 +506,7 @@ func TestGetAllQualifiedNodes(t *testing.T) {
 
 				relevantMap := c.CreateMapWithType(nodeList)
 				//insert node objects into the map
-				for _, obj := range utils.MockNodeList.Items {
+				for _, obj := range test.MockNodeList.Items {
 					n := obj
 					objKey := client.ObjectKeyFromObject(&n)
 
@@ -521,11 +521,11 @@ func TestGetAllQualifiedNodes(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			mockClient := utils.NewClient()
-			mockWorkspace := utils.MockWorkspaceDistributedModel
+			mockClient := test.NewClient()
+			mockWorkspace := test.MockWorkspaceDistributedModel
 			reconciler := &WorkspaceReconciler{
 				Client: mockClient,
-				Scheme: utils.NewTestScheme(),
+				Scheme: test.NewTestScheme(),
 			}
 			ctx := context.Background()
 
@@ -546,17 +546,17 @@ func TestGetAllQualifiedNodes(t *testing.T) {
 
 func TestDeleteWorkspace(t *testing.T) {
 	testcases := map[string]struct {
-		callMocks     func(c *utils.MockClient)
+		callMocks     func(c *test.MockClient)
 		expectedError error
 	}{
 		"Fails to delete workspace because workspace object cannot be retrieved": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(errors.New("Failed to get workspace"))
 			},
 			expectedError: errors.New("Failed to get workspace"),
 		},
 		"Fails to delete workspace because associated machines cannot be retrieved": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 
@@ -565,14 +565,14 @@ func TestDeleteWorkspace(t *testing.T) {
 			expectedError: errors.New("Failed to list machines"),
 		},
 		"Fails to delete workspace because associated machines cannot be deleted": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 
-				machineList := utils.MockMachineList
+				machineList := test.MockMachineList
 				relevantMap := c.CreateMapWithType(machineList)
 				//insert machine objects into the map
-				for _, obj := range utils.MockMachineList.Items {
+				for _, obj := range test.MockMachineList.Items {
 					m := obj
 					objKey := client.ObjectKeyFromObject(&m)
 
@@ -585,15 +585,15 @@ func TestDeleteWorkspace(t *testing.T) {
 			expectedError: errors.New("Failed to delete machine"),
 		},
 		"Delete workspace because finalizer cannot be removed from workspace": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(errors.New("Failed to update workspace"))
 
-				machineList := utils.MockMachineList
+				machineList := test.MockMachineList
 				relevantMap := c.CreateMapWithType(machineList)
 				//insert machine objects into the map
-				for _, obj := range utils.MockMachineList.Items {
+				for _, obj := range test.MockMachineList.Items {
 					m := obj
 					objKey := client.ObjectKeyFromObject(&m)
 
@@ -605,15 +605,15 @@ func TestDeleteWorkspace(t *testing.T) {
 			expectedError: errors.New("Failed to update workspace"),
 		},
 		"Successfully deletes workspace and removes finalizer associated with workspace": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 
-				machineList := utils.MockMachineList
+				machineList := test.MockMachineList
 				relevantMap := c.CreateMapWithType(machineList)
 				//insert machine objects into the map
-				for _, obj := range utils.MockMachineList.Items {
+				for _, obj := range test.MockMachineList.Items {
 					m := obj
 					objKey := client.ObjectKeyFromObject(&m)
 
@@ -628,16 +628,16 @@ func TestDeleteWorkspace(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			mockClient := utils.NewClient()
+			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 
 			reconciler := &WorkspaceReconciler{
 				Client: mockClient,
-				Scheme: utils.NewTestScheme(),
+				Scheme: test.NewTestScheme(),
 			}
 			ctx := context.Background()
 
-			_, err := reconciler.deleteWorkspace(ctx, utils.MockWorkspaceDistributedModel)
+			_, err := reconciler.deleteWorkspace(ctx, test.MockWorkspaceDistributedModel)
 			if tc.expectedError == nil {
 				assert.Check(t, err == nil, "Not expected to return error")
 			} else {
@@ -648,27 +648,27 @@ func TestDeleteWorkspace(t *testing.T) {
 }
 
 func TestApplyWorkspaceResource(t *testing.T) {
-	utils.RegisterTestModel()
+	test.RegisterTestModel()
 	testcases := map[string]struct {
-		callMocks     func(c *utils.MockClient)
+		callMocks     func(c *test.MockClient)
 		expectedError error
 		workspace     v1alpha1.Workspace
 	}{
 		"Fail to apply workspace because associated machines cannot be retrieved": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1alpha5.MachineList{}), mock.Anything).Return(errors.New("Failed to retrieve machines"))
 			},
-			workspace:     *utils.MockWorkspaceDistributedModel,
+			workspace:     *test.MockWorkspaceDistributedModel,
 			expectedError: errors.New("Failed to retrieve machines"),
 		},
 		"Fail to apply workspace because can't get qualified nodes": {
-			callMocks: func(c *utils.MockClient) {
-				machineList := utils.MockMachineList
+			callMocks: func(c *test.MockClient) {
+				machineList := test.MockMachineList
 				relevantMap := c.CreateMapWithType(machineList)
-				c.CreateOrUpdateObjectInMap(&utils.MockMachine)
+				c.CreateOrUpdateObjectInMap(&test.MockMachine)
 
 				//insert machine objects into the map
-				for _, obj := range utils.MockMachineList.Items {
+				for _, obj := range test.MockMachineList.Items {
 					m := obj
 					objKey := client.ObjectKeyFromObject(&m)
 
@@ -680,27 +680,27 @@ func TestApplyWorkspaceResource(t *testing.T) {
 
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(errors.New("Failed to list nodes"))
 			},
-			workspace:     *utils.MockWorkspaceDistributedModel,
+			workspace:     *test.MockWorkspaceDistributedModel,
 			expectedError: errors.New("Failed to list nodes"),
 		},
 		"Successfully apply workspace resource": {
-			callMocks: func(c *utils.MockClient) {
-				machineList := utils.MockMachineList
+			callMocks: func(c *test.MockClient) {
+				machineList := test.MockMachineList
 				relevantMap := c.CreateMapWithType(machineList)
-				c.CreateOrUpdateObjectInMap(&utils.MockMachine)
+				c.CreateOrUpdateObjectInMap(&test.MockMachine)
 
 				//insert machine objects into the map
-				for _, obj := range utils.MockMachineList.Items {
+				for _, obj := range test.MockMachineList.Items {
 					m := obj
 					objKey := client.ObjectKeyFromObject(&m)
 
 					relevantMap[objKey] = &m
 				}
 
-				nodeList := utils.MockNodeList
+				nodeList := test.MockNodeList
 				relevantMap = c.CreateMapWithType(nodeList)
 				//insert node objects into the map
-				for _, obj := range utils.MockNodeList.Items {
+				for _, obj := range test.MockNodeList.Items {
 					n := obj
 					objKey := client.ObjectKeyFromObject(&n)
 
@@ -716,14 +716,14 @@ func TestApplyWorkspaceResource(t *testing.T) {
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 
 			},
-			workspace:     *utils.MockWorkspaceDistributedModel,
+			workspace:     *test.MockWorkspaceDistributedModel,
 			expectedError: nil,
 		},
 	}
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			mockClient := utils.NewClient()
+			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 
 			mockMachine := &v1alpha5.Machine{}
@@ -741,7 +741,7 @@ func TestApplyWorkspaceResource(t *testing.T) {
 
 			reconciler := &WorkspaceReconciler{
 				Client: mockClient,
-				Scheme: utils.NewTestScheme(),
+				Scheme: test.NewTestScheme(),
 			}
 			ctx := context.Background()
 
