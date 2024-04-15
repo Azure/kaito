@@ -5,17 +5,11 @@ import (
 	"fmt"
 	"github.com/azure/kaito/pkg/utils"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"knative.dev/pkg/apis"
-	"os"
 	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-)
-
-const (
-	DefaultReleaseNamespaceEnvVar = "RELEASE_NAMESPACE"
 )
 
 type TrainingConfig struct {
@@ -26,22 +20,6 @@ type TrainingConfig struct {
 	TrainingArguments  map[string]interface{} `yaml:"TrainingArguments"`
 	DatasetConfig      map[string]interface{} `yaml:"DatasetConfig"`
 	DataCollator       map[string]interface{} `yaml:"DataCollator"`
-}
-
-func getReleaseNamespace() (string, error) {
-	// Path to the namespace file inside a Kubernetes pod
-	namespaceFilePath := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-
-	// Attempt to read the namespace from the file
-	if content, err := ioutil.ReadFile(namespaceFilePath); err == nil {
-		return string(content), nil
-	}
-
-	// Fallback: Read the namespace from an environment variable
-	if namespace, exists := os.LookupEnv(DefaultReleaseNamespaceEnvVar); exists {
-		return namespace, nil
-	}
-	return "", fmt.Errorf("failed to determine release namespace from file %s and env var %s", namespaceFilePath, DefaultReleaseNamespaceEnvVar)
 }
 
 func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *apis.FieldError {
@@ -138,7 +116,7 @@ func validateConfigMapSchema(cm *corev1.ConfigMap) *apis.FieldError {
 }
 
 func (r *TuningSpec) validateConfigMap(ctx context.Context, methodLowerCase string) (errs *apis.FieldError) {
-	namespace, err := getReleaseNamespace()
+	namespace, err := utils.GetReleaseNamespace()
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to determine release namespace: %v", err)
 		errs = errs.Also(apis.ErrGeneric(errMsg, "namespace"))
