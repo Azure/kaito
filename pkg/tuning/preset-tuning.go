@@ -75,12 +75,50 @@ func GetTuningImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	return imageName, imagePullSecretRefs
 }
 
+func CreatePresetConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
+	tuningObj *model.PresetParam, kubeClient client.Client) error {
+	// Copy Configmap from helm chart configmap into workspace
+	releaseNamespace, err := utils.GetReleaseNamespace()
+	if err != nil {
+		return fmt.Errorf("failed to get release namespace: %v", err)
+	}
+	existingCM := &corev1.ConfigMap{}
+	err = resources.GetResource(ctx, workspaceObj.Tuning.Config, workspaceObj.Namespace, kubeClient, existingCM)
+	if err == nil {
+		return fmt.Errorf("ConfigMap already exists in target namespace: %s, no action taken.\n", workspaceObj.Namespace)
+	}
+
+	templateCM := &corev1.ConfigMap{}
+	err = resources.GetResource(ctx, workspaceObj.Tuning.Config, releaseNamespace, kubeClient, templateCM)
+	if err != nil {
+		return fmt.Errorf("failed to get ConfigMap from template namespace: %v", err)
+	}
+
+	templateCM.Namespace = workspaceObj.Namespace
+	templateCM.ResourceVersion = "" // Clear metadata not needed for creation
+	templateCM.UID = ""             // Clear UID
+
+	// TODO: Any Custom Preset override logic for the configmap can go here
+	err = resources.CreateResource(ctx, templateCM, kubeClient)
+	if err != nil {
+		return fmt.Errorf("failed to create ConfigMap in target namespace, %s: %v", workspaceObj.Namespace, err)
+	}
+
+	return nil
+}
+
 func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	tuningObj *model.PresetParam, kubeClient client.Client) (client.Object, error) {
 	initContainers, imagePullSecrets, volumes, volumeMounts, err := prepareDataSource(ctx, workspaceObj, kubeClient)
 	if err != nil {
 		return nil, err
 	}
+
+	err = CreatePresetConfigMap(ctx, workspaceObj, tuningObj, kubeClient)
+	if err != nil {
+		return nil, err
+	}
+
 	shmVolume, shmVolumeMount := utils.ConfigSHMVolume(*workspaceObj.Resource.Count)
 	if shmVolume.Name != "" {
 		volumes = append(volumes, shmVolume)
@@ -89,7 +127,11 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		volumeMounts = append(volumeMounts, shmVolumeMount)
 	}
 
-	modelCommand, err := prepareModelRunParameters(ctx, workspaceObj, kubeClient, tuningObj)
+	cmVolume, cmVolumeMount := utils.ConfigCMVolume(workspaceObj.Tuning.Config)
+	volumes = append(volumes, cmVolume)
+	volumeMounts = append(volumeMounts, cmVolumeMount)
+
+	modelCommand, err := prepareModelRunParameters(ctx, tuningObj)
 	if err != nil {
 		return nil, err
 	}
@@ -201,36 +243,8 @@ func getInstanceGPUCount(sku string) int {
 	return gpuConfig.GPUCount
 }
 
-func prepareModelRunParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, kubeClient client.Client, tuningObj *model.PresetParam) (string, error) {
-	configMapName := DefaultConfigMap
-	if wObj.Tuning != nil && wObj.Tuning.Config != "" {
-		configMapName = wObj.Tuning.Config
-	}
-	configMap := &corev1.ConfigMap{}
-	releaseNamespace := os.Getenv("RELEASE_NAMESPACE")
-	err := resources.GetResource(ctx, configMapName, releaseNamespace, kubeClient, configMap)
-	if err != nil {
-		return "", fmt.Errorf("failed to load ConfigMap '%s' in namespace '%s': %w", configMapName, releaseNamespace, err)
-	}
-
-	// Retrieve training_config YAML String
-	trainingConfigStr, ok := configMap.Data["training_config.yaml"]
-	if !ok {
-		return "", fmt.Errorf("configmap '%s' does not contain required 'training_config.yaml'", configMapName)
-	}
-
-	trainingConfigMap, err := ParseTrainingConfig(trainingConfigStr)
-	if err != nil {
-		return "", fmt.Errorf("could not parse training_config.yaml for configmap '%s'", configMapName)
-	}
-
-	prefixedConfigMap, err := AddPrefixesToConfigMap(trainingConfigMap)
-	if err != nil {
-		return "", err
-	}
-
-	mergedParams := utils.MergeConfigMaps(prefixedConfigMap, tuningObj.ModelRunParams)
-	modelCommand := utils.BuildCmdStr(TuningFile, mergedParams)
+func prepareModelRunParameters(ctx context.Context, tuningObj *model.PresetParam) (string, error) {
+	modelCommand := utils.BuildCmdStr(TuningFile, tuningObj.ModelRunParams)
 	return modelCommand, nil
 }
 

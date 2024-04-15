@@ -35,6 +35,25 @@ func ConfigSHMVolume(instanceCount int) (corev1.Volume, corev1.VolumeMount) {
 	return volume, volumeMount
 }
 
+func ConfigCMVolume(cmName string) (corev1.Volume, corev1.VolumeMount) {
+	volume := corev1.Volume{
+		Name: "config-volume",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: cmName,
+				},
+			},
+		},
+	}
+
+	volumeMount := corev1.VolumeMount{
+		Name:      volume.Name,
+		MountPath: "/config",
+	}
+	return volume, volumeMount
+}
+
 func ConfigDataVolume(hostPath string) ([]corev1.Volume, []corev1.VolumeMount) {
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount

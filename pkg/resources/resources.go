@@ -23,6 +23,8 @@ func CreateResource(ctx context.Context, resource client.Object, kubeClient clie
 		klog.InfoS("CreateStatefulSet", "statefulset", klog.KObj(r))
 	case *corev1.Service:
 		klog.InfoS("CreateService", "service", klog.KObj(r))
+	case *corev1.ConfigMap:
+		klog.InfoS("CreateConfigMap", "configmap", klog.KObj(r))
 	}
 
 	// Create the resource.

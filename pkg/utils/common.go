@@ -4,11 +4,14 @@ package utils
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 )
 
 const (
 	// WorkspaceFinalizer is used to make sure that workspace controller handles garbage collection.
-	WorkspaceFinalizer = "workspace.finalizer.kaito.sh"
+	WorkspaceFinalizer            = "workspace.finalizer.kaito.sh"
+	DefaultReleaseNamespaceEnvVar = "RELEASE_NAMESPACE"
 )
 
 func Contains(s []string, e string) bool {
@@ -61,4 +64,20 @@ func ShellCmd(command string) []string {
 		"-c",
 		command,
 	}
+}
+
+func GetReleaseNamespace() (string, error) {
+	// Path to the namespace file inside a Kubernetes pod
+	namespaceFilePath := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+
+	// Attempt to read the namespace from the file
+	if content, err := ioutil.ReadFile(namespaceFilePath); err == nil {
+		return string(content), nil
+	}
+
+	// Fallback: Read the namespace from an environment variable
+	if namespace, exists := os.LookupEnv(DefaultReleaseNamespaceEnvVar); exists {
+		return namespace, nil
+	}
+	return "", fmt.Errorf("failed to determine release namespace from file %s and env var %s", namespaceFilePath, DefaultReleaseNamespaceEnvVar)
 }
