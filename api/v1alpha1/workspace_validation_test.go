@@ -112,11 +112,10 @@ func defaultConfigMapManifest() *v1.ConfigMap {
     load_in_4bit: false
 
   LoraConfig:
-    r: 16
-    lora_alpha: 32
-    target_modules: "query_key_value"
-    lora_dropout: 0.05
-    bias: "none"
+	r: 8
+	lora_alpha: 8
+	lora_dropout: 0.0
+	bias: "none"
 
   TrainingArguments:
     output_dir: "."
