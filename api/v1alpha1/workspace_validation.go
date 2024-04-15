@@ -6,11 +6,12 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"github.com/azure/kaito/pkg/utils/plugin"
 	"reflect"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sort"
 	"strings"
 
-	"github.com/azure/kaito/pkg/utils/plugin"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,6 +24,13 @@ const (
 	D_SERIES_PREFIX = "Standard_D"
 )
 
+func getTestClient(ctx context.Context) client.Client {
+	if cl, ok := ctx.Value("clientKey").(client.Client); ok {
+		return cl
+	}
+	return nil
+}
+
 func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
 	return []admissionregistrationv1.OperationType{
 		admissionregistrationv1.Create,
@@ -31,21 +39,18 @@ func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
 }
 
 func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
-
 	base := apis.GetBaseline(ctx)
 	if base == nil {
 		klog.InfoS("Validate creation", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
-		errs = errs.Also(
-			w.validateCreate().ViaField("spec"),
-			// TODO: Consider validate resource based on Tuning Spec
-			w.Resource.validateCreate(*w.Inference).ViaField("resource"),
-		)
+		errs = errs.Also(w.validateCreate().ViaField("spec"))
 		if w.Inference != nil {
 			// TODO: Add Adapter Spec Validation - Including DataSource Validation for Adapter
-			errs = errs.Also(w.Inference.validateCreate().ViaField("inference"))
+			errs = errs.Also(w.Resource.validateCreate(*w.Inference).ViaField("resource"),
+				w.Inference.validateCreate().ViaField("inference"))
 		}
 		if w.Tuning != nil {
-			errs = errs.Also(w.Tuning.validateCreate().ViaField("tuning"))
+			// TODO: Add validate resource based on Tuning Spec
+			errs = errs.Also(w.Tuning.validateCreate(ctx).ViaField("tuning"))
 		}
 	} else {
 		klog.InfoS("Validate update", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
@@ -86,7 +91,18 @@ func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
 	return errs
 }
 
-func (r *TuningSpec) validateCreate() (errs *apis.FieldError) {
+func (r *TuningSpec) validateCreate(ctx context.Context) (errs *apis.FieldError) {
+	methodLowerCase := strings.ToLower(string(r.Method))
+	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
+		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
+	}
+	if r.Config == "" {
+		errs = errs.Also(apis.ErrMissingField("Config"))
+	} else {
+		if err := r.validateConfigMap(ctx, methodLowerCase); err != nil {
+			errs = errs.Also(apis.ErrGeneric("Config"))
+		}
+	}
 	if r.Input == nil {
 		errs = errs.Also(apis.ErrMissingField("Input"))
 	} else {
@@ -102,10 +118,6 @@ func (r *TuningSpec) validateCreate() (errs *apis.FieldError) {
 		errs = errs.Also(apis.ErrMissingField("Preset"))
 	} else if presetName := string(r.Preset.Name); !isValidPreset(presetName) {
 		errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported tuning preset name %s", presetName), "presetName"))
-	}
-	methodLowerCase := strings.ToLower(string(r.Method))
-	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
-		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
 	}
 	return errs
 }
@@ -251,7 +263,7 @@ func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.Field
 			}
 		}
 	} else {
-		// Check for other instancetypes pattern matches
+		// Check for other instance types pattern matches
 		if !strings.HasPrefix(instanceType, N_SERIES_PREFIX) && !strings.HasPrefix(instanceType, D_SERIES_PREFIX) {
 			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported instance type %s. Supported SKUs: %s", instanceType, getSupportedSKUs()), "instanceType"))
 		}
