@@ -18,7 +18,8 @@ from parser import parse_configs
 
 
 DATASET_PATH = os.environ.get('DATASET_FILE_PATH', '/data')
-parsed_configs = parse_configs()
+CONFIG_YAML = os.environ.get('YAML_FILE_PATH', '/config')
+parsed_configs = parse_configs(CONFIG_YAML)
 
 model_config = parsed_configs.get('ModelConfig')
 tk_params = parsed_configs.get('TokenizerParams')
