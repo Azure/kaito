@@ -3,8 +3,9 @@
 package main
 
 import (
-	"context"
 	"flag"
+	"github.com/azure/kaito/pkg/k8sclient"
+	_ "knative.dev/pkg/system/testing"
 	"os"
 	"strconv"
 	"time"
@@ -99,8 +100,10 @@ func main() {
 		exitWithErrorFunc()
 	}
 
+	k8sclient.SetGlobalClient(mgr.GetClient())
+
 	if err = (&controllers.WorkspaceReconciler{
-		Client:   mgr.GetClient(),
+		Client:   k8sclient.GetGlobalClient(),
 		Log:      log.Log.WithName("controllers").WithName("Workspace"),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("KAITO-Workspace-controller"),
@@ -121,22 +124,22 @@ func main() {
 
 	if enableWebhook {
 		klog.InfoS("starting webhook reconcilers")
-		go func() {
-			p, err := strconv.Atoi(os.Getenv(WebhookServicePort))
-			if err != nil {
-				klog.ErrorS(err, "unable to parse the webhook port number")
-				exitWithErrorFunc()
-			}
-			ctx := webhook.WithOptions(signals.NewContext(), webhook.Options{
-				ServiceName: os.Getenv(WebhookServiceName),
-				Port:        p,
-				SecretName:  "workspace-webhook-cert",
-			})
-			ctx = context.WithValue(ctx, "clientKey", mgr.GetClient())
-			ctx = sharedmain.WithHealthProbesDisabled(ctx)
-			ctx = sharedmain.WithHADisabled(ctx)
-			sharedmain.MainWithConfig(ctx, "webhook", ctrl.GetConfigOrDie(), webhooks.NewWebhooks()...)
-		}()
+		p, err := strconv.Atoi(os.Getenv(WebhookServicePort))
+		if err != nil {
+			klog.ErrorS(err, "unable to parse the webhook port number")
+			exitWithErrorFunc()
+		}
+		ctx := webhook.WithOptions(signals.NewContext(), webhook.Options{
+			ServiceName: os.Getenv(WebhookServiceName),
+			Port:        p,
+			SecretName:  "workspace-webhook-cert",
+		})
+		ctx = sharedmain.WithHealthProbesDisabled(ctx)
+		ctx = sharedmain.WithHADisabled(ctx)
+		// Separate setup and execution phase of webhook server, allows us to handle setup errors
+		// and setup context appropriately before attempting to run the webhook server
+		go sharedmain.MainWithConfig(ctx, "webhook", ctrl.GetConfigOrDie(), webhooks.NewWebhooks()...)
+
 		// wait 2 seconds to allow reconciling webhookconfiguration and service endpoint.
 		time.Sleep(2 * time.Second)
 	}

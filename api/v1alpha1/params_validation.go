@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"github.com/azure/kaito/pkg/k8sclient"
 	"github.com/azure/kaito/pkg/utils"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
@@ -27,11 +28,13 @@ func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *a
 	if !ok {
 		return apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' does not contain 'training_config.yaml' in namespace '%s'", cm.Name, cm.Namespace), "config")
 	}
+	fmt.Printf("1Failed validateMethodViaConfigMap")
 
 	var trainingConfig TrainingConfig
 	if err := yaml.Unmarshal([]byte(trainingConfigYAML), &trainingConfig); err != nil {
 		return apis.ErrGeneric(fmt.Sprintf("Failed to parse 'training_config.yaml' in ConfigMap '%s' in namespace '%s': %v", cm.Name, cm.Namespace, err), "config")
 	}
+	fmt.Printf("1Failed validateMethodViaConfigMap")
 
 	// Validate QuantizationConfig if it exists
 	quantConfig := trainingConfig.QuantizationConfig
@@ -58,6 +61,7 @@ func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *a
 	} else if methodLowerCase == string(TuningMethodQLora) {
 		return apis.ErrMissingField(fmt.Sprintf("For method 'qlora', either 'load_in_4bit' or 'load_in_8bit' must be true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
 	}
+	fmt.Printf("HIT validateMethodViaConfigMap!!!")
 	return nil
 }
 
@@ -123,13 +127,12 @@ func (r *TuningSpec) validateConfigMap(ctx context.Context, methodLowerCase stri
 	}
 
 	var cm corev1.ConfigMap
-	cl := getTestClient(ctx)
-	if cl == nil {
+	if k8sclient.Client == nil {
 		errMsg := fmt.Sprintf("Failed to obtain client from context.Context")
 		errs = errs.Also(apis.ErrGeneric(errMsg))
 		return errs
 	}
-	err = cl.Get(ctx, client.ObjectKey{Name: r.Config, Namespace: namespace}, &cm)
+	err = k8sclient.Client.Get(ctx, client.ObjectKey{Name: r.Config, Namespace: namespace}, &cm)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' specified in 'config' not found in namespace '%s'", r.Config, namespace), "config"))

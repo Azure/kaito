@@ -6,6 +6,7 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"github.com/azure/kaito/pkg/k8sclient"
 	"github.com/azure/kaito/pkg/utils/plugin"
 	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -17,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
+	_ "knative.dev/pkg/system/testing"
 )
 
 const (
@@ -28,6 +30,7 @@ func getTestClient(ctx context.Context) client.Client {
 	if cl, ok := ctx.Value("clientKey").(client.Client); ok {
 		return cl
 	}
+	klog.Error("Client not found in context")
 	return nil
 }
 
@@ -39,6 +42,12 @@ func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
 }
 
 func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
+	if k8sclient.Client != nil {
+		fmt.Println("2Client found in context inside webhook handler")
+	} else {
+		fmt.Println("2Client not found in context inside webhook handler")
+	}
+
 	base := apis.GetBaseline(ctx)
 	if base == nil {
 		klog.InfoS("Validate creation", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
@@ -99,8 +108,10 @@ func (r *TuningSpec) validateCreate(ctx context.Context) (errs *apis.FieldError)
 	if r.Config == "" {
 		errs = errs.Also(apis.ErrMissingField("Config"))
 	} else {
+		fmt.Printf("ConfigMap %s", r.Config)
 		if err := r.validateConfigMap(ctx, methodLowerCase); err != nil {
-			errs = errs.Also(apis.ErrGeneric("Config"))
+			fmt.Println("Failed to evaluate validateConfigMap")
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to evaluate validateConfigMap: %v", err), "Config"))
 		}
 	}
 	if r.Input == nil {
