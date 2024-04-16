@@ -5,7 +5,6 @@ package main
 import (
 	"flag"
 	"github.com/azure/kaito/pkg/k8sclient"
-	_ "knative.dev/pkg/system/testing"
 	"os"
 	"strconv"
 	"time"
