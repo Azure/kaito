@@ -5,6 +5,7 @@ package v1alpha1
 
 import (
 	"context"
+	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/plugin"
 	"k8s.io/apimachinery/pkg/runtime"
 	"os"
@@ -692,8 +693,8 @@ func TestWorkspaceValidateUpdate(t *testing.T) {
 func TestTuningSpecValidateCreate(t *testing.T) {
 	RegisterValidationTestModels()
 	// Set ReleaseNamespace Env
-	os.Setenv(DefaultReleaseNamespaceEnvVar, DefaultReleaseNamespace)
-	defer os.Unsetenv(DefaultReleaseNamespaceEnvVar)
+	os.Setenv(utils.DefaultReleaseNamespaceEnvVar, DefaultReleaseNamespace)
+	defer os.Unsetenv(utils.DefaultReleaseNamespaceEnvVar)
 
 	// Create fake client with default ConfigMap
 	scheme := runtime.NewScheme()
