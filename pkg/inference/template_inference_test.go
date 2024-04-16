@@ -5,9 +5,9 @@ package inference
 import (
 	"context"
 	"errors"
+	"github.com/azure/kaito/pkg/utils/test"
 	"testing"
 
-	"github.com/azure/kaito/pkg/utils"
 	"github.com/stretchr/testify/mock"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/apps/v1"
@@ -15,23 +15,23 @@ import (
 
 func TestCreateTemplateInference(t *testing.T) {
 	testcases := map[string]struct {
-		callMocks     func(c *utils.MockClient)
+		callMocks     func(c *test.MockClient)
 		expectedError error
 	}{
 		"Fail to create template inference because deployment creation fails": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1.Deployment{}), mock.Anything).Return(errors.New("Failed to create resource"))
 			},
 			expectedError: errors.New("Failed to create resource"),
 		},
 		"Successfully creates template inference because deployment already exists": {
-			callMocks: func(c *utils.MockClient) {
-				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1.Deployment{}), mock.Anything).Return(utils.IsAlreadyExistsError())
+			callMocks: func(c *test.MockClient) {
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1.Deployment{}), mock.Anything).Return(test.IsAlreadyExistsError())
 			},
 			expectedError: nil,
 		},
 		"Successfully creates template inference by creating a new deployment": {
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1.Deployment{}), mock.Anything).Return(nil)
 			},
 			expectedError: nil,
@@ -40,10 +40,10 @@ func TestCreateTemplateInference(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			mockClient := utils.NewClient()
+			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 
-			obj, err := CreateTemplateInference(context.Background(), utils.MockWorkspaceWithInferenceTemplate, mockClient)
+			obj, err := CreateTemplateInference(context.Background(), test.MockWorkspaceWithInferenceTemplate, mockClient)
 			if tc.expectedError == nil {
 				assert.Check(t, err == nil, "Not expected to return error")
 				assert.Check(t, obj != nil, "Return object should not be nil")

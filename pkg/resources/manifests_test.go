@@ -6,12 +6,12 @@ package resources
 import (
 	"context"
 	"fmt"
+	"github.com/azure/kaito/pkg/utils/test"
 	"reflect"
 
 	"testing"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -19,7 +19,7 @@ func TestGenerateStatefulSetManifest(t *testing.T) {
 
 	t.Run("generate statefulset with headlessSvc", func(t *testing.T) {
 
-		workspace := utils.MockWorkspaceWithPreset
+		workspace := test.MockWorkspaceWithPreset
 
 		obj := GenerateStatefulSetManifest(context.TODO(), workspace,
 			"",  //imageName
@@ -63,7 +63,7 @@ func TestGenerateStatefulSetManifest(t *testing.T) {
 func TestGenerateDeploymentManifest(t *testing.T) {
 	t.Run("generate deployment", func(t *testing.T) {
 
-		workspace := utils.MockWorkspaceWithPreset
+		workspace := test.MockWorkspaceWithPreset
 
 		obj := GenerateDeploymentManifest(context.TODO(), workspace,
 			"",  //imageName
@@ -103,7 +103,7 @@ func TestGenerateDeploymentManifest(t *testing.T) {
 func TestGenerateDeploymentManifestWithPodTemplate(t *testing.T) {
 	t.Run("generate deployment with pod template", func(t *testing.T) {
 
-		workspace := utils.MockWorkspaceWithInferenceTemplate
+		workspace := test.MockWorkspaceWithInferenceTemplate
 
 		obj := GenerateDeploymentManifestWithPodTemplate(context.TODO(), workspace, nil)
 
@@ -142,7 +142,7 @@ func TestGenerateServiceManifest(t *testing.T) {
 
 	for _, isStatefulSet := range options {
 		t.Run(fmt.Sprintf("generate service, isStatefulSet %v", isStatefulSet), func(t *testing.T) {
-			workspace := utils.MockWorkspaceWithPreset
+			workspace := test.MockWorkspaceWithPreset
 			obj := GenerateServiceManifest(context.TODO(), workspace, v1.ServiceTypeClusterIP, isStatefulSet)
 
 			svcSelector := map[string]string{
@@ -161,7 +161,7 @@ func TestGenerateServiceManifest(t *testing.T) {
 func TestGenerateHeadlessServiceManifest(t *testing.T) {
 
 	t.Run("generate headless service", func(t *testing.T) {
-		workspace := utils.MockWorkspaceWithPreset
+		workspace := test.MockWorkspaceWithPreset
 		obj := GenerateHeadlessServiceManifest(context.TODO(), workspace)
 
 		svcSelector := map[string]string{

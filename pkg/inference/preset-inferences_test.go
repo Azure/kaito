@@ -5,12 +5,12 @@ package inference
 
 import (
 	"context"
+	"github.com/azure/kaito/pkg/utils/test"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/azure/kaito/pkg/model"
-	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/plugin"
 	"github.com/stretchr/testify/mock"
 	appsv1 "k8s.io/api/apps/v1"
@@ -19,11 +19,11 @@ import (
 )
 
 func TestCreatePresetInference(t *testing.T) {
-	utils.RegisterTestModel()
+	test.RegisterTestModel()
 	testcases := map[string]struct {
 		nodeCount   int
 		modelName   string
-		callMocks   func(c *utils.MockClient)
+		callMocks   func(c *test.MockClient)
 		workload    string
 		expectedCmd string
 	}{
@@ -31,7 +31,7 @@ func TestCreatePresetInference(t *testing.T) {
 		"test-model": {
 			nodeCount: 1,
 			modelName: "test-model",
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 			},
 			workload: "Deployment",
@@ -43,7 +43,7 @@ func TestCreatePresetInference(t *testing.T) {
 		"test-distributed-model": {
 			nodeCount: 1,
 			modelName: "test-distributed-model",
-			callMocks: func(c *utils.MockClient) {
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil)
 			},
@@ -54,10 +54,10 @@ func TestCreatePresetInference(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			mockClient := utils.NewClient()
+			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 
-			workspace := utils.MockWorkspaceWithPreset
+			workspace := test.MockWorkspaceWithPreset
 			workspace.Resource.Count = &tc.nodeCount
 
 			useHeadlessSvc := false
