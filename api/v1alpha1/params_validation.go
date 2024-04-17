@@ -17,6 +17,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type Config struct {
+	TrainingConfig TrainingConfig `yaml:"training_config"`
+}
+
 type TrainingConfig struct {
 	ModelConfig        map[string]interface{} `yaml:"ModelConfig"`
 	TokenizerParams    map[string]interface{} `yaml:"TokenizerParams"`
@@ -33,13 +37,13 @@ func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *a
 		return apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' does not contain 'training_config.yaml' in namespace '%s'", cm.Name, cm.Namespace), "config")
 	}
 
-	var trainingConfig TrainingConfig
-	if err := yaml.Unmarshal([]byte(trainingConfigYAML), &trainingConfig); err != nil {
+	var config Config
+	if err := yaml.Unmarshal([]byte(trainingConfigYAML), &config); err != nil {
 		return apis.ErrGeneric(fmt.Sprintf("Failed to parse 'training_config.yaml' in ConfigMap '%s' in namespace '%s': %v", cm.Name, cm.Namespace, err), "config")
 	}
 
 	// Validate QuantizationConfig if it exists
-	quantConfig := trainingConfig.QuantizationConfig
+	quantConfig := config.TrainingConfig.QuantizationConfig
 	if quantConfig != nil {
 		// Dynamic field search for quantization settings within ModelConfig
 		loadIn4bit, _ := utils.SearchMap(quantConfig, "load_in_4bit")
