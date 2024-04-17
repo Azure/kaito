@@ -28,13 +28,11 @@ func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *a
 	if !ok {
 		return apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' does not contain 'training_config.yaml' in namespace '%s'", cm.Name, cm.Namespace), "config")
 	}
-	fmt.Printf("1Failed validateMethodViaConfigMap")
 
 	var trainingConfig TrainingConfig
 	if err := yaml.Unmarshal([]byte(trainingConfigYAML), &trainingConfig); err != nil {
 		return apis.ErrGeneric(fmt.Sprintf("Failed to parse 'training_config.yaml' in ConfigMap '%s' in namespace '%s': %v", cm.Name, cm.Namespace, err), "config")
 	}
-	fmt.Printf("1Failed validateMethodViaConfigMap")
 
 	// Validate QuantizationConfig if it exists
 	quantConfig := trainingConfig.QuantizationConfig
@@ -61,7 +59,6 @@ func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *a
 	} else if methodLowerCase == string(TuningMethodQLora) {
 		return apis.ErrMissingField(fmt.Sprintf("For method 'qlora', either 'load_in_4bit' or 'load_in_8bit' must be true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
 	}
-	fmt.Printf("HIT validateMethodViaConfigMap!!!")
 	return nil
 }
 
