@@ -1084,15 +1084,17 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 		{
 			name: "Image specified only",
 			dataDestination: &DataDestination{
-				Image: "data-image:latest",
+				Image:           "data-image:latest",
+				ImagePushSecret: "image-push-secret",
 			},
 			wantErr: false,
 		},
 		{
 			name: "Both fields specified",
 			dataDestination: &DataDestination{
-				HostPath: "/data/path",
-				Image:    "data-image:latest",
+				HostPath:        "/data/path",
+				Image:           "data-image:latest",
+				ImagePushSecret: "image-push-secret",
 			},
 			wantErr: false,
 		},
