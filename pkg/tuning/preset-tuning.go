@@ -19,10 +19,9 @@ import (
 )
 
 const (
-	ProbePath        = "/healthz"
-	Port5000         = int32(5000)
-	TuningFile       = "fine_tuning_api.py"
-	DefaultConfigMap = "qlora-params"
+	ProbePath  = "/healthz"
+	Port5000   = int32(5000)
+	TuningFile = "fine_tuning_api.py"
 )
 
 var (
@@ -67,14 +66,21 @@ var (
 	}
 )
 
-func GetTuningImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, presetObj *model.PresetParam) (string, []corev1.LocalObjectReference) {
+func GetTuningImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace, presetObj *model.PresetParam) string {
 	// Only support public presets for tuning for now
-	imagePullSecretRefs := []corev1.LocalObjectReference{}
-	imageName := string(workspaceObj.Tuning.Preset.Name)
+	imageName := string(wObj.Tuning.Preset.Name)
 	imageTag := presetObj.Tag
 	registryName := os.Getenv("PRESET_REGISTRY_NAME")
 	imageName = fmt.Sprintf("%s/kaito-tuning-%s:%s", registryName, imageName, imageTag)
-	return imageName, imagePullSecretRefs
+	return imageName
+}
+
+func GetDataDestImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace) (string, []corev1.LocalObjectReference) {
+	imagePushSecretRefs := []corev1.LocalObjectReference{}
+	imagePushSecretRefs = append(imagePushSecretRefs, corev1.LocalObjectReference{Name: wObj.Tuning.Output.ImagePushSecret})
+	registryName := os.Getenv("PRESET_REGISTRY_NAME")
+	imageName := fmt.Sprintf("%s/%s", registryName, wObj.Tuning.Output.Image)
+	return imageName, imagePushSecretRefs
 }
 
 func CreatePresetConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
@@ -143,9 +149,9 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		return nil, err
 	}
 	commands, resourceReq := prepareTuningParameters(ctx, workspaceObj, modelCommand, tuningObj)
-	image, imagePullSecrets := GetTuningImageInfo(ctx, workspaceObj, tuningObj)
+	tuningImage := GetTuningImageInfo(ctx, workspaceObj, tuningObj)
 
-	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, image, imagePullSecrets, *workspaceObj.Resource.Count, commands,
+	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, tuningImage, imagePullSecrets, *workspaceObj.Resource.Count, commands,
 		containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, initContainers, volumes, volumeMounts)
 
 	err = resources.CreateResource(ctx, jobObj, kubeClient)

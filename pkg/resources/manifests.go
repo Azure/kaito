@@ -183,8 +183,12 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 	return ss
 }
 
-func dockerSidecarScript() string {
+func dockerSidecarScriptPushToPath(path string) string {
 	return `
+`
+}
+func dockerSidecarScriptPushImage(image string) string {
+	return fmt.Sprintf(`
 # Start the Docker daemon in the background with specific options for DinD
 dockerd &
 # Wait for the Docker daemon to be ready
@@ -211,11 +215,8 @@ while true; do
     ADD adapter_config.json /
     ADD adapter_model.safetensors /' > "$TEMP_CONTEXT/Dockerfile"
 
-    # Login to Docker registry
-    echo $ACR_PASSWORD | docker login $ACR_USERNAME.azurecr.io -u $ACR_USERNAME --password-stdin
-
-    docker build -t $ACR_USERNAME.azurecr.io/adapter-falcon-7b:$TAG "$TEMP_CONTEXT"
-    docker push $ACR_USERNAME.azurecr.io/adapter-falcon-7b:$TAG
+    docker build -t %s "$TEMP_CONTEXT"
+    docker push %s
 
     # Cleanup: Remove the temporary directory
     rm -rf "$TEMP_CONTEXT"
@@ -226,33 +227,42 @@ while true; do
     exit 0
   fi
   sleep 10  # Check every 10 seconds
-done
-`
+done`, image, image)
 }
 
-func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imageName string,
+func determinePushMethod(wObj *kaitov1alpha1.Workspace) (func(string) string, string) {
+	if wObj.Tuning.Output.HostPath != "" {
+		return dockerSidecarScriptPushToPath, wObj.Tuning.Output.HostPath
+	}
+	if wObj.Tuning.Output.Image != "" {
+		return dockerSidecarScriptPushImage, wObj.Tuning.Output.Image
+	}
+	return func(string) string { return "" }, ""
+}
+
+func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspace, imageName string,
 	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements, tolerations []corev1.Toleration,
 	initContainers []corev1.Container, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) *batchv1.Job {
 	labels := map[string]string{
-		kaitov1alpha1.LabelWorkspaceName: workspaceObj.Name,
+		kaitov1alpha1.LabelWorkspaceName: wObj.Name,
 	}
-
+	pushMethod, pushArg := determinePushMethod(wObj)
 	return &batchv1.Job{
 		TypeMeta: v1.TypeMeta{
 			APIVersion: "batch/v1",
 			Kind:       "Job",
 		},
 		ObjectMeta: v1.ObjectMeta{
-			Name:      workspaceObj.Name,
-			Namespace: workspaceObj.Namespace,
+			Name:      wObj.Name,
+			Namespace: wObj.Namespace,
 			Labels:    labels,
 			OwnerReferences: []v1.OwnerReference{
 				{
 					APIVersion: kaitov1alpha1.GroupVersion.String(),
 					Kind:       "Workspace",
-					Name:       workspaceObj.Name,
-					UID:        workspaceObj.UID,
+					Name:       wObj.Name,
+					UID:        wObj.UID,
 					Controller: pointer.BoolPtr(true),
 				},
 			},
@@ -266,7 +276,7 @@ func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.
 					InitContainers: initContainers,
 					Containers: []corev1.Container{
 						{
-							Name:           workspaceObj.Name,
+							Name:           wObj.Name,
 							Image:          imageName,
 							Command:        commands,
 							Resources:      resourceRequirements,
@@ -283,7 +293,7 @@ func GenerateTuningJobManifest(ctx context.Context, workspaceObj *kaitov1alpha1.
 							},
 							VolumeMounts: volumeMounts,
 							Command:      []string{"/bin/sh", "-c"},
-							Args:         []string{dockerSidecarScript()},
+							Args:         []string{pushMethod(pushArg)},
 						},
 					},
 					RestartPolicy:    corev1.RestartPolicyNever,
