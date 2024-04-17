@@ -6,7 +6,6 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
-	"github.com/azure/kaito/pkg/k8sclient"
 	"github.com/azure/kaito/pkg/utils/plugin"
 	"reflect"
 	"sort"
