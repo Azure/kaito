@@ -121,11 +121,11 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
 	shmVolume, shmVolumeMount := utils.ConfigSHMVolume(*workspaceObj.Resource.Count)
- 	if shmVolume.Name != "" {
- 		volumes = append(volumes, shmVolume)
- 	}
- 	if shmVolumeMount.Name != "" {
- 		volumeMounts = append(volumeMounts, shmVolumeMount)
+	if shmVolume.Name != "" {
+		volumes = append(volumes, shmVolume)
+	}
+	if shmVolumeMount.Name != "" {
+		volumeMounts = append(volumeMounts, shmVolumeMount)
 	}
 	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj)
 	image, imagePullSecrets := GetInferenceImageInfo(ctx, workspaceObj, inferenceObj)
