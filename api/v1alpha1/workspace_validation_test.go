@@ -22,7 +22,6 @@ import (
 )
 
 const DefaultReleaseNamespace = "kaito-workspace"
-const DefaultConfigMapName = "lora-params"
 
 var gpuCountRequirement string
 var totalGPUMemoryRequirement string
@@ -96,7 +95,7 @@ func pointerToInt(i int) *int {
 func defaultConfigMapManifest() *v1.ConfigMap {
 	return &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      DefaultConfigMapName,
+			Name:      DefaultLoraConfigMap,
 			Namespace: DefaultReleaseNamespace, // Replace this with the appropriate namespace variable if dynamic
 		},
 		Data: map[string]string{
@@ -718,7 +717,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 				Output: &DataDestination{HostPath: "valid-output"},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
-				Config: DefaultConfigMapName,
+				Config: DefaultLoraConfigMap,
 			},
 			wantErr:   false,
 			errFields: nil,
@@ -779,7 +778,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.tuningSpec.validateCreate(ctx)
+			errs := tt.tuningSpec.validateCreate(ctx, "WORKSPACE_NAMESPACE")
 			hasErrs := errs != nil
 
 			if hasErrs != tt.wantErr {
