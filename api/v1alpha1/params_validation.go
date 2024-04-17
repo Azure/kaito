@@ -108,7 +108,7 @@ func validateConfigMapSchema(cm *corev1.ConfigMap) *apis.FieldError {
 	}
 
 	// Check if valid sections
-	for section, _ := range trainingConfigMap {
+	for section := range trainingConfigMap {
 		sectionStr := section.(string)
 		if !utils.Contains(recognizedSections, sectionStr) {
 			return apis.ErrInvalidValue(fmt.Sprintf("Unrecognized section: %s", section), "training_config.yaml")
@@ -126,7 +126,7 @@ func (r *TuningSpec) validateConfigMap(ctx context.Context, methodLowerCase stri
 
 	var cm corev1.ConfigMap
 	if k8sclient.Client == nil {
-		errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to obtain client from context.Context")))
+		errs = errs.Also(apis.ErrGeneric("Failed to obtain client from context.Context"))
 		return errs
 	}
 	err = k8sclient.Client.Get(ctx, client.ObjectKey{Name: r.Config, Namespace: namespace}, &cm)
