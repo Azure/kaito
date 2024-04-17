@@ -6,10 +6,11 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
-	"github.com/azure/kaito/pkg/utils/plugin"
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/azure/kaito/pkg/utils/plugin"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -89,7 +90,7 @@ func (r *TuningSpec) validateCreate(ctx context.Context) (errs *apis.FieldError)
 		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
 	}
 	if r.Config == "" {
-		errs = errs.Also(apis.ErrMissingField("Config"))
+		klog.InfoS("Tuning config not specified. Using default.")
 	} else {
 		if err := r.validateConfigMap(ctx, methodLowerCase); err != nil {
 			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to evaluate validateConfigMap: %v", err), "Config"))
