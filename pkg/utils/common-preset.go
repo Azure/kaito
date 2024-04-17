@@ -7,7 +7,9 @@ import (
 )
 
 const (
-	DefaultVolumeMountPath = "/dev/shm"
+	DefaultVolumeMountPath    = "/dev/shm"
+	DefaultConfigMapMountPath = "/config"
+	DefaultDataVolumePath     = "/data"
 )
 
 func ConfigSHMVolume(instanceCount int) (corev1.Volume, corev1.VolumeMount) {
@@ -49,7 +51,7 @@ func ConfigCMVolume(cmName string) (corev1.Volume, corev1.VolumeMount) {
 
 	volumeMount := corev1.VolumeMount{
 		Name:      volume.Name,
-		MountPath: "/config",
+		MountPath: DefaultConfigMapMountPath,
 	}
 	return volume, volumeMount
 }
@@ -76,7 +78,7 @@ func ConfigDataVolume(hostPath string) ([]corev1.Volume, []corev1.VolumeMount) {
 
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
 		Name:      "data-volume",
-		MountPath: "/data",
+		MountPath: DefaultDataVolumePath,
 	})
 	return volumes, volumeMounts
 }
