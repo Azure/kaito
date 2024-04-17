@@ -4,16 +4,25 @@
 package v1alpha1
 
 import (
+	"context"
+	"github.com/azure/kaito/pkg/k8sclient"
+	"github.com/azure/kaito/pkg/utils"
+	"github.com/azure/kaito/pkg/utils/plugin"
+	"k8s.io/apimachinery/pkg/runtime"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/azure/kaito/pkg/model"
-	"github.com/azure/kaito/pkg/utils/plugin"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
+
+const DefaultReleaseNamespace = "kaito-workspace"
+const DefaultConfigMapName = "lora-params"
 
 var gpuCountRequirement string
 var totalGPUMemoryRequirement string
@@ -82,6 +91,50 @@ func RegisterValidationTestModels() {
 
 func pointerToInt(i int) *int {
 	return &i
+}
+
+func defaultConfigMapManifest() *v1.ConfigMap {
+	return &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      DefaultConfigMapName,
+			Namespace: DefaultReleaseNamespace, // Replace this with the appropriate namespace variable if dynamic
+		},
+		Data: map[string]string{
+			"training_config.yaml": `training_config:
+  ModelConfig:
+    torch_dtype: "bfloat16"
+    local_files_only: true
+    device_map: "auto"
+
+  TokenizerParams:
+    padding: true
+    truncation: true
+
+  QuantizationConfig:
+    load_in_4bit: false
+
+  LoraConfig:
+    r: 16
+    lora_alpha: 32
+    target_modules: "query_key_value"
+    lora_dropout: 0.05
+    bias: "none"
+
+  TrainingArguments:
+    output_dir: "."
+    num_train_epochs: 4
+    auto_find_batch_size: true
+    ddp_find_unused_parameters: false
+    save_strategy: "epoch"
+
+  DatasetConfig:
+    shuffle_dataset: true
+    train_test_split: 1
+
+  DataCollator:
+    mlm: true`,
+		},
+	}
 }
 
 func TestResourceSpecValidateCreate(t *testing.T) {
@@ -640,6 +693,18 @@ func TestWorkspaceValidateUpdate(t *testing.T) {
 
 func TestTuningSpecValidateCreate(t *testing.T) {
 	RegisterValidationTestModels()
+	// Set ReleaseNamespace Env
+	os.Setenv(utils.DefaultReleaseNamespaceEnvVar, DefaultReleaseNamespace)
+	defer os.Unsetenv(utils.DefaultReleaseNamespaceEnvVar)
+
+	// Create fake client with default ConfigMap
+	scheme := runtime.NewScheme()
+	_ = v1.AddToScheme(scheme)
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(defaultConfigMapManifest()).Build()
+	k8sclient.SetGlobalClient(client)
+	// Include client in ctx
+	ctx := context.Background()
+
 	tests := []struct {
 		name       string
 		tuningSpec *TuningSpec
@@ -653,6 +718,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 				Output: &DataDestination{HostPath: "valid-output"},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
+				Config: DefaultConfigMapName,
 			},
 			wantErr:   false,
 			errFields: nil,
@@ -713,7 +779,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.tuningSpec.validateCreate()
+			errs := tt.tuningSpec.validateCreate(ctx)
 			hasErrs := errs != nil
 
 			if hasErrs != tt.wantErr {
