@@ -5,15 +5,16 @@ package v1alpha1
 
 import (
 	"context"
-	"github.com/azure/kaito/pkg/k8sclient"
-	"github.com/azure/kaito/pkg/utils"
-	"github.com/azure/kaito/pkg/utils/plugin"
-	"k8s.io/apimachinery/pkg/runtime"
 	"os"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/azure/kaito/pkg/k8sclient"
+	"github.com/azure/kaito/pkg/utils"
+	"github.com/azure/kaito/pkg/utils/plugin"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/azure/kaito/pkg/model"
 	v1 "k8s.io/api/core/v1"
@@ -779,7 +780,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.tuningSpec.validateCreate(ctx)
+			errs := tt.tuningSpec.validateCreate(ctx, "WORKSPACE_NAMESPACE")
 			hasErrs := errs != nil
 
 			if hasErrs != tt.wantErr {
