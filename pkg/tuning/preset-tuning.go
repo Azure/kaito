@@ -3,6 +3,8 @@ package tuning
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/klog/v2"
 	"os"
 	"strings"
 
@@ -84,8 +86,11 @@ func CreatePresetConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	}
 	existingCM := &corev1.ConfigMap{}
 	err = resources.GetResource(ctx, workspaceObj.Tuning.Config, workspaceObj.Namespace, kubeClient, existingCM)
-	if err == nil {
-		return fmt.Errorf("ConfigMap already exists in target namespace: %s, no action taken.\n", workspaceObj.Namespace)
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	} else {
+		klog.Info("ConfigMap already exists in target namespace: %s, no action taken.\n", workspaceObj.Namespace)
+		return nil
 	}
 
 	templateCM := &corev1.ConfigMap{}
