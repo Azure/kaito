@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/plugin"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -22,6 +23,9 @@ import (
 const (
 	N_SERIES_PREFIX = "Standard_N"
 	D_SERIES_PREFIX = "Standard_D"
+
+	DefaultLoraConfigMap  = "lora-params"
+	DefaultQloraConfigMap = "qlora-params"
 )
 
 func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
@@ -43,7 +47,7 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		}
 		if w.Tuning != nil {
 			// TODO: Add validate resource based on Tuning Spec
-			errs = errs.Also(w.Tuning.validateCreate(ctx).ViaField("tuning"))
+			errs = errs.Also(w.Tuning.validateCreate(ctx, w.Namespace).ViaField("tuning"))
 		}
 	} else {
 		klog.InfoS("Validate update", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
@@ -84,15 +88,24 @@ func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
 	return errs
 }
 
-func (r *TuningSpec) validateCreate(ctx context.Context) (errs *apis.FieldError) {
+func (r *TuningSpec) validateCreate(ctx context.Context, workspaceNamespace string) (errs *apis.FieldError) {
 	methodLowerCase := strings.ToLower(string(r.Method))
 	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
 		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
 	}
 	if r.Config == "" {
 		klog.InfoS("Tuning config not specified. Using default.")
+	} else if r.Config == DefaultLoraConfigMap || r.Config == DefaultQloraConfigMap {
+		klog.InfoS("Template config specified")
+		releaseNamespace, err := utils.GetReleaseNamespace()
+		if err != nil {
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to determine release namespace: %v", err), "namespace"))
+		}
+		if err := r.validateConfigMap(ctx, releaseNamespace, methodLowerCase); err != nil {
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to evaluate validateConfigMap: %v", err), "Config"))
+		}
 	} else {
-		if err := r.validateConfigMap(ctx, methodLowerCase); err != nil {
+		if err := r.validateConfigMap(ctx, workspaceNamespace, methodLowerCase); err != nil {
 			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to evaluate validateConfigMap: %v", err), "Config"))
 		}
 	}
