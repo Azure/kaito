@@ -5,6 +5,7 @@ package v1alpha1
 
 import (
 	"context"
+	"github.com/azure/kaito/pkg/k8sclient"
 	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/plugin"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -700,10 +701,9 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = v1.AddToScheme(scheme)
 	client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(defaultConfigMapManifest()).Build()
-
+	k8sclient.SetGlobalClient(client)
 	// Include client in ctx
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, "clientKey", client)
 
 	tests := []struct {
 		name       string

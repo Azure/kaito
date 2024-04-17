@@ -9,7 +9,6 @@ import (
 	"github.com/azure/kaito/pkg/k8sclient"
 	"github.com/azure/kaito/pkg/utils/plugin"
 	"reflect"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sort"
 	"strings"
 
@@ -25,14 +24,6 @@ const (
 	N_SERIES_PREFIX = "Standard_N"
 	D_SERIES_PREFIX = "Standard_D"
 )
-
-func getTestClient(ctx context.Context) client.Client {
-	if cl, ok := ctx.Value("clientKey").(client.Client); ok {
-		return cl
-	}
-	klog.Error("Client not found in context")
-	return nil
-}
 
 func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
 	return []admissionregistrationv1.OperationType{
