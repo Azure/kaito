@@ -4,11 +4,11 @@ package main
 
 import (
 	"flag"
-	"github.com/azure/kaito/pkg/k8sclient"
-	_ "knative.dev/pkg/system/testing"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/azure/kaito/pkg/k8sclient"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/azure/kaito/pkg/controllers"
@@ -136,8 +136,6 @@ func main() {
 		})
 		ctx = sharedmain.WithHealthProbesDisabled(ctx)
 		ctx = sharedmain.WithHADisabled(ctx)
-		// Separate setup and execution phase of webhook server, allows us to handle setup errors
-		// and setup context appropriately before attempting to run the webhook server
 		go sharedmain.MainWithConfig(ctx, "webhook", ctrl.GetConfigOrDie(), webhooks.NewWebhooks()...)
 
 		// wait 2 seconds to allow reconciling webhookconfiguration and service endpoint.
