@@ -80,6 +80,7 @@ spec:
                           type: array
                         volumeSource:
                           description: The mounted volume that contains the data.
+                          x-kubernetes-preserve-unknown-fields: true
                       type: object
                     strength:
                       description: Strength specifies the default multiplier for applying
@@ -325,6 +326,7 @@ spec:
                     type: array
                   volumeSource:
                     description: The mounted volume that contains the data.
+                    x-kubernetes-preserve-unknown-fields: true
                 type: object
               method:
                 description: Method specifies the Parameter-Efficient Fine-Tuning(PEFT)
@@ -345,6 +347,7 @@ spec:
                   volumeSource:
                     description: The mounted volume that is used to save the output
                       data.
+                    x-kubernetes-preserve-unknown-fields: true
                 type: object
               preset:
                 description: Preset describes which model to load for tuning.

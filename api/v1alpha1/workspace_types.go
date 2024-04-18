@@ -107,6 +107,7 @@ type DataSource struct {
 	// +optional
 	URLs []string `json:"urls,omitempty"`
 	// The mounted volume that contains the data.
+	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
 	// +optional
 	Volume *v1.VolumeSource `json:"volumeSource,omitempty"`
@@ -121,6 +122,7 @@ type DataSource struct {
 
 type DataDestination struct {
 	// The mounted volume that is used to save the output data.
+	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
 	// +optional
 	Volume *v1.VolumeSource `json:"volumeSource,omitempty"`
