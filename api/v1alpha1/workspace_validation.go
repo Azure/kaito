@@ -93,9 +93,9 @@ func (r *TuningSpec) validateCreate(ctx context.Context, workspaceNamespace stri
 	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
 		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
 	}
-	if r.Config == "" {
+	if r.ConfigTemplate == "" {
 		klog.InfoS("Tuning config not specified. Using default.")
-	} else if r.Config == DefaultLoraConfigMap || r.Config == DefaultQloraConfigMap {
+	} else if r.ConfigTemplate == DefaultLoraConfigMap || r.ConfigTemplate == DefaultQloraConfigMap {
 		klog.InfoS("Template config specified")
 		releaseNamespace, err := utils.GetReleaseNamespace()
 		if err != nil {
