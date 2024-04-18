@@ -137,16 +137,16 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 	if len(r.URLs) > 0 {
 		sourcesSpecified++
 	}
-	if r.HostPath != "" {
+	if r.Volume != nil {
 		sourcesSpecified++
 	}
 	if r.Image != "" {
 		sourcesSpecified++
 	}
 
-	// Ensure exactly one of URLs, HostPath, or Image is specified
+	// Ensure exactly one of URLs, Volume, or Image is specified
 	if sourcesSpecified != 1 {
-		errs = errs.Also(apis.ErrGeneric("Exactly one of URLs, HostPath, or Image must be specified", "URLs", "HostPath", "Image"))
+		errs = errs.Also(apis.ErrGeneric("Exactly one of URLs, Volume, or Image must be specified", "URLs", "Volume", "Image"))
 	}
 
 	return errs
@@ -167,9 +167,7 @@ func (r *DataSource) validateUpdate(old *DataSource, isTuning bool) (errs *apis.
 	if !reflect.DeepEqual(oldURLs, newURLs) {
 		errs = errs.Also(apis.ErrInvalidValue("URLs field cannot be changed once set", "URLs"))
 	}
-	if old.HostPath != r.HostPath {
-		errs = errs.Also(apis.ErrInvalidValue("HostPath field cannot be changed once set", "HostPath"))
-	}
+	// TODO: check if the Volume is changed
 	if old.Image != r.Image {
 		errs = errs.Also(apis.ErrInvalidValue("Image field cannot be changed once set", "Image"))
 	}
@@ -190,7 +188,7 @@ func (r *DataSource) validateUpdate(old *DataSource, isTuning bool) (errs *apis.
 
 func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 	destinationsSpecified := 0
-	if r.HostPath != "" {
+	if r.Volume != nil {
 		destinationsSpecified++
 	}
 	if r.Image != "" {
@@ -199,15 +197,13 @@ func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 
 	// If no destination is specified, return an error
 	if destinationsSpecified == 0 {
-		errs = errs.Also(apis.ErrMissingField("At least one of HostPath or Image must be specified"))
+		errs = errs.Also(apis.ErrMissingField("At least one of Volume or Image must be specified"))
 	}
 	return errs
 }
 
 func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.FieldError) {
-	if old.HostPath != r.HostPath {
-		errs = errs.Also(apis.ErrInvalidValue("HostPath field cannot be changed once set", "HostPath"))
-	}
+	// TODO: Check if the Volume is changed.
 	if old.Image != r.Image {
 		errs = errs.Also(apis.ErrInvalidValue("Image field cannot be changed once set", "Image"))
 	}
