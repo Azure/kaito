@@ -1059,6 +1059,7 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 			dataDestination: &DataDestination{
 				Volume: &v1.VolumeSource{},
 				Image:  "data-image:latest",
+				ImagePushSecret: "imagePushSecret",
 			},
 			wantErr: false,
 		},
