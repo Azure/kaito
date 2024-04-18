@@ -106,9 +106,10 @@ type DataSource struct {
 	// URLs specifies the links to the public data sources. E.g., files in a public github repository.
 	// +optional
 	URLs []string `json:"urls,omitempty"`
-	// The directory in the host that contains the data.
+	// The mounted volume that contains the data.
+	// +kubebuilder:validation:Schemaless
 	// +optional
-	HostPath string `json:"hostPath,omitempty"`
+	Volume *v1.VolumeSource `json:"volumeSource,omitempty"`
 	// The name of the image that contains the source data. The assumption is that the source data locates in the
 	// `data` directory in the image.
 	// +optional
@@ -119,9 +120,10 @@ type DataSource struct {
 }
 
 type DataDestination struct {
-	// The directory in the host that contains the output data.
+	// The mounted volume that is used to save the output data.
+	// +kubebuilder:validation:Schemaless
 	// +optional
-	HostPath string `json:"hostPath,omitempty"`
+	Volume *v1.VolumeSource `json:"volumeSource,omitempty"`
 	// Name of the image where the output data is pushed to.
 	// +optional
 	Image string `json:"image,omitempty"`
@@ -145,10 +147,12 @@ type TuningSpec struct {
 	// Method specifies the Parameter-Efficient Fine-Tuning(PEFT) method, such as lora, qlora, used for the tuning.
 	// +optional
 	Method TuningMethod `json:"method,omitempty"`
-	// Config specifies the name of the configmap in the same namespace that contains the arguments used by the tuning method.
-	// If not specified, a default configmap is used based on the specified method.
+	// ConfigTemplate specifies the name of the configmap that contains the basic tuning arguments.
+	// A separate configmap will be generated based on the ConfigTemplate and the preset model name, and used by
+	// the tuning Job. If specified, the congfigmap needs to be in the same namespace of the workspace custom resource.
+	// If not specified, a default ConfigTemplate is used based on the specified tuning method.
 	// +optional
-	Config string `json:"config,omitempty"`
+	ConfigTemplate string `json:"configTemplate,omitempty"`
 	// Input describes the input used by the tuning method.
 	Input *DataSource `json:"input"`
 	// Output specified where to store the tuning output.
