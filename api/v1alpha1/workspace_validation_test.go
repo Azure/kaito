@@ -713,11 +713,11 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 		{
 			name: "All fields valid",
 			tuningSpec: &TuningSpec{
-				Input:  &DataSource{Name: "valid-input", HostPath: "valid-input"},
-				Output: &DataDestination{HostPath: "valid-output"},
-				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
-				Method: TuningMethodLora,
-				Config: DefaultLoraConfigMap,
+				Input:          &DataSource{Name: "valid-input", Volume: &v1.VolumeSource{}},
+				Output:         &DataDestination{Volume: &v1.VolumeSource{}},
+				Preset:         &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method:         TuningMethodLora,
+				ConfigTemplate: DefaultLoraConfigMap,
 			},
 			wantErr:   false,
 			errFields: nil,
@@ -725,7 +725,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 		{
 			name: "Missing Input",
 			tuningSpec: &TuningSpec{
-				Output: &DataDestination{HostPath: "valid-output"},
+				Output: &DataDestination{Volume: &v1.VolumeSource{}},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
 			},
@@ -746,7 +746,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 			name: "Missing Preset",
 			tuningSpec: &TuningSpec{
 				Input:  &DataSource{Name: "valid-input"},
-				Output: &DataDestination{HostPath: "valid-output"},
+				Output: &DataDestination{Volume: &v1.VolumeSource{}},
 				Method: TuningMethodLora,
 			},
 			wantErr:   true,
@@ -756,7 +756,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 			name: "Invalid Preset",
 			tuningSpec: &TuningSpec{
 				Input:  &DataSource{Name: "valid-input"},
-				Output: &DataDestination{HostPath: "valid-output"},
+				Output: &DataDestination{Volume: &v1.VolumeSource{}},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("invalid-preset")}},
 				Method: TuningMethodLora,
 			},
@@ -767,7 +767,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 			name: "Invalid Method",
 			tuningSpec: &TuningSpec{
 				Input:  &DataSource{Name: "valid-input"},
-				Output: &DataDestination{HostPath: "valid-output"},
+				Output: &DataDestination{Volume: &v1.VolumeSource{}},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: "invalid-method",
 			},
@@ -809,41 +809,17 @@ func TestTuningSpecValidateUpdate(t *testing.T) {
 			name: "No changes",
 			oldTuning: &TuningSpec{
 				Input:  &DataSource{Name: "input1"},
-				Output: &DataDestination{HostPath: "path1"},
+				Output: &DataDestination{Volume: &v1.VolumeSource{}},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
 			},
 			newTuning: &TuningSpec{
 				Input:  &DataSource{Name: "input1"},
-				Output: &DataDestination{HostPath: "path1"},
+				Output: &DataDestination{Volume: &v1.VolumeSource{}},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
 			},
 			expectErrs: false,
-		},
-		{
-			name: "Input changed",
-			oldTuning: &TuningSpec{
-				Input:  &DataSource{Name: "input", HostPath: "inputpath"},
-				Output: &DataDestination{HostPath: "outputpath"},
-			},
-			newTuning: &TuningSpec{
-				Input:  &DataSource{Name: "input", HostPath: "randompath"},
-				Output: &DataDestination{HostPath: "outputpath"},
-			},
-			expectErrs: true,
-			errFields:  []string{"HostPath"},
-		},
-		{
-			name: "Output changed",
-			oldTuning: &TuningSpec{
-				Output: &DataDestination{HostPath: "path1"},
-			},
-			newTuning: &TuningSpec{
-				Output: &DataDestination{HostPath: "path2"},
-			},
-			expectErrs: true,
-			errFields:  []string{"Output"},
 		},
 		{
 			name: "Preset changed",
@@ -904,9 +880,9 @@ func TestDataSourceValidateCreate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "HostPath specified only",
+			name: "Volume specified only",
 			dataSource: &DataSource{
-				HostPath: "/data/path",
+				Volume: &v1.VolumeSource{},
 			},
 			wantErr: false,
 		},
@@ -921,26 +897,26 @@ func TestDataSourceValidateCreate(t *testing.T) {
 			name:       "None specified",
 			dataSource: &DataSource{},
 			wantErr:    true,
-			errField:   "Exactly one of URLs, HostPath, or Image must be specified",
+			errField:   "Exactly one of URLs, Volume, or Image must be specified",
 		},
 		{
-			name: "URLs and HostPath specified",
+			name: "URLs and Volume specified",
 			dataSource: &DataSource{
-				URLs:     []string{"http://example.com/data"},
-				HostPath: "/data/path",
+				URLs:   []string{"http://example.com/data"},
+				Volume: &v1.VolumeSource{},
 			},
 			wantErr:  true,
-			errField: "Exactly one of URLs, HostPath, or Image must be specified",
+			errField: "Exactly one of URLs, Volume, or Image must be specified",
 		},
 		{
 			name: "All fields specified",
 			dataSource: &DataSource{
-				URLs:     []string{"http://example.com/data"},
-				HostPath: "/data/path",
-				Image:    "data-image:latest",
+				URLs:   []string{"http://example.com/data"},
+				Volume: &v1.VolumeSource{},
+				Image:  "data-image:latest",
 			},
 			wantErr:  true,
-			errField: "Exactly one of URLs, HostPath, or Image must be specified",
+			errField: "Exactly one of URLs, Volume, or Image must be specified",
 		},
 	}
 
@@ -972,13 +948,13 @@ func TestDataSourceValidateUpdate(t *testing.T) {
 			name: "No changes",
 			oldSource: &DataSource{
 				URLs:             []string{"http://example.com/data1", "http://example.com/data2"},
-				HostPath:         "/data/path",
+				Volume:           &v1.VolumeSource{},
 				Image:            "data-image:latest",
 				ImagePullSecrets: []string{"secret1", "secret2"},
 			},
 			newSource: &DataSource{
 				URLs:             []string{"http://example.com/data2", "http://example.com/data1"}, // Note the different order, should not matter
-				HostPath:         "/data/path",
+				Volume:           &v1.VolumeSource{},
 				Image:            "data-image:latest",
 				ImagePullSecrets: []string{"secret2", "secret1"}, // Note the different order, should not matter
 			},
@@ -1005,17 +981,6 @@ func TestDataSourceValidateUpdate(t *testing.T) {
 			},
 			wantErr:   true,
 			errFields: []string{"URLs"},
-		},
-		{
-			name: "HostPath changed",
-			oldSource: &DataSource{
-				HostPath: "/old/path",
-			},
-			newSource: &DataSource{
-				HostPath: "/new/path",
-			},
-			wantErr:   true,
-			errFields: []string{"HostPath"},
 		},
 		{
 			name: "Image changed",
@@ -1072,12 +1037,12 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 			name:            "No fields specified",
 			dataDestination: &DataDestination{},
 			wantErr:         true,
-			errField:        "At least one of HostPath or Image must be specified",
+			errField:        "At least one of Volume or Image must be specified",
 		},
 		{
-			name: "HostPath specified only",
+			name: "Volume specified only",
 			dataDestination: &DataDestination{
-				HostPath: "/data/path",
+				Volume: &v1.VolumeSource{},
 			},
 			wantErr: false,
 		},
@@ -1092,9 +1057,8 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 		{
 			name: "Both fields specified",
 			dataDestination: &DataDestination{
-				HostPath:        "/data/path",
-				Image:           "data-image:latest",
-				ImagePushSecret: "image-push-secret",
+				Volume: &v1.VolumeSource{},
+				Image:  "data-image:latest",
 			},
 			wantErr: false,
 		},
@@ -1127,27 +1091,16 @@ func TestDataDestinationValidateUpdate(t *testing.T) {
 		{
 			name: "No changes",
 			oldDest: &DataDestination{
-				HostPath:        "/data/old",
+				Volume:          &v1.VolumeSource{},
 				Image:           "old-image:latest",
 				ImagePushSecret: "old-secret",
 			},
 			newDest: &DataDestination{
-				HostPath:        "/data/old",
+				Volume:          &v1.VolumeSource{},
 				Image:           "old-image:latest",
 				ImagePushSecret: "old-secret",
 			},
 			wantErr: false,
-		},
-		{
-			name: "HostPath changed",
-			oldDest: &DataDestination{
-				HostPath: "/data/old",
-			},
-			newDest: &DataDestination{
-				HostPath: "/data/new",
-			},
-			wantErr:   true,
-			errFields: []string{"HostPath"},
 		},
 		{
 			name: "Image changed",
