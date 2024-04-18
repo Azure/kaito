@@ -1057,8 +1057,9 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 		{
 			name: "Both fields specified",
 			dataDestination: &DataDestination{
-				Volume: &v1.VolumeSource{},
-				Image:  "data-image:latest",
+				Volume:          &v1.VolumeSource{},
+				Image:           "data-image:latest",
+				ImagePushSecret: "imagePushSecret",
 			},
 			wantErr: false,
 		},
