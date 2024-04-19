@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: lora-params
+  name: lora-params-template
   namespace: {{ .Release.Namespace }}
 data:
   training_config.yaml: |

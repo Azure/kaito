@@ -5,15 +5,16 @@ package v1alpha1
 
 import (
 	"context"
-	"github.com/azure/kaito/pkg/k8sclient"
-	"github.com/azure/kaito/pkg/utils"
-	"github.com/azure/kaito/pkg/utils/plugin"
-	"k8s.io/apimachinery/pkg/runtime"
 	"os"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/azure/kaito/pkg/k8sclient"
+	"github.com/azure/kaito/pkg/utils"
+	"github.com/azure/kaito/pkg/utils/plugin"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/azure/kaito/pkg/model"
 	v1 "k8s.io/api/core/v1"
@@ -95,7 +96,7 @@ func pointerToInt(i int) *int {
 func defaultConfigMapManifest() *v1.ConfigMap {
 	return &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      DefaultLoraConfigMap,
+			Name:      DefaultLoraConfigMapTemplate,
 			Namespace: DefaultReleaseNamespace, // Replace this with the appropriate namespace variable if dynamic
 		},
 		Data: map[string]string{
@@ -717,7 +718,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 				Output:         &DataDestination{Volume: &v1.VolumeSource{}},
 				Preset:         &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method:         TuningMethodLora,
-				ConfigTemplate: DefaultLoraConfigMap,
+				ConfigTemplate: DefaultLoraConfigMapTemplate,
 			},
 			wantErr:   false,
 			errFields: nil,
@@ -1057,8 +1058,8 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 		{
 			name: "Both fields specified",
 			dataDestination: &DataDestination{
-				Volume:          &v1.VolumeSource{},
-				Image:           "data-image:latest",
+				Volume: &v1.VolumeSource{},
+				Image:  "data-image:latest",
 				ImagePushSecret: "imagePushSecret",
 			},
 			wantErr: false,

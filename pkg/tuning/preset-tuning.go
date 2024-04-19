@@ -3,10 +3,11 @@ package tuning
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/klog/v2"
 	"os"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/klog/v2"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/model"
@@ -91,7 +92,7 @@ func CreatePresetConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		return fmt.Errorf("failed to get release namespace: %v", err)
 	}
 	existingCM := &corev1.ConfigMap{}
-	err = resources.GetResource(ctx, workspaceObj.Tuning.Config, workspaceObj.Namespace, kubeClient, existingCM)
+	err = resources.GetResource(ctx, workspaceObj.Tuning.ConfigTemplate, workspaceObj.Namespace, kubeClient, existingCM)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return err
@@ -102,7 +103,7 @@ func CreatePresetConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	}
 
 	templateCM := &corev1.ConfigMap{}
-	err = resources.GetResource(ctx, workspaceObj.Tuning.Config, releaseNamespace, kubeClient, templateCM)
+	err = resources.GetResource(ctx, workspaceObj.Tuning.ConfigTemplate, releaseNamespace, kubeClient, templateCM)
 	if err != nil {
 		return fmt.Errorf("failed to get ConfigMap from template namespace: %v", err)
 	}
@@ -140,7 +141,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		volumeMounts = append(volumeMounts, shmVolumeMount)
 	}
 
-	cmVolume, cmVolumeMount := utils.ConfigCMVolume(workspaceObj.Tuning.Config)
+	cmVolume, cmVolumeMount := utils.ConfigCMVolume(workspaceObj.Tuning.ConfigTemplate)
 	volumes = append(volumes, cmVolume)
 	volumeMounts = append(volumeMounts, cmVolumeMount)
 
@@ -173,8 +174,8 @@ func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspac
 		imagePullSecrets = getImageSecrets(ctx, workspaceObj)
 	case len(workspaceObj.Tuning.Input.URLs) > 0:
 		initContainers, volumes, volumeMounts = handleURLDataSource(ctx, workspaceObj)
-	case workspaceObj.Tuning.Input.HostPath != "":
-		initContainers, volumes, volumeMounts = handleHostPathDataSource(ctx, workspaceObj)
+	case workspaceObj.Tuning.Input.Volume != nil:
+		initContainers, volumes, volumeMounts = handleVolumeDataSource(ctx, workspaceObj)
 	}
 	return initContainers, imagePullSecrets, volumes, volumeMounts, nil
 }
@@ -229,11 +230,13 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 	return initContainers, volumes, volumeMounts
 }
 
-func handleHostPathDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.Volume, []corev1.VolumeMount) {
+func handleVolumeDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.Volume, []corev1.VolumeMount) {
 	var initContainers []corev1.Container
-	hostPath := workspaceObj.Tuning.Input.HostPath
-	volumes, volumeMounts := utils.ConfigDataVolume(hostPath)
-	return initContainers, volumes, volumeMounts
+	_ = workspaceObj.Tuning.Input.Volume
+	// TODO
+	// volumes, volumeMounts := utils.ConfigDataVolume(hostPath)
+	// return initContainers, volumes, volumeMounts
+	return initContainers, []corev1.Volume{}, []corev1.VolumeMount{}
 }
 
 func getDataDestinationImage(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) (string, []corev1.LocalObjectReference) {
