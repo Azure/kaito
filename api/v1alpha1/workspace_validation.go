@@ -10,7 +10,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/plugin"
+
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +23,9 @@ import (
 const (
 	N_SERIES_PREFIX = "Standard_N"
 	D_SERIES_PREFIX = "Standard_D"
+
+	DefaultLoraConfigMapTemplate  = "lora-params-template"
+	DefaultQloraConfigMapTemplate = "qlora-params-template"
 )
 
 func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
@@ -31,21 +36,18 @@ func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
 }
 
 func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
-
 	base := apis.GetBaseline(ctx)
 	if base == nil {
 		klog.InfoS("Validate creation", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
-		errs = errs.Also(
-			w.validateCreate().ViaField("spec"),
-			// TODO: Consider validate resource based on Tuning Spec
-			w.Resource.validateCreate(*w.Inference).ViaField("resource"),
-		)
+		errs = errs.Also(w.validateCreate().ViaField("spec"))
 		if w.Inference != nil {
 			// TODO: Add Adapter Spec Validation - Including DataSource Validation for Adapter
-			errs = errs.Also(w.Inference.validateCreate().ViaField("inference"))
+			errs = errs.Also(w.Resource.validateCreate(*w.Inference).ViaField("resource"),
+				w.Inference.validateCreate().ViaField("inference"))
 		}
 		if w.Tuning != nil {
-			errs = errs.Also(w.Tuning.validateCreate().ViaField("tuning"))
+			// TODO: Add validate resource based on Tuning Spec
+			errs = errs.Also(w.Tuning.validateCreate(ctx, w.Namespace).ViaField("tuning"))
 		}
 	} else {
 		klog.InfoS("Validate update", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
@@ -86,7 +88,31 @@ func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
 	return errs
 }
 
-func (r *TuningSpec) validateCreate() (errs *apis.FieldError) {
+func (r *TuningSpec) validateCreate(ctx context.Context, workspaceNamespace string) (errs *apis.FieldError) {
+	methodLowerCase := strings.ToLower(string(r.Method))
+	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
+		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
+	}
+	if r.ConfigTemplate == "" {
+		klog.InfoS("Tuning config not specified. Using default based on method.")
+		releaseNamespace, err := utils.GetReleaseNamespace()
+		if err != nil {
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to determine release namespace: %v", err), "namespace"))
+		}
+		defaultConfigMapTemplateName := ""
+		if methodLowerCase == string(TuningMethodLora) {
+			defaultConfigMapTemplateName = DefaultLoraConfigMapTemplate
+		} else if methodLowerCase == string(TuningMethodQLora) {
+			defaultConfigMapTemplateName = DefaultQloraConfigMapTemplate
+		}
+		if err := r.validateConfigMap(ctx, releaseNamespace, methodLowerCase, defaultConfigMapTemplateName); err != nil {
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to evaluate validateConfigMap: %v", err), "Config"))
+		}
+	} else {
+		if err := r.validateConfigMap(ctx, workspaceNamespace, methodLowerCase, r.ConfigTemplate); err != nil {
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to evaluate validateConfigMap: %v", err), "Config"))
+		}
+	}
 	if r.Input == nil {
 		errs = errs.Also(apis.ErrMissingField("Input"))
 	} else {
@@ -102,10 +128,6 @@ func (r *TuningSpec) validateCreate() (errs *apis.FieldError) {
 		errs = errs.Also(apis.ErrMissingField("Preset"))
 	} else if presetName := string(r.Preset.Name); !isValidPreset(presetName) {
 		errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported tuning preset name %s", presetName), "presetName"))
-	}
-	methodLowerCase := strings.ToLower(string(r.Method))
-	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
-		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
 	}
 	return errs
 }
@@ -247,7 +269,7 @@ func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.Field
 			}
 		}
 	} else {
-		// Check for other instancetypes pattern matches
+		// Check for other instance types pattern matches
 		if !strings.HasPrefix(instanceType, N_SERIES_PREFIX) && !strings.HasPrefix(instanceType, D_SERIES_PREFIX) {
 			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Unsupported instance type %s. Supported SKUs: %s", instanceType, getSupportedSKUs()), "instanceType"))
 		}
