@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-package skuhandler
+package sku
 
 type CloudSKUHandler interface {
 	GetSupportedSKUs() string
