@@ -1050,6 +1050,7 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 			name: "Image specified only",
 			dataDestination: &DataDestination{
 				Image: "data-image:latest",
+				ImagePushSecret: "imagePushSecret",
 			},
 			wantErr: false,
 		},
