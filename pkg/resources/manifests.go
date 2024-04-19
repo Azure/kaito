@@ -183,11 +183,13 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 	return ss
 }
 
-func dockerSidecarScriptPushToPath(path string) string {
+func dockerSidecarScriptPushToVolume(arg interface{}) string {
+	volume, ok := arg.(*corev1.VolumeSource)
 	return `
 `
 }
-func dockerSidecarScriptPushImage(image string) string {
+func dockerSidecarScriptPushImage(arg interface{}) string {
+	image, _ := arg.(string)
 	return fmt.Sprintf(`
 # Start the Docker daemon in the background with specific options for DinD
 dockerd &
@@ -230,14 +232,14 @@ while true; do
 done`, image, image)
 }
 
-func determinePushMethod(wObj *kaitov1alpha1.Workspace) (func(string) string, string) {
-	if wObj.Tuning.Output.HostPath != "" {
-		return dockerSidecarScriptPushToPath, wObj.Tuning.Output.HostPath
+func determinePushMethod(wObj *kaitov1alpha1.Workspace) (func(arg interface{}) string, interface{}) {
+	if wObj.Tuning.Output.Volume != nil {
+		return dockerSidecarScriptPushToVolume, wObj.Tuning.Output.Volume
 	}
 	if wObj.Tuning.Output.Image != "" {
 		return dockerSidecarScriptPushImage, wObj.Tuning.Output.Image
 	}
-	return func(string) string { return "" }, ""
+	return func(arg interface{}) string { return "" }, ""
 }
 
 func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspace, imageName string,
