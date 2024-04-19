@@ -96,7 +96,7 @@ func pointerToInt(i int) *int {
 func defaultConfigMapManifest() *v1.ConfigMap {
 	return &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      DefaultLoraConfigMap,
+			Name:      DefaultLoraConfigMapTemplate,
 			Namespace: DefaultReleaseNamespace, // Replace this with the appropriate namespace variable if dynamic
 		},
 		Data: map[string]string{
@@ -718,7 +718,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 				Output: &DataDestination{Volume: &v1.VolumeSource{}},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
-				ConfigTemplate: DefaultLoraConfigMap,
+				ConfigTemplate: DefaultLoraConfigMapTemplate,
 			},
 			wantErr:   false,
 			errFields: nil,
