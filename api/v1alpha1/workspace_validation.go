@@ -215,7 +215,7 @@ func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 	}
 	if r.Image != "" {
 		if !strings.Contains(r.Image, ":") {
-			klog.Info("Tag not specified for image destination, default `latest` tag being used", r.Image)
+			klog.Infof("Tag not specified for image destination (%s), defaulting to 'latest' tag.", r.Image)
 		}
 		// Cloud Provider requires credentials to push image
 		if r.ImagePushSecret == "" {
