@@ -214,6 +214,10 @@ func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 		destinationsSpecified++
 	}
 	if r.Image != "" {
+		// Cloud Provider requires credentials to push image
+		if r.ImagePushSecret == "" {
+			errs = errs.Also(apis.ErrMissingField("Must specify imagePushSecret with destination image"))
+		}
 		destinationsSpecified++
 	}
 
