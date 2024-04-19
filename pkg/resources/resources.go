@@ -8,6 +8,7 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -22,6 +23,8 @@ func CreateResource(ctx context.Context, resource client.Object, kubeClient clie
 		klog.InfoS("CreateStatefulSet", "statefulset", klog.KObj(r))
 	case *corev1.Service:
 		klog.InfoS("CreateService", "service", klog.KObj(r))
+	case *corev1.ConfigMap:
+		klog.InfoS("CreateConfigMap", "configmap", klog.KObj(r))
 	}
 
 	// Create the resource.
@@ -74,6 +77,11 @@ func CheckResourceStatus(obj client.Object, kubeClient client.Client, timeoutDur
 			case *appsv1.StatefulSet:
 				if k8sResource.Status.ReadyReplicas == *k8sResource.Spec.Replicas {
 					klog.InfoS("statefulset status is ready", "statefulset", k8sResource.Name)
+					return nil
+				}
+			case *batchv1.Job:
+				klog.InfoS("checking job status", "name", k8sResource.Name, "namespace", k8sResource.Namespace, "succeeded", k8sResource.Status.Succeeded, "active", k8sResource.Status.Active, "failed", k8sResource.Status.Failed)
+				if k8sResource.Status.Failed == 0 {
 					return nil
 				}
 			default:
