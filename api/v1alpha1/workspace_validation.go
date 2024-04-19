@@ -99,11 +99,17 @@ func (r *TuningSpec) validateCreate(ctx context.Context, workspaceNamespace stri
 		if err != nil {
 			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to determine release namespace: %v", err), "namespace"))
 		}
-		if err := r.validateConfigMap(ctx, releaseNamespace, methodLowerCase); err != nil {
+		defaultConfigMapTemplateName := ""
+		if methodLowerCase == string(TuningMethodLora) {
+			defaultConfigMapTemplateName = DefaultLoraConfigMapTemplate
+		} else if methodLowerCase == string(TuningMethodQLora) {
+			defaultConfigMapTemplateName = DefaultQloraConfigMapTemplate
+		}
+		if err := r.validateConfigMap(ctx, releaseNamespace, methodLowerCase, defaultConfigMapTemplateName); err != nil {
 			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to evaluate validateConfigMap: %v", err), "Config"))
 		}
 	} else {
-		if err := r.validateConfigMap(ctx, workspaceNamespace, methodLowerCase); err != nil {
+		if err := r.validateConfigMap(ctx, workspaceNamespace, methodLowerCase, r.ConfigTemplate); err != nil {
 			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to evaluate validateConfigMap: %v", err), "Config"))
 		}
 	}

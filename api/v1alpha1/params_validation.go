@@ -142,13 +142,13 @@ func validateConfigMapSchema(cm *corev1.ConfigMap) *apis.FieldError {
 	return nil
 }
 
-func (r *TuningSpec) validateConfigMap(ctx context.Context, namespace string, methodLowerCase string) (errs *apis.FieldError) {
+func (r *TuningSpec) validateConfigMap(ctx context.Context, namespace string, methodLowerCase string, configMapName string) (errs *apis.FieldError) {
 	var cm corev1.ConfigMap
 	if k8sclient.Client == nil {
 		errs = errs.Also(apis.ErrGeneric("Failed to obtain client from context.Context"))
 		return errs
 	}
-	err := k8sclient.Client.Get(ctx, client.ObjectKey{Name: r.ConfigTemplate, Namespace: namespace}, &cm)
+	err := k8sclient.Client.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: namespace}, &cm)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' specified in 'config' not found in namespace '%s'", r.ConfigTemplate, namespace), "config"))
