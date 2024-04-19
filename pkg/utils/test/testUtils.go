@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-package utils
+package test
 
 import (
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"

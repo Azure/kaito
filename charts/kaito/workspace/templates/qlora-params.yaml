@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qlora-params-template
+  namespace: {{ .Release.Namespace }}
+data:
+  training_config.yaml: |
+    training_config:
+      ModelConfig:
+        torch_dtype: "bfloat16"
+        local_files_only: true
+        device_map: "auto"
+    
+      TokenizerParams:
+        padding: true
+        truncation: true
+    
+      QuantizationConfig:
+        load_in_4bit: true
+        bnb_4bit_quant_type: "nf4"
+        bnb_4bit_compute_dtype: "bfloat16"
+        bnb_4bit_use_double_quant: true
+    
+      LoraConfig:
+        r: 16
+        lora_alpha: 32
+        target_modules: "query_key_value"
+        lora_dropout: 0.05
+        bias: "none"
+    
+      TrainingArguments:
+        output_dir: "."
+        num_train_epochs: 4
+        auto_find_batch_size: true
+        ddp_find_unused_parameters: false
+        save_strategy: "epoch"
+    
+      DatasetConfig:
+        shuffle_dataset: true
+        train_test_split: 1
+    
+      DataCollator:
+        mlm: true

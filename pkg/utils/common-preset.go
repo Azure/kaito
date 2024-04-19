@@ -3,21 +3,21 @@
 package utils
 
 import (
-	"fmt"
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 )
 
 const (
-	DefaultVolumeMountPath = "/dev/shm"
+	DefaultVolumeMountPath    = "/dev/shm"
+	DefaultConfigMapMountPath = "/config"
+	DefaultDataVolumePath     = "/data"
 )
 
-func ConfigSHMVolume(wObj *kaitov1alpha1.Workspace) (corev1.Volume, corev1.VolumeMount) {
+func ConfigSHMVolume(instanceCount int) (corev1.Volume, corev1.VolumeMount) {
 	volume := corev1.Volume{}
 	volumeMount := corev1.VolumeMount{}
 
 	// Signifies multinode inference requirement
-	if *wObj.Resource.Count > 1 {
+	if instanceCount > 1 {
 		// Append share memory volume to any existing volumes
 		volume = corev1.Volume{
 			Name: "dshm",
@@ -37,36 +37,48 @@ func ConfigSHMVolume(wObj *kaitov1alpha1.Workspace) (corev1.Volume, corev1.Volum
 	return volume, volumeMount
 }
 
-func ConfigDataVolume() ([]corev1.Volume, []corev1.VolumeMount) {
+func ConfigCMVolume(cmName string) (corev1.Volume, corev1.VolumeMount) {
+	volume := corev1.Volume{
+		Name: "config-volume",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: cmName,
+				},
+			},
+		},
+	}
+
+	volumeMount := corev1.VolumeMount{
+		Name:      volume.Name,
+		MountPath: DefaultConfigMapMountPath,
+	}
+	return volume, volumeMount
+}
+
+func ConfigDataVolume(hostPath string) ([]corev1.Volume, []corev1.VolumeMount) {
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
-	volumes = append(volumes, corev1.Volume{
-		Name: "data-volume",
-		VolumeSource: corev1.VolumeSource{
+	var volumeSource corev1.VolumeSource
+	if hostPath != "" {
+		volumeSource = corev1.VolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: hostPath,
+			},
+		}
+	} else {
+		volumeSource = corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
+		}
+	}
+	volumes = append(volumes, corev1.Volume{
+		Name:         "data-volume",
+		VolumeSource: volumeSource,
 	})
 
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
 		Name:      "data-volume",
-		MountPath: "/data",
+		MountPath: DefaultDataVolumePath,
 	})
 	return volumes, volumeMounts
-}
-
-func ShellCmd(command string) []string {
-	return []string{
-		"/bin/sh",
-		"-c",
-		command,
-	}
-}
-
-func BuildCmdStr(baseCommand string, torchRunParams map[string]string) string {
-	updatedBaseCommand := baseCommand
-	for key, value := range torchRunParams {
-		updatedBaseCommand = fmt.Sprintf("%s --%s=%s", updatedBaseCommand, key, value)
-	}
-
-	return updatedBaseCommand
 }
