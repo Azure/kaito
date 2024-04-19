@@ -718,7 +718,6 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 				Output: &DataDestination{Volume: &v1.VolumeSource{}},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
-				ConfigTemplate: DefaultLoraConfigMapTemplate,
 			},
 			wantErr:   false,
 			errFields: nil,
