@@ -889,7 +889,7 @@ func TestDataSourceValidateCreate(t *testing.T) {
 		{
 			name: "Image specified only",
 			dataSource: &DataSource{
-				Image: "data-image:latest",
+				Image: "aimodels.azurecr.io/data-image:latest",
 			},
 			wantErr: false,
 		},
@@ -913,7 +913,7 @@ func TestDataSourceValidateCreate(t *testing.T) {
 			dataSource: &DataSource{
 				URLs:   []string{"http://example.com/data"},
 				Volume: &v1.VolumeSource{},
-				Image:  "data-image:latest",
+				Image:  "aimodels.azurecr.io/data-image:latest",
 			},
 			wantErr:  true,
 			errField: "Exactly one of URLs, Volume, or Image must be specified",
@@ -1049,7 +1049,7 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 		{
 			name: "Image specified only",
 			dataDestination: &DataDestination{
-				Image: "data-image:latest",
+				Image: "aimodels.azurecr.io/data-image:latest",
 				ImagePushSecret: "imagePushSecret",
 			},
 			wantErr: false,
@@ -1058,7 +1058,7 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 			name: "Both fields specified",
 			dataDestination: &DataDestination{
 				Volume: &v1.VolumeSource{},
-				Image:  "data-image:latest",
+				Image:  "aimodels.azurecr.io/data-image:latest",
 				ImagePushSecret: "imagePushSecret",
 			},
 			wantErr: false,
