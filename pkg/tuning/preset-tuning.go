@@ -15,13 +15,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// func getInstanceGPUCount(sku string) int {
-// 	gpuConfig, exists := kaitov1alpha1.SupportedGPUConfigs[sku]
-// 	if !exists {
-// 		return 1
-// 	}
-// 	return gpuConfig.GPUCount
-// }
+func GetInstanceGPUCount(sku string) int {
+	gpuConfig, exists := kaitov1alpha1.SupportedGPUConfigs[sku]
+	if !exists {
+		return 1
+	}
+	return gpuConfig.GPUCount
+}
 
 func GetTuningImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace, presetObj *model.PresetParam) string {
 	registryName := os.Getenv("PRESET_REGISTRY_NAME")
