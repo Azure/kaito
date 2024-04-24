@@ -163,6 +163,12 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 		sourcesSpecified++
 	}
 	if r.Image != "" {
+		if !strings.Contains(r.Image, ":") {
+			klog.Infof("Tag not specified for image destination (%s), defaulting to 'latest' tag.", r.Image)
+		}
+		if !strings.Contains(r.Image, "/") {
+			klog.Warningf("Input image specification may be incomplete or incorrect: %s. A complete image URL is recommended.", r.Image)
+		}
 		sourcesSpecified++
 	}
 
@@ -216,6 +222,9 @@ func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 	if r.Image != "" {
 		if !strings.Contains(r.Image, ":") {
 			klog.Infof("Tag not specified for image destination (%s), defaulting to 'latest' tag.", r.Image)
+		}
+		if !strings.Contains(r.Image, "/") {
+			klog.Warningf("Output image specification may be incomplete or incorrect: %s. A complete image URL is recommended.", r.Image)
 		}
 		// Cloud Provider requires credentials to push image
 		if r.ImagePushSecret == "" {
