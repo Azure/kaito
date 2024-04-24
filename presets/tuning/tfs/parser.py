@@ -91,14 +91,18 @@ def merge_cli_args_with_yaml(cli_args, yaml_config):
 def parse_configs(config_yaml):
     # Capture raw CLI arguments (excluding the script name)
     raw_cli_args = sys.argv[1:]
+    print(raw_cli_args, "raw_cli_args")
 
     # Organize CLI arguments by their corresponding data classes
     organized_cli_args = organize_cli_args(raw_cli_args)
+    print(organized_cli_args, "organized_cli_args")
 
     # Load the YAML configuration
     with open(config_yaml, 'r') as file:
         full_config = yaml.safe_load(file)
+        print(full_config, "full_config")
     training_config = full_config.get('training_config', {})
+    print(training_config, "training_config")
 
     # Parse and merge configurations
     parsed_configs = {}
