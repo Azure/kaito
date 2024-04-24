@@ -164,7 +164,7 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 	}
 	if r.Image != "" {
 		if !strings.Contains(r.Image, ":") {
-			klog.Infof("Tag not specified for image destination (%s), defaulting to 'latest' tag.", r.Image)
+			klog.Warningf("Tag not specified for image destination (%s), defaulting to 'latest' tag.", r.Image)
 		}
 		if !strings.Contains(r.Image, "/") {
 			klog.Warningf("Input image specification may be incomplete or incorrect: %s. A complete image URL is recommended.", r.Image)
@@ -221,7 +221,7 @@ func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 	}
 	if r.Image != "" {
 		if !strings.Contains(r.Image, ":") {
-			klog.Infof("Tag not specified for image destination (%s), defaulting to 'latest' tag.", r.Image)
+			klog.Warningf("Tag not specified for image destination (%s), defaulting to 'latest' tag.", r.Image)
 		}
 		if !strings.Contains(r.Image, "/") {
 			klog.Warningf("Output image specification may be incomplete or incorrect: %s. A complete image URL is recommended.", r.Image)
