@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -162,12 +163,11 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 	if r.Volume != nil {
 		sourcesSpecified++
 	}
+	// Regex checks for a / and a colon followed by a tag
 	if r.Image != "" {
-		if !strings.Contains(r.Image, ":") {
-			klog.Warningf("Tag not specified for image destination (%s), defaulting to 'latest' tag.", r.Image)
-		}
-		if !strings.Contains(r.Image, "/") {
-			klog.Warningf("Input image specification may be incomplete or incorrect: %s. A complete image URL is recommended.", r.Image)
+		re := regexp.MustCompile(`^(.+/[^:/]+):([^:/]+)$`)
+		if !re.MatchString(r.Image) {
+			errs = errs.Also(apis.ErrInvalidValue("Invalid image format, require full input image URL", "Image"))
 		}
 		sourcesSpecified++
 	}
@@ -220,11 +220,10 @@ func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 		destinationsSpecified++
 	}
 	if r.Image != "" {
-		if !strings.Contains(r.Image, ":") {
-			klog.Warningf("Tag not specified for image destination (%s), defaulting to 'latest' tag.", r.Image)
-		}
-		if !strings.Contains(r.Image, "/") {
-			klog.Warningf("Output image specification may be incomplete or incorrect: %s. A complete image URL is recommended.", r.Image)
+		// Regex checks for a / and a colon followed by a tag
+		re := regexp.MustCompile(`^(.+/[^:/]+):([^:/]+)$`)
+		if !re.MatchString(r.Image) {
+			errs = errs.Also(apis.ErrInvalidValue("Invalid image format, require full output image URL", "Image"))
 		}
 		// Cloud Provider requires credentials to push image
 		if r.ImagePushSecret == "" {
