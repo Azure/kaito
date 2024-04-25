@@ -87,12 +87,8 @@ func GetDataDestImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace) (s
 func CreatePresetConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	tuningObj *model.PresetParam, kubeClient client.Client) error {
 	// Copy Configmap from helm chart configmap into workspace
-	releaseNamespace, err := utils.GetReleaseNamespace()
-	if err != nil {
-		return fmt.Errorf("failed to get release namespace: %v", err)
-	}
 	existingCM := &corev1.ConfigMap{}
-	err = resources.GetResource(ctx, workspaceObj.Tuning.ConfigTemplate, workspaceObj.Namespace, kubeClient, existingCM)
+	err := resources.GetResource(ctx, workspaceObj.Tuning.ConfigTemplate, workspaceObj.Namespace, kubeClient, existingCM)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return err
@@ -102,6 +98,10 @@ func CreatePresetConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		return nil
 	}
 
+	releaseNamespace, err := utils.GetReleaseNamespace()
+	if err != nil {
+		return fmt.Errorf("failed to get release namespace: %v", err)
+	}
 	templateCM := &corev1.ConfigMap{}
 	err = resources.GetResource(ctx, workspaceObj.Tuning.ConfigTemplate, releaseNamespace, kubeClient, templateCM)
 	if err != nil {
