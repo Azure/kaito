@@ -1,6 +1,6 @@
 module github.com/azure/kaito
 
-go 1.20
+go 1.21
 
 require (
 	github.com/aws/karpenter-core v0.29.2
