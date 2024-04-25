@@ -84,9 +84,11 @@ class ModelConfig:
         """
         Post-initialization to validate some ModelConfig values
         """
-        if self.torch_dtype and not hasattr(torch, self.torch_dtype):
-            raise ValueError(f"Invalid torch dtype: {self.torch_dtype}")
-        self.torch_dtype = getattr(torch, self.torch_dtype) if self.torch_dtype else None
+        if self.torch_dtype:
+            if isinstance(self.torch_dtype, str) and hasattr(torch, self.torch_dtype):
+                self.torch_dtype = getattr(torch, self.torch_dtype)
+            elif not isinstance(self.torch_dtype, torch.dtype):
+                raise ValueError(f"Invalid torch dtype: {self.torch_dtype}")
 
 @dataclass
 class QuantizationConfig(BitsAndBytesConfig):
