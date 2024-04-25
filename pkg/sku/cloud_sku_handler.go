@@ -10,7 +10,7 @@ type CloudSKUHandler interface {
 
 type GPUConfig struct {
 	SKU      string
-	GPUCount float64
+	GPUCount int
 	GPUMem   int
 	GPUModel string
 }
