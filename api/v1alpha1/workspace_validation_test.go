@@ -895,6 +895,22 @@ func TestDataSourceValidateCreate(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "Image without URL Specified",
+			dataSource: &DataSource{
+				Image:            "data-image:latest",
+				ImagePullSecrets: []string{"imagePushSecret"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Image without Tag Specified",
+			dataSource: &DataSource{
+				Image:            "aimodels.azurecr.io/data-image",
+				ImagePullSecrets: []string{"imagePushSecret"},
+			},
+			wantErr: true,
+		},
+		{
 			name:       "None specified",
 			dataSource: &DataSource{},
 			wantErr:    true,
@@ -1050,16 +1066,32 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 		{
 			name: "Image specified only",
 			dataDestination: &DataDestination{
-				Image: "aimodels.azurecr.io/data-image:latest",
+				Image:           "aimodels.azurecr.io/data-image:latest",
 				ImagePushSecret: "imagePushSecret",
 			},
 			wantErr: false,
 		},
 		{
+			name: "Image without URL Specified",
+			dataDestination: &DataDestination{
+				Image:           "data-image:latest",
+				ImagePushSecret: "imagePushSecret",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Image without Tag Specified",
+			dataDestination: &DataDestination{
+				Image:           "aimodels.azurecr.io/data-image",
+				ImagePushSecret: "imagePushSecret",
+			},
+			wantErr: true,
+		},
+		{
 			name: "Both fields specified",
 			dataDestination: &DataDestination{
-				Volume: &v1.VolumeSource{},
-				Image:  "aimodels.azurecr.io/data-image:latest",
+				Volume:          &v1.VolumeSource{},
+				Image:           "aimodels.azurecr.io/data-image:latest",
 				ImagePushSecret: "imagePushSecret",
 			},
 			wantErr: false,
