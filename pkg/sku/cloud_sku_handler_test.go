@@ -16,18 +16,18 @@ func TestAzureSKUHandler(t *testing.T) {
 	// Test GetGPUConfigs with a SKU that is supported
 	sku := "Standard_NC6s_v3"
 	configMap := handler.GetGPUConfigs()
-	config, supported := configMap[sku]
-	if !supported {
-		t.Errorf("IsSupportedSKU returned false for a supported SKU")
+	config, exists := configMap[sku]
+	if !exists {
+		t.Errorf("Supported SKU missing from GPUConfigs")
 	}
 	if config.SKU != sku {
-		t.Errorf("IsSupportedSKU returned incorrect config for a supported SKU")
+		t.Errorf("Incorrect config returned for a supported SKU")
 	}
 
-	// Test IsSupportedSKU with a SKU that is not supported
+	// Test GetGPUConfigs with a SKU that is not supported
 	sku = "Unsupported_SKU"
-	config, supported = configMap[sku]
-	if supported {
-		t.Errorf("IsSupportedSKU returned true for an unsupported SKU")
+	config, exists = configMap[sku]
+	if exists {
+		t.Errorf("Unsupported SKU found in GPUConfigs")
 	}
 }
