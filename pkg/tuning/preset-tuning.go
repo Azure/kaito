@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -14,8 +16,6 @@ import (
 	"github.com/azure/kaito/pkg/resources"
 	"github.com/azure/kaito/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -67,24 +67,33 @@ var (
 	}
 )
 
+func getInstanceGPUCount(sku string) int {
+	gpuConfig, exists := kaitov1alpha1.SupportedGPUConfigs[sku]
+	if !exists {
+		return 1
+	}
+	return gpuConfig.GPUCount
+}
+
 func GetTuningImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace, presetObj *model.PresetParam) string {
-	// Only support public presets for tuning for now
-	imageName := string(wObj.Tuning.Preset.Name)
-	imageTag := presetObj.Tag
 	registryName := os.Getenv("PRESET_REGISTRY_NAME")
-	imageName = fmt.Sprintf("%s/kaito-tuning-%s:%s", registryName, imageName, imageTag)
-	return imageName
+	return fmt.Sprintf("%s/%s:%s", registryName, "kaito-tuning-"+string(wObj.Tuning.Preset.Name), presetObj.Tag)
+}
+
+func GetDataSrcImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace) (string, []corev1.LocalObjectReference) {
+	imagePullSecretRefs := make([]corev1.LocalObjectReference, len(wObj.Tuning.Input.ImagePullSecrets))
+	for i, secretName := range wObj.Tuning.Input.ImagePullSecrets {
+		imagePullSecretRefs[i] = corev1.LocalObjectReference{Name: secretName}
+	}
+	return wObj.Tuning.Input.Image, imagePullSecretRefs
 }
 
 func GetDataDestImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace) (string, []corev1.LocalObjectReference) {
-	imagePushSecretRefs := []corev1.LocalObjectReference{}
-	imagePushSecretRefs = append(imagePushSecretRefs, corev1.LocalObjectReference{Name: wObj.Tuning.Output.ImagePushSecret})
-	registryName := os.Getenv("PRESET_REGISTRY_NAME")
-	imageName := fmt.Sprintf("%s/%s", registryName, wObj.Tuning.Output.Image)
-	return imageName, imagePushSecretRefs
+	imagePushSecretRefs := []corev1.LocalObjectReference{{Name: wObj.Tuning.Output.ImagePushSecret}}
+	return wObj.Tuning.Output.Image, imagePushSecretRefs
 }
 
-func CreatePresetConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
+func EnsureTuningConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	tuningObj *model.PresetParam, kubeClient client.Client) error {
 	// Copy Configmap from helm chart configmap into workspace
 	existingCM := &corev1.ConfigMap{}
@@ -128,7 +137,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		return nil, err
 	}
 
-	err = CreatePresetConfigMap(ctx, workspaceObj, tuningObj, kubeClient)
+	err = EnsureTuningConfigMap(ctx, workspaceObj, tuningObj, kubeClient)
 	if err != nil {
 		return nil, err
 	}
@@ -249,14 +258,6 @@ func getDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	tuningObj *model.PresetParam, kubeClient client.Client) (client.Object, error) {
 	// TODO
 	return nil, nil
-}
-
-func getInstanceGPUCount(sku string) int {
-	gpuConfig, exists := kaitov1alpha1.SupportedGPUConfigs[sku]
-	if !exists {
-		return 1
-	}
-	return gpuConfig.GPUCount
 }
 
 func prepareModelRunParameters(ctx context.Context, tuningObj *model.PresetParam) (string, error) {

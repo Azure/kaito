@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -162,7 +163,12 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 	if r.Volume != nil {
 		sourcesSpecified++
 	}
+	// Regex checks for a / and a colon followed by a tag
 	if r.Image != "" {
+		re := regexp.MustCompile(`^(.+/[^:/]+):([^:/]+)$`)
+		if !re.MatchString(r.Image) {
+			errs = errs.Also(apis.ErrInvalidValue("Invalid image format, require full input image URL", "Image"))
+		}
 		sourcesSpecified++
 	}
 
@@ -214,6 +220,12 @@ func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 		destinationsSpecified++
 	}
 	if r.Image != "" {
+		// Regex checks for a / and a colon followed by a tag
+		re := regexp.MustCompile(`^(.+/[^:/]+):([^:/]+)$`)
+		if !re.MatchString(r.Image) {
+			errs = errs.Also(apis.ErrInvalidValue("Invalid image format, require full output image URL", "Image"))
+		}
+		// Cloud Provider requires credentials to push image
 		if r.ImagePushSecret == "" {
 			errs = errs.Also(apis.ErrMissingField("Must specify imagePushSecret with destination image"))
 		}
