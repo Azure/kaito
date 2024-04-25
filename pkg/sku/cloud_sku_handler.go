@@ -5,7 +5,7 @@ package sku
 
 type CloudSKUHandler interface {
 	GetSupportedSKUs() []string
-	GetGPUConfigMap() map[string]GPUConfig
+	GetGPUConfigs() map[string]GPUConfig
 }
 
 type GPUConfig struct {
