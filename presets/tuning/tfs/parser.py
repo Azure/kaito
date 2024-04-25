@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import sys
+import os
 from collections import defaultdict
 import yaml
 from dataclasses import asdict, fields
@@ -30,6 +31,8 @@ CONFIG_CLASS_MAP = {
     'DataCollator': ExtDataCollator,
 }
 
+def log(message, msg):
+    print(message, msg)
 
 def flatten_config_to_cli_args(config, prefix=''):
     cli_args = []
@@ -54,6 +57,7 @@ def parse_section(section_name, section_config):
     parser = HfArgumentParser((CONFIG_CLASS_MAP[section_name],))
     # Flatten section_config to CLI-like arguments
     cli_args = flatten_config_to_cli_args(section_config, prefix='')
+    log(cli_args, "cli_args")
     # Parse the CLI-like arguments into a data class instance
     return parser.parse_args_into_dataclasses(cli_args)[0]
 
@@ -91,7 +95,7 @@ def merge_cli_args_with_yaml(cli_args, yaml_config):
 def parse_configs(config_yaml):
     # Capture raw CLI arguments (excluding the script name)
     raw_cli_args = sys.argv[1:]
-    print(raw_cli_args, "raw_cli_args")
+    log(raw_cli_args, "raw_cli_args")
 
     # Organize CLI arguments by their corresponding data classes
     organized_cli_args = organize_cli_args(raw_cli_args)
@@ -109,7 +113,9 @@ def parse_configs(config_yaml):
     for section_name, class_type in CONFIG_CLASS_MAP.items():
         # Parse section from YAML
         yaml_parsed_instance = parse_section(section_name, training_config.get(section_name, {}))
+        log(yaml_parsed_instance, "yaml_parsed_instance")
         yaml_parsed_dict = asdict(yaml_parsed_instance)
+        log(yaml_parsed_dict, "yaml_parsed_dict")
 
         # Merge CLI args with YAML configs if CLI args are present
         if section_name in organized_cli_args:
@@ -118,7 +124,9 @@ def parse_configs(config_yaml):
         else:
             merged_config = yaml_parsed_dict
 
+        log(merged_config, "merged_config")
         filtered_config = filter_unsupported_init_args(CONFIG_CLASS_MAP[section_name], merged_config)
+        log(filtered_config, "filtered_config")
         parsed_configs[section_name] = CONFIG_CLASS_MAP[section_name](**filtered_config)
 
     return parsed_configs
