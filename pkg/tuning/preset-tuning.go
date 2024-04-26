@@ -202,7 +202,7 @@ func handleImageDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	initContainers = append(initContainers, corev1.Container{
 		Name:    "data-extractor",
 		Image:   workspaceObj.Tuning.Input.Image,
-		Command: []string{"sh", "-c", "cp -r /data/* /dataset/"},
+		Command: []string{"sh", "-c", "cp -r /data/* " + utils.DefaultDataVolumePath},
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      "data-volume",

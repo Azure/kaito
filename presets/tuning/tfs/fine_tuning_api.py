@@ -17,8 +17,8 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
 from parser import parse_configs
 
 
-DATASET_PATH = os.environ.get('DATASET_FILE_PATH', '/data')
-CONFIG_YAML = os.environ.get('YAML_FILE_PATH', '/config/training_config.yaml')
+DATASET_PATH = os.environ.get('DATASET_FOLDER_PATH', '/mnt/data')
+CONFIG_YAML = os.environ.get('YAML_FILE_PATH', '/mnt/config/training_config.yaml')
 parsed_configs = parse_configs(CONFIG_YAML)
 
 model_config = parsed_configs.get('ModelConfig')
@@ -86,14 +86,34 @@ def preprocess_data(example):
     prompt = f"human: {example[ds_config.context_column]}\n bot: {example[ds_config.response_column]}".strip()
     return tokenizer(prompt, **tk_params)
 
+found_dataset = False
 # Loading the dataset
 if ds_config.dataset_path:
-    DATASET_PATH = f"/data/{ds_config.dataset_path}"
+    DATASET_PATH = os.path.join("/mnt", ds_config.dataset_path.strip("/"))
+    found_dataset = True
+else:
+    # Find a valid file
+    VALID_EXTENSIONS = ('.csv', '.json', '.txt', '.parquet', '.xls', '.xlsx', '.arrow')
+    default_path = DATASET_PATH
+    for root, dirs, files in os.walk(default_path):
+        for file in files:
+            if file.endswith(VALID_EXTENSIONS):
+                DATASET_PATH = os.path.join(root, file)
+                found_dataset = True
+                break
+
+# Check if DATASET_PATH has been set successfully
+if found_dataset:
+    print(f"Dataset found: {DATASET_PATH}")
+else:
+    print("No valid dataset file found.")
+    raise ValueError(f"Unable to find a valid dataset file.")
+
 if ds_config.dataset_extension:
     file_ext = ds_config.dataset_extension
 else:
     _, file_ext = os.path.splitext(DATASET_PATH)
-    file_ext = file_ext[1:] if file_ext else file_ext # Remove "." from file ext name
+    file_ext = file_ext[1:] if file_ext else file_ext # Remove leading "." from file ext name
 dataset = load_dataset(file_ext, data_files=DATASET_PATH, split="train")
 
 # Shuffling the dataset (if needed)

@@ -8,8 +8,8 @@ import (
 
 const (
 	DefaultVolumeMountPath    = "/dev/shm"
-	DefaultConfigMapMountPath = "/config"
-	DefaultDataVolumePath     = "/dataset"
+	DefaultConfigMapMountPath = "/mnt/config"
+	DefaultDataVolumePath     = "/mnt/data"
 )
 
 func ConfigSHMVolume(instanceCount int) (corev1.Volume, corev1.VolumeMount) {
