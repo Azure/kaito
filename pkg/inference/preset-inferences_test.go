@@ -5,10 +5,11 @@ package inference
 
 import (
 	"context"
-	"github.com/azure/kaito/pkg/utils/test"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/azure/kaito/pkg/utils/test"
 
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils/plugin"
@@ -32,7 +33,7 @@ func TestCreatePresetInference(t *testing.T) {
 			nodeCount: 1,
 			modelName: "test-model",
 			callMocks: func(c *test.MockClient) {
-				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
+				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 			},
 			workload: "Deployment",
 			// No BaseCommand, TorchRunParams, TorchRunRdzvParams, or ModelRunParams
@@ -44,8 +45,8 @@ func TestCreatePresetInference(t *testing.T) {
 			nodeCount: 1,
 			modelName: "test-distributed-model",
 			callMocks: func(c *test.MockClient) {
-				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
-				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.TODO()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
+				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil)
 			},
 			workload:    "StatefulSet",
 			expectedCmd: "/bin/sh -c  inference_api.py",
