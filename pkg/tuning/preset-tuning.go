@@ -84,7 +84,7 @@ func EnsureTuningConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 			return err
 		}
 	} else {
-		klog.Info("ConfigMap already exists in target namespace: %s, no action taken.\n", workspaceObj.Namespace)
+		klog.Infof("ConfigMap already exists in target namespace: %s, no action taken.\n", workspaceObj.Namespace)
 		return nil
 	}
 
