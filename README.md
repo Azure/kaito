@@ -7,12 +7,13 @@
 
 | ![notification](docs/img/bell.svg) What is NEW! |
 |-------------------------------------------------|
-| Latest Release: March 28th, 2024. Kaito v0.2.2. | 
+| Latest Release: March 28th, 2024. Kaito v0.2.2. |
 | First Release: Nov 15th, 2023. Kaito v0.1.0.    |
 
 Kaito is an operator that automates the AI/ML inference model deployment in a Kubernetes cluster.
 The target models are popular large open-sourced inference models such as [falcon](https://huggingface.co/tiiuae) and [llama2](https://github.com/facebookresearch/llama).
 Kaito has the following key differentiations compared to most of the mainstream model deployment methodologies built on top of virtual machine infrastructures:
+
 - Manage large model files using container images. A http server is provided to perform inference calls using the model library.
 - Avoid tuning deployment parameters to fit GPU hardware by providing preset configurations.
 - Auto-provision GPU nodes based on model requirements.
@@ -29,18 +30,20 @@ Kaito follows the classic Kubernetes Custom Resource Definition(CRD)/controller 
 </div>
 
 The above figure presents the Kaito architecture overview. Its major components consist of:
+
 - **Workspace controller**: It reconciles the `workspace` custom resource, creates `machine` (explained below) custom resources to trigger node auto provisioning, and creates the inference workload (`deployment` or `statefulset`) based on the model preset configurations.
-- **Node provisioner controller**: The controller's name is *gpu-provisioner* in [Kaito helm chart](charts/kaito/gpu-provisioner). It uses the `machine` CRD originated from [Karpenter](https://github.com/aws/karpenter-core) to interact with the workspace controller. It integrates with Azure Kubernetes Service(AKS) APIs to add new GPU nodes to the AKS cluster. 
+- **Node provisioner controller**: The controller's name is *gpu-provisioner* in [Kaito helm chart](charts/kaito/gpu-provisioner). It uses the `machine` CRD originated from [Karpenter](https://sigs.k8s.io/karpenter) to interact with the workspace controller. It integrates with Azure Kubernetes Service(AKS) APIs to add new GPU nodes to the AKS cluster. 
 Note that the *gpu-provisioner* is an open sourced component maintained in [this](https://github.com/Azure/gpu-provisioner) repository. It can be replaced by other controllers if they support Karpenter-core APIs.
 
-
-## Installation 
+## Installation
 
 Please check the installation guidance [here](./docs/installation.md).
 
 ## Quick start
+
 After installing Kaito, one can try following commands to start a falcon-7b inference service.
-```
+
+```sh
 $ cat examples/kaito_workspace_falcon_7b.yaml
 apiVersion: kaito.sh/v1alpha1
 kind: Workspace
@@ -58,15 +61,17 @@ inference:
 $ kubectl apply -f examples/kaito_workspace_falcon_7b.yaml
 ```
 
-The workspace status can be tracked by running the following command. When the WORKSPACEREADY column becomes `True`, the model has been deployed successfully.  
-```
+The workspace status can be tracked by running the following command. When the WORKSPACEREADY column becomes `True`, the model has been deployed successfully.
+
+```sh
 $ kubectl get workspace workspace-falcon-7b
 NAME                  INSTANCE            RESOURCEREADY   INFERENCEREADY   WORKSPACEREADY   AGE
 workspace-falcon-7b   Standard_NC12s_v3   True            True             True             10m
 ```
 
 Next, one can find the inference service's cluster ip and use a temporal `curl` pod to test the service endpoint in the cluster.
-```
+
+```sh
 $ kubectl get svc workspace-falcon-7b
 NAME                  TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)            AGE
 workspace-falcon-7b   ClusterIP   <CLUSTERIP>  <none>        80/TCP,29500/TCP   10m
@@ -93,28 +98,33 @@ Kaito provides a limited capability to override preset configurations for models
 To update parameters for a deployed model, perform `kubectl edit` against the workload, which could be either a `StatefulSet` or `Deployment`.
 For example, to enable 4-bit quantization on a `falcon-7b-instruct` deployment, you would execute:
 
-```
+```sh
 kubectl edit deployment workspace-falcon-7b-instruct
 ```
 
 Within the deployment specification, locate and modify the command field.
 
 #### Original
-```
+
+```sh
 accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference_api.py --pipeline text-generation --torch_dtype bfloat16
 ```
+
 #### Modify to enable 4-bit Quantization
-```
+
+```sh
 accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference_api.py --pipeline text-generation --torch_dtype bfloat16 --load_in_4bit
 ```
 
-Currently, we allow users to change the following paramenters manually: 
+Currently, we allow users to change the following paramenters manually:
+
 - `pipeline`: For text-generation models this can be either `text-generation` or `conversational`.
 - `load_in_4bit` or `load_in_8bit`: Model quantization resolution.
 
 Should you need to customize other parameters, kindly file an issue for potential future inclusion.
 
 ### What is the difference between instruct and non-instruct models?
+
 The main distinction lies in their intended use cases. Instruct models are fine-tuned versions optimized
 for interactive chat applications. They are typically the preferred choice for most implementations due to their enhanced performance in
 conversational contexts.
@@ -137,6 +147,7 @@ For more information see the [Code of Conduct FAQ](https://opensource.microsoft.
 contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
 ## Trademarks
+
 This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
 trademarks or logos is subject to and must follow [Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/legal/intellectualproperty/trademarks/usage/general).
 Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.

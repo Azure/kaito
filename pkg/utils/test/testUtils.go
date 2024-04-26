@@ -6,12 +6,14 @@ package test
 import (
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/azure/kaito/api/v1alpha1"
+	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 )
 
 const (
@@ -152,6 +154,11 @@ var (
 		"karpenter.sh/provisioner-name": "default",
 		"kaito.sh/workspace":            "none",
 	}
+
+	nodeClaimLabels = map[string]string{
+		"karpenter.sh/nodepool-name": "default",
+		"kaito.sh/workspace":         "none",
+	}
 )
 
 var (
@@ -178,12 +185,37 @@ var (
 			},
 		},
 	}
+
+	MockNodeClaim = v1beta1.NodeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "testnodeclaim",
+			Labels: nodeClaimLabels,
+		},
+		Spec: v1beta1.NodeClaimSpec{
+			Requirements: []v1beta1.NodeSelectorRequirementWithMinValues{
+				{
+					NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+						Key:      corev1.LabelInstanceTypeStable,
+						Operator: corev1.NodeSelectorOpIn,
+						Values:   []string{"Standard_NC12s_v3"},
+					},
+					MinValues: lo.ToPtr(1),
+				},
+			},
+		},
+	}
 )
 
 var (
 	MockMachineList = &v1alpha5.MachineList{
 		Items: []v1alpha5.Machine{
 			MockMachine,
+		},
+	}
+
+	MockNodeClaimList = &v1beta1.NodeClaimList{
+		Items: []v1beta1.NodeClaim{
+			MockNodeClaim,
 		},
 	}
 )
