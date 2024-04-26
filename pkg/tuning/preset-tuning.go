@@ -199,10 +199,12 @@ func getImageSecrets(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace)
 
 func handleImageDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.Volume, []corev1.VolumeMount) {
 	var initContainers []corev1.Container
+	// Constructing a multistep command that lists, copies, and then lists the destination
+	command := "ls -la /data && cp -r /data/* " + utils.DefaultDataVolumePath + " && ls -la " + utils.DefaultDataVolumePath
 	initContainers = append(initContainers, corev1.Container{
 		Name:    "data-extractor",
 		Image:   workspaceObj.Tuning.Input.Image,
-		Command: []string{"sh", "-c", "cp -r /data/* " + utils.DefaultDataVolumePath},
+		Command: []string{"sh", "-c", command},
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      "data-volume",
