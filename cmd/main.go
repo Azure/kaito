@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/azure/kaito/pkg/k8sclient"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -18,8 +19,6 @@ import (
 	"knative.dev/pkg/injection/sharedmain"
 	"knative.dev/pkg/signals"
 	"knative.dev/pkg/webhook"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
