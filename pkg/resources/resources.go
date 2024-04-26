@@ -5,7 +5,6 @@ package resources
 import (
 	"context"
 	"fmt"
-	batchv1 "k8s.io/api/batch/v1"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"

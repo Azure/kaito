@@ -31,7 +31,8 @@ class DatasetConfig:
     """
     Config for Dataset 
     """
-    dataset_name: str = field(metadata={"help": "Name of Dataset"})
+    dataset_path: Optional[str] = field(default=None, metadata={"help": "Where dataset file is located in the /data folder. This path will be appended to /data. This path should be the absolute path in the image or host."})
+    dataset_extension: Optional[str] = field(default=None, metadata={"help": "Optional explicit file extension of the dataset. If not provided, the extension will be derived from the dataset_path."})
     shuffle_dataset: bool = field(default=True, metadata={"help": "Whether to shuffle dataset"})
     shuffle_seed: int = field(default=42, metadata={"help": "Seed for shuffling data"})
     context_column: str = field(default="Context", metadata={"help": "Example human input column in the dataset"})

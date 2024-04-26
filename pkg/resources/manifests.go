@@ -184,7 +184,7 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 }
 
 func dockerSidecarScriptPushToVolume(arg interface{}) string {
-	volume, ok := arg.(*corev1.VolumeSource)
+	//volume, ok := arg.(*corev1.VolumeSource)
 	return `
 `
 }
@@ -286,6 +286,17 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 							ReadinessProbe: readinessProbe,
 							Ports:          containerPorts,
 							VolumeMounts:   volumeMounts,
+						},
+						{
+							Name:    wObj.Name + "dup",
+							Image:   imageName,
+							Command: []string{"/bin/sh", "-c"},
+							Args:    []string{"sleep infinity"},
+							//Resources: resourceRequirements,
+							//LivenessProbe:  livenessProbe,
+							//ReadinessProbe: readinessProbe,
+							Ports:        containerPorts,
+							VolumeMounts: volumeMounts,
 						},
 						{
 							Name:  "docker-sidecar",

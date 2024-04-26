@@ -202,11 +202,11 @@ func handleImageDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	initContainers = append(initContainers, corev1.Container{
 		Name:    "data-extractor",
 		Image:   workspaceObj.Tuning.Input.Image,
-		Command: []string{"sh", "-c", "your-extraction-script.sh"}, // Your script to extract data
+		Command: []string{"sh", "-c", "cp -r /data/* /dataset/"},
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      "data-volume",
-				MountPath: "/data",
+				MountPath: utils.DefaultDataVolumePath,
 			},
 		},
 	})
@@ -225,7 +225,7 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      "data-volume",
-				MountPath: "/data",
+				MountPath: utils.DefaultDataVolumePath,
 			},
 		},
 		Env: []corev1.EnvVar{

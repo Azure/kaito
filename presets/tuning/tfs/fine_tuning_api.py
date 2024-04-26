@@ -87,8 +87,14 @@ def preprocess_data(example):
     return tokenizer(prompt, **tk_params)
 
 # Loading the dataset
-_, file_ext = os.path.splitext(DATASET_PATH)
-dataset = load_dataset(file_ext[1:], data_files=DATASET_PATH, split="train")
+if ds_config.dataset_path:
+    DATASET_PATH = f"/data/{ds_config.dataset_path}"
+if ds_config.dataset_extension:
+    file_ext = ds_config.dataset_extension
+else:
+    _, file_ext = os.path.splitext(DATASET_PATH)
+    file_ext = file_ext[1:] if file_ext else file_ext # Remove "." from file ext name
+dataset = load_dataset(file_ext, data_files=DATASET_PATH, split="train")
 
 # Shuffling the dataset (if needed)
 if ds_config.shuffle_dataset: 
