@@ -158,6 +158,9 @@ func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspac
 	case workspaceObj.Tuning.Input.Image != "":
 		initContainers, volumes, volumeMounts = handleImageDataSource(ctx, workspaceObj)
 		_, imagePullSecrets = GetDataSrcImageInfo(ctx, workspaceObj)
+		// TODO: Future PR include
+		// case len(workspaceObj.Tuning.Input.URLs) > 0:
+		// case workspaceObj.Tuning.Input.Volume != nil:
 	}
 	return initContainers, imagePullSecrets, volumes, volumeMounts, nil
 }
