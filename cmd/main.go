@@ -4,10 +4,12 @@ package main
 
 import (
 	"flag"
-	"github.com/azure/kaito/pkg/k8sclient"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/azure/kaito/pkg/k8sclient"
+	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/azure/kaito/pkg/controllers"
@@ -16,6 +18,7 @@ import (
 	"knative.dev/pkg/injection/sharedmain"
 	"knative.dev/pkg/signals"
 	"knative.dev/pkg/webhook"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -52,6 +55,7 @@ func init() {
 
 	utilruntime.Must(kaitov1alpha1.AddToScheme(scheme))
 	utilruntime.Must(v1alpha5.SchemeBuilder.AddToScheme(scheme))
+	utilruntime.Must(v1beta1.SchemeBuilder.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 	klog.InitFlags(nil)
 }
@@ -77,8 +81,10 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: ":" + metricsAddr,
+		},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "ef60f9b0.io",
