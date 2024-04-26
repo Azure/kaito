@@ -17,7 +17,7 @@ on:
                 description: "Force update existing images in Prod ACR"
 
 env:
-    GO_VERSION: "1.20"
+    GO_VERSION: "1.22"
     BRANCH_NAME: ${{ github.head_ref || github.ref_name}} 
     FORCE_RUN_ALL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force-run-all == 'true' }}
     FORCE_UPDATE_ALL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force-update-all == 'true' }}
