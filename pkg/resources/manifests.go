@@ -5,6 +5,8 @@ package resources
 import (
 	"context"
 	"fmt"
+	batchv1 "k8s.io/api/batch/v1"
+	"k8s.io/utils/pointer"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -180,6 +182,76 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 	}
 	ss.Spec.ServiceName = fmt.Sprintf("%s-headless", workspaceObj.Name)
 	return ss
+}
+
+func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspace, imageName string,
+	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
+	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements, tolerations []corev1.Toleration,
+	initContainers []corev1.Container, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) *batchv1.Job {
+	labels := map[string]string{
+		kaitov1alpha1.LabelWorkspaceName: wObj.Name,
+	}
+	//TODO:
+	// Will be included in future PR, this code includes
+	// bash script for pushing results based on user
+	// data destination method
+	//pushMethod, pushArg := determinePushMethod(wObj)
+	return &batchv1.Job{
+		TypeMeta: v1.TypeMeta{
+			APIVersion: "batch/v1",
+			Kind:       "Job",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name:      wObj.Name,
+			Namespace: wObj.Namespace,
+			Labels:    labels,
+			OwnerReferences: []v1.OwnerReference{
+				{
+					APIVersion: kaitov1alpha1.GroupVersion.String(),
+					Kind:       "Workspace",
+					Name:       wObj.Name,
+					UID:        wObj.UID,
+					Controller: pointer.BoolPtr(true),
+				},
+			},
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: v1.ObjectMeta{
+					Labels: labels,
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: initContainers,
+					Containers: []corev1.Container{
+						{
+							Name:           wObj.Name,
+							Image:          imageName,
+							Command:        commands,
+							Resources:      resourceRequirements,
+							LivenessProbe:  livenessProbe,
+							ReadinessProbe: readinessProbe,
+							Ports:          containerPorts,
+							VolumeMounts:   volumeMounts,
+						},
+						{
+							Name:  "docker-sidecar",
+							Image: "docker:dind",
+							SecurityContext: &corev1.SecurityContext{
+								Privileged: pointer.BoolPtr(true),
+							},
+							VolumeMounts: volumeMounts,
+							Command:      []string{"/bin/sh", "-c"},
+							// TODO: Args:         []string{pushMethod(pushArg)},
+						},
+					},
+					RestartPolicy:    corev1.RestartPolicyNever,
+					Volumes:          volumes,
+					Tolerations:      tolerations,
+					ImagePullSecrets: imagePullSecretRefs,
+				},
+			},
+		},
+	}
 }
 
 func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imageName string,
