@@ -186,9 +186,6 @@ func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspac
 	case workspaceObj.Tuning.Input.Volume != nil:
 		initContainers, volumes, volumeMounts = handleVolumeDataSource(ctx, workspaceObj)
 		_, imagePullSecrets = GetDataSrcImageInfo(ctx, workspaceObj)
-		// TODO: Future PR include
-		// case len(workspaceObj.Tuning.Input.URLs) > 0:
-		// case workspaceObj.Tuning.Input.Volume != nil:
 	}
 	return initContainers, imagePullSecrets, volumes, volumeMounts, nil
 }
@@ -223,11 +220,15 @@ func handleImageDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 
 func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.Volume, []corev1.VolumeMount) {
 	var initContainers []corev1.Container
-	// TODO: Fix up init container placeholders
 	initContainers = append(initContainers, corev1.Container{
-		Name:    "data-downloader",
-		Image:   "appropriate-image-for-downloading",
-		Command: []string{"sh", "-c", "download-script.sh"},
+		Name:  "data-downloader",
+		Image: "curlimages/curl",
+		Command: []string{"sh", "-c", `
+			for url in $DATA_URLS; do
+				filename=$(basename "$url" | sed 's/[?=&]/_/g')
+				curl -sSL $url -o $DATA_VOLUME_PATH/$filename
+			done
+		`},
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      "data-volume",
@@ -238,6 +239,10 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 			{
 				Name:  "DATA_URLS",
 				Value: strings.Join(workspaceObj.Tuning.Input.URLs, " "),
+			},
+			{
+				Name:  "DATA_VOLUME_PATH",
+				Value: utils.DefaultDataVolumePath,
 			},
 		},
 	})
