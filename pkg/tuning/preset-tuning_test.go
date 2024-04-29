@@ -5,7 +5,9 @@ package tuning
 
 import (
 	"context"
+	"github.com/azure/kaito/pkg/utils"
 	"os"
+	"strings"
 	"testing"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -25,6 +27,10 @@ var mockSupportedGPUConfigs = map[string]kaitov1alpha1.GPUConfig{
 	"sku1": {GPUCount: 2},
 	"sku2": {GPUCount: 4},
 	"sku3": {GPUCount: 0},
+}
+
+func normalize(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 func TestGetInstanceGPUCount(t *testing.T) {
@@ -245,6 +251,49 @@ func TestHandleImageDataSource(t *testing.T) {
 			assert.Equal(t, tc.expectedInitContainerName, initContainers[0].Name)
 			assert.Equal(t, tc.workspaceObj.Tuning.Input.Image, initContainers[0].Image)
 			assert.Contains(t, initContainers[0].Command[2], "cp -r /data/* /mnt/data")
+
+			assert.Len(t, volumes, 1)
+			assert.Equal(t, tc.expectedVolumeName, volumes[0].Name)
+
+			assert.Len(t, volumeMounts, 1)
+			assert.Equal(t, tc.expectedVolumeMountPath, volumeMounts[0].MountPath)
+		})
+	}
+}
+
+func TestHandleURLDataSource(t *testing.T) {
+	testcases := map[string]struct {
+		workspaceObj              *kaitov1alpha1.Workspace
+		expectedInitContainerName string
+		expectedImage             string
+		expectedCommands          string
+		expectedVolumeName        string
+		expectedVolumeMountPath   string
+	}{
+		"Handle URL Data Source": {
+			workspaceObj: &kaitov1alpha1.Workspace{
+				Tuning: &kaitov1alpha1.TuningSpec{
+					Input: &kaitov1alpha1.DataSource{
+						URLs: []string{"http://example.com/data1.zip", "http://example.com/data2.zip"},
+					},
+				},
+			},
+			expectedInitContainerName: "data-downloader",
+			expectedImage:             "curlimages/curl",
+			expectedCommands:          "filename=$(basename \"$url\" | sed 's/[?=&]/_/g')\ncurl -sSL $url -o $DATA_VOLUME_PATH/$filename",
+			expectedVolumeName:        "data-volume",
+			expectedVolumeMountPath:   utils.DefaultDataVolumePath,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			initContainers, volumes, volumeMounts := handleURLDataSource(context.Background(), tc.workspaceObj)
+
+			assert.Len(t, initContainers, 1)
+			assert.Equal(t, tc.expectedInitContainerName, initContainers[0].Name)
+			assert.Equal(t, tc.expectedImage, initContainers[0].Image)
+			assert.Contains(t, normalize(initContainers[0].Command[2]), normalize(tc.expectedCommands))
 
 			assert.Len(t, volumes, 1)
 			assert.Equal(t, tc.expectedVolumeName, volumes[0].Name)
