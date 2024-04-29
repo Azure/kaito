@@ -37,7 +37,7 @@ rules:
     resources: [ "statefulsets" ]
     verbs: [ "get","list","watch","create", "delete","update", "patch" ]
   - apiGroups: ["karpenter.sh"]
-    resources: ["machines", "machines/status"]
+    resources: ["machines", "machines/status", "nodepools", "nodepools/status", "nodeclaims", "nodeclaims/status"]
     verbs: ["get","list","watch","create", "delete", "update", "patch"]
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["validatingwebhookconfigurations"]

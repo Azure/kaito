@@ -5,9 +5,11 @@ package resources
 import (
 	"context"
 	"fmt"
+
 	batchv1 "k8s.io/api/batch/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
+
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/samber/lo"
@@ -250,6 +252,11 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 		kaitov1alpha1.LabelWorkspaceName: wObj.Name,
 	}
 	pushMethod, pushArg := determinePushMethod(wObj)
+	//TODO:
+	// Will be included in future PR, this code includes
+	// bash script for pushing results based on user
+	// data destination method
+	//pushMethod, pushArg := determinePushMethod(wObj)
 	return &batchv1.Job{
 		TypeMeta: v1.TypeMeta{
 			APIVersion: "batch/v1",

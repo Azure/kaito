@@ -103,7 +103,7 @@ func EnsureTuningConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 			return err
 		}
 	} else {
-		klog.Info("ConfigMap already exists in target namespace: %s, no action taken.\n", workspaceObj.Namespace)
+		klog.Infof("ConfigMap already exists in target namespace: %s, no action taken.\n", workspaceObj.Namespace)
 		return nil
 	}
 
@@ -185,6 +185,10 @@ func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspac
 		initContainers, volumes, volumeMounts = handleURLDataSource(ctx, workspaceObj)
 	case workspaceObj.Tuning.Input.Volume != nil:
 		initContainers, volumes, volumeMounts = handleVolumeDataSource(ctx, workspaceObj)
+		_, imagePullSecrets = GetDataSrcImageInfo(ctx, workspaceObj)
+		// TODO: Future PR include
+		// case len(workspaceObj.Tuning.Input.URLs) > 0:
+		// case workspaceObj.Tuning.Input.Volume != nil:
 	}
 	return initContainers, imagePullSecrets, volumes, volumeMounts, nil
 }
