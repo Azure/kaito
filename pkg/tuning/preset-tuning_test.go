@@ -5,10 +5,11 @@ package tuning
 
 import (
 	"context"
-	"github.com/azure/kaito/pkg/utils"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/azure/kaito/pkg/utils"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/model"
