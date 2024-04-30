@@ -7,6 +7,7 @@ import (
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/machine"
+	"github.com/azure/kaito/pkg/nodeclaim"
 	"github.com/azure/kaito/pkg/utils/consts"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -18,6 +19,7 @@ import (
 func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace) (ctrl.Result, error) {
 	klog.InfoS("garbageCollectWorkspace", "workspace", klog.KObj(wObj))
 
+	// Check if there are any machines associated with this workspace.
 	mList, err := machine.ListMachinesByWorkspace(ctx, wObj, c.Client)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -27,6 +29,22 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 		if deleteErr := c.Delete(ctx, &mList.Items[i], &client.DeleteOptions{}); deleteErr != nil {
 			klog.ErrorS(deleteErr, "failed to delete the machine", "machine", klog.KObj(&mList.Items[i]))
 			return ctrl.Result{}, deleteErr
+		}
+	}
+
+	if c.KubernetesVersion.Major >= "29" {
+		// Check if there are any nodeClaims associated with this workspace.
+		ncList, err := nodeclaim.ListNodeClaimByWorkspace(ctx, wObj, c.Client)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
+		// We should delete all the nodeClaims that are created by this workspace
+		for i := range ncList.Items {
+			if deleteErr := c.Delete(ctx, &ncList.Items[i], &client.DeleteOptions{}); deleteErr != nil {
+				klog.ErrorS(deleteErr, "failed to delete the nodeClaim", "nodeClaim", klog.KObj(&ncList.Items[i]))
+				return ctrl.Result{}, deleteErr
+			}
 		}
 	}
 

@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
+
 package nodeclaim
 
 import (
@@ -24,10 +25,8 @@ import (
 )
 
 const (
-	NodePoolName                  = "default"
-	LabelGPUProvisionerCustom     = "kaito.sh/nodeclaim-type"
-	LabelNodePoolName             = "karpenter.sh/nodepool-name"
-	GPUString                     = "gpu"
+	KaitoNodePoolName             = "kaito"
+	LabelNodePool                 = "karpenter.sh/nodepool"
 	ErrorInstanceTypesUnavailable = "all requested instance types were unavailable during launch"
 )
 
@@ -41,7 +40,7 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 	digest := sha256.Sum256([]byte(workspaceObj.Namespace + workspaceObj.Name + time.Now().Format("2006-01-02 15:04:05.000000000"))) // We make sure the nodeClaim name is not fixed to the a workspace
 	nodeClaimName := "ws" + hex.EncodeToString(digest[0:])[0:9]
 	nodeClaimLabels := map[string]string{
-		LabelNodePoolName:                     NodePoolName,
+		LabelNodePool:                         KaitoNodePoolName,
 		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
 		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
 	}
@@ -69,17 +68,9 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 				},
 				{
 					NodeSelectorRequirement: v1.NodeSelectorRequirement{
-						Key:      LabelNodePoolName,
+						Key:      LabelNodePool,
 						Operator: v1.NodeSelectorOpIn,
-						Values:   []string{NodePoolName},
-					},
-					MinValues: lo.ToPtr(1),
-				},
-				{
-					NodeSelectorRequirement: v1.NodeSelectorRequirement{
-						Key:      LabelGPUProvisionerCustom,
-						Operator: v1.NodeSelectorOpIn,
-						Values:   []string{GPUString},
+						Values:   []string{KaitoNodePoolName},
 					},
 					MinValues: lo.ToPtr(1),
 				},
@@ -103,7 +94,7 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 			Taints: []v1.Taint{
 				{
 					Key:    "sku",
-					Value:  GPUString,
+					Value:  "gpu",
 					Effect: v1.TaintEffectNoSchedule,
 				},
 			},

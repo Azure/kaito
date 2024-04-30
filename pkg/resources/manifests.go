@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
+
 package resources
 
 import (
@@ -48,7 +49,7 @@ func GenerateHeadlessServiceManifest(ctx context.Context, workspaceObj *kaitov1a
 					Name:       "torchrun",
 					Protocol:   corev1.ProtocolTCP,
 					Port:       29500,
-					TargetPort: intstr.FromInt(29500),
+					TargetPort: intstr.FromInt32(29500),
 				},
 			},
 			PublishNotReadyAddresses: true,
@@ -88,14 +89,14 @@ func GenerateServiceManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Wo
 					Name:       "http",
 					Protocol:   corev1.ProtocolTCP,
 					Port:       80,
-					TargetPort: intstr.FromInt(5000),
+					TargetPort: intstr.FromInt32(5000),
 				},
 				// Torch NCCL Port
 				{
 					Name:       "torch",
 					Protocol:   corev1.ProtocolTCP,
 					Port:       29500,
-					TargetPort: intstr.FromInt(29500),
+					TargetPort: intstr.FromInt32(29500),
 				},
 			},
 			Selector: selector,
