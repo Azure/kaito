@@ -8,7 +8,7 @@ import (
 
 const (
 	DefaultVolumeMountPath    = "/dev/shm"
-	DefaultConfigMapMountPath = "/config"
+	DefaultConfigMapMountPath = "/mnt/config"
 	DefaultDataVolumePath     = "/mnt/data"
 )
 

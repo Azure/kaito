@@ -3,8 +3,10 @@ package tuning
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"os"
+	"strings"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/model"
@@ -158,8 +160,9 @@ func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspac
 	case workspaceObj.Tuning.Input.Image != "":
 		initContainers, volumes, volumeMounts = handleImageDataSource(ctx, workspaceObj)
 		_, imagePullSecrets = GetDataSrcImageInfo(ctx, workspaceObj)
+	case len(workspaceObj.Tuning.Input.URLs) > 0:
+		initContainers, volumes, volumeMounts = handleURLDataSource(ctx, workspaceObj)
 		// TODO: Future PR include
-		// case len(workspaceObj.Tuning.Input.URLs) > 0:
 		// case workspaceObj.Tuning.Input.Volume != nil:
 	}
 	return initContainers, imagePullSecrets, volumes, volumeMounts, nil
@@ -181,6 +184,38 @@ func handleImageDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		},
 	})
 
+	volumes, volumeMounts := utils.ConfigDataVolume("")
+	return initContainers, volumes, volumeMounts
+}
+
+func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.Volume, []corev1.VolumeMount) {
+	var initContainers []corev1.Container
+	initContainers = append(initContainers, corev1.Container{
+		Name:  "data-downloader",
+		Image: "curlimages/curl",
+		Command: []string{"sh", "-c", `
+			for url in $DATA_URLS; do
+				filename=$(basename "$url" | sed 's/[?=&]/_/g')
+				curl -sSL $url -o $DATA_VOLUME_PATH/$filename
+			done
+		`},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "data-volume",
+				MountPath: utils.DefaultDataVolumePath,
+			},
+		},
+		Env: []corev1.EnvVar{
+			{
+				Name:  "DATA_URLS",
+				Value: strings.Join(workspaceObj.Tuning.Input.URLs, " "),
+			},
+			{
+				Name:  "DATA_VOLUME_PATH",
+				Value: utils.DefaultDataVolumePath,
+			},
+		},
+	})
 	volumes, volumeMounts := utils.ConfigDataVolume("")
 	return initContainers, volumes, volumeMounts
 }
