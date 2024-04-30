@@ -184,7 +184,7 @@ func handleImageDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		},
 	})
 
-	volumes, volumeMounts := utils.ConfigDataVolume("")
+	volumes, volumeMounts := utils.ConfigDataVolume(nil)
 	return initContainers, volumes, volumeMounts
 }
 
@@ -216,7 +216,7 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 			},
 		},
 	})
-	volumes, volumeMounts := utils.ConfigDataVolume("")
+	volumes, volumeMounts := utils.ConfigDataVolume(nil)
 	return initContainers, volumes, volumeMounts
 }
 

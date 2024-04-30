@@ -56,14 +56,14 @@ func ConfigCMVolume(cmName string) (corev1.Volume, corev1.VolumeMount) {
 	return volume, volumeMount
 }
 
-func ConfigDataVolume(hostPath string) ([]corev1.Volume, []corev1.VolumeMount) {
+func ConfigDataVolume(hostPath *string) ([]corev1.Volume, []corev1.VolumeMount) {
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
 	var volumeSource corev1.VolumeSource
-	if hostPath != "" {
+	if hostPath != nil {
 		volumeSource = corev1.VolumeSource{
 			HostPath: &corev1.HostPathVolumeSource{
-				Path: hostPath,
+				Path: *hostPath,
 			},
 		}
 	} else {
