@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/azure/kaito/pkg/k8sclient"
+	"github.com/azure/kaito/pkg/utils/consts"
+	cliflag "k8s.io/component-base/cli/flag"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 
@@ -64,6 +66,7 @@ func main() {
 	var enableLeaderElection bool
 	var enableWebhook bool
 	var probeAddr string
+	var featureGates string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -71,6 +74,7 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&enableWebhook, "webhook", true,
 		"Enable webhook for controller manager. Default is true.")
+	flag.StringVar(&featureGates, "feature-gates", "karpenter=false", "Enable Kaito feature gates. Default,	karpenter=false.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -144,6 +148,10 @@ func main() {
 
 		// wait 2 seconds to allow reconciling webhookconfiguration and service endpoint.
 		time.Sleep(2 * time.Second)
+		if err = ParseFeatureGates(featureGates); err != nil {
+			klog.ErrorS(err, "unable to parse `feature-gates` flag")
+			exitWithErrorFunc()
+		}
 	}
 
 	klog.InfoS("starting manager")
@@ -151,4 +159,19 @@ func main() {
 		klog.ErrorS(err, "problem running manager")
 		exitWithErrorFunc()
 	}
+}
+
+// ParseFeatureGates parses the feature gates flag and sets the environment variables for each feature.
+func ParseFeatureGates(featureGates string) error {
+	gateMap := map[string]bool{}
+
+	if err := cliflag.NewMapStringBool(&gateMap).Set(featureGates); err != nil {
+		return err
+	}
+	if val, ok := gateMap["karpenter"]; ok {
+		// set the environment variable to enable karpenter feature
+		return os.Setenv(consts.FeatureFlagEnableKarpenter, strconv.FormatBool(val))
+	}
+	// add more feature gates here
+	return nil
 }
