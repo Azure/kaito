@@ -6,19 +6,21 @@ import (
 	"os"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/klog/v2"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/resources"
 	"github.com/azure/kaito/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
+	ProbePath  = "/healthz"
 	Port5000   = int32(5000)
 	TuningFile = "fine_tuning_api.py"
 )
@@ -26,11 +28,30 @@ const (
 var (
 	containerPorts = []corev1.ContainerPort{{
 		ContainerPort: Port5000,
-	}}
+	},
+	}
 
-	// Come up with valid liveness and readiness probes for fine-tuning
-	// TODO: livenessProbe = &corev1.Probe{}
-	// TODO: readinessProbe = &corev1.Probe{}
+	livenessProbe = &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Port: intstr.FromInt(5000),
+				Path: ProbePath,
+			},
+		},
+		InitialDelaySeconds: 600, // 10 minutes
+		PeriodSeconds:       10,
+	}
+
+	readinessProbe = &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Port: intstr.FromInt(5000),
+				Path: ProbePath,
+			},
+		},
+		InitialDelaySeconds: 30,
+		PeriodSeconds:       10,
+	}
 
 	tolerations = []corev1.Toleration{
 		{
@@ -141,7 +162,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	tuningImage := GetTuningImageInfo(ctx, workspaceObj, tuningObj)
 
 	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, tuningImage, imagePullSecrets, *workspaceObj.Resource.Count, commands,
-		containerPorts, nil, nil, resourceReq, tolerations, initContainers, volumes, volumeMounts)
+		containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, initContainers, volumes, volumeMounts)
 
 	err = resources.CreateResource(ctx, jobObj, kubeClient)
 	if client.IgnoreAlreadyExists(err) != nil {
@@ -159,6 +180,11 @@ func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspac
 	switch {
 	case workspaceObj.Tuning.Input.Image != "":
 		initContainers, volumes, volumeMounts = handleImageDataSource(ctx, workspaceObj)
+		imagePullSecrets = getImageSecrets(ctx, workspaceObj)
+	case len(workspaceObj.Tuning.Input.URLs) > 0:
+		initContainers, volumes, volumeMounts = handleURLDataSource(ctx, workspaceObj)
+	case workspaceObj.Tuning.Input.Volume != nil:
+		initContainers, volumes, volumeMounts = handleVolumeDataSource(ctx, workspaceObj)
 		_, imagePullSecrets = GetDataSrcImageInfo(ctx, workspaceObj)
 	case len(workspaceObj.Tuning.Input.URLs) > 0:
 		initContainers, volumes, volumeMounts = handleURLDataSource(ctx, workspaceObj)
@@ -166,6 +192,14 @@ func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspac
 		// case workspaceObj.Tuning.Input.Volume != nil:
 	}
 	return initContainers, imagePullSecrets, volumes, volumeMounts, nil
+}
+
+func getImageSecrets(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) []corev1.LocalObjectReference {
+	imagePullSecretRefs := []corev1.LocalObjectReference{}
+	for _, secretName := range workspaceObj.Tuning.Input.ImagePullSecrets {
+		imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
+	}
+	return imagePullSecretRefs
 }
 
 func handleImageDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.Volume, []corev1.VolumeMount) {
@@ -220,6 +254,27 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 	return initContainers, volumes, volumeMounts
 }
 
+func handleVolumeDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.Volume, []corev1.VolumeMount) {
+	var initContainers []corev1.Container
+	_ = workspaceObj.Tuning.Input.Volume
+	// TODO
+	// volumes, volumeMounts := utils.ConfigDataVolume(hostPath)
+	// return initContainers, volumes, volumeMounts
+	return initContainers, []corev1.Volume{}, []corev1.VolumeMount{}
+}
+
+func getDataDestinationImage(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) (string, []corev1.LocalObjectReference) {
+	imageName := workspaceObj.Tuning.Output.Image
+	imagePushSecrets := []corev1.LocalObjectReference{{Name: workspaceObj.Tuning.Output.ImagePushSecret}}
+	return imageName, imagePushSecrets
+}
+
+func getDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
+	tuningObj *model.PresetParam, kubeClient client.Client) (client.Object, error) {
+	// TODO
+	return nil, nil
+}
+
 func prepareModelRunParameters(ctx context.Context, tuningObj *model.PresetParam) (string, error) {
 	modelCommand := utils.BuildCmdStr(TuningFile, tuningObj.ModelRunParams)
 	return modelCommand, nil
@@ -227,7 +282,7 @@ func prepareModelRunParameters(ctx context.Context, tuningObj *model.PresetParam
 
 // prepareTuningParameters builds a PyTorch command:
 // accelerate launch <TORCH_PARAMS> baseCommand <MODEL_PARAMS>
-// and sets the GPU resources required for tuning.
+// and sets the GPU resources required for inference.
 // Returns the command and resource configuration.
 func prepareTuningParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, modelCommand string, tuningObj *model.PresetParam) ([]string, corev1.ResourceRequirements) {
 	// Set # of processes to GPU Count

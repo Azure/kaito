@@ -2,19 +2,21 @@ apiVersion: kaito.sh/v1alpha1
 kind: Workspace
 metadata:
   name: workspace-tuning-falcon-7b
-spec:
-  resource:
-    instanceType: "Standard_NC12s_v3"
-    labelSelector:
-      matchLabels:
-        app: tuning-falcon-7b
-  tuning:
-    preset:
-      name: falcon-7b
-    method: lora
-    config: tuning-config-map  # ConfigMap containing tuning arguments
-    input:
-      name: tuning-data
-      hostPath: /path/to/your/input/data  # dataset on node
-    output:
-      hostPath: /path/to/store/output # Tuning Output
+resource:
+  instanceType: "Standard_NC12s_v3"
+  labelSelector:
+    matchLabels:
+      app: tuning-falcon-7b
+tuning:
+  preset:
+    name: falcon-7b
+  method: lora
+  configTemplate: lora-params-template  # ConfigMap containing tuning arguments
+  input:
+    image: aimodelsregistrytest.azurecr.io/kaito-mental-health-fine-tuning-dataset:0.0.1
+    imagePullSecrets:
+      - aimodelsregistrysecret
+  output:
+    image: aimodelsregistrysecret.azurecr.io/adapter-output:0.0.1  # Tuning Output
+    imagePushSecret: aimodelsregistrysecret
+

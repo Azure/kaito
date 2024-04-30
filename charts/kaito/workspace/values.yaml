@@ -3,9 +3,9 @@
 # Declare variables to be passed into your templates.
 replicaCount: 1
 image:
-  repository: mcr.microsoft.com/aks/kaito/workspace
+  repository: aimodelsregistrytest.azurecr.io/kaito
   pullPolicy: IfNotPresent
-  tag: 0.2.2
+  tag: 0.6.5
 imagePullSecrets: []
 podAnnotations: {}
 podSecurityContext:
@@ -17,7 +17,7 @@ securityContext:
       - "ALL"
 webhook:
   port: 9443
-presetRegistryName: mcr.microsoft.com/aks/kaito
+presetRegistryName: aimodelsregistrytest.azurecr.io
 resources:
   limits:
     cpu: 500m

@@ -1,0 +1,7 @@
+FROM alpine:latest
+
+WORKDIR /dataset
+
+COPY DATASET_DIR /dataset/
+
+CMD ["sh", "-c", "sleep 10"]

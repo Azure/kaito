@@ -714,10 +714,11 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 		{
 			name: "All fields valid",
 			tuningSpec: &TuningSpec{
-				Input:  &DataSource{Name: "valid-input", Volume: &v1.VolumeSource{}},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
-				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
-				Method: TuningMethodLora,
+				Input:          &DataSource{Name: "valid-input", Volume: &v1.VolumeSource{}},
+				Output:         &DataDestination{Volume: &v1.VolumeSource{}},
+				Preset:         &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method:         TuningMethodLora,
+				ConfigTemplate: DefaultLoraConfigMapTemplate,
 			},
 			wantErr:   false,
 			errFields: nil,

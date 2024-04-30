@@ -25,6 +25,10 @@ var (
 		"Phi2": "0.0.3",
 	}
 
+	PresetTuningPhiTagMap = map[string]string{
+		"Phi2": "0.0.1",
+	}
+
 	baseCommandPresetPhi = "accelerate launch"
 	phiRunParams         = map[string]string{
 		"torch_dtype": "float16",
@@ -63,7 +67,7 @@ func (*phi2) GetTuningParameters() *model.PresetParam {
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
 		BaseCommand:      baseCommandPresetPhi,
-		Tag:              PresetPhiTagMap["Phi2"],
+		Tag:              PresetTuningPhiTagMap["Phi2"],
 	}
 }
 func (*phi2) SupportDistributedInference() bool {

@@ -31,6 +31,10 @@ var (
 		"Mistral7BInstruct": "0.0.4",
 	}
 
+	PresetTuningMistralTagMap = map[string]string{
+		"Mistral7B": "0.0.1",
+	}
+
 	baseCommandPresetMistral = "accelerate launch"
 	mistralRunParams         = map[string]string{
 		"torch_dtype": "bfloat16",
@@ -70,7 +74,7 @@ func (*mistral7b) GetTuningParameters() *model.PresetParam {
 		//ModelRunParams:            mistralRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
 		BaseCommand:      baseCommandPresetMistral,
-		Tag:              PresetMistralTagMap["Mistral7B"],
+		Tag:              PresetTuningMistralTagMap["Mistral7B"],
 	}
 }
 
