@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/azure/kaito/pkg/tuning"
+	"github.com/azure/kaito/pkg/utils/consts"
 	batchv1 "k8s.io/api/batch/v1"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -66,8 +67,8 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		return c.deleteWorkspace(ctx, workspaceObj)
 	} else {
 		// Ensure finalizer
-		if !controllerutil.ContainsFinalizer(workspaceObj, utils.WorkspaceFinalizer) {
-			controllerutil.AddFinalizer(workspaceObj, utils.WorkspaceFinalizer)
+		if !controllerutil.ContainsFinalizer(workspaceObj, consts.WorkspaceFinalizer) {
+			controllerutil.AddFinalizer(workspaceObj, consts.WorkspaceFinalizer)
 			updateCopy := workspaceObj.DeepCopy()
 			if updateErr := c.Update(ctx, updateCopy, &client.UpdateOptions{}); updateErr != nil {
 				klog.ErrorS(updateErr, "failed to ensure the finalizer to the workspace",

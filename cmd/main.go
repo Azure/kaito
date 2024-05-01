@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/k8sclient"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
@@ -64,6 +65,7 @@ func main() {
 	var enableLeaderElection bool
 	var enableWebhook bool
 	var probeAddr string
+	var featureGates string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -71,6 +73,7 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&enableWebhook, "webhook", true,
 		"Enable webhook for controller manager. Default is true.")
+	flag.StringVar(&featureGates, "feature-gates", "Karpenter=false", "Enable Kaito feature gates. Default,	Karpenter=false.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -144,6 +147,11 @@ func main() {
 
 		// wait 2 seconds to allow reconciling webhookconfiguration and service endpoint.
 		time.Sleep(2 * time.Second)
+
+		if err = featuregates.ParseAndValidateFeatureGates(featureGates); err != nil {
+			klog.ErrorS(err, "unable to set `feature-gates` flag")
+			exitWithErrorFunc()
+		}
 	}
 
 	klog.InfoS("starting manager")

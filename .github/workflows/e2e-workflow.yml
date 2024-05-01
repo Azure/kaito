@@ -19,7 +19,7 @@ on:
         default: "eastus"
       k8s_version:
         type: string
-        default: "1.27"
+        default: "1.29.2"
     secrets:
       E2E_CLIENT_ID:
         required: true
