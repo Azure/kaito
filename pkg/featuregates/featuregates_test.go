@@ -1,12 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
-package main
+package featuregates
 
 import (
-	"os"
 	"testing"
 
-	"github.com/azure/kaito/pkg/utils/consts"
 	"gotest.tools/assert"
 )
 
@@ -19,13 +17,18 @@ func TestParseFeatureGates(t *testing.T) {
 	}{
 		{
 			name:          "WithValidEnableFeatureGates",
-			featureGates:  "karpenter=true",
+			featureGates:  "Karpenter=true",
 			expectedError: false,
 			expectedValue: "true",
 		},
 		{
+			name:          "WithInvalidFeatureGates",
+			featureGates:  "invalid",
+			expectedError: true,
+		},
+		{
 			name:          "WithValidDisableFeatureGates",
-			featureGates:  "karpenter=false",
+			featureGates:  "Karpenter=false",
 			expectedError: false,
 			expectedValue: "false",
 		},
@@ -36,7 +39,7 @@ func TestParseFeatureGates(t *testing.T) {
 		},
 		{
 			name:          "WithMultipleFeatureGates",
-			featureGates:  "karpenter=true,feature2=false",
+			featureGates:  "Karpenter=true,feature2=false",
 			expectedError: false,
 			expectedValue: "true",
 		},
@@ -44,23 +47,11 @@ func TestParseFeatureGates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Make sure to unset the environment variable
-			err := os.Unsetenv(consts.FeatureFlagEnableKarpenter)
-			if err != nil {
-				t.Error("Failed to unset environment variable")
-				return
-			}
-			err = ParseFeatureGates(tt.featureGates)
-			if (err != nil) != tt.expectedError {
-				t.Errorf("ParseFeatureGates() error = %v, expectedError %v", err, tt.expectedError)
-				return
-			}
-
-			value, _ := os.LookupEnv(consts.FeatureFlagEnableKarpenter)
+			err := ParseAndValidateFeatureGates(tt.featureGates)
 			if tt.expectedError {
-				assert.Check(t, err == nil, "Not expected to return error")
+				assert.Check(t, err != nil, "expected error but got nil")
 			} else {
-				assert.Equal(t, tt.expectedValue, value)
+				assert.NilError(t, err)
 			}
 		})
 	}

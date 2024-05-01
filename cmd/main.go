@@ -8,9 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/k8sclient"
-	"github.com/azure/kaito/pkg/utils/consts"
-	cliflag "k8s.io/component-base/cli/flag"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 
@@ -74,7 +73,7 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&enableWebhook, "webhook", true,
 		"Enable webhook for controller manager. Default is true.")
-	flag.StringVar(&featureGates, "feature-gates", "karpenter=false", "Enable Kaito feature gates. Default,	karpenter=false.")
+	flag.StringVar(&featureGates, "feature-gates", "Karpenter=false", "Enable Kaito feature gates. Default,	Karpenter=false.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -148,8 +147,9 @@ func main() {
 
 		// wait 2 seconds to allow reconciling webhookconfiguration and service endpoint.
 		time.Sleep(2 * time.Second)
-		if err = ParseFeatureGates(featureGates); err != nil {
-			klog.ErrorS(err, "unable to parse `feature-gates` flag")
+
+		if err = featuregates.ParseAndValidateFeatureGates(featureGates); err != nil {
+			klog.ErrorS(err, "unable to set `feature-gates` flag")
 			exitWithErrorFunc()
 		}
 	}
@@ -159,19 +159,4 @@ func main() {
 		klog.ErrorS(err, "problem running manager")
 		exitWithErrorFunc()
 	}
-}
-
-// ParseFeatureGates parses the feature gates flag and sets the environment variables for each feature.
-func ParseFeatureGates(featureGates string) error {
-	gateMap := map[string]bool{}
-
-	if err := cliflag.NewMapStringBool(&gateMap).Set(featureGates); err != nil {
-		return err
-	}
-	if val, ok := gateMap["karpenter"]; ok {
-		// set the environment variable to enable karpenter feature
-		return os.Setenv(consts.FeatureFlagEnableKarpenter, strconv.FormatBool(val))
-	}
-	// add more feature gates here
-	return nil
 }
