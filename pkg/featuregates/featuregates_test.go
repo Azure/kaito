@@ -22,8 +22,19 @@ func TestParseFeatureGates(t *testing.T) {
 			expectedValue: "true",
 		},
 		{
+			name:          "WithDuplicateFeatureGates",
+			featureGates:  "Karpenter=false,Karpenter=true",
+			expectedError: false,
+			expectedValue: "true", // Apply the last value.
+		},
+		{
 			name:          "WithInvalidFeatureGates",
 			featureGates:  "invalid",
+			expectedError: true,
+		},
+		{
+			name:          "WithUnsupportedFeatureGate",
+			featureGates:  "unsupported=true,Karpenter=false",
 			expectedError: true,
 		},
 		{
@@ -36,12 +47,6 @@ func TestParseFeatureGates(t *testing.T) {
 			name:          "WithEmptyFeatureGates",
 			featureGates:  "",
 			expectedError: false,
-		},
-		{
-			name:          "WithMultipleFeatureGates",
-			featureGates:  "Karpenter=true,feature2=false",
-			expectedError: false,
-			expectedValue: "true",
 		},
 	}
 
