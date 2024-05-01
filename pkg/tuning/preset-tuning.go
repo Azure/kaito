@@ -121,6 +121,14 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		return nil, err
 	}
 
+	workspaceVolume, workspaceVolumeMount := utils.ConfigWorkspaceVolume()
+	if workspaceVolume.Name != "" {
+		volumes = append(volumes, workspaceVolume)
+	}
+	if workspaceVolumeMount.Name != "" {
+		volumeMounts = append(volumeMounts, workspaceVolumeMount)
+	}
+
 	shmVolume, shmVolumeMount := utils.ConfigSHMVolume(*workspaceObj.Resource.Count)
 	if shmVolume.Name != "" {
 		volumes = append(volumes, shmVolume)

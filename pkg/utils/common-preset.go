@@ -7,10 +7,25 @@ import (
 )
 
 const (
-	DefaultVolumeMountPath    = "/dev/shm"
-	DefaultConfigMapMountPath = "/mnt/config"
-	DefaultDataVolumePath     = "/mnt/data"
+	DefaultVolumeMountPath     = "/dev/shm"
+	DefaultConfigMapMountPath  = "/mnt/config"
+	DefaultDataVolumePath      = "/mnt/data"
+	DefaultWorkspaceVolumePath = "/workspace"
 )
+
+func ConfigWorkspaceVolume() (corev1.Volume, corev1.VolumeMount) {
+	sharedWorkspaceVolume := corev1.Volume{
+		Name: "workspace-volume",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	}
+	sharedVolumeMount := corev1.VolumeMount{
+		Name:      "workspace-volume",
+		MountPath: DefaultWorkspaceVolumePath,
+	}
+	return sharedWorkspaceVolume, sharedVolumeMount
+}
 
 func ConfigSHMVolume(instanceCount int) (corev1.Volume, corev1.VolumeMount) {
 	volume := corev1.Volume{}
