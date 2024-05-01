@@ -35,5 +35,5 @@ rules:
     verbs: [ "get", "list", "watch", "create", "delete", "update", "patch" ]
   - apiGroups: [ "admissionregistration.k8s.io" ]
     resources: [ "validatingwebhookconfigurations" ]
-    verbs: [ "get", "list", "watch", "update" ]
+    verbs: [ "update" ]
     resourceNames: [ "validation.workspace.kaito.sh" ]
