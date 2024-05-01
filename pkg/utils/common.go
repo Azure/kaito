@@ -1,17 +1,14 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
+
 package utils
 
 import (
 	"fmt"
 	"io/ioutil"
 	"os"
-)
 
-const (
-	// WorkspaceFinalizer is used to make sure that workspace controller handles garbage collection.
-	WorkspaceFinalizer            = "workspace.finalizer.kaito.sh"
-	DefaultReleaseNamespaceEnvVar = "RELEASE_NAMESPACE"
+	"github.com/azure/kaito/pkg/utils/consts"
 )
 
 func Contains(s []string, e string) bool {
@@ -76,8 +73,8 @@ func GetReleaseNamespace() (string, error) {
 	}
 
 	// Fallback: Read the namespace from an environment variable
-	if namespace, exists := os.LookupEnv(DefaultReleaseNamespaceEnvVar); exists {
+	if namespace, exists := os.LookupEnv(consts.DefaultReleaseNamespaceEnvVar); exists {
 		return namespace, nil
 	}
-	return "", fmt.Errorf("failed to determine release namespace from file %s and env var %s", namespaceFilePath, DefaultReleaseNamespaceEnvVar)
+	return "", fmt.Errorf("failed to determine release namespace from file %s and env var %s", namespaceFilePath, consts.DefaultReleaseNamespaceEnvVar)
 }
