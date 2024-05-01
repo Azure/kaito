@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/azure/kaito/pkg/utils"
+	"github.com/azure/kaito/pkg/utils/consts"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/model"
@@ -169,7 +170,7 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 	}{
 		"Config already exists in workspace namespace": {
 			callMocks: func(c *test.MockClient) {
-				os.Setenv("RELEASE_NAMESPACE", "release-namespace")
+				os.Setenv(consts.DefaultReleaseNamespaceEnvVar, "release-namespace")
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(nil)
 			},
 			workspaceObj: &kaitov1alpha1.Workspace{
@@ -192,7 +193,7 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 		},
 		"Config doesn't exist in template namespace": {
 			callMocks: func(c *test.MockClient) {
-				os.Setenv("RELEASE_NAMESPACE", "release-namespace")
+				os.Setenv(consts.DefaultReleaseNamespaceEnvVar, "release-namespace")
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(errors.NewNotFound(schema.GroupResource{}, "config-template"))
 			},
 			workspaceObj: &kaitov1alpha1.Workspace{

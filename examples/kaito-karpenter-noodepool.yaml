@@ -1,0 +1,22 @@
+---
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: kaito-nodepool
+  annotations:
+    kubernetes.io/description: "General purpose NodePool for generic workloads"
+spec:
+  disruption:
+    consolidateAfter: Never
+    consolidationPolicy: WhenEmpty
+    expireAfter: Never
+  template:
+    spec:
+      requirements:
+---
+apiVersion: karpenter.azure.com/v1alpha2
+kind: AKSNodeClass
+metadata:
+  name: default
+spec:
+  imageFamily: Ubuntu2204

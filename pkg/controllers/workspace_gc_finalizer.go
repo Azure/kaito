@@ -7,7 +7,7 @@ import (
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/machine"
-	"github.com/azure/kaito/pkg/utils"
+	"github.com/azure/kaito/pkg/utils/consts"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,6 +39,6 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 	}
 	klog.InfoS("successfully removed the workspace finalizers",
 		"workspace", klog.KObj(wObj))
-	controllerutil.RemoveFinalizer(wObj, utils.WorkspaceFinalizer)
+	controllerutil.RemoveFinalizer(wObj, consts.WorkspaceFinalizer)
 	return ctrl.Result{}, nil
 }
