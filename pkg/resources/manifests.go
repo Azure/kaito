@@ -192,6 +192,7 @@ func dockerSidecarScriptPushToVolume(arg interface{}) string {
 }
 func dockerSidecarScriptPushImage(arg interface{}) string {
 	image, _ := arg.(string)
+	// TODO: Override output path if specified in trainingconfig (instead of /mnt/results)
 	return fmt.Sprintf(`
 # Start the Docker daemon in the background with specific options for DinD
 dockerd &
@@ -288,17 +289,6 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 							ReadinessProbe: readinessProbe,
 							Ports:          containerPorts,
 							VolumeMounts:   volumeMounts,
-						},
-						{
-							Name:    wObj.Name + "dup",
-							Image:   imageName,
-							Command: []string{"/bin/sh", "-c"},
-							Args:    []string{"sleep infinity"},
-							//Resources: resourceRequirements,
-							//LivenessProbe:  livenessProbe,
-							//ReadinessProbe: readinessProbe,
-							Ports:        containerPorts,
-							VolumeMounts: volumeMounts,
 						},
 						{
 							Name:  "docker-sidecar",
