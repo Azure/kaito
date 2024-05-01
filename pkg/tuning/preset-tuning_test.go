@@ -188,7 +188,7 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 					ConfigTemplate: "config-template",
 				},
 			},
-			expectedError: "failed to get ConfigMap from template namespace:  \"config-template\" not found",
+			expectedError: "failed to get release namespace: failed to determine release namespace from file /var/run/secrets/kubernetes.io/serviceaccount/namespace and env var RELEASE_NAMESPACE",
 		},
 		"Config doesn't exist in template namespace": {
 			callMocks: func(c *test.MockClient) {
