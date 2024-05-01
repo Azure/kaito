@@ -3,6 +3,7 @@
 package falcon
 
 import (
+	"github.com/azure/kaito/pkg/tuning"
 	"time"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -39,8 +40,10 @@ var (
 	PresetFalconTagMap = map[string]string{
 		"Falcon7B":          "0.0.4",
 		"Falcon7BInstruct":  "0.0.4",
+		"Falcon7BTuning":    "0.0.2",
 		"Falcon40B":         "0.0.5",
 		"Falcon40BInstruct": "0.0.5",
+		"Falcon40BTuning":   "0.0.2",
 	}
 
 	baseCommandPresetFalcon = "accelerate launch"
@@ -77,11 +80,11 @@ func (*falcon7b) GetTuningParameters() *model.PresetParam {
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "16Gi",
 		PerGPUMemoryRequirement:   "16Gi",
-		//TorchRunParams:            tuning.DefaultAccelerateParams, // TODO
+		TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunPrams:             falconRunTuningParams, // TODO
 		ReadinessTimeout: time.Duration(30) * time.Minute,
 		BaseCommand:      baseCommandPresetFalcon,
-		Tag:              PresetFalconTagMap["Falcon7B"],
+		Tag:              PresetFalconTagMap["Falcon7BTuning"],
 	}
 }
 
@@ -150,11 +153,11 @@ func (*falcon40b) GetTuningParameters() *model.PresetParam {
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "90Gi",
 		PerGPUMemoryRequirement:   "16Gi",
-		//TorchRunParams:            tuning.DefaultAccelerateParams, // TODO
+		TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunPrams:             falconRunTuningParams, // TODO
 		ReadinessTimeout: time.Duration(30) * time.Minute,
 		BaseCommand:      baseCommandPresetFalcon,
-		Tag:              PresetFalconTagMap["Falcon40B"],
+		Tag:              PresetFalconTagMap["Falcon40BTuning"],
 	}
 }
 func (*falcon40b) SupportDistributedInference() bool {

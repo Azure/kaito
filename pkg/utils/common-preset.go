@@ -7,24 +7,50 @@ import (
 )
 
 const (
-	DefaultVolumeMountPath     = "/dev/shm"
-	DefaultConfigMapMountPath  = "/mnt/config"
-	DefaultDataVolumePath      = "/mnt/data"
-	DefaultWorkspaceVolumePath = "/workspace"
+	DefaultVolumeMountPath    = "/dev/shm"
+	DefaultConfigMapMountPath = "/mnt/config"
+	DefaultDataVolumePath     = "/mnt/data"
+	DefaultResultsVolumePath  = "/mnt/results"
 )
 
-func ConfigWorkspaceVolume() (corev1.Volume, corev1.VolumeMount) {
+func ConfigResultsVolume() (corev1.Volume, corev1.VolumeMount) {
 	sharedWorkspaceVolume := corev1.Volume{
-		Name: "workspace-volume",
+		Name: "results-volume",
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
 	}
 	sharedVolumeMount := corev1.VolumeMount{
-		Name:      "workspace-volume",
-		MountPath: DefaultWorkspaceVolumePath,
+		Name: "results-volume",
+		// TODO: Override output path if specified in trainingconfig
+		MountPath: DefaultResultsVolumePath,
 	}
 	return sharedWorkspaceVolume, sharedVolumeMount
+}
+
+func ConfigImagePushSecretVolume(imagePushSecret string) (corev1.Volume, corev1.VolumeMount) {
+	volume := corev1.Volume{
+		Name: "docker-config",
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: imagePushSecret,
+				Items: []corev1.KeyToPath{
+					{
+						Key:  ".dockerconfigjson",
+						Path: "config.json",
+					},
+				},
+			},
+		},
+	}
+
+	volumeMount := corev1.VolumeMount{
+		Name:      "docker-config",
+		MountPath: "/root/.docker/config.json",
+		SubPath:   "config.json", // Mount only the config.json file
+	}
+
+	return volume, volumeMount
 }
 
 func ConfigSHMVolume(instanceCount int) (corev1.Volume, corev1.VolumeMount) {

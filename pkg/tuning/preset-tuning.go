@@ -115,18 +115,12 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	if err != nil {
 		return nil, err
 	}
+	_, imagePushSecret := GetDataDestImageInfo(ctx, workspaceObj)
+	combinedSecretRefs := append(imagePushSecret, imagePullSecrets...)
 
 	err = EnsureTuningConfigMap(ctx, workspaceObj, tuningObj, kubeClient)
 	if err != nil {
 		return nil, err
-	}
-
-	workspaceVolume, workspaceVolumeMount := utils.ConfigWorkspaceVolume()
-	if workspaceVolume.Name != "" {
-		volumes = append(volumes, workspaceVolume)
-	}
-	if workspaceVolumeMount.Name != "" {
-		volumeMounts = append(volumeMounts, workspaceVolumeMount)
 	}
 
 	shmVolume, shmVolumeMount := utils.ConfigSHMVolume(*workspaceObj.Resource.Count)
@@ -141,6 +135,20 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	volumes = append(volumes, cmVolume)
 	volumeMounts = append(volumeMounts, cmVolumeMount)
 
+	resultsVolume, resultsVolumeMount := utils.ConfigResultsVolume()
+	if resultsVolume.Name != "" {
+		volumes = append(volumes, resultsVolume)
+	}
+	if resultsVolumeMount.Name != "" {
+		volumeMounts = append(volumeMounts, resultsVolumeMount)
+	}
+
+	if workspaceObj.Tuning.Output.Image != "" {
+		imagePushSecretVolume, imagePushSecretVolumeMount := utils.ConfigImagePushSecretVolume(workspaceObj.Tuning.Output.ImagePushSecret)
+		volumes = append(volumes, imagePushSecretVolume)
+		volumeMounts = append(volumeMounts, imagePushSecretVolumeMount)
+	}
+
 	modelCommand, err := prepareModelRunParameters(ctx, tuningObj)
 	if err != nil {
 		return nil, err
@@ -148,7 +156,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	commands, resourceReq := prepareTuningParameters(ctx, workspaceObj, modelCommand, tuningObj)
 	tuningImage := GetTuningImageInfo(ctx, workspaceObj, tuningObj)
 
-	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, tuningImage, imagePullSecrets, *workspaceObj.Resource.Count, commands,
+	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, tuningImage, combinedSecretRefs, *workspaceObj.Resource.Count, commands,
 		containerPorts, nil, nil, resourceReq, tolerations, initContainers, volumes, volumeMounts)
 
 	err = resources.CreateResource(ctx, jobObj, kubeClient)
@@ -238,6 +246,9 @@ func prepareModelRunParameters(ctx context.Context, tuningObj *model.PresetParam
 // and sets the GPU resources required for tuning.
 // Returns the command and resource configuration.
 func prepareTuningParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, modelCommand string, tuningObj *model.PresetParam) ([]string, corev1.ResourceRequirements) {
+	if tuningObj.TorchRunParams == nil {
+		tuningObj.TorchRunParams = make(map[string]string)
+	}
 	// Set # of processes to GPU Count
 	numProcesses := getInstanceGPUCount(wObj.Resource.InstanceType)
 	tuningObj.TorchRunParams["num_processes"] = fmt.Sprintf("%d", numProcesses)

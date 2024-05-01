@@ -203,7 +203,7 @@ done
 echo 'Docker daemon started'
 
 while true; do
-  FILE_PATH=$(find /workspace/tfs -name 'fine_tuning_completed.txt')
+  FILE_PATH=$(find /mnt/results -name 'fine_tuning_completed.txt')
   if [ ! -z "$FILE_PATH" ]; then
     echo "FOUND TRAINING COMPLETED FILE at $FILE_PATH"
 
@@ -225,8 +225,8 @@ while true; do
     # Cleanup: Remove the temporary directory
     rm -rf "$TEMP_CONTEXT"
 
-    # Remove the file to prevent repeated builds, or handle as needed
-    # rm "$FILE_PATH"
+    # Remove the file to prevent repeated builds
+    rm "$FILE_PATH"
     echo "Upload complete"
     exit 0
   fi
