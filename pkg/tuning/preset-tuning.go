@@ -190,7 +190,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	volumes = append(volumes, dataSourceVolume)
 	volumeMounts = append(volumeMounts, dataSourceVolumeMount)
 	if initContainer.Name != "" {
-		initContainers = append(initContainers, initContainer)
+		initContainers = append(initContainers, *initContainer)
 	}
 
 	sidecarContainer, imagePushSecret, dataDestVolume, dataDestVolumeMount, err := prepareDataDestination(ctx, workspaceObj)
@@ -199,11 +199,11 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	}
 	volumes = append(volumes, dataDestVolume)
 	volumeMounts = append(volumeMounts, dataDestVolumeMount)
-	if sidecarContainer.Name != "" {
-		sidecarContainers = append(sidecarContainers, sidecarContainer)
+	if sidecarContainer != nil {
+		sidecarContainers = append(sidecarContainers, *sidecarContainer)
 	}
-	if imagePushSecret.Name != "" {
-		imagePullSecrets = append(imagePullSecrets, imagePushSecret)
+	if imagePushSecret != nil {
+		imagePullSecrets = append(imagePullSecrets, *imagePushSecret)
 	}
 
 	err = EnsureTuningConfigMap(ctx, workspaceObj, tuningObj, kubeClient)
@@ -229,15 +229,15 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 }
 
 // Now there are two options for data destination 1. HostPath - 2. Image
-func prepareDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) (corev1.Container, corev1.LocalObjectReference, corev1.Volume, corev1.VolumeMount, error) {
-	var sidecarContainer corev1.Container
+func prepareDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) (*corev1.Container, *corev1.LocalObjectReference, corev1.Volume, corev1.VolumeMount, error) {
+	var sidecarContainer *corev1.Container
 	var volume corev1.Volume
 	var volumeMount corev1.VolumeMount
-	var imagePushSecret corev1.LocalObjectReference
+	var imagePushSecret *corev1.LocalObjectReference
 	switch {
 	case workspaceObj.Tuning.Output.Image != "":
 		image, secret := workspaceObj.Tuning.Output.Image, workspaceObj.Tuning.Output.ImagePushSecret
-		imagePushSecret = corev1.LocalObjectReference{Name: secret}
+		imagePushSecret = &corev1.LocalObjectReference{Name: secret}
 		sidecarContainer, volume, volumeMount = handleImageDataDestination(ctx, image, secret)
 		// TODO: Future PR include
 		//case workspaceObj.Tuning.Output.Volume != nil:
@@ -245,8 +245,8 @@ func prepareDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Wor
 	return sidecarContainer, imagePushSecret, volume, volumeMount, nil
 }
 
-func handleImageDataDestination(ctx context.Context, image, imagePushSecret string) (corev1.Container, corev1.Volume, corev1.VolumeMount) {
-	sidecarContainer := corev1.Container{
+func handleImageDataDestination(ctx context.Context, image, imagePushSecret string) (*corev1.Container, corev1.Volume, corev1.VolumeMount) {
+	sidecarContainer := &corev1.Container{
 		Name:  "docker-sidecar",
 		Image: "docker:dind",
 		SecurityContext: &corev1.SecurityContext{
@@ -261,8 +261,8 @@ func handleImageDataDestination(ctx context.Context, image, imagePushSecret stri
 }
 
 // Now there are three options for DataSource: 1. URL - 2. HostPath - 3. Image
-func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) (corev1.Container, []corev1.LocalObjectReference, corev1.Volume, corev1.VolumeMount, error) {
-	var initContainer corev1.Container
+func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) (*corev1.Container, []corev1.LocalObjectReference, corev1.Volume, corev1.VolumeMount, error) {
+	var initContainer *corev1.Container
 	var volume corev1.Volume
 	var volumeMount corev1.VolumeMount
 	var imagePullSecrets []corev1.LocalObjectReference
@@ -279,10 +279,10 @@ func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspac
 	return initContainer, imagePullSecrets, volume, volumeMount, nil
 }
 
-func handleImageDataSource(ctx context.Context, image string) (corev1.Container, corev1.Volume, corev1.VolumeMount) {
+func handleImageDataSource(ctx context.Context, image string) (*corev1.Container, corev1.Volume, corev1.VolumeMount) {
 	// Constructing a multistep command that lists, copies, and then lists the destination
 	command := "ls -la /data && cp -r /data/* " + utils.DefaultDataVolumePath + " && ls -la " + utils.DefaultDataVolumePath
-	initContainer := corev1.Container{
+	initContainer := &corev1.Container{
 		Name:    "data-extractor",
 		Image:   image,
 		Command: []string{"sh", "-c", command},
@@ -298,8 +298,8 @@ func handleImageDataSource(ctx context.Context, image string) (corev1.Container,
 	return initContainer, volume, volumeMount
 }
 
-func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) (corev1.Container, corev1.Volume, corev1.VolumeMount) {
-	initContainer := corev1.Container{
+func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) (*corev1.Container, corev1.Volume, corev1.VolumeMount) {
+	initContainer := &corev1.Container{
 		Name:  "data-downloader",
 		Image: "curlimages/curl",
 		Command: []string{"sh", "-c", `
