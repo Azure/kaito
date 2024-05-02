@@ -68,11 +68,6 @@ func GetDataSrcImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace) (st
 	return wObj.Tuning.Input.Image, imagePullSecretRefs
 }
 
-func GetDataDestImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace) (string, corev1.LocalObjectReference) {
-	imagePushSecretRef := corev1.LocalObjectReference{Name: wObj.Tuning.Output.ImagePushSecret}
-	return wObj.Tuning.Output.Image, imagePushSecretRef
-}
-
 func EnsureTuningConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	tuningObj *model.PresetParam, kubeClient client.Client) error {
 	// Copy Configmap from helm chart configmap into workspace
@@ -241,15 +236,16 @@ func prepareDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Wor
 	var imagePushSecret corev1.LocalObjectReference
 	switch {
 	case workspaceObj.Tuning.Output.Image != "":
-		_, imagePushSecret = GetDataDestImageInfo(ctx, workspaceObj)
-		sidecarContainer, volume, volumeMount = handleImageDataDestination(ctx, workspaceObj)
+		image, secret := workspaceObj.Tuning.Output.Image, workspaceObj.Tuning.Output.ImagePushSecret
+		imagePushSecret = corev1.LocalObjectReference{Name: secret}
+		sidecarContainer, volume, volumeMount = handleImageDataDestination(ctx, image, secret)
 		// TODO: Future PR include
 		//case workspaceObj.Tuning.Output.Volume != nil:
 	}
 	return sidecarContainer, imagePushSecret, volume, volumeMount, nil
 }
 
-func handleImageDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) (corev1.Container, corev1.Volume, corev1.VolumeMount) {
+func handleImageDataDestination(ctx context.Context, image, imagePushSecret string) (corev1.Container, corev1.Volume, corev1.VolumeMount) {
 	sidecarContainer := corev1.Container{
 		Name:  "docker-sidecar",
 		Image: "docker:dind",
@@ -257,10 +253,10 @@ func handleImageDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1
 			Privileged: pointer.BoolPtr(true),
 		},
 		Command: []string{"/bin/sh", "-c"},
-		Args:    []string{dockerSidecarScriptPushImage(workspaceObj.Tuning.Output.Image)},
+		Args:    []string{dockerSidecarScriptPushImage(image)},
 	}
 
-	volume, volumeMount := utils.ConfigImagePushSecretVolume(workspaceObj.Tuning.Output.ImagePushSecret)
+	volume, volumeMount := utils.ConfigImagePushSecretVolume(imagePushSecret)
 	return sidecarContainer, volume, volumeMount
 }
 
@@ -272,8 +268,9 @@ func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspac
 	var imagePullSecrets []corev1.LocalObjectReference
 	switch {
 	case workspaceObj.Tuning.Input.Image != "":
-		initContainer, volume, volumeMount = handleImageDataSource(ctx, workspaceObj)
-		_, imagePullSecrets = GetDataSrcImageInfo(ctx, workspaceObj)
+		var image string
+		image, imagePullSecrets = GetDataSrcImageInfo(ctx, workspaceObj)
+		initContainer, volume, volumeMount = handleImageDataSource(ctx, image)
 	case len(workspaceObj.Tuning.Input.URLs) > 0:
 		initContainer, volume, volumeMount = handleURLDataSource(ctx, workspaceObj)
 		// TODO: Future PR include
@@ -282,12 +279,12 @@ func prepareDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspac
 	return initContainer, imagePullSecrets, volume, volumeMount, nil
 }
 
-func handleImageDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) (corev1.Container, corev1.Volume, corev1.VolumeMount) {
+func handleImageDataSource(ctx context.Context, image string) (corev1.Container, corev1.Volume, corev1.VolumeMount) {
 	// Constructing a multistep command that lists, copies, and then lists the destination
 	command := "ls -la /data && cp -r /data/* " + utils.DefaultDataVolumePath + " && ls -la " + utils.DefaultDataVolumePath
 	initContainer := corev1.Container{
 		Name:    "data-extractor",
-		Image:   workspaceObj.Tuning.Input.Image,
+		Image:   image,
 		Command: []string{"sh", "-c", command},
 		VolumeMounts: []corev1.VolumeMount{
 			{
