@@ -396,7 +396,7 @@ func TestPrepareDataSource_ImageSource(t *testing.T) {
 
 	expectedVolumeMount := corev1.VolumeMount{Name: "data-volume", MountPath: "/mnt/data"}
 	expectedImagePullSecrets := []corev1.LocalObjectReference{}
-	expectedInitContainer := corev1.Container{
+	expectedInitContainer := &corev1.Container{
 		Name:         "data-extractor",
 		Image:        "custom/data-loader-image",
 		Command:      []string{"sh", "-c", "ls -la /data && cp -r /data/* /mnt/data && ls -la /mnt/data"},
