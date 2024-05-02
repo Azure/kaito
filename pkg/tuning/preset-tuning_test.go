@@ -35,6 +35,24 @@ func normalize(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
+// Saves state of current env, and returns function to restore to saved state
+func saveEnv(key string) func() {
+	envVal, envExists := os.LookupEnv(key)
+	return func() {
+		if envExists {
+			err := os.Setenv(key, envVal)
+			if err != nil {
+				return
+			}
+		} else {
+			err := os.Unsetenv(key)
+			if err != nil {
+				return
+			}
+		}
+	}
+}
+
 func TestGetInstanceGPUCount(t *testing.T) {
 	kaitov1alpha1.SupportedGPUConfigs = mockSupportedGPUConfigs
 	testcases := map[string]struct {
@@ -164,13 +182,16 @@ func TestGetDataSrcImageInfo(t *testing.T) {
 
 func TestEnsureTuningConfigMap(t *testing.T) {
 	testcases := map[string]struct {
+		setupEnv      func()
 		callMocks     func(c *test.MockClient)
 		workspaceObj  *kaitov1alpha1.Workspace
 		expectedError string
 	}{
 		"Config already exists in workspace namespace": {
-			callMocks: func(c *test.MockClient) {
+			setupEnv: func() {
 				os.Setenv(consts.DefaultReleaseNamespaceEnvVar, "release-namespace")
+			},
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(nil)
 			},
 			workspaceObj: &kaitov1alpha1.Workspace{
@@ -192,8 +213,10 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 			expectedError: "failed to get release namespace: failed to determine release namespace from file /var/run/secrets/kubernetes.io/serviceaccount/namespace and env var RELEASE_NAMESPACE",
 		},
 		"Config doesn't exist in template namespace": {
-			callMocks: func(c *test.MockClient) {
+			setupEnv: func() {
 				os.Setenv(consts.DefaultReleaseNamespaceEnvVar, "release-namespace")
+			},
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(errors.NewNotFound(schema.GroupResource{}, "config-template"))
 			},
 			workspaceObj: &kaitov1alpha1.Workspace{
@@ -207,6 +230,12 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
+			cleanupEnv := saveEnv(consts.DefaultReleaseNamespaceEnvVar)
+			defer cleanupEnv()
+
+			if tc.setupEnv != nil {
+				tc.setupEnv()
+			}
 			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 			tc.workspaceObj.SetNamespace("workspace-namespace")
