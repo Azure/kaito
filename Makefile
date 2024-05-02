@@ -24,7 +24,7 @@ GINKGO := $(TOOLS_BIN_DIR)/$(GINKGO_BIN)-$(GINKGO_VER)
 
 AZURE_SUBSCRIPTION_ID ?= $(AZURE_SUBSCRIPTION_ID)
 AZURE_LOCATION ?= eastus
-AKS_K8S_VERSION ?= 1.27.2
+AKS_K8S_VERSION ?= 1.29.2
 AZURE_RESOURCE_GROUP ?= demo
 AZURE_CLUSTER_NAME ?= kaito-demo
 AZURE_RESOURCE_GROUP_MC=MC_$(AZURE_RESOURCE_GROUP)_$(AZURE_CLUSTER_NAME)_$(AZURE_LOCATION)
@@ -84,7 +84,9 @@ fmt: ## Run go fmt against code.
 ## --------------------------------------
 .PHONY: unit-test
 unit-test: ## Run unit tests.
-	go test -v $(shell go list ./pkg/... ./api/... | grep -v /vendor) -race -coverprofile=coverage.txt -covermode=atomic
+	go test -v $(shell go list ./pkg/... ./api/... | \
+	grep -v -e /vendor -e /api/v1alpha1/zz_generated.deepcopy.go -e /pkg/utils/test/...) \
+	-race -coverprofile=coverage.txt -covermode=atomic
 	go tool cover -func=coverage.txt
 
 inference-api-e2e: 
