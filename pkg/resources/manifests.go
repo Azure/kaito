@@ -185,74 +185,33 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 	return ss
 }
 
-func dockerSidecarScriptPushToVolume(arg interface{}) string {
-	//volume, ok := arg.(*corev1.VolumeSource)
-	return `
-`
-}
-func dockerSidecarScriptPushImage(arg interface{}) string {
-	image, _ := arg.(string)
-	// TODO: Override output path if specified in trainingconfig (instead of /mnt/results)
-	return fmt.Sprintf(`
-# Start the Docker daemon in the background with specific options for DinD
-dockerd &
-# Wait for the Docker daemon to be ready
-while ! docker info > /dev/null 2>&1; do
-  echo "Waiting for Docker daemon to start..."
-  sleep 1
-done
-echo 'Docker daemon started'
-
-while true; do
-  FILE_PATH=$(find /mnt/results -name 'fine_tuning_completed.txt')
-  if [ ! -z "$FILE_PATH" ]; then
-    echo "FOUND TRAINING COMPLETED FILE at $FILE_PATH"
-
-    PARENT_DIR=$(dirname "$FILE_PATH")
-    echo "Parent directory is $PARENT_DIR"
-
-    TEMP_CONTEXT=$(mktemp -d)
-    cp "$PARENT_DIR/adapter_config.json" "$TEMP_CONTEXT/adapter_config.json"
-    cp -r "$PARENT_DIR/adapter_model.safetensors" "$TEMP_CONTEXT/adapter_model.safetensors"
-
-    # Create a minimal Dockerfile
-    echo 'FROM scratch
-    ADD adapter_config.json /
-    ADD adapter_model.safetensors /' > "$TEMP_CONTEXT/Dockerfile"
-
-    docker build -t %s "$TEMP_CONTEXT"
-    docker push %s
-
-    # Cleanup: Remove the temporary directory
-    rm -rf "$TEMP_CONTEXT"
-
-    # Remove the file to prevent repeated builds
-    rm "$FILE_PATH"
-    echo "Upload complete"
-    exit 0
-  fi
-  sleep 10  # Check every 10 seconds
-done`, image, image)
-}
-
-func determinePushMethod(wObj *kaitov1alpha1.Workspace) (func(arg interface{}) string, interface{}) {
-	if wObj.Tuning.Output.Volume != nil {
-		return dockerSidecarScriptPushToVolume, wObj.Tuning.Output.Volume
-	}
-	if wObj.Tuning.Output.Image != "" {
-		return dockerSidecarScriptPushImage, wObj.Tuning.Output.Image
-	}
-	return func(arg interface{}) string { return "" }, ""
-}
-
 func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspace, imageName string,
 	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements, tolerations []corev1.Toleration,
-	initContainers []corev1.Container, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) *batchv1.Job {
+	initContainers []corev1.Container, sidecarContainers []corev1.Container, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) *batchv1.Job {
 	labels := map[string]string{
 		kaitov1alpha1.LabelWorkspaceName: wObj.Name,
 	}
-	pushMethod, pushArg := determinePushMethod(wObj)
+
+	// Add volume mounts to sidecar containers
+	for i := range sidecarContainers {
+		sidecarContainers[i].VolumeMounts = append(sidecarContainers[i].VolumeMounts, volumeMounts...)
+	}
+
+	// Construct the complete list of containers (main and sidecars)
+	containers := append([]corev1.Container{
+		{
+			Name:           wObj.Name,
+			Image:          imageName,
+			Command:        commands,
+			Resources:      resourceRequirements,
+			LivenessProbe:  livenessProbe,
+			ReadinessProbe: readinessProbe,
+			Ports:          containerPorts,
+			VolumeMounts:   volumeMounts,
+		},
+	}, sidecarContainers...)
+
 	return &batchv1.Job{
 		TypeMeta: v1.TypeMeta{
 			APIVersion: "batch/v1",
@@ -278,29 +237,8 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
-					InitContainers: initContainers,
-					Containers: []corev1.Container{
-						{
-							Name:           wObj.Name,
-							Image:          imageName,
-							Command:        commands,
-							Resources:      resourceRequirements,
-							LivenessProbe:  livenessProbe,
-							ReadinessProbe: readinessProbe,
-							Ports:          containerPorts,
-							VolumeMounts:   volumeMounts,
-						},
-						{
-							Name:  "docker-sidecar",
-							Image: "docker:dind",
-							SecurityContext: &corev1.SecurityContext{
-								Privileged: pointer.BoolPtr(true),
-							},
-							VolumeMounts: volumeMounts,
-							Command:      []string{"/bin/sh", "-c"},
-							Args:         []string{pushMethod(pushArg)},
-						},
-					},
+					InitContainers:   initContainers,
+					Containers:       containers,
 					RestartPolicy:    corev1.RestartPolicyNever,
 					Volumes:          volumes,
 					Tolerations:      tolerations,

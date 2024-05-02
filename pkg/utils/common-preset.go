@@ -97,9 +97,9 @@ func ConfigCMVolume(cmName string) (corev1.Volume, corev1.VolumeMount) {
 	return volume, volumeMount
 }
 
-func ConfigDataVolume(hostPath *string) ([]corev1.Volume, []corev1.VolumeMount) {
-	var volumes []corev1.Volume
-	var volumeMounts []corev1.VolumeMount
+func ConfigDataVolume(hostPath *string) (corev1.Volume, corev1.VolumeMount) {
+	var volume corev1.Volume
+	var volumeMount corev1.VolumeMount
 	var volumeSource corev1.VolumeSource
 	if hostPath != nil {
 		volumeSource = corev1.VolumeSource{
@@ -112,14 +112,14 @@ func ConfigDataVolume(hostPath *string) ([]corev1.Volume, []corev1.VolumeMount) 
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		}
 	}
-	volumes = append(volumes, corev1.Volume{
+	volume = corev1.Volume{
 		Name:         "data-volume",
 		VolumeSource: volumeSource,
-	})
+	}
 
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+	volumeMount = corev1.VolumeMount{
 		Name:      "data-volume",
 		MountPath: DefaultDataVolumePath,
-	})
-	return volumes, volumeMounts
+	}
+	return volume, volumeMount
 }
