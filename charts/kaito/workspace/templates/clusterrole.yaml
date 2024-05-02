@@ -41,7 +41,7 @@ rules:
     verbs: ["get","list","watch"]
   - apiGroups: [ "batch" ]
     resources: [ "jobs" ]
-    verbs: [ "get", "list", "watch", "create", "delete", "update", "patch" ]
+    verbs: [ "get", "list", "watch" ]
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["validatingwebhookconfigurations"]
     verbs: ["update"]
