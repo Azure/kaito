@@ -276,7 +276,7 @@ func TestHandleImageDataSource(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			initContainer, volume, volumeMount := handleImageDataSource(context.Background(), tc.workspaceObj)
+			initContainer, volume, volumeMount := handleImageDataSource(context.Background(), tc.workspaceObj.Tuning.Input.Image)
 
 			assert.Equal(t, tc.expectedInitContainerName, initContainer.Name)
 			assert.Equal(t, tc.workspaceObj.Tuning.Input.Image, initContainer.Image)
