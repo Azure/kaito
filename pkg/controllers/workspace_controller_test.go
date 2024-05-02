@@ -13,8 +13,10 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/machine"
 	"github.com/azure/kaito/pkg/nodeclaim"
+	"github.com/azure/kaito/pkg/utils/consts"
 	"github.com/azure/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/mock"
 	"gotest.tools/assert"
@@ -717,10 +719,11 @@ func TestGetAllQualifiedNodes(t *testing.T) {
 func TestApplyWorkspaceResource(t *testing.T) {
 	test.RegisterTestModel()
 	testcases := map[string]struct {
-		callMocks     func(c *test.MockClient)
-		k8sVersion    *version.Info
-		expectedError error
-		workspace     v1alpha1.Workspace
+		callMocks                   func(c *test.MockClient)
+		k8sVersion                  *version.Info
+		karpenterFeatureGateEnabled bool
+		expectedError               error
+		workspace                   v1alpha1.Workspace
 	}{
 		"Fail to apply workspace because associated machines cannot be retrieved": {
 			callMocks: func(c *test.MockClient) {
@@ -759,9 +762,10 @@ func TestApplyWorkspaceResource(t *testing.T) {
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaimList{}), mock.Anything).Return(errors.New("failed to retrieve nodeClaims"))
 
 			},
-			k8sVersion:    &version.Info{Major: "29"},
-			workspace:     *test.MockWorkspaceDistributedModel,
-			expectedError: errors.New("failed to retrieve nodeClaims"),
+			k8sVersion:                  &version.Info{Major: "29"},
+			karpenterFeatureGateEnabled: true,
+			workspace:                   *test.MockWorkspaceDistributedModel,
+			expectedError:               errors.New("failed to retrieve nodeClaims"),
 		},
 		"Fail to apply workspace with nodeClaims because can't get qualified nodes": {
 			callMocks: func(c *test.MockClient) {
@@ -782,9 +786,10 @@ func TestApplyWorkspaceResource(t *testing.T) {
 
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(errors.New("failed to list nodes"))
 			},
-			k8sVersion:    &version.Info{Major: "29"},
-			workspace:     *test.MockWorkspaceDistributedModel,
-			expectedError: errors.New("failed to list nodes"),
+			k8sVersion:                  &version.Info{Major: "29"},
+			karpenterFeatureGateEnabled: true,
+			workspace:                   *test.MockWorkspaceDistributedModel,
+			expectedError:               errors.New("failed to list nodes"),
 		},
 		"Successfully apply workspace resource with machine": {
 			callMocks: func(c *test.MockClient) {
@@ -835,9 +840,10 @@ func TestApplyWorkspaceResource(t *testing.T) {
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 
 			},
-			k8sVersion:    &version.Info{Major: "29"},
-			workspace:     *test.MockWorkspaceDistributedModel,
-			expectedError: nil,
+			k8sVersion:                  &version.Info{Major: "29"},
+			karpenterFeatureGateEnabled: true,
+			workspace:                   *test.MockWorkspaceDistributedModel,
+			expectedError:               nil,
 		},
 	}
 
@@ -874,6 +880,7 @@ func TestApplyWorkspaceResource(t *testing.T) {
 				Scheme:            test.NewTestScheme(),
 				KubernetesVersion: tc.k8sVersion,
 			}
+			featuregates.FeatureGates[consts.FeatureFlagKarpenter] = tc.karpenterFeatureGateEnabled
 			ctx := context.Background()
 
 			err := reconciler.applyWorkspaceResource(ctx, &tc.workspace)

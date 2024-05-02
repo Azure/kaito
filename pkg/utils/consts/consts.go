@@ -8,4 +8,7 @@ const (
 	WorkspaceFinalizer            = "workspace.finalizer.kaito.sh"
 	DefaultReleaseNamespaceEnvVar = "RELEASE_NAMESPACE"
 	FeatureFlagKarpenter          = "Karpenter"
+
+	//	KubernetesSupportedMajorVersion is the latest major version of Kubernetes that Kaito supports.
+	KubernetesSupportedMajorVersion = "29"
 )

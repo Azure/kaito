@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/nodeclaim"
 	"github.com/azure/kaito/pkg/tuning"
 	"github.com/azure/kaito/pkg/utils/consts"
@@ -225,11 +226,14 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 	if err := machine.WaitForPendingMachines(ctx, wObj, c.Client); err != nil {
 		return err
 	}
-	// Check nodeClaims only if the k8s version is greater than 1.29. As nodeClaim is supported from 1.29.
-	if c.KubernetesVersion.Major >= "29" {
-		// Wait for pending nodeClaims if any before we decide whether to create new node or not.
-		if err := nodeclaim.WaitForPendingNodeClaims(ctx, wObj, c.Client); err != nil {
-			return err
+
+	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+		// Check nodeClaims only if the k8s version is greater than 1.29. As nodeClaim is supported from 1.29.
+		if c.KubernetesVersion.Major >= consts.KubernetesSupportedMajorVersion {
+			// Wait for pending nodeClaims if any before we decide whether to create new node or not.
+			if err := nodeclaim.WaitForPendingNodeClaims(ctx, wObj, c.Client); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -245,7 +249,8 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 
 	if newNodesCount > 0 {
 		klog.InfoS("need to create more nodes", "NodeCount", newNodesCount)
-		if c.KubernetesVersion.Major < "29" {
+		if featuregates.FeatureGates[consts.FeatureFlagKarpenter] &&
+			c.KubernetesVersion.Major < consts.KubernetesSupportedMajorVersion {
 			if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionUnknown,
 				"CreateMachinePending", fmt.Sprintf("creating %d machines", newNodesCount)); err != nil {
 				klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
@@ -288,7 +293,8 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 		}
 	}
 
-	if c.KubernetesVersion.Major < "29" {
+	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] &&
+		c.KubernetesVersion.Major < consts.KubernetesSupportedMajorVersion {
 		if err = c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionTrue,
 			"installNodePluginsSuccess", "machines plugins have been installed successfully"); err != nil {
 			klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
@@ -643,7 +649,7 @@ func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&kaitov1alpha1.Workspace{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&appsv1.StatefulSet{}).
-		Watches(&v1alpha5.Machine{}, c.watchMachines()). // watches for machine with labels indicating workspace name.
+		Watches(&v1alpha5.Machine{}, c.watchMachines()).    // watches for machine with labels indicating workspace name.
 		Watches(&v1beta1.NodeClaim{}, c.watchNodeClaims()). // watches for nodeClaim with labels indicating workspace name.
 		WithOptions(controller.Options{MaxConcurrentReconciles: 5}).
 		Complete(c)
