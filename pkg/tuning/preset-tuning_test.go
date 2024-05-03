@@ -108,7 +108,7 @@ func TestGetTuningImageInfo(t *testing.T) {
 			presetObj: &model.PresetParam{
 				Tag: "latest",
 			},
-			expected: "testregistry/kaito-tuning-testpreset:latest",
+			expected: "testregistry/kaito-testpreset:latest",
 		},
 		"Empty Registry Name": {
 			registryName: "",
@@ -124,14 +124,14 @@ func TestGetTuningImageInfo(t *testing.T) {
 			presetObj: &model.PresetParam{
 				Tag: "latest",
 			},
-			expected: "/kaito-tuning-testpreset:latest",
+			expected: "/kaito-testpreset:latest",
 		},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			os.Setenv("PRESET_REGISTRY_NAME", tc.registryName)
-			result := GetTuningImageInfo(context.Background(), tc.wObj, tc.presetObj)
+			result, _ := GetTuningImageInfo(context.Background(), tc.wObj, tc.presetObj)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
