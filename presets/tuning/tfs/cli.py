@@ -9,7 +9,20 @@ import torch
 from peft import LoraConfig
 from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
                           PreTrainedTokenizer, TrainerCallback)
+from enum import Enum, auto
 
+class TrainerType(enum):
+    TRAINER = "Trainer"
+    SFT_TRAINER = "SFTTrainer"
+    DPO_TRAINER = "DPOTrainer"
+    REWARD_TRAINER = "RewardTrainer"
+    PPO_TRAINER = "PPOTrainer"
+    CPO_TRAINER = "CPOTrainer"
+    ORPO_TRAINER = "ORPOTrainer"
+
+@dataclass
+class Trainer():
+    trainer: TrainerType = field(default=TrainerType.Trainer, metadata={"help": "Type of transformer trainer"})
 
 @dataclass
 class ExtDataCollator(DataCollatorForLanguageModeling):
