@@ -39,9 +39,9 @@ jobs:
     outputs:
       matrix: ${{ steps.affected_models.outputs.matrix }}
       is_matrix_empty: ${{ steps.check_matrix_empty.outputs.is_empty }}
-    steps: 
+    steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           submodules: true
           fetch-depth: 0
@@ -82,7 +82,7 @@ jobs:
       max-parallel: 3
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           submodules: true
           fetch-depth: 0
