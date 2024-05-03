@@ -37,10 +37,10 @@ jobs:
       full_matrix: ${{ steps.images.outputs.full_matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
-            submodules: true
-            fetch-depth: 0
+          submodules: true
+          fetch-depth: 0
 
       # This script should output a JSON array of model names
       - name: Determine Affected Models
