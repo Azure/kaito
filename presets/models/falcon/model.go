@@ -40,10 +40,8 @@ var (
 	PresetFalconTagMap = map[string]string{
 		"Falcon7B":          "0.0.4",
 		"Falcon7BInstruct":  "0.0.4",
-		"Falcon7BTuning":    "0.0.2",
 		"Falcon40B":         "0.0.5",
 		"Falcon40BInstruct": "0.0.5",
-		"Falcon40BTuning":   "0.0.2",
 	}
 
 	baseCommandPresetFalcon = "accelerate launch"
@@ -84,7 +82,7 @@ func (*falcon7b) GetTuningParameters() *model.PresetParam {
 		//ModelRunPrams:             falconRunTuningParams, // TODO
 		ReadinessTimeout: time.Duration(30) * time.Minute,
 		BaseCommand:      baseCommandPresetFalcon,
-		Tag:              PresetFalconTagMap["Falcon7BTuning"],
+		Tag:              PresetFalconTagMap["Falcon7B"],
 	}
 }
 
@@ -157,7 +155,7 @@ func (*falcon40b) GetTuningParameters() *model.PresetParam {
 		//ModelRunPrams:             falconRunTuningParams, // TODO
 		ReadinessTimeout: time.Duration(30) * time.Minute,
 		BaseCommand:      baseCommandPresetFalcon,
-		Tag:              PresetFalconTagMap["Falcon40BTuning"],
+		Tag:              PresetFalconTagMap["Falcon40B"],
 	}
 }
 func (*falcon40b) SupportDistributedInference() bool {
