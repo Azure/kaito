@@ -35,6 +35,24 @@ func normalize(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
+// Saves state of current env, and returns function to restore to saved state
+func saveEnv(key string) func() {
+	envVal, envExists := os.LookupEnv(key)
+	return func() {
+		if envExists {
+			err := os.Setenv(key, envVal)
+			if err != nil {
+				return
+			}
+		} else {
+			err := os.Unsetenv(key)
+			if err != nil {
+				return
+			}
+		}
+	}
+}
+
 func TestGetInstanceGPUCount(t *testing.T) {
 	kaitov1alpha1.SupportedGPUConfigs = mockSupportedGPUConfigs
 	testcases := map[string]struct {
@@ -164,13 +182,16 @@ func TestGetDataSrcImageInfo(t *testing.T) {
 
 func TestEnsureTuningConfigMap(t *testing.T) {
 	testcases := map[string]struct {
+		setupEnv      func()
 		callMocks     func(c *test.MockClient)
 		workspaceObj  *kaitov1alpha1.Workspace
 		expectedError string
 	}{
 		"Config already exists in workspace namespace": {
-			callMocks: func(c *test.MockClient) {
+			setupEnv: func() {
 				os.Setenv(consts.DefaultReleaseNamespaceEnvVar, "release-namespace")
+			},
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(nil)
 			},
 			workspaceObj: &kaitov1alpha1.Workspace{
@@ -189,11 +210,13 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 					ConfigTemplate: "config-template",
 				},
 			},
-			expectedError: "failed to get ConfigMap from template namespace:  \"config-template\" not found",
+			expectedError: "failed to get release namespace: failed to determine release namespace from file /var/run/secrets/kubernetes.io/serviceaccount/namespace and env var RELEASE_NAMESPACE",
 		},
 		"Config doesn't exist in template namespace": {
-			callMocks: func(c *test.MockClient) {
+			setupEnv: func() {
 				os.Setenv(consts.DefaultReleaseNamespaceEnvVar, "release-namespace")
+			},
+			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(errors.NewNotFound(schema.GroupResource{}, "config-template"))
 			},
 			workspaceObj: &kaitov1alpha1.Workspace{
@@ -207,6 +230,12 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
+			cleanupEnv := saveEnv(consts.DefaultReleaseNamespaceEnvVar)
+			defer cleanupEnv()
+
+			if tc.setupEnv != nil {
+				tc.setupEnv()
+			}
 			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 			tc.workspaceObj.SetNamespace("workspace-namespace")
@@ -247,18 +276,15 @@ func TestHandleImageDataSource(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			initContainers, volumes, volumeMounts := handleImageDataSource(context.Background(), tc.workspaceObj)
+			initContainer, volume, volumeMount := handleImageDataSource(context.Background(), tc.workspaceObj.Tuning.Input.Image)
 
-			assert.Len(t, initContainers, 1)
-			assert.Equal(t, tc.expectedInitContainerName, initContainers[0].Name)
-			assert.Equal(t, tc.workspaceObj.Tuning.Input.Image, initContainers[0].Image)
-			assert.Contains(t, initContainers[0].Command[2], "cp -r /data/* /mnt/data")
+			assert.Equal(t, tc.expectedInitContainerName, initContainer.Name)
+			assert.Equal(t, tc.workspaceObj.Tuning.Input.Image, initContainer.Image)
+			assert.Contains(t, initContainer.Command[2], "cp -r /data/* /mnt/data")
 
-			assert.Len(t, volumes, 1)
-			assert.Equal(t, tc.expectedVolumeName, volumes[0].Name)
+			assert.Equal(t, tc.expectedVolumeName, volume.Name)
 
-			assert.Len(t, volumeMounts, 1)
-			assert.Equal(t, tc.expectedVolumeMountPath, volumeMounts[0].MountPath)
+			assert.Equal(t, tc.expectedVolumeMountPath, volumeMount.MountPath)
 		})
 	}
 }
@@ -290,18 +316,15 @@ func TestHandleURLDataSource(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			initContainers, volumes, volumeMounts := handleURLDataSource(context.Background(), tc.workspaceObj)
+			initContainer, volume, volumeMount := handleURLDataSource(context.Background(), tc.workspaceObj)
 
-			assert.Len(t, initContainers, 1)
-			assert.Equal(t, tc.expectedInitContainerName, initContainers[0].Name)
-			assert.Equal(t, tc.expectedImage, initContainers[0].Image)
-			assert.Contains(t, normalize(initContainers[0].Command[2]), normalize(tc.expectedCommands))
+			assert.Equal(t, tc.expectedInitContainerName, initContainer.Name)
+			assert.Equal(t, tc.expectedImage, initContainer.Image)
+			assert.Contains(t, normalize(initContainer.Command[2]), normalize(tc.expectedCommands))
 
-			assert.Len(t, volumes, 1)
-			assert.Equal(t, tc.expectedVolumeName, volumes[0].Name)
+			assert.Equal(t, tc.expectedVolumeName, volume.Name)
 
-			assert.Len(t, volumeMounts, 1)
-			assert.Equal(t, tc.expectedVolumeMountPath, volumeMounts[0].MountPath)
+			assert.Equal(t, tc.expectedVolumeMountPath, volumeMount.MountPath)
 		})
 	}
 }
@@ -364,31 +387,28 @@ func TestPrepareDataSource_ImageSource(t *testing.T) {
 	}
 
 	// Expected outputs from mocked functions
-	expectedVolumes := []corev1.Volume{
-		{
-			Name: "data-volume",
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{}, // Assume we expect an EmptyDir
-			},
-		},
-	}
-	expectedVolumeMounts := []corev1.VolumeMount{{Name: "data-volume", MountPath: "/mnt/data"}}
-	expectedImagePullSecrets := []corev1.LocalObjectReference{}
-	expectedInitContainers := []corev1.Container{
-		{
-			Name:         "data-extractor",
-			Image:        "custom/data-loader-image",
-			Command:      []string{"sh", "-c", "ls -la /data && cp -r /data/* /mnt/data && ls -la /mnt/data"},
-			VolumeMounts: expectedVolumeMounts,
+	expectedVolume := corev1.Volume{
+		Name: "data-volume",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{}, // Assume we expect an EmptyDir
 		},
 	}
 
-	initContainers, imagePullSecrets, volumes, volumeMounts, err := prepareDataSource(ctx, workspaceObj, nil)
+	expectedVolumeMount := corev1.VolumeMount{Name: "data-volume", MountPath: "/mnt/data"}
+	expectedImagePullSecrets := []corev1.LocalObjectReference{}
+	expectedInitContainer := &corev1.Container{
+		Name:         "data-extractor",
+		Image:        "custom/data-loader-image",
+		Command:      []string{"sh", "-c", "ls -la /data && cp -r /data/* /mnt/data && ls -la /mnt/data"},
+		VolumeMounts: []corev1.VolumeMount{expectedVolumeMount},
+	}
+
+	initContainer, imagePullSecrets, volume, volumeMount, err := prepareDataSource(ctx, workspaceObj)
 
 	// Assertions
 	assert.NoError(t, err)
-	assert.Equal(t, expectedInitContainers, initContainers)
-	assert.Equal(t, expectedVolumes, volumes)
-	assert.Equal(t, expectedVolumeMounts, volumeMounts)
+	assert.Equal(t, expectedInitContainer, initContainer)
+	assert.Equal(t, expectedVolume, volume)
+	assert.Equal(t, expectedVolumeMount, volumeMount)
 	assert.Equal(t, expectedImagePullSecrets, imagePullSecrets)
 }

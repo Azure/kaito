@@ -5,6 +5,7 @@ package resources
 import (
 	"context"
 	"fmt"
+
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/utils/pointer"
 
@@ -187,15 +188,30 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspace, imageName string,
 	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements, tolerations []corev1.Toleration,
-	initContainers []corev1.Container, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) *batchv1.Job {
+	initContainers []corev1.Container, sidecarContainers []corev1.Container, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) *batchv1.Job {
 	labels := map[string]string{
 		kaitov1alpha1.LabelWorkspaceName: wObj.Name,
 	}
-	//TODO:
-	// Will be included in future PR, this code includes
-	// bash script for pushing results based on user
-	// data destination method
-	//pushMethod, pushArg := determinePushMethod(wObj)
+
+	// Add volume mounts to sidecar containers
+	for i := range sidecarContainers {
+		sidecarContainers[i].VolumeMounts = append(sidecarContainers[i].VolumeMounts, volumeMounts...)
+	}
+
+	// Construct the complete list of containers (main and sidecars)
+	containers := append([]corev1.Container{
+		{
+			Name:           wObj.Name,
+			Image:          imageName,
+			Command:        commands,
+			Resources:      resourceRequirements,
+			LivenessProbe:  livenessProbe,
+			ReadinessProbe: readinessProbe,
+			Ports:          containerPorts,
+			VolumeMounts:   volumeMounts,
+		},
+	}, sidecarContainers...)
+
 	return &batchv1.Job{
 		TypeMeta: v1.TypeMeta{
 			APIVersion: "batch/v1",
@@ -221,29 +237,8 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
-					InitContainers: initContainers,
-					Containers: []corev1.Container{
-						{
-							Name:           wObj.Name,
-							Image:          imageName,
-							Command:        commands,
-							Resources:      resourceRequirements,
-							LivenessProbe:  livenessProbe,
-							ReadinessProbe: readinessProbe,
-							Ports:          containerPorts,
-							VolumeMounts:   volumeMounts,
-						},
-						{
-							Name:  "docker-sidecar",
-							Image: "docker:dind",
-							SecurityContext: &corev1.SecurityContext{
-								Privileged: pointer.BoolPtr(true),
-							},
-							VolumeMounts: volumeMounts,
-							Command:      []string{"/bin/sh", "-c"},
-							// TODO: Args:         []string{pushMethod(pushArg)},
-						},
-					},
+					InitContainers:   initContainers,
+					Containers:       containers,
 					RestartPolicy:    corev1.RestartPolicyNever,
 					Volumes:          volumes,
 					Tolerations:      tolerations,
@@ -390,5 +385,4 @@ func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj
 			Template: *templateCopy,
 		},
 	}
-
 }

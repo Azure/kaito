@@ -3,6 +3,7 @@
 package falcon
 
 import (
+	"github.com/azure/kaito/pkg/tuning"
 	"time"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -77,7 +78,7 @@ func (*falcon7b) GetTuningParameters() *model.PresetParam {
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "16Gi",
 		PerGPUMemoryRequirement:   "16Gi",
-		//TorchRunParams:            tuning.DefaultAccelerateParams, // TODO
+		TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunPrams:             falconRunTuningParams, // TODO
 		ReadinessTimeout: time.Duration(30) * time.Minute,
 		BaseCommand:      baseCommandPresetFalcon,
@@ -150,7 +151,7 @@ func (*falcon40b) GetTuningParameters() *model.PresetParam {
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "90Gi",
 		PerGPUMemoryRequirement:   "16Gi",
-		//TorchRunParams:            tuning.DefaultAccelerateParams, // TODO
+		TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunPrams:             falconRunTuningParams, // TODO
 		ReadinessTimeout: time.Duration(30) * time.Minute,
 		BaseCommand:      baseCommandPresetFalcon,
