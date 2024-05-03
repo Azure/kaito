@@ -13,10 +13,18 @@ RUN echo $VERSION > /workspace/tfs/version.txt
 # First, copy just the preset files and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and
 # avoid reinstalling dependencies unless the requirements file changes.
+# Inference
 COPY kaito/presets/inference/${MODEL_TYPE}/requirements.txt /workspace/tfs/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY kaito/presets/inference/${MODEL_TYPE}/inference_api.py /workspace/tfs/inference_api.py
+
+# Fine Tuning
+COPY kaito/presets/tuning/${MODEL_TYPE}/requirements.txt /workspace/tfs/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY kaito/presets/tuning/${MODEL_TYPE}/cli.py /workspace/tfs/cli.py
+COPY kaito/presets/tuning/${MODEL_TYPE}/fine_tuning_api.py /workspace/tfs/fine_tuning_api.py
 
 # Copy the entire model weights to the weights directory
 COPY ${WEIGHTS_PATH} /workspace/tfs/weights
