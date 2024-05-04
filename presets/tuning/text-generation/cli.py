@@ -20,9 +20,9 @@ class TrainerType(Enum):
     CPO_TRAINER = "CPOTrainer"
     ORPO_TRAINER = "ORPOTrainer"
 
-@dataclass
-class Trainer:
-    trainer: TrainerType = field(default=TrainerType.Trainer, metadata={"help": "Type of transformer trainer"})
+# @dataclass
+# class Trainer:
+#     trainer: TrainerType = field(default=TrainerType.Trainer, metadata={"help": "Type of transformer trainer"})
 
 @dataclass
 class ExtDataCollator(DataCollatorForLanguageModeling):
