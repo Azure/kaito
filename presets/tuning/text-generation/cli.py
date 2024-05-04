@@ -21,7 +21,7 @@ class TrainerType(Enum):
     ORPO_TRAINER = "ORPOTrainer"
 
 @dataclass
-class Trainer():
+class Trainer:
     trainer: TrainerType = field(default=TrainerType.Trainer, metadata={"help": "Type of transformer trainer"})
 
 @dataclass
