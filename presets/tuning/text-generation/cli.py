@@ -11,7 +11,7 @@ from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
                           PreTrainedTokenizer, TrainerCallback)
 from enum import Enum, auto
 
-class TrainerType(enum):
+class TrainerType(Enum):
     TRAINER = "Trainer"
     SFT_TRAINER = "SFTTrainer"
     DPO_TRAINER = "DPOTrainer"
