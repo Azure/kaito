@@ -3,6 +3,7 @@
 REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
 VERSION ?= v0.2.2
+GPU_PROVISIONER_VERSION ?= 0.2.0
 IMG_TAG ?= $(subst v,,$(VERSION))
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -30,6 +31,8 @@ AZURE_CLUSTER_NAME ?= kaito-demo
 AZURE_RESOURCE_GROUP_MC=MC_$(AZURE_RESOURCE_GROUP)_$(AZURE_CLUSTER_NAME)_$(AZURE_LOCATION)
 GPU_NAMESPACE ?= gpu-provisioner
 KAITO_NAMESPACE ?= kaito-workspace
+GPU_PROVISIONER_MSI_NAME ?= gpuIdentity
+
 RUN_LLAMA_13B ?= false
 AI_MODELS_REGISTRY ?= modelregistry.azurecr.io
 AI_MODELS_REGISTRY_SECRET ?= modelregistry
@@ -191,37 +194,25 @@ ifndef ignore-not-found
 endif
 
 ##@ gpu-provider
-.PHONY: gpu-provisioner-identity-perm
 gpu-provisioner-identity-perm: ## Create identity for gpu-provisioner
-	az identity create --name gpuIdentity --resource-group $(AZURE_RESOURCE_GROUP)
+	az identity create --name $(GPU_PROVISIONER_MSI_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
 
-	IDENTITY_PRINCIPAL_ID=$(shell az identity show --name gpuIdentity --resource-group $(AZURE_RESOURCE_GROUP) --subscription $(AZURE_SUBSCRIPTION_ID) --query 'principalId')
-	IDENTITY_CLIENT_ID=$(shell az identity show --name gpuIdentity --resource-group $(AZURE_RESOURCE_GROUP) --subscription $(AZURE_SUBSCRIPTION_ID) --query 'clientId')
+	IDENTITY_PRINCIPAL_ID=$(shell az identity show --name $(GPU_PROVISIONER_MSI_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --subscription $(AZURE_SUBSCRIPTION_ID) --query 'principalId');\
+	az role assignment create --assignee $$IDENTITY_PRINCIPAL_ID --scope /subscriptions/$(AZURE_SUBSCRIPTION_ID)/resourceGroups/$(AZURE_RESOURCE_GROUP)  --role "Contributor"
 
-	az role assignment create --assignee $(IDENTITY_PRINCIPAL_ID) --scope /subscriptions/$(AZURE_SUBSCRIPTION_ID)/resourceGroups/$(AZURE_RESOURCE_GROUP)  --role "Contributor"
-
-	AKS_OIDC_ISSUER=$(shell az aks show -n "$(AZURE_CLUSTER_NAME)" -g "$(AZURE_RESOURCE_GROUP)" --subscription $(AZURE_SUBSCRIPTION_ID) --query "oidcIssuerProfile.issuerUrl")
-
-	az identity federated-credential create --name gpu-federatecredential --identity-name gpuIdentity --resource-group "$(AZURE_RESOURCE_GROUP)" --issuer "$(AKS_OIDC_ISSUER)" \
-	--subject system:serviceaccount:"gpu-provisioner:gpu-provisioner" --audience api://AzureADTokenExchange --subscription $(AZURE_SUBSCRIPTION_ID)
+	AKS_OIDC_ISSUER=$(shell az aks show -n "$(AZURE_CLUSTER_NAME)" -g "$(AZURE_RESOURCE_GROUP)" --subscription $(AZURE_SUBSCRIPTION_ID) --query "oidcIssuerProfile.issuerUrl");\
+	az identity federated-credential create --name gpu-federatecredential --identity-name $(GPU_PROVISIONER_MSI_NAME) --resource-group "$(AZURE_RESOURCE_GROUP)" --issuer $$AKS_OIDC_ISSUER \
+	--subject system:serviceaccount:"$(GPU_NAMESPACE):$(GPU_NAMESPACE)" --audience api://AzureADTokenExchange --subscription $(AZURE_SUBSCRIPTION_ID)
 
 .PHONY: gpu-provisioner-helm
 gpu-provisioner-helm:  ## Update Azure client env vars and settings in helm values.yml
 	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
-	$(eval IDENTITY_CLIENT_ID=$(shell az identity show --name gpuIdentity --resource-group $(AZURE_RESOURCE_GROUP) --query 'clientId' -o tsv))
-	$(eval AZURE_TENANT_ID=$(shell az account show | jq -r ".tenantId"))
-	$(eval AZURE_SUBSCRIPTION_ID=$(shell az account show | jq -r ".id"))
 
-	yq -i '(.controller.env[] | select(.name=="ARM_SUBSCRIPTION_ID"))           .value = "$(AZURE_SUBSCRIPTION_ID)"'                          ./charts/kaito/gpu-provisioner/values.yaml
-	yq -i '(.controller.env[] | select(.name=="LOCATION"))                      .value = "$(AZURE_LOCATION)"'                                 ./charts/kaito/gpu-provisioner/values.yaml
-	yq -i '(.controller.env[] | select(.name=="ARM_RESOURCE_GROUP"))            .value = "$(AZURE_RESOURCE_GROUP)"'                           ./charts/kaito/gpu-provisioner/values.yaml
-	yq -i '(.controller.env[] | select(.name=="AZURE_NODE_RESOURCE_GROUP"))     .value = "$(AZURE_RESOURCE_GROUP_MC)"'                        ./charts/kaito/gpu-provisioner/values.yaml
-	yq -i '(.controller.env[] | select(.name=="AZURE_CLUSTER_NAME"))            .value = "$(AZURE_CLUSTER_NAME)"'                             ./charts/kaito/gpu-provisioner/values.yaml
-	yq -i '(.settings.azure.clusterName)                                               = "$(AZURE_CLUSTER_NAME)"'                             ./charts/kaito/gpu-provisioner/values.yaml
-	yq -i '(.workloadIdentity.clientId)                                                = "$(IDENTITY_CLIENT_ID)"'                             ./charts/kaito/gpu-provisioner/values.yaml
-	yq -i '(.workloadIdentity.tenantId)                                                = "$(AZURE_TENANT_ID)"'                                ./charts/kaito/gpu-provisioner/values.yaml
+	curl -sO https://raw.githubusercontent.com/Azure/gpu-provisioner/main/hack/deploy/configure-helm-values.sh
+	chmod +x ./configure-helm-values.sh && ./configure-helm-values.sh $(AZURE_CLUSTER_NAME) $(AZURE_RESOURCE_GROUP) $(GPU_PROVISIONER_MSI_NAME)
 
-	helm install kaito-gpu-provisioner ./charts/kaito/gpu-provisioner --namespace $(GPU_NAMESPACE) --create-namespace
+	helm install $(GPU_NAMESPACE) --values gpu-provisioner-values.yaml --set settings.azure.clusterName=$(AZURE_CLUSTER_NAME) --wait \
+	https://github.com/Azure/gpu-provisioner/raw/gh-pages/charts/gpu-provisioner-$(GPU_PROVISIONER_VERSION).tgz
 
 ##@ Build Dependencies
 

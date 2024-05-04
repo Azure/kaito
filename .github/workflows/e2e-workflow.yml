@@ -139,10 +139,13 @@ jobs:
         shell: bash
         run: |
           make gpu-provisioner-helm
-          kubectl wait --for=condition=available deploy "kaito-gpu-provisioner" -n gpu-provisioner --timeout=300s
+          kubectl wait --for=condition=available deploy "gpu-provisioner" -n gpu-provisioner --timeout=300s
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
+          AZURE_TENANT_ID: ${{ secrets.E2E_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_SUBSCRIPTION_ID }}
+          GPU_PROVISIONER_VERSION: ${{ vars.GPU_PROVISIONER_VERSION }}
 
       - uses: azure/login@8c334a195cbb38e46038007b304988d888bf676a # v2.0.0
         with:
