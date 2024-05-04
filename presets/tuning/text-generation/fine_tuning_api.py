@@ -15,7 +15,7 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           BitsAndBytesConfig, HfArgumentParser,
                           TrainingArguments)
 from parser import parse_configs
-
+import magic
 
 DATASET_PATH = os.environ.get('DATASET_FOLDER_PATH', '/mnt/data')
 CONFIG_YAML = os.environ.get('YAML_FILE_PATH', '/mnt/config/training_config.yaml')
@@ -86,6 +86,21 @@ def preprocess_data(example):
     prompt = f"human: {example[ds_config.context_column]}\n bot: {example[ds_config.response_column]}".strip()
     return tokenizer(prompt, **tk_params)
 
+def get_file_type_with_magic(file_path):
+    mime = magic.Magic(mime=True)
+    return mime.from_file(file_path)
+
+# Define MIME types that correspond to the valid extensions
+VALID_MIME_TYPES = {
+    '.csv': 'text/csv',
+    '.json': 'application/json',
+    '.txt': 'text/plain',
+    '.parquet': 'application/octet-stream',  # Might vary depending on the system
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.arrow': 'application/octet-stream'  # Apache Arrow files, MIME might vary
+}
+
 found_dataset = False
 # Loading the dataset
 if ds_config.dataset_path:
@@ -93,14 +108,19 @@ if ds_config.dataset_path:
     found_dataset = True
 else:
     # Find a valid file
-    VALID_EXTENSIONS = ('.csv', '.json', '.txt', '.parquet', '.xls', '.xlsx', '.arrow')
-    default_path = DATASET_PATH
-    for root, dirs, files in os.walk(default_path):
+    for root, dirs, files in os.walk(DATASET_PATH):
         for file in files:
-            if file.endswith(VALID_EXTENSIONS):
-                DATASET_PATH = os.path.join(root, file)
-                found_dataset = True
-                break
+            file_path = os.path.join(root, file)
+            try:
+                file_mime_type = get_file_type_with_magic(file_path)
+                if any(valid_mime == file_mime_type for valid_mime in VALID_MIME_TYPES.values()):
+                    DATASET_PATH = file_path
+                    found_dataset = True
+                    break
+            except Exception as e:
+               print(f"Error processing file {file_path}: {e}")
+        if found_dataset:
+            break
 
 # Check if DATASET_PATH has been set successfully
 if found_dataset:

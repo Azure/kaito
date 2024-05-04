@@ -12,3 +12,4 @@ loralib
 einops
 xformers
 deepspeed
+python-magic
