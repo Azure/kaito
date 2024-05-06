@@ -6,6 +6,7 @@ import (
 	"context"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/machine"
 	"github.com/azure/kaito/pkg/nodeclaim"
 	"github.com/azure/kaito/pkg/utils/consts"
@@ -32,7 +33,8 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 		}
 	}
 
-	if c.KubernetesVersion.Major >= consts.RequiredKubernetesVersionForNodeClaim {
+	if c.KubernetesVersion.Major >= consts.RequiredKubernetesVersionForNodeClaim &&
+		featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 		// Check if there are any nodeClaims associated with this workspace.
 		ncList, err := nodeclaim.ListNodeClaimByWorkspace(ctx, wObj, c.Client)
 		if err != nil {
