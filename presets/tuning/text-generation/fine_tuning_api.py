@@ -15,7 +15,7 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           BitsAndBytesConfig, HfArgumentParser,
                           TrainingArguments)
 from parser import parse_configs
-import magic
+import filetype
 
 DATASET_PATH = os.environ.get('DATASET_FOLDER_PATH', '/mnt/data')
 CONFIG_YAML = os.environ.get('YAML_FILE_PATH', '/mnt/config/training_config.yaml')
@@ -86,55 +86,45 @@ def preprocess_data(example):
     prompt = f"human: {example[ds_config.context_column]}\n bot: {example[ds_config.response_column]}".strip()
     return tokenizer(prompt, **tk_params)
 
-def get_file_type_with_magic(file_path):
-    mime = magic.Magic(mime=True)
-    return mime.from_file(file_path)
-
-# Define MIME types that correspond to the valid extensions
-VALID_MIME_TYPES = {
-    '.csv': 'text/csv',
-    '.json': 'application/json',
-    '.txt': 'text/plain',
-    '.parquet': 'application/octet-stream',  # Might vary depending on the system
-    '.xls': 'application/vnd.ms-excel',
-    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    '.arrow': 'application/octet-stream'  # Apache Arrow files, MIME might vary
-}
-
-found_dataset = False
-# Loading the dataset
-if ds_config.dataset_path:
-    DATASET_PATH = os.path.join("/mnt", ds_config.dataset_path.strip("/"))
-    found_dataset = True
-else:
-    # Find a valid file
-    for root, dirs, files in os.walk(DATASET_PATH):
+def find_valid_dataset(data_dir):
+    """ Searches for a file with a valid dataset type in the given directory. """
+    valid_extensions = {'csv', 'json', 'txt', 'parquet', 'xls', 'xlsx', 'arrow'}
+    for root, dirs, files in os.walk(data_dir):
         for file in files:
             file_path = os.path.join(root, file)
             try:
-                file_mime_type = get_file_type_with_magic(file_path)
-                if any(valid_mime == file_mime_type for valid_mime in VALID_MIME_TYPES.values()):
-                    DATASET_PATH = file_path
-                    found_dataset = True
-                    break
+                kind = filetype.guess(file_path)
+                if kind and kind.extension in valid_extensions:
+                    return file_path
             except Exception as e:
-               print(f"Error processing file {file_path}: {e}")
-        if found_dataset:
-            break
+                print(f"Error processing file {file_path}: {e}")
+    return None
 
-# Check if DATASET_PATH has been set successfully
-if found_dataset:
-    print(f"Dataset found: {DATASET_PATH}")
-else:
-    print("No valid dataset file found.")
-    raise ValueError(f"Unable to find a valid dataset file.")
+def get_file_extension(file_path):
+    """ Returns the file extension based on filetype guess or filename. """
+    kind = filetype.guess(file_path)
+    if kind and kind.extension in VALID_DATASET_TYPES:
+        return kind.extension
+    _, file_ext = os.path.splitext(file_path)
+    return file_ext[1:]  # Remove leading "."
 
-if ds_config.dataset_extension:
-    file_ext = ds_config.dataset_extension
+# Loading the dataset
+if ds_config.dataset_path:
+    DATASET_PATH = os.path.join("/mnt", ds_config.dataset_path.strip("/"))
 else:
-    _, file_ext = os.path.splitext(DATASET_PATH)
-    file_ext = file_ext[1:] if file_ext else file_ext # Remove leading "." from file ext name
+    DATASET_PATH = find_valid_dataset(DATASET_PATH)
+    if not DATASET_PATH:
+        raise ValueError("Unable to find a valid dataset file.")
+
+# Determine the file extension
+file_ext = ds_config.dataset_extension if ds_config.dataset_extension else get_file_extension(DATASET_PATH)
+
 dataset = load_dataset(file_ext, data_files=DATASET_PATH, split="train")
+if dataset:
+    print(f"Dataset loaded successfully from {DATASET_PATH} with file type '{file_ext}'.")
+else:
+    print("Failed to load dataset.")
+    raise ValueError("Unable to load the dataset.")
 
 # Shuffling the dataset (if needed)
 if ds_config.shuffle_dataset:

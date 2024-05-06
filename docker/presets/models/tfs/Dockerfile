@@ -10,11 +10,6 @@ WORKDIR /workspace/tfs
 # Write the version to a file
 RUN echo $VERSION > /workspace/tfs/version.txt
 
-# Update packages and install libmagic-dev
-RUN apt-get update && \
-    apt-get install -y libmagic-dev && \
-    rm -rf /var/lib/apt/lists/* \
-
 # First, copy just the preset files and install dependencies
 # This is done before copying the code to utilize Docker's layer caching and
 # avoid reinstalling dependencies unless the requirements file changes.
