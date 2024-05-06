@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
+
 package controllers
 
 import (
@@ -33,8 +34,7 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 		}
 	}
 
-	if c.KubernetesVersion.Major >= consts.RequiredKubernetesVersionForNodeClaim &&
-		featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 		// Check if there are any nodeClaims associated with this workspace.
 		ncList, err := nodeclaim.ListNodeClaimByWorkspace(ctx, wObj, c.Client)
 		if err != nil {

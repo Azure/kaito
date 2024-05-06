@@ -24,7 +24,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/version"
 	"knative.dev/pkg/apis"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
@@ -33,11 +32,12 @@ import (
 func TestSelectWorkspaceNodes(t *testing.T) {
 	test.RegisterTestModel()
 	testcases := map[string]struct {
-		qualified []*corev1.Node
-		preferred []string
-		previous  []string
-		count     int
-		expected  []string
+		qualified             []*corev1.Node
+		preferred             []string
+		previous              []string
+		count                 int
+		karpenterFeatureGates bool
+		expected              []string
 	}{
 		"two qualified nodes, need one": {
 			qualified: []*corev1.Node{
@@ -154,7 +154,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 			expected:  []string{"node3"},
 		},
 
-		"three qualified nodes, one is created by kaito, need one": {
+		"three qualified nodes, one is created by gpu-provisioner, need one": {
 			qualified: []*corev1.Node{
 				{
 					ObjectMeta: v1.ObjectMeta{
@@ -180,7 +180,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 			count:     1,
 			expected:  []string{"node3"},
 		},
-		"three qualified nodes, one is created by kaito, one is preferred, one is previous, need two": {
+		"three qualified nodes, one is created by gpu-provisioner, one is preferred, one is previous, need two": {
 			qualified: []*corev1.Node{
 				{
 					ObjectMeta: v1.ObjectMeta{
@@ -206,7 +206,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 			count:     2,
 			expected:  []string{"node1", "node2"},
 		},
-		"three qualified nodes, one is created by kaito, one is preferred, one is previous, need three": {
+		"three qualified nodes, one is created by gpu-provisioner, one is preferred, one is previous, need three": {
 			qualified: []*corev1.Node{
 				{
 					ObjectMeta: v1.ObjectMeta{
@@ -227,12 +227,13 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					},
 				},
 			},
-			preferred: []string{"node2"},
-			previous:  []string{"node1"},
-			count:     3,
-			expected:  []string{"node1", "node2", "node3"},
+			preferred:             []string{"node2"},
+			previous:              []string{"node1"},
+			count:                 3,
+			karpenterFeatureGates: false,
+			expected:              []string{"node1", "node2", "node3"},
 		},
-		"three qualified nodes, one is created by kaito as machine, the other created by kaito as nodeClaim, one is preferred, need two": {
+		"three qualified nodes, one is created by gpu-provisioner (machine), the other created by karpenter (nodeClaim), one is preferred, need two": {
 			qualified: []*corev1.Node{
 				{
 					ObjectMeta: v1.ObjectMeta{
@@ -256,12 +257,13 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					},
 				},
 			},
-			preferred: []string{"node1"},
-			previous:  []string{},
-			count:     2,
-			expected:  []string{"node1", "node3"},
+			preferred:             []string{"node1"},
+			previous:              []string{},
+			count:                 2,
+			karpenterFeatureGates: true,
+			expected:              []string{"node1", "node3"},
 		},
-		"three qualified nodes, one is created by kaito as nodeClaim, two is preferred, need two": {
+		"three qualified nodes, one is created by  by karpenter (nodeClaim), two is preferred, need two": {
 			qualified: []*corev1.Node{
 				{
 					ObjectMeta: v1.ObjectMeta{
@@ -282,19 +284,20 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					},
 				},
 			},
-			preferred: []string{"node1"},
-			previous:  []string{},
-			count:     2,
-			expected:  []string{"node1", "node3"},
+			preferred:             []string{"node1"},
+			previous:              []string{},
+			count:                 2,
+			karpenterFeatureGates: true,
+			expected:              []string{"node1", "node3"},
 		},
 	}
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
 			reconciler := &WorkspaceReconciler{
-				Scheme:            test.NewTestScheme(),
-				KubernetesVersion: &version.Info{},
+				Scheme: test.NewTestScheme(),
 			}
+			featuregates.FeatureGates[consts.FeatureFlagKarpenter] = tc.karpenterFeatureGates
 
 			selectedNodes := reconciler.selectWorkspaceNodes(tc.qualified, tc.preferred, tc.previous, tc.count)
 
@@ -317,11 +320,11 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 func TestCreateAndValidateMachineNode(t *testing.T) {
 	test.RegisterTestModel()
 	testcases := map[string]struct {
-		callMocks         func(c *test.MockClient)
-		k8sVersion        *version.Info
-		machineConditions apis.Conditions
-		workspace         v1alpha1.Workspace
-		expectedError     error
+		callMocks             func(c *test.MockClient)
+		objectConditions      apis.Conditions
+		workspace             v1alpha1.Workspace
+		karpenterFeatureGates bool
+		expectedError         error
 	}{
 		"Node is not created because machine creation fails": {
 			callMocks: func(c *test.MockClient) {
@@ -330,8 +333,7 @@ func TestCreateAndValidateMachineNode(t *testing.T) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 			},
-			k8sVersion: &version.Info{Major: "27"},
-			machineConditions: apis.Conditions{
+			objectConditions: apis.Conditions{
 				{
 					Type:    v1alpha5.MachineLaunched,
 					Status:  corev1.ConditionFalse,
@@ -347,8 +349,7 @@ func TestCreateAndValidateMachineNode(t *testing.T) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Node{}), mock.Anything).Return(nil)
 			},
-			k8sVersion: &version.Info{Major: "27"},
-			machineConditions: apis.Conditions{
+			objectConditions: apis.Conditions{
 				{
 					Type:   apis.ConditionReady,
 					Status: corev1.ConditionTrue,
@@ -357,28 +358,68 @@ func TestCreateAndValidateMachineNode(t *testing.T) {
 			workspace:     *test.MockWorkspaceDistributedModel,
 			expectedError: nil,
 		},
+		"A nodeClaim is successfully created": {
+			callMocks: func(c *test.MockClient) {
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Node{}), mock.Anything).Return(nil)
+			},
+			objectConditions: apis.Conditions{
+				{
+					Type:   apis.ConditionReady,
+					Status: corev1.ConditionTrue,
+				},
+			},
+			workspace:             *test.MockWorkspaceDistributedModel,
+			karpenterFeatureGates: true,
+			expectedError:         nil,
+		},
+		"Node is not created because nodeClaim creation fails": {
+			callMocks: func(c *test.MockClient) {
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+			},
+			objectConditions: apis.Conditions{
+				{
+					Type:    v1beta1.Launched,
+					Status:  corev1.ConditionFalse,
+					Message: nodeclaim.ErrorInstanceTypesUnavailable,
+				},
+			},
+			workspace:             *test.MockWorkspaceWithPreset,
+			karpenterFeatureGates: true,
+			expectedError:         errors.New(nodeclaim.ErrorInstanceTypesUnavailable),
+		},
 	}
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
 			mockClient := test.NewClient()
-
 			mockMachine := &v1alpha5.Machine{}
+			mockNodeClaim := &v1beta1.NodeClaim{}
 
 			mockClient.UpdateCb = func(key types.NamespacedName) {
 				mockClient.GetObjectFromMap(mockMachine, key)
-				mockMachine.Status.Conditions = tc.machineConditions
+				mockMachine.Status.Conditions = tc.objectConditions
 				mockClient.CreateOrUpdateObjectInMap(mockMachine)
+
+				if tc.karpenterFeatureGates {
+					mockClient.GetObjectFromMap(mockNodeClaim, key)
+					mockNodeClaim.Status.Conditions = tc.objectConditions
+					mockClient.CreateOrUpdateObjectInMap(mockNodeClaim)
+				}
 			}
 
 			tc.callMocks(mockClient)
 
 			reconciler := &WorkspaceReconciler{
-				Client:            mockClient,
-				Scheme:            test.NewTestScheme(),
-				KubernetesVersion: tc.k8sVersion,
+				Client: mockClient,
+				Scheme: test.NewTestScheme(),
 			}
 			ctx := context.Background()
+			featuregates.FeatureGates[consts.FeatureFlagKarpenter] = tc.karpenterFeatureGates
 
 			node, err := reconciler.createAndValidateNode(ctx, &tc.workspace)
 			if tc.expectedError == nil {
@@ -395,7 +436,6 @@ func TestCreateAndValidateNodeClaimNode(t *testing.T) {
 	test.RegisterTestModel()
 	testcases := map[string]struct {
 		callMocks             func(c *test.MockClient)
-		k8sVersion            *version.Info
 		karpenterFeatureGates bool
 		nodeClaimConditions   apis.Conditions
 		workspace             v1alpha1.Workspace
@@ -408,7 +448,6 @@ func TestCreateAndValidateNodeClaimNode(t *testing.T) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 			},
-			k8sVersion:            &version.Info{Major: "29"},
 			karpenterFeatureGates: true,
 			nodeClaimConditions: apis.Conditions{
 				{
@@ -420,31 +459,12 @@ func TestCreateAndValidateNodeClaimNode(t *testing.T) {
 			workspace:     *test.MockWorkspaceWithPreset,
 			expectedError: errors.New(nodeclaim.ErrorInstanceTypesUnavailable),
 		},
-		"Node is not created because featureGate is off": {
-			callMocks: func(c *test.MockClient) {
-				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
-				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
-				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
-				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
-			},
-			k8sVersion:            &version.Info{Major: "29"},
-			karpenterFeatureGates: false,
-			nodeClaimConditions: apis.Conditions{
-				{
-					Type:   apis.ConditionReady,
-					Status: corev1.ConditionTrue,
-				},
-			},
-			workspace:     *test.MockWorkspaceWithPreset,
-			expectedError: errors.New("no node has been created"),
-		},
 		"A nodeClaim is successfully created": {
 			callMocks: func(c *test.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Node{}), mock.Anything).Return(nil)
 			},
-			k8sVersion:            &version.Info{Major: "29"},
 			karpenterFeatureGates: true,
 			nodeClaimConditions: apis.Conditions{
 				{
@@ -473,9 +493,8 @@ func TestCreateAndValidateNodeClaimNode(t *testing.T) {
 			featuregates.FeatureGates[consts.FeatureFlagKarpenter] = tc.karpenterFeatureGates
 
 			reconciler := &WorkspaceReconciler{
-				Client:            mockClient,
-				Scheme:            test.NewTestScheme(),
-				KubernetesVersion: tc.k8sVersion,
+				Client: mockClient,
+				Scheme: test.NewTestScheme(),
 			}
 			ctx := context.Background()
 
@@ -743,7 +762,6 @@ func TestApplyWorkspaceResource(t *testing.T) {
 	test.RegisterTestModel()
 	testcases := map[string]struct {
 		callMocks                   func(c *test.MockClient)
-		k8sVersion                  *version.Info
 		karpenterFeatureGateEnabled bool
 		expectedError               error
 		workspace                   v1alpha1.Workspace
@@ -752,7 +770,6 @@ func TestApplyWorkspaceResource(t *testing.T) {
 			callMocks: func(c *test.MockClient) {
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1alpha5.MachineList{}), mock.Anything).Return(errors.New("failed to retrieve machines"))
 			},
-			k8sVersion:    &version.Info{Major: "27"},
 			workspace:     *test.MockWorkspaceDistributedModel,
 			expectedError: errors.New("failed to retrieve machines"),
 		},
@@ -775,7 +792,6 @@ func TestApplyWorkspaceResource(t *testing.T) {
 
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(errors.New("failed to list nodes"))
 			},
-			k8sVersion:    &version.Info{Major: "27"},
 			workspace:     *test.MockWorkspaceDistributedModel,
 			expectedError: errors.New("failed to list nodes"),
 		},
@@ -785,7 +801,6 @@ func TestApplyWorkspaceResource(t *testing.T) {
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaimList{}), mock.Anything).Return(errors.New("failed to retrieve nodeClaims"))
 
 			},
-			k8sVersion:                  &version.Info{Major: "29"},
 			karpenterFeatureGateEnabled: true,
 			workspace:                   *test.MockWorkspaceDistributedModel,
 			expectedError:               errors.New("failed to retrieve nodeClaims"),
@@ -809,7 +824,6 @@ func TestApplyWorkspaceResource(t *testing.T) {
 
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(errors.New("failed to list nodes"))
 			},
-			k8sVersion:                  &version.Info{Major: "29"},
 			karpenterFeatureGateEnabled: true,
 			workspace:                   *test.MockWorkspaceDistributedModel,
 			expectedError:               errors.New("failed to list nodes"),
@@ -835,7 +849,6 @@ func TestApplyWorkspaceResource(t *testing.T) {
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 
 			},
-			k8sVersion:    &version.Info{Major: "27"},
 			workspace:     *test.MockWorkspaceDistributedModel,
 			expectedError: nil,
 		},
@@ -863,7 +876,6 @@ func TestApplyWorkspaceResource(t *testing.T) {
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 
 			},
-			k8sVersion:                  &version.Info{Major: "29"},
 			karpenterFeatureGateEnabled: true,
 			workspace:                   *test.MockWorkspaceDistributedModel,
 			expectedError:               nil,
@@ -899,9 +911,8 @@ func TestApplyWorkspaceResource(t *testing.T) {
 			}
 
 			reconciler := &WorkspaceReconciler{
-				Client:            mockClient,
-				Scheme:            test.NewTestScheme(),
-				KubernetesVersion: tc.k8sVersion,
+				Client: mockClient,
+				Scheme: test.NewTestScheme(),
 			}
 			featuregates.FeatureGates[consts.FeatureFlagKarpenter] = tc.karpenterFeatureGateEnabled
 			ctx := context.Background()

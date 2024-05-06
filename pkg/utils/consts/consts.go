@@ -8,7 +8,4 @@ const (
 	WorkspaceFinalizer            = "workspace.finalizer.kaito.sh"
 	DefaultReleaseNamespaceEnvVar = "RELEASE_NAMESPACE"
 	FeatureFlagKarpenter          = "Karpenter"
-
-	//	RequiredKubernetesVersionForNodeClaim is the latest major version of Kubernetes that Kaito supports.
-	RequiredKubernetesVersionForNodeClaim = "29"
 )

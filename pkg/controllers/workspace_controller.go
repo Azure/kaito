@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
+
 package controllers
 
 import (
@@ -14,8 +15,6 @@ import (
 	"github.com/azure/kaito/pkg/tuning"
 	"github.com/azure/kaito/pkg/utils/consts"
 	batchv1 "k8s.io/api/batch/v1"
-	"k8s.io/apimachinery/pkg/version"
-	"k8s.io/client-go/discovery"
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -51,10 +50,9 @@ const (
 
 type WorkspaceReconciler struct {
 	client.Client
-	Log               logr.Logger
-	Scheme            *runtime.Scheme
-	Recorder          record.EventRecorder
-	KubernetesVersion *version.Info
+	Log      logr.Logger
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
@@ -67,18 +65,6 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	}
 
 	klog.InfoS("Reconciling", "workspace", req.NamespacedName)
-
-	// Get the current API Server version.
-	discoveryClient, err := discovery.NewDiscoveryClientForConfig(ctrl.GetConfigOrDie())
-	if err != nil {
-		klog.ErrorS(err, "unable to create discovery client")
-		return reconcile.Result{}, err
-	}
-	c.KubernetesVersion, err = discoveryClient.ServerVersion()
-	if err != nil {
-		klog.ErrorS(err, "unable to get k8s version")
-		return reconcile.Result{}, err
-	}
 
 	// Handle deleting workspace, garbage collect all the resources.
 	if !workspaceObj.DeletionTimestamp.IsZero() {
@@ -98,7 +84,8 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 
 	if workspaceObj.Inference != nil && workspaceObj.Inference.Preset != nil {
 		if !plugin.KaitoModelRegister.Has(string(workspaceObj.Inference.Preset.Name)) {
-			return reconcile.Result{}, fmt.Errorf("the preset model name %s is not registered for workspace %s/%s", string(workspaceObj.Inference.Preset.Name), workspaceObj.Namespace, workspaceObj.Name)
+			return reconcile.Result{}, fmt.Errorf("the preset model name %s is not registered for workspace %s/%s",
+				string(workspaceObj.Inference.Preset.Name), workspaceObj.Namespace, workspaceObj.Name)
 		}
 	}
 
@@ -189,24 +176,20 @@ func (c *WorkspaceReconciler) selectWorkspaceNodes(qualified []*corev1.Node, pre
 				var iCreatedByGPUProvisioner, jCreatedByGPUProvisioner bool
 				_, iCreatedByGPUProvisioner = qualified[i].Labels[machine.LabelGPUProvisionerCustom]
 				_, jCreatedByGPUProvisioner = qualified[j].Labels[machine.LabelGPUProvisionerCustom]
-				// Choose node created by gpu-provisioner since it is more likely to be empty to use.
-				if iCreatedByGPUProvisioner && !jCreatedByGPUProvisioner {
-					return true
-				} else if !iCreatedByGPUProvisioner && jCreatedByGPUProvisioner {
-					return false
-				} else {
-					var iCreatedByKarpenter, jCreatedByKarpenter bool
+				// Choose node created by gpu-provisioner and karpenter since it is more likely to be empty to use.
+				var iCreatedByKarpenter, jCreatedByKarpenter bool
+				if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 					_, iCreatedByKarpenter = qualified[i].Labels[nodeclaim.LabelNodePool]
 					_, jCreatedByKarpenter = qualified[j].Labels[nodeclaim.LabelNodePool]
-
-					// Choose node created by karpenter since it is more likely to be empty to use.
-					if iCreatedByKarpenter && !jCreatedByKarpenter {
-						return true
-					} else if !iCreatedByKarpenter && jCreatedByKarpenter {
-						return false
-					} else {
-						return qualified[i].Name < qualified[j].Name
-					}
+				}
+				if (iCreatedByGPUProvisioner && !jCreatedByGPUProvisioner) ||
+					(iCreatedByKarpenter && !jCreatedByKarpenter) {
+					return true
+				} else if (!iCreatedByGPUProvisioner && jCreatedByGPUProvisioner) ||
+					(!iCreatedByKarpenter && jCreatedByKarpenter) {
+					return false
+				} else {
+					return qualified[i].Name < qualified[j].Name
 				}
 			}
 		}
@@ -228,12 +211,9 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 	}
 
 	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
-		// Check nodeClaims only if the k8s version is greater than 1.29. As nodeClaim is supported from 1.29.
-		if c.KubernetesVersion.Major >= consts.RequiredKubernetesVersionForNodeClaim {
-			// Wait for pending nodeClaims if any before we decide whether to create new node or not.
-			if err := nodeclaim.WaitForPendingNodeClaims(ctx, wObj, c.Client); err != nil {
-				return err
-			}
+		// Wait for pending nodeClaims if any before we decide whether to create new node or not.
+		if err := nodeclaim.WaitForPendingNodeClaims(ctx, wObj, c.Client); err != nil {
+			return err
 		}
 	}
 
@@ -249,20 +229,18 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 
 	if newNodesCount > 0 {
 		klog.InfoS("need to create more nodes", "NodeCount", newNodesCount)
-		if c.KubernetesVersion.Major < consts.RequiredKubernetesVersionForNodeClaim {
-			if err := c.updateStatusConditionIfNotMatch(ctx, wObj,
-				kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionUnknown,
-				"CreateMachinePending", fmt.Sprintf("creating %d machines", newNodesCount)); err != nil {
-				klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
-				return err
-			}
-		} else if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+		if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 			if err := c.updateStatusConditionIfNotMatch(ctx, wObj,
 				kaitov1alpha1.WorkspaceConditionTypeNodeClaimStatus, metav1.ConditionUnknown,
 				"CreateNodeClaimPending", fmt.Sprintf("creating %d nodeClaims", newNodesCount)); err != nil {
 				klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
 				return err
 			}
+		} else if err := c.updateStatusConditionIfNotMatch(ctx, wObj,
+			kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionUnknown,
+			"CreateMachinePending", fmt.Sprintf("creating %d machines", newNodesCount)); err != nil {
+			klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
+			return err
 		}
 
 		for i := 0; i < newNodesCount; i++ {
@@ -294,20 +272,18 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 		}
 	}
 
-	if c.KubernetesVersion.Major < consts.RequiredKubernetesVersionForNodeClaim {
-		if err = c.updateStatusConditionIfNotMatch(ctx, wObj,
-			kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionTrue,
-			"installNodePluginsSuccess", "machines plugins have been installed successfully"); err != nil {
-			klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
-			return err
-		}
-	} else if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 		if err = c.updateStatusConditionIfNotMatch(ctx, wObj,
 			kaitov1alpha1.WorkspaceConditionTypeNodeClaimStatus, metav1.ConditionTrue,
 			"installNodePluginsSuccess", "nodeClaim plugins have been installed successfully"); err != nil {
 			klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
 			return err
 		}
+	} else if err = c.updateStatusConditionIfNotMatch(ctx, wObj,
+		kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionTrue,
+		"installNodePluginsSuccess", "machines plugins have been installed successfully"); err != nil {
+		klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
+		return err
 	}
 
 	// Add the valid nodes names to the WorkspaceStatus.WorkerNodes.
@@ -385,13 +361,11 @@ func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *k
 		nodeOSDiskSize = "0" // The default OS size is used
 	}
 
-	// If	the k8s version is less than 1.29, create machine, else create nodeClaim.
-	if c.KubernetesVersion.Major < consts.RequiredKubernetesVersionForNodeClaim {
-		return c.CreateMachine(ctx, wObj, nodeOSDiskSize)
-	} else if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 		return c.CreateNodeClaim(ctx, wObj, nodeOSDiskSize)
+	} else {
+		return c.CreateMachine(ctx, wObj, nodeOSDiskSize)
 	}
-	return nil, fmt.Errorf("no node has been created")
 }
 
 func (c *WorkspaceReconciler) CreateMachine(ctx context.Context, wObj *kaitov1alpha1.Workspace, nodeOSDiskSize string) (*corev1.Node, error) {
