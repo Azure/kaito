@@ -32,7 +32,7 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 		}
 	}
 
-	if c.KubernetesVersion.Major >= "29" {
+	if c.KubernetesVersion.Major >= consts.RequiredKubernetesVersionForNodeClaim {
 		// Check if there are any nodeClaims associated with this workspace.
 		ncList, err := nodeclaim.ListNodeClaimByWorkspace(ctx, wObj, c.Client)
 		if err != nil {

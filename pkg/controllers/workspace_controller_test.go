@@ -394,11 +394,12 @@ func TestCreateAndValidateMachineNode(t *testing.T) {
 func TestCreateAndValidateNodeClaimNode(t *testing.T) {
 	test.RegisterTestModel()
 	testcases := map[string]struct {
-		callMocks           func(c *test.MockClient)
-		k8sVersion          *version.Info
-		nodeClaimConditions apis.Conditions
-		workspace           v1alpha1.Workspace
-		expectedError       error
+		callMocks             func(c *test.MockClient)
+		k8sVersion            *version.Info
+		karpenterFeatureGates bool
+		nodeClaimConditions   apis.Conditions
+		workspace             v1alpha1.Workspace
+		expectedError         error
 	}{
 		"Node is not created because nodeClaim creation fails": {
 			callMocks: func(c *test.MockClient) {
@@ -407,7 +408,8 @@ func TestCreateAndValidateNodeClaimNode(t *testing.T) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 			},
-			k8sVersion: &version.Info{Major: "29"},
+			k8sVersion:            &version.Info{Major: "29"},
+			karpenterFeatureGates: true,
 			nodeClaimConditions: apis.Conditions{
 				{
 					Type:    v1beta1.Launched,
@@ -418,13 +420,32 @@ func TestCreateAndValidateNodeClaimNode(t *testing.T) {
 			workspace:     *test.MockWorkspaceWithPreset,
 			expectedError: errors.New(nodeclaim.ErrorInstanceTypesUnavailable),
 		},
+		"Node is not created because featureGate is off": {
+			callMocks: func(c *test.MockClient) {
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+			},
+			k8sVersion:            &version.Info{Major: "29"},
+			karpenterFeatureGates: false,
+			nodeClaimConditions: apis.Conditions{
+				{
+					Type:   apis.ConditionReady,
+					Status: corev1.ConditionTrue,
+				},
+			},
+			workspace:     *test.MockWorkspaceWithPreset,
+			expectedError: errors.New("no node has been created"),
+		},
 		"A nodeClaim is successfully created": {
 			callMocks: func(c *test.MockClient) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Node{}), mock.Anything).Return(nil)
 			},
-			k8sVersion: &version.Info{Major: "29"},
+			k8sVersion:            &version.Info{Major: "29"},
+			karpenterFeatureGates: true,
 			nodeClaimConditions: apis.Conditions{
 				{
 					Type:   apis.ConditionReady,
@@ -448,6 +469,8 @@ func TestCreateAndValidateNodeClaimNode(t *testing.T) {
 			}
 
 			tc.callMocks(mockClient)
+
+			featuregates.FeatureGates[consts.FeatureFlagKarpenter] = tc.karpenterFeatureGates
 
 			reconciler := &WorkspaceReconciler{
 				Client:            mockClient,

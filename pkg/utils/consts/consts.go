@@ -9,6 +9,6 @@ const (
 	DefaultReleaseNamespaceEnvVar = "RELEASE_NAMESPACE"
 	FeatureFlagKarpenter          = "Karpenter"
 
-	//	KubernetesSupportedMajorVersion is the latest major version of Kubernetes that Kaito supports.
-	KubernetesSupportedMajorVersion = "29"
+	//	RequiredKubernetesVersionForNodeClaim is the latest major version of Kubernetes that Kaito supports.
+	RequiredKubernetesVersionForNodeClaim = "29"
 )

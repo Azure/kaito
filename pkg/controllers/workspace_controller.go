@@ -229,7 +229,7 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 
 	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 		// Check nodeClaims only if the k8s version is greater than 1.29. As nodeClaim is supported from 1.29.
-		if c.KubernetesVersion.Major >= consts.KubernetesSupportedMajorVersion {
+		if c.KubernetesVersion.Major >= consts.RequiredKubernetesVersionForNodeClaim {
 			// Wait for pending nodeClaims if any before we decide whether to create new node or not.
 			if err := nodeclaim.WaitForPendingNodeClaims(ctx, wObj, c.Client); err != nil {
 				return err
@@ -249,15 +249,16 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 
 	if newNodesCount > 0 {
 		klog.InfoS("need to create more nodes", "NodeCount", newNodesCount)
-		if featuregates.FeatureGates[consts.FeatureFlagKarpenter] &&
-			c.KubernetesVersion.Major < consts.KubernetesSupportedMajorVersion {
-			if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionUnknown,
+		if c.KubernetesVersion.Major < consts.RequiredKubernetesVersionForNodeClaim {
+			if err := c.updateStatusConditionIfNotMatch(ctx, wObj,
+				kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionUnknown,
 				"CreateMachinePending", fmt.Sprintf("creating %d machines", newNodesCount)); err != nil {
 				klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
 				return err
 			}
-		} else {
-			if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeNodeClaimStatus, metav1.ConditionUnknown,
+		} else if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+			if err := c.updateStatusConditionIfNotMatch(ctx, wObj,
+				kaitov1alpha1.WorkspaceConditionTypeNodeClaimStatus, metav1.ConditionUnknown,
 				"CreateNodeClaimPending", fmt.Sprintf("creating %d nodeClaims", newNodesCount)); err != nil {
 				klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
 				return err
@@ -293,15 +294,16 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 		}
 	}
 
-	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] &&
-		c.KubernetesVersion.Major < consts.KubernetesSupportedMajorVersion {
-		if err = c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionTrue,
+	if c.KubernetesVersion.Major < consts.RequiredKubernetesVersionForNodeClaim {
+		if err = c.updateStatusConditionIfNotMatch(ctx, wObj,
+			kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionTrue,
 			"installNodePluginsSuccess", "machines plugins have been installed successfully"); err != nil {
 			klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
 			return err
 		}
-	} else {
-		if err = c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeNodeClaimStatus, metav1.ConditionTrue,
+	} else if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+		if err = c.updateStatusConditionIfNotMatch(ctx, wObj,
+			kaitov1alpha1.WorkspaceConditionTypeNodeClaimStatus, metav1.ConditionTrue,
 			"installNodePluginsSuccess", "nodeClaim plugins have been installed successfully"); err != nil {
 			klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
 			return err
@@ -376,18 +378,20 @@ func (c *WorkspaceReconciler) createAndValidateNode(ctx context.Context, wObj *k
 	var nodeOSDiskSize string
 	if wObj.Inference != nil && wObj.Inference.Preset != nil && wObj.Inference.Preset.Name != "" {
 		presetName := string(wObj.Inference.Preset.Name)
-		nodeOSDiskSize = plugin.KaitoModelRegister.MustGet(presetName).GetInferenceParameters().DiskStorageRequirement
+		nodeOSDiskSize = plugin.KaitoModelRegister.MustGet(presetName).
+			GetInferenceParameters().DiskStorageRequirement
 	}
 	if nodeOSDiskSize == "" {
 		nodeOSDiskSize = "0" // The default OS size is used
 	}
 
 	// If	the k8s version is less than 1.29, create machine, else create nodeClaim.
-	if c.KubernetesVersion.Major < "29" {
+	if c.KubernetesVersion.Major < consts.RequiredKubernetesVersionForNodeClaim {
 		return c.CreateMachine(ctx, wObj, nodeOSDiskSize)
-	} else {
+	} else if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 		return c.CreateNodeClaim(ctx, wObj, nodeOSDiskSize)
 	}
+	return nil, fmt.Errorf("no node has been created")
 }
 
 func (c *WorkspaceReconciler) CreateMachine(ctx context.Context, wObj *kaitov1alpha1.Workspace, nodeOSDiskSize string) (*corev1.Node, error) {
@@ -396,7 +400,7 @@ RetryWithDifferentName:
 
 	if err := machine.CreateMachine(ctx, newMachine, c.Client); err != nil {
 		if apierrors.IsAlreadyExists(err) {
-			klog.InfoS("There exists a machine with the same name, retry with a different name", "machine", klog.KObj(newMachine))
+			klog.InfoS("A machine exists with the same name, retry with a different name", "machine", klog.KObj(newMachine))
 			goto RetryWithDifferentName
 		} else {
 
@@ -638,21 +642,26 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 // SetupWithManager sets up the controller with the Manager.
 func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	c.Recorder = mgr.GetEventRecorderFor("Workspace")
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Pod{}, "spec.nodeName", func(rawObj client.Object) []string {
-		pod := rawObj.(*corev1.Pod)
-		return []string{pod.Spec.NodeName}
-	}); err != nil {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Pod{},
+		"spec.nodeName", func(rawObj client.Object) []string {
+			pod := rawObj.(*corev1.Pod)
+			return []string{pod.Spec.NodeName}
+		}); err != nil {
 		return err
 	}
 
-	return ctrl.NewControllerManagedBy(mgr).
+	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&kaitov1alpha1.Workspace{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&appsv1.StatefulSet{}).
-		Watches(&v1alpha5.Machine{}, c.watchMachines()).    // watches for machine with labels indicating workspace name.
-		Watches(&v1beta1.NodeClaim{}, c.watchNodeClaims()). // watches for nodeClaim with labels indicating workspace name.
-		WithOptions(controller.Options{MaxConcurrentReconciles: 5}).
-		Complete(c)
+		Watches(&v1alpha5.Machine{}, c.watchMachines()).
+		WithOptions(controller.Options{MaxConcurrentReconciles: 5})
+
+	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+		builder.
+			Watches(&v1beta1.NodeClaim{}, c.watchNodeClaims()) // watches for nodeClaim with labels indicating workspace name.
+	}
+	return builder.Complete(c)
 }
 
 // watches for machine with labels indicating workspace name.
