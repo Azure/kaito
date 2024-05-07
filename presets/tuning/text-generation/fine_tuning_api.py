@@ -15,7 +15,6 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           BitsAndBytesConfig, HfArgumentParser,
                           TrainingArguments)
 from parser import parse_configs
-import filetype
 
 DATASET_PATH = os.environ.get('DATASET_FOLDER_PATH', '/mnt/data')
 CONFIG_YAML = os.environ.get('YAML_FILE_PATH', '/mnt/config/training_config.yaml')
@@ -86,25 +85,24 @@ def preprocess_data(example):
     prompt = f"human: {example[ds_config.context_column]}\n bot: {example[ds_config.response_column]}".strip()
     return tokenizer(prompt, **tk_params)
 
+SUPPORTED_EXTENSIONS = {'csv', 'json', 'parquet', 'arrow', 'webdataset'}
+
 def find_valid_dataset(data_dir):
     """ Searches for a file with a valid dataset type in the given directory. """
-    valid_extensions = {'csv', 'json', 'txt', 'parquet', 'xls', 'xlsx', 'arrow'}
     for root, dirs, files in os.walk(data_dir):
         for file in files:
-            file_path = os.path.join(root, file)
-            try:
-                kind = filetype.guess(file_path)
-                if kind and kind.extension in valid_extensions:
-                    return file_path
-            except Exception as e:
-                print(f"Error processing file {file_path}: {e}")
+            filename_lower = file.lower()  # Convert to lowercase once per filename
+            for ext in SUPPORTED_EXTENSIONS:
+                if ext in filename_lower:
+                    return os.path.join(root, file)
     return None
 
 def get_file_extension(file_path):
     """ Returns the file extension based on filetype guess or filename. """
-    kind = filetype.guess(file_path)
-    if kind and kind.extension in VALID_DATASET_TYPES:
-        return kind.extension
+    filename_lower = os.path.basename(file_path).lower()
+    for ext in SUPPORTED_EXTENSIONS:
+        if ext in filename_lower:
+            return ext
     _, file_ext = os.path.splitext(file_path)
     return file_ext[1:]  # Remove leading "."
 
