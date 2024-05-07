@@ -156,8 +156,8 @@ var (
 	}
 
 	nodeClaimLabels = map[string]string{
-		"karpenter.sh/nodepool-name": "default",
-		"kaito.sh/workspace":         "none",
+		"karpenter.sh/nodepool": "kaito",
+		"kaito.sh/workspace":    "none",
 	}
 )
 
