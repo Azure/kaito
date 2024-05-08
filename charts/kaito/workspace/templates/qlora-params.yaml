@@ -29,7 +29,7 @@ data:
         bias: "none"
     
       TrainingArguments:
-        output_dir: "."
+        output_dir: "/mnt/results"
         num_train_epochs: 4
         auto_find_batch_size: true
         ddp_find_unused_parameters: false

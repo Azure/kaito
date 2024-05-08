@@ -4,20 +4,27 @@ import os
 import sys
 from dataclasses import asdict
 from datetime import datetime
+from parser import parse_configs
 
 import torch
 import transformers
 from accelerate import Accelerator
-
+from cli import TrainerTypes
 from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
-                          BitsAndBytesConfig, HfArgumentParser,
+                          BitsAndBytesConfig, HfArgumentParser, Trainer,
                           TrainingArguments)
-from parser import parse_configs
+from trl import SFTTrainer
 
 DATASET_PATH = os.environ.get('DATASET_FOLDER_PATH', '/mnt/data')
 CONFIG_YAML = os.environ.get('YAML_FILE_PATH', '/mnt/config/training_config.yaml')
+TRAINER_CLASS_MAP = {
+    TrainerTypes.TRAINER: Trainer,
+    TrainerTypes.SFT_TRAINER: SFTTrainer,
+    # Additional mappings as needed
+}
+
 parsed_configs = parse_configs(CONFIG_YAML)
 
 model_config = parsed_configs.get('ModelConfig')
@@ -27,6 +34,10 @@ ext_lora_config = parsed_configs.get('LoraConfig')
 ta_args = parsed_configs.get('TrainingArguments')
 ds_config = parsed_configs.get('DatasetConfig')
 dc_args = parsed_configs.get('DataCollator')
+tt_args = parsed_configs.get('TrainerType')
+trainer_class = TRAINER_CLASS_MAP.get(tt_args.trainer_type)
+if not trainer_class:
+    raise ValueError(f"Unsupported trainer type: {tt_args.trainer_type}")
 
 accelerator = Accelerator()
 
@@ -34,7 +45,7 @@ accelerator = Accelerator()
 model_args = asdict(model_config)
 if accelerator.distributed_type != "NO":  # Meaning we require distributed training
     print("Setting device map for distributed training")
-    model_args["device_map"] = {"": Accelerator().process_index}
+    model_args["device_map"] = {"": accelerator.process_index}
 
 # Load BitsAndBytesConfig
 bnb_config_args = asdict(bnb_config)
@@ -128,6 +139,12 @@ else:
 if ds_config.shuffle_dataset:
     dataset = dataset.shuffle(seed=ds_config.shuffle_seed)
 
+if tt_args.trainer_type == TrainerTypes.SFT_TRAINER:
+    text_mapping_func = lambda x: {
+        'text': f"<s>[INST]{('<<SYS>>' + x[ds_config.instruction_column] + '<</SYS>>') if ds_config.instruction_column in x else ''}{x[ds_config.context_column]} [/INST]{x[ds_config.response_column]} </s>"
+    }
+    dataset = dataset.map(text_mapping_func)
+
 # Preprocessing the data
 dataset = dataset.map(preprocess_data)
 
@@ -150,15 +167,28 @@ else:
 
 # checkpoint_callback = CheckpointCallback()
 
+# Prepare for training
+torch.cuda.set_device(accelerator.process_index)
+torch.cuda.empty_cache()
 # Training the Model
-trainer = accelerator.prepare(transformers.Trainer(
-    model=model,
-    train_dataset=train_dataset,
-    eval_dataset=eval_dataset,
-    args=ta_args,
-    data_collator=dc_args,
-    # callbacks=[checkpoint_callback]
-))
+if tt_args.trainer_type == TrainerTypes.TRAINER:
+    trainer = accelerator.prepare(trainer_class(
+        model=model,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+        args=ta_args,
+        data_collator=dc_args,
+        # callbacks=[checkpoint_callback]
+    ))
+elif tt_args.trainer_type == TrainerTypes.SFT_TRAINER:
+    trainer = accelerator.prepare(trainer_class(
+        model=model,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+        args=ta_args,
+        data_collator=dc_args,
+        dataset_text_field="text"
+    ))
 trainer.train()
 os.makedirs(ta_args.output_dir, exist_ok=True)
 trainer.save_model(ta_args.output_dir)

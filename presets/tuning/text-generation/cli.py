@@ -3,26 +3,28 @@
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum, auto
 from typing import Any, Dict, List, Optional
 
 import torch
 from peft import LoraConfig
 from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
                           PreTrainedTokenizer, TrainerCallback)
-from enum import Enum, auto
 
-class TrainerType(Enum):
+
+class TrainerTypes(Enum):
     TRAINER = "Trainer"
     SFT_TRAINER = "SFTTrainer"
-    DPO_TRAINER = "DPOTrainer"
-    REWARD_TRAINER = "RewardTrainer"
-    PPO_TRAINER = "PPOTrainer"
-    CPO_TRAINER = "CPOTrainer"
-    ORPO_TRAINER = "ORPOTrainer"
+    # TODO: Future Support for other trainers
+    # DPO_TRAINER = "DPOTrainer"
+    # REWARD_TRAINER = "RewardTrainer"
+    # PPO_TRAINER = "PPOTrainer"
+    # CPO_TRAINER = "CPOTrainer"
+    # ORPO_TRAINER = "ORPOTrainer"
 
-# @dataclass
-# class Trainer:
-#     trainer: TrainerType = field(default=TrainerType.Trainer, metadata={"help": "Type of transformer trainer"})
+@dataclass
+class TrainerType:
+    trainer_type: TrainerTypes = field(default=TrainerTypes.SFT_TRAINER, metadata={"help": "Type of trainer to use for fine-tuning."})
 
 @dataclass
 class ExtDataCollator(DataCollatorForLanguageModeling):
@@ -48,6 +50,7 @@ class DatasetConfig:
     dataset_extension: Optional[str] = field(default=None, metadata={"help": "Optional explicit file extension of the dataset. If not provided, the extension will be derived from the dataset_path."})
     shuffle_dataset: bool = field(default=True, metadata={"help": "Whether to shuffle dataset"})
     shuffle_seed: int = field(default=42, metadata={"help": "Seed for shuffling data"})
+    instruction_column: Optional[str] = field(default=None, metadata={"help": "Example LLM Instruction column in the dataset"})
     context_column: str = field(default="Context", metadata={"help": "Example human input column in the dataset"})
     response_column: str = field(default="Response", metadata={"help": "Example bot response output column in the dataset"})
     train_test_split: float = field(default=0.8, metadata={"help": "Split between test and training data (e.g. 0.8 means 80/20% train/test split)"})
