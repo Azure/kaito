@@ -11,10 +11,9 @@ from peft import LoraConfig
 from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
                           PreTrainedTokenizer, TrainerCallback)
 
-
-class TrainerTypes(Enum):
-    TRAINER = "Trainer"
-    SFT_TRAINER = "SFTTrainer"
+# class TrainerTypes(Enum):
+#     TRAINER = "Trainer"
+#     SFT_TRAINER = "SFTTrainer"
     # TODO: Future Support for other trainers
     # DPO_TRAINER = "DPOTrainer"
     # REWARD_TRAINER = "RewardTrainer"
@@ -22,9 +21,9 @@ class TrainerTypes(Enum):
     # CPO_TRAINER = "CPOTrainer"
     # ORPO_TRAINER = "ORPOTrainer"
 
-@dataclass
-class TrainerType:
-    trainer_type: TrainerTypes = field(default=TrainerTypes.SFT_TRAINER, metadata={"help": "Type of trainer to use for fine-tuning."})
+# @dataclass
+# class TrainerType:
+#     trainer_type: TrainerTypes = field(default=TrainerTypes.SFT_TRAINER, metadata={"help": "Type of trainer to use for fine-tuning."})
 
 @dataclass
 class ExtDataCollator(DataCollatorForLanguageModeling):

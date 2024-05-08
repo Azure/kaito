@@ -9,7 +9,7 @@ from parser import parse_configs
 import torch
 import transformers
 from accelerate import Accelerator
-from cli import TrainerTypes
+from dataset import DatasetManager
 from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
@@ -17,13 +17,12 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           TrainingArguments)
 from trl import SFTTrainer
 
-DATASET_PATH = os.environ.get('DATASET_FOLDER_PATH', '/mnt/data')
 CONFIG_YAML = os.environ.get('YAML_FILE_PATH', '/mnt/config/training_config.yaml')
-TRAINER_CLASS_MAP = {
-    TrainerTypes.TRAINER: Trainer,
-    TrainerTypes.SFT_TRAINER: SFTTrainer,
-    # Additional mappings as needed
-}
+# TRAINER_CLASS_MAP = {
+#     TrainerTypes.TRAINER: Trainer,
+#     TrainerTypes.SFT_TRAINER: SFTTrainer,
+#     # Additional mappings as needed
+# }
 
 parsed_configs = parse_configs(CONFIG_YAML)
 
@@ -96,74 +95,23 @@ def preprocess_data(example):
     prompt = f"human: {example[ds_config.context_column]}\n bot: {example[ds_config.response_column]}".strip()
     return tokenizer(prompt, **tk_params)
 
-SUPPORTED_EXTENSIONS = {'csv', 'json', 'parquet', 'arrow', 'webdataset'}
-
-def find_valid_dataset(data_dir):
-    """ Searches for a file with a valid dataset type in the given directory. """
-    for root, dirs, files in os.walk(data_dir):
-        for file in files:
-            filename_lower = file.lower()  # Convert to lowercase once per filename
-            for ext in SUPPORTED_EXTENSIONS:
-                if ext in filename_lower:
-                    return os.path.join(root, file)
-    return None
-
-def get_file_extension(file_path):
-    """ Returns the file extension based on filetype guess or filename. """
-    filename_lower = os.path.basename(file_path).lower()
-    for ext in SUPPORTED_EXTENSIONS:
-        if ext in filename_lower:
-            return ext
-    _, file_ext = os.path.splitext(file_path)
-    return file_ext[1:]  # Remove leading "."
-
-# Loading the dataset
-if ds_config.dataset_path:
-    DATASET_PATH = os.path.join("/mnt", ds_config.dataset_path.strip("/"))
-else:
-    DATASET_PATH = find_valid_dataset(DATASET_PATH)
-    if not DATASET_PATH:
-        raise ValueError("Unable to find a valid dataset file.")
-
-# Determine the file extension
-file_ext = ds_config.dataset_extension if ds_config.dataset_extension else get_file_extension(DATASET_PATH)
-
-dataset = load_dataset(file_ext, data_files=DATASET_PATH, split="train")
-if dataset:
-    print(f"Dataset loaded successfully from {DATASET_PATH} with file type '{file_ext}'.")
-else:
+dm = DatasetManager(ds_config, tk_params)
+# Load the dataset
+dm.load_dataset()
+if not dm.dataset:
     print("Failed to load dataset.")
     raise ValueError("Unable to load the dataset.")
 
 # Shuffling the dataset (if needed)
 if ds_config.shuffle_dataset:
-    dataset = dataset.shuffle(seed=ds_config.shuffle_seed)
+    dm.shuffle_dataset()
 
-if tt_args.trainer_type == TrainerTypes.SFT_TRAINER:
-    text_mapping_func = lambda x: {
-        'text': f"<s>[INST]{('<<SYS>>' + x[ds_config.instruction_column] + '<</SYS>>') if ds_config.instruction_column in x else ''}{x[ds_config.context_column]} [/INST]{x[ds_config.response_column]} </s>"
-    }
-    dataset = dataset.map(text_mapping_func)
+text_mapping_func = lambda x: {
+    'text': f"<s>[INST]{('<<SYS>>' + x[ds_config.instruction_column] + '<</SYS>>') if ds_config.instruction_column in x else ''}{x[ds_config.context_column]} [/INST]{x[ds_config.response_column]} </s>"
+}
+dm.preprocess_data(text_mapping_func)
 
-# Preprocessing the data
-dataset = dataset.map(preprocess_data)
-
-assert 0 < ds_config.train_test_split <= 1, "Train/Test split needs to be between 0 and 1"
-
-# Initialize variables for train and eval datasets
-train_dataset, eval_dataset = dataset, None
-
-if ds_config.train_test_split < 1:
-    # Splitting the dataset into training and test sets
-    split_dataset = dataset.train_test_split(
-        test_size=1-ds_config.train_test_split,
-        seed=ds_config.shuffle_seed
-    )
-    train_dataset, eval_dataset = split_dataset['train'], split_dataset['test']
-    print("Training Dataset Dimensions: ", train_dataset.shape)
-    print("Test Dataset Dimensions: ", eval_dataset.shape)
-else:
-    print(f"Using full dataset for training. Dimensions: {train_dataset.shape}")
+train_dataset, eval_dataset = dm.split_dataset()
 
 # checkpoint_callback = CheckpointCallback()
 
@@ -171,24 +119,14 @@ else:
 torch.cuda.set_device(accelerator.process_index)
 torch.cuda.empty_cache()
 # Training the Model
-if tt_args.trainer_type == TrainerTypes.TRAINER:
-    trainer = accelerator.prepare(trainer_class(
-        model=model,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        args=ta_args,
-        data_collator=dc_args,
-        # callbacks=[checkpoint_callback]
-    ))
-elif tt_args.trainer_type == TrainerTypes.SFT_TRAINER:
-    trainer = accelerator.prepare(trainer_class(
-        model=model,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        args=ta_args,
-        data_collator=dc_args,
-        dataset_text_field="text"
-    ))
+trainer = accelerator.prepare(SFTTrainer(
+    model=model,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,
+    args=ta_args,
+    data_collator=dc_args,
+    # metrics = "tensorboard" or "wandb" # TODO
+))
 trainer.train()
 os.makedirs(ta_args.output_dir, exist_ok=True)
 trainer.save_model(ta_args.output_dir)
