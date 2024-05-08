@@ -76,37 +76,13 @@ az role assignment create --assignee $IDENTITY_PRINCIPAL_ID --scope /subscriptio
 Install the Node provisioner controller.
 ```bash
 # get additional values for helm chart install
-export NODE_RESOURCE_GROUP=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --query nodeResourceGroup -o tsv)
-export LOCATION=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --query location -o tsv)
-export TENANT_ID=$(az account show --query tenantId -o tsv)
+export GPU_PROVISIONER_VERSION=0.2.0
 
-# create a local values override file
-cat << EOF > values.override.yaml
-controller:
-  env:
-  - name: ARM_SUBSCRIPTION_ID
-    value: $SUBSCRIPTION
-  - name: LOCATION
-    value: $LOCATION
-  - name: AZURE_CLUSTER_NAME
-    value: $MY_CLUSTER
-  - name: AZURE_NODE_RESOURCE_GROUP
-    value: $NODE_RESOURCE_GROUP
-  - name: ARM_RESOURCE_GROUP
-    value: $RESOURCE_GROUP
-  - name: LEADER_ELECT
-    value: "false"
-workloadIdentity:
-  clientId: $IDENTITY_CLIENT_ID
-  tenantId: $TENANT_ID
-settings:
-  azure:
-    clusterName: $MY_CLUSTER
-EOF
+curl -sO https://raw.githubusercontent.com/Azure/gpu-provisioner/main/hack/deploy/configure-helm-values.sh
+chmod +x ./configure-helm-values.sh && ./configure-helm-values.sh $(MY_CLUSTER) $(RESOURCE_GROUP) $(IDENTITY_NAME)
 
-# install gpu-provisioner using values override file
-helm install gpu-provisioner ./charts/kaito/gpu-provisioner \
---namespace gpu-provisioner --create-namespace -f values.override.yaml
+helm install gpu-provisioner --values gpu-provisioner-values.yaml --set settings.azure.clusterName=$(MY_CLUSTER) --wait \
+https://github.com/Azure/gpu-provisioner/raw/gh-pages/charts/gpu-provisioner-$(GPU_PROVISIONER_VERSION).tgz
 ```
 
 #### Create the federated credential
