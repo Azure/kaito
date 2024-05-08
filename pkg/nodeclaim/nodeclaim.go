@@ -37,17 +37,19 @@ var (
 
 // GenerateNodeClaimManifest generates a nodeClaim object from the given workspace.
 func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, workspaceObj *kaitov1alpha1.Workspace) *v1beta1.NodeClaim {
-	digest := sha256.Sum256([]byte(workspaceObj.Namespace + workspaceObj.Name + time.Now().Format("2006-01-02 15:04:05.000000000"))) // We make sure the nodeClaim name is not fixed to the a workspace
+	digest := sha256.Sum256([]byte(workspaceObj.Namespace + workspaceObj.Name + time.Now().
+		Format("2006-01-02 15:04:05.000000000"))) // We make sure the nodeClaim name is not fixed to the workspace
 	nodeClaimName := "ws" + hex.EncodeToString(digest[0:])[0:9]
+
 	nodeClaimLabels := map[string]string{
-		LabelNodePool:                         KaitoNodePoolName,
+		LabelNodePool:                         KaitoNodePoolName, // Fake nodepool name to prevent Karpenter from scaling up.
 		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
 		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
+		v1beta1.DoNotDisruptAnnotationKey:     "true", // To prevent Karpenter from scaling down.
 	}
 	if workspaceObj.Resource.LabelSelector != nil &&
 		len(workspaceObj.Resource.LabelSelector.MatchLabels) != 0 {
 		nodeClaimLabels = lo.Assign(nodeClaimLabels, workspaceObj.Resource.LabelSelector.MatchLabels)
-
 	}
 
 	return &v1beta1.NodeClaim{
