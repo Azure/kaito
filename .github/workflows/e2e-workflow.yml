@@ -192,6 +192,9 @@ jobs:
         shell: bash
         run: |
           make azure-karpenter-helm
+          # taint nodes as karpenter-system
+          kubectl taint nodes CriticalAddonsOnly=true:NoSchedule --all
+          kubectl wait --for=condition=available deploy "karpenter" -n karpenter --timeout=300s
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
