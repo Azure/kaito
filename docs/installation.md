@@ -79,10 +79,10 @@ Install the Node provisioner controller.
 export GPU_PROVISIONER_VERSION=0.2.0
 
 curl -sO https://raw.githubusercontent.com/Azure/gpu-provisioner/main/hack/deploy/configure-helm-values.sh
-chmod +x ./configure-helm-values.sh && ./configure-helm-values.sh $(MY_CLUSTER) $(RESOURCE_GROUP) $(IDENTITY_NAME)
+chmod +x ./configure-helm-values.sh && ./configure-helm-values.sh $MY_CLUSTER $RESOURCE_GROUP $IDENTITY_NAME
 
-helm install gpu-provisioner --values gpu-provisioner-values.yaml --set settings.azure.clusterName=$(MY_CLUSTER) --wait \
-https://github.com/Azure/gpu-provisioner/raw/gh-pages/charts/gpu-provisioner-$(GPU_PROVISIONER_VERSION).tgz
+helm install gpu-provisioner --values gpu-provisioner-values.yaml --set settings.azure.clusterName=$MY_CLUSTER --wait \
+https://github.com/Azure/gpu-provisioner/raw/gh-pages/charts/gpu-provisioner-$GPU_PROVISIONER_VERSION.tgz
 ```
 
 #### Create the federated credential
