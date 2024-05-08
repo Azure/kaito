@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir -r tuning-requirements.txt
 COPY kaito/presets/tuning/${MODEL_TYPE}/cli.py /workspace/tfs/cli.py
 COPY kaito/presets/tuning/${MODEL_TYPE}/fine_tuning_api.py /workspace/tfs/fine_tuning_api.py
 COPY kaito/presets/tuning/${MODEL_TYPE}/parser.py /workspace/tfs/parser.py
+COPY kaito/presets/tuning/${MODEL_TYPE}/dataset.py /workspace/tfs/dataset.py
 
 # Copy the entire model weights to the weights directory
 COPY ${WEIGHTS_PATH} /workspace/tfs/weights
