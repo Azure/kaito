@@ -59,6 +59,9 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 			Labels:    nodeClaimLabels,
 		},
 		Spec: v1beta1.NodeClaimSpec{
+			NodeClassRef: &v1beta1.NodeClassReference{
+				Name: "default",
+			},
 			Requirements: []v1beta1.NodeSelectorRequirementWithMinValues{
 				{
 					NodeSelectorRequirement: v1.NodeSelectorRequirement{
@@ -73,22 +76,6 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 						Key:      LabelNodePool,
 						Operator: v1.NodeSelectorOpIn,
 						Values:   []string{KaitoNodePoolName},
-					},
-					MinValues: lo.ToPtr(1),
-				},
-				{
-					NodeSelectorRequirement: v1.NodeSelectorRequirement{
-						Key:      v1.LabelArchStable,
-						Operator: v1.NodeSelectorOpIn,
-						Values:   []string{"amd64"},
-					},
-					MinValues: lo.ToPtr(1),
-				},
-				{
-					NodeSelectorRequirement: v1.NodeSelectorRequirement{
-						Key:      v1.LabelOSStable,
-						Operator: v1.NodeSelectorOpIn,
-						Values:   []string{"linux"},
 					},
 					MinValues: lo.ToPtr(1),
 				},

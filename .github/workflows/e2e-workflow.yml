@@ -47,7 +47,8 @@ jobs:
     environment: e2e-test
     env:
       GO_VERSION: "1.22"
-
+      KARPENTER_NAMESPACE: "karpenter"
+      GPU_PROVISIONER_NAMESPACE: "gpu-provisioner"
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
@@ -132,7 +133,11 @@ jobs:
       - name: create cluster
         shell: bash
         run: |
-          make create-aks-cluster
+          if [ "${{ inputs.suite }}" == "gpuprovisioner" ]; then
+             make create-aks-cluster
+          else
+            make create-aks-cluster-for-karpenter
+          fi
         env:
           AZURE_ACR_NAME: ${{ env.CLUSTER_NAME }}
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
@@ -140,12 +145,20 @@ jobs:
           AZURE_LOCATION: ${{ inputs.region }}
           AKS_K8S_VERSION: ${{ inputs.k8s_version }}
 
+      - name: Create Identities and Permissions for ${{ inputs.suite }}
+        shell: bash
+        run: |
+          make generate-identities
+        env:
+          AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
+          AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
+          TEST_SUITE: ${{ inputs.suite }}
+
       - name: Install gpu-provisioner helm chart
-        if: ${{ inputs.suite == 'gpuprov' }}
+        if: ${{ inputs.suite == 'gpuprovisioner' }}
         shell: bash
         run: |
           make gpu-provisioner-helm
-          kubectl wait --for=condition=available deploy "gpu-provisioner" -n gpu-provisioner --timeout=300s
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
@@ -158,15 +171,13 @@ jobs:
         shell: bash
         run: |
           make azure-karpenter-helm
-          # taint nodes as karpenter-system
-          kubectl taint nodes CriticalAddonsOnly=true:NoSchedule --all
-          kubectl wait --for=condition=available deploy "karpenter" -n karpenter --timeout=300s
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           AZURE_TENANT_ID: ${{ secrets.E2E_TENANT_ID }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_SUBSCRIPTION_ID }}
           KARPENTER_VERSION: ${{ vars.KARPENTER_VERSION }}
+          KARPENTER_NAMESPACE: ${{ env.KARPENTER_NAMESPACE }}
 
       - uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
         with:
@@ -174,29 +185,14 @@ jobs:
           tenant-id: ${{ secrets.E2E_TENANT_ID }}
           subscription-id: ${{ secrets.E2E_SUBSCRIPTION_ID }}
 
-      - name: Create Role Assignment
-        uses: azure/CLI@v2.0.0
-        with:
-          inlineScript: |
-            IDENTITY_PRINCIPAL_ID="$(az identity show --name ${{ inputs.suite }}Identity --resource-group ${{ env.CLUSTER_NAME }} --query 'principalId' -otsv)"
-            az role assignment create --assignee ${IDENTITY_PRINCIPAL_ID} --scope "/subscriptions/${{ secrets.E2E_SUBSCRIPTION_ID }}/resourceGroups/${{ env.CLUSTER_NAME }}"  --role "Contributor"
-            if [ "${{ inputs.suite }}" == "azkarpenter" ]; then
-              
-            fi
-      - name: Create Azure Federated Identity
-        uses: azure/CLI@v2.0.0
-        with:
-          inlineScript: |
-            AKS_OIDC_ISSUER="$(az aks show -n "${{ env.CLUSTER_NAME }}" -g "${{ env.CLUSTER_NAME }}" --query 'oidcIssuerProfile.issuerUrl' -otsv)"
-
-            if [ "${{ inputs.suite }}" == "gpuprov" ]; then
-              az identity federated-credential create --name ${{ inputs.suite }}-fed --identity-name ${{ inputs.suite }}Identity --resource-group "${{ env.CLUSTER_NAME }}" \
-              --issuer "${AKS_OIDC_ISSUER}" --subject system:serviceaccount:"gpu-provisioner:gpu-provisioner" --audience api://AzureADTokenExchange
-            fi
-            if [ "${{ inputs.suite }}" == "azkarpenter" ]; then
-              az identity federated-credential create --name ${{ inputs.suite }}-fed --identity-name ${{ inputs.suite }}Identity --resource-group "${{ env.CLUSTER_NAME }}" \
-              --issuer "${AKS_OIDC_ISSUER}" --subject system:serviceaccount:"karpenter:karpenter-sa" --audience api://AzureADTokenExchange
-            fi
+      - name: build KAITO image
+        if: ${{ !inputs.isRelease }}
+        shell: bash
+        run: |
+          make docker-build-kaito
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          VERSION: ${{ env.VERSION }}
 
       - name: Install KAITO Workspace helm chart
         shell: bash
@@ -208,6 +204,7 @@ jobs:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
+          TEST_SUITE: ${{ inputs.suite }}
 
       - name: Add Secret Credentials
         run: |
@@ -215,6 +212,14 @@ jobs:
           --docker-server=${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io \
           --docker-username=${{ secrets.E2E_ACR_AMRT_USERNAME }} \
           --docker-password=${{ secrets.E2E_ACR_AMRT_PASSWORD }}
+
+      - name: Log ${{ inputs.suite }}
+        run: |
+          if [ "${{ inputs.suite }}" == "gpuprovisioner" ]; then
+            kubectl logs -n "${{ env.GPU_PROVISIONER_NAMESPACE }}" -l app.kubernetes.io/name=gpu-provisioner -c controller
+          else
+            kubectl logs -n "${{ env.KARPENTER_NAMESPACE }}" -l app.kubernetes.io/name=karpenter -c controller
+          fi
 
       - name: Log kaito-workspace
         run: |
@@ -228,6 +233,7 @@ jobs:
           RUN_LLAMA_13B: ${{ env.RUN_LLAMA_13B }}
           AI_MODELS_REGISTRY: ${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io
           AI_MODELS_REGISTRY_SECRET: ${{ secrets.E2E_AMRT_SECRET_NAME }}
+          TEST_SUITE: ${{ inputs.suite }}
 
       - name: Cleanup e2e resources
         if: ${{ always() }}

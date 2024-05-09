@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/test/e2e/cluster"
 	"github.com/azure/kaito/test/e2e/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -20,8 +20,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"knative.dev/pkg/apis"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -39,7 +37,7 @@ func createFalconWorkspaceWithPresetPublicMode(numOfNode int) *kaitov1alpha1.Wor
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Falcon 7B preset public mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC12s_v3",
+		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC16as_T4_v3",
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-falcon"},
 			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
@@ -53,7 +51,7 @@ func createMistralWorkspaceWithPresetPublicMode(numOfNode int) *kaitov1alpha1.Wo
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Mistral 7B preset public mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC12s_v3",
+		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC16as_T4_v3",
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-mistral"},
 			}, nil, PresetMistral7BInstructModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
@@ -82,7 +80,7 @@ func createLlama7BWorkspaceWithPresetPrivateMode(registry, registrySecret, image
 	By("Creating a workspace CR with Llama 7B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
 		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetLlama2AChat, imageVersion),
-			numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
+			numOfNode, "Standard_NC16as_T4_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test-llama-2-7b"},
 			}, nil, PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
 
@@ -96,7 +94,7 @@ func createLlama13BWorkspaceWithPresetPrivateMode(registry, registrySecret, imag
 	By("Creating a workspace CR with Llama 13B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
 		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetLlama2BChat, imageVersion),
-			numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
+			numOfNode, "Standard_NC16as_T4_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test-llama-2-13b"},
 			}, nil, PresetLlama2BChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
 
@@ -122,12 +120,12 @@ func createCustomWorkspaceWithPresetCustomMode(imageName string, numOfNode int) 
 func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Creating workspace", func() {
 		Eventually(func() error {
-			return TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
+			return cluster.TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
 		}, utils.PollTimeout, utils.PollInterval).
 			Should(Succeed(), "Failed to create workspace %s", workspaceObj.Name)
 
 		By("Validating workspace creation", func() {
-			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err := cluster.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, workspaceObj, &client.GetOptions{})
@@ -136,52 +134,11 @@ func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
 	})
 }
 
-func getAllValidMachines(workspaceObj *kaitov1alpha1.Workspace) (*v1alpha5.MachineList, error) {
-	machineList := &v1alpha5.MachineList{}
-	ls := labels.Set{
-		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
-		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
-	}
-
-	err := TestingCluster.KubeClient.List(ctx, machineList, &client.MatchingLabelsSelector{Selector: ls.AsSelector()})
-	if err != nil {
-		return nil, err
-	}
-	return machineList, nil
-}
-
-// Logic to validate machine creation
-func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace, expectedCount int) {
-	By("Checking machine created by the workspace CR", func() {
-		Eventually(func() bool {
-			machineList, err := getAllValidMachines(workspaceObj)
-			if err != nil {
-				fmt.Printf("Failed to get all valid machines: %v", err)
-				return false
-			}
-
-			if len(machineList.Items) != expectedCount {
-				return false
-			}
-
-			for _, machine := range machineList.Items {
-				_, conditionFound := lo.Find(machine.GetConditions(), func(condition apis.Condition) bool {
-					return condition.Type == apis.ConditionReady && condition.Status == v1.ConditionTrue
-				})
-				if !conditionFound {
-					return false
-				}
-			}
-			return true
-		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for machine to be ready")
-	})
-}
-
 // Logic to validate resource status
 func validateResourceStatus(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Checking the resource status", func() {
 		Eventually(func() bool {
-			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err := cluster.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, workspaceObj, &client.GetOptions{})
@@ -207,7 +164,7 @@ func validateAssociatedService(workspaceObj *kaitov1alpha1.Workspace) {
 		service := &v1.Service{}
 
 		Eventually(func() bool {
-			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err := cluster.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: serviceNamespace,
 				Name:      serviceName,
 			}, service)
@@ -241,7 +198,7 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, expectedRe
 						Namespace: workspaceObj.Namespace,
 					},
 				}
-				err = TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				err = cluster.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 					Namespace: workspaceObj.Namespace,
 					Name:      workspaceObj.Name,
 				}, sts)
@@ -254,7 +211,7 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, expectedRe
 						Namespace: workspaceObj.Namespace,
 					},
 				}
-				err = TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				err = cluster.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 					Namespace: workspaceObj.Namespace,
 					Name:      workspaceObj.Name,
 				}, dep)
@@ -280,7 +237,7 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, expectedRe
 func validateWorkspaceReadiness(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Checking the workspace status is ready", func() {
 		Eventually(func() bool {
-			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err := cluster.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, workspaceObj, &client.GetOptions{})
@@ -310,7 +267,7 @@ func deleteWorkspace(workspaceObj *kaitov1alpha1.Workspace) error {
 	By("Deleting workspace", func() {
 		Eventually(func() error {
 			// Check if the workspace exists
-			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err := cluster.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, workspaceObj)
@@ -323,7 +280,7 @@ func deleteWorkspace(workspaceObj *kaitov1alpha1.Workspace) error {
 				return fmt.Errorf("error checking if workspace %s exists: %v", workspaceObj.Name, err)
 			}
 
-			err = TestingCluster.KubeClient.Delete(ctx, workspaceObj, &client.DeleteOptions{})
+			err = cluster.TestingCluster.KubeClient.Delete(ctx, workspaceObj, &client.DeleteOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to delete workspace %s: %v", workspaceObj.Name, err)
 			}
@@ -375,7 +332,12 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, numOfNode)
+		if suiteTestName == "azkarpenter" {
+			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
+		} else {
+			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
+		}
+
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -394,7 +356,12 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, numOfNode)
+		if suiteTestName == "azkarpenter" {
+			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
+		} else {
+			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
+		}
+
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -413,7 +380,12 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, numOfNode)
+		if suiteTestName == "azkarpenter" {
+			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
+		} else {
+			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
+		}
+
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -436,7 +408,12 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, numOfNode)
+		if suiteTestName == "azkarpenter" {
+			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
+		} else {
+			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
+		}
+
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -462,7 +439,13 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 
 		time.Sleep(30 * time.Second)
-		validateMachineCreation(workspaceObj, numOfNode)
+
+		if suiteTestName == "azkarpenter" {
+			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
+		} else {
+			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
+		}
+
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -482,7 +465,13 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 
 		time.Sleep(30 * time.Second)
-		validateMachineCreation(workspaceObj, numOfNode)
+
+		if suiteTestName == "azkarpenter" {
+			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
+		} else {
+			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
+		}
+
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
