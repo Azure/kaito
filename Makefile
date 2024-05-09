@@ -36,6 +36,7 @@ GPU_PROVISIONER_MSI_NAME ?= gpuIdentity
 RUN_LLAMA_13B ?= false
 AI_MODELS_REGISTRY ?= modelregistry.azurecr.io
 AI_MODELS_REGISTRY_SECRET ?= modelregistry
+SUPPORTED_MODELS_YAML_PATH ?= /home/runner/work/kaito/kaito/presets/models/supported_models.yaml
 
 # Scripts
 GO_INSTALL := ./hack/go-install.sh
@@ -111,6 +112,7 @@ GINKGO_ARGS ?= -focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" -nodes=$(GINKGO_N
 kaito-workspace-e2e-test: $(E2E_TEST) $(GINKGO)
 	AI_MODELS_REGISTRY_SECRET=$(AI_MODELS_REGISTRY_SECRET) RUN_LLAMA_13B=$(RUN_LLAMA_13B) \
  	AI_MODELS_REGISTRY=$(AI_MODELS_REGISTRY) GPU_NAMESPACE=$(GPU_NAMESPACE) KAITO_NAMESPACE=$(KAITO_NAMESPACE) \
+	SUPPORTED_MODELS_YAML_PATH=$(SUPPORTED_MODELS_YAML_PATH) \
  	$(GINKGO) -v -trace $(GINKGO_ARGS) $(E2E_TEST)
 
 .PHONY: create-rg
