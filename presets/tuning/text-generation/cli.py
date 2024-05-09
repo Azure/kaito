@@ -25,6 +25,16 @@ from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
 # class TrainerType:
 #     trainer_type: TrainerTypes = field(default=TrainerTypes.SFT_TRAINER, metadata={"help": "Type of trainer to use for fine-tuning."})
 
+# class TrainingTypes(Enum):
+#     TEXT_ONLY = "Text"
+#     COMPLETION = "Completion"
+#     INSTRUCTION = "Instruction"
+#     CHAT = "Chat"
+
+# @dataclass
+# class TrainingType: 
+#     training_type: TrainingTypes = field(default=TrainingTypes.INSTRUCTION, metadata={"help": "Type of fine tuning being performed."})
+
 @dataclass
 class ExtDataCollator(DataCollatorForLanguageModeling):
     tokenizer: Optional[PreTrainedTokenizer] = field(default=PreTrainedTokenizer, metadata={"help": "Tokenizer for DataCollatorForLanguageModeling"})
@@ -49,9 +59,10 @@ class DatasetConfig:
     dataset_extension: Optional[str] = field(default=None, metadata={"help": "Optional explicit file extension of the dataset. If not provided, the extension will be derived from the dataset_path."})
     shuffle_dataset: bool = field(default=True, metadata={"help": "Whether to shuffle dataset"})
     shuffle_seed: int = field(default=42, metadata={"help": "Seed for shuffling data"})
-    instruction_column: Optional[str] = field(default=None, metadata={"help": "Example LLM Instruction column in the dataset"})
-    context_column: str = field(default="Context", metadata={"help": "Example human input column in the dataset"})
-    response_column: str = field(default="Response", metadata={"help": "Example bot response output column in the dataset"})
+    # instruction_column: Optional[str] = field(default=None, metadata={"help": "Optional column for detailed instructions, used in more structured tasks like Alpaca-style setups."}) # Consider including in V2
+    context_column: Optional[str] = field(default=None, metadata={"help": "Column for additional context or prompts, used for generating responses based on scenarios."})
+    response_column: str = field(default="text", metadata={"help": "Main text column for standalone entries or the response part in prompt-response setups."})
+    messages_column: Optional[str] = field(default=None, metadata={"help": "Column containing structured conversational data in JSON format with roles and content, used for chatbot training."})
     train_test_split: float = field(default=0.8, metadata={"help": "Split between test and training data (e.g. 0.8 means 80/20% train/test split)"})
 
 @dataclass

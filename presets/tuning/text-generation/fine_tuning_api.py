@@ -10,7 +10,6 @@ import torch
 import transformers
 from accelerate import Accelerator
 from dataset import DatasetManager
-from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           BitsAndBytesConfig, HfArgumentParser, Trainer,
@@ -33,10 +32,10 @@ ext_lora_config = parsed_configs.get('LoraConfig')
 ta_args = parsed_configs.get('TrainingArguments')
 ds_config = parsed_configs.get('DatasetConfig')
 dc_args = parsed_configs.get('DataCollator')
-tt_args = parsed_configs.get('TrainerType')
-trainer_class = TRAINER_CLASS_MAP.get(tt_args.trainer_type)
-if not trainer_class:
-    raise ValueError(f"Unsupported trainer type: {tt_args.trainer_type}")
+# tt_args = parsed_configs.get('TrainerType')
+# trainer_class = TRAINER_CLASS_MAP.get(tt_args.trainer_type)
+# if not trainer_class:
+#     raise ValueError(f"Unsupported trainer type: {tt_args.trainer_type}")
 
 accelerator = Accelerator()
 
@@ -89,12 +88,6 @@ model = get_peft_model(model, lora_config)
 model.config.use_cache = False
 model.print_trainable_parameters()
 
-# Loading and Preparing the Dataset
-# Data format: https://huggingface.co/docs/autotrain/en/llm_finetuning
-def preprocess_data(example):
-    prompt = f"human: {example[ds_config.context_column]}\n bot: {example[ds_config.response_column]}".strip()
-    return tokenizer(prompt, **tk_params)
-
 dm = DatasetManager(ds_config, tk_params)
 # Load the dataset
 dm.load_dataset()
@@ -106,10 +99,16 @@ if not dm.dataset:
 if ds_config.shuffle_dataset:
     dm.shuffle_dataset()
 
-text_mapping_func = lambda x: {
-    'text': f"<s>[INST]{('<<SYS>>' + x[ds_config.instruction_column] + '<</SYS>>') if ds_config.instruction_column in x else ''}{x[ds_config.context_column]} [/INST]{x[ds_config.response_column]} </s>"
-}
-dm.preprocess_data(text_mapping_func)
+# OAI Compliant: https://platform.openai.com/docs/guides/fine-tuning/preparing-your-dataset
+# https://github.com/huggingface/trl/blob/main/trl/extras/dataset_formatting.py
+# https://huggingface.co/docs/trl/en/sft_trainer#dataset-format-support
+format_fn = None
+if ds_config.messages_column:
+    format_fn = dm.format_conversational_fn
+elif ds_config.context_column and ds_config.response_column:
+    format_fn = dm.format_instruct_fn
+elif ds_config.response_column:
+    format_fn = dm.format_text_fn
 
 train_dataset, eval_dataset = dm.split_dataset()
 
@@ -125,6 +124,7 @@ trainer = accelerator.prepare(SFTTrainer(
     eval_dataset=eval_dataset,
     args=ta_args,
     data_collator=dc_args,
+    formatting_func = format_fn,
     # metrics = "tensorboard" or "wandb" # TODO
 ))
 trainer.train()

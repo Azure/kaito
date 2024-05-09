@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Optional
 
@@ -75,3 +76,64 @@ class DatasetManager:
         if self.dataset is None:
             raise ValueError("Dataset is not loaded.")
         return self.dataset
+    
+
+    def format_text_fn(self, examples):
+        # Use data from raw text column    
+        return examples[self.config.response_column]
+
+    # Consider supporting in future
+    # https://github.com/huggingface/trl/pull/444
+    # def format_instruction_based_fn(self, examples): 
+    #     output_text = []
+    #     for i in range(len(examples[self.config.context_column])):
+    #         instruction = examples[self.config.instruction_column][i]
+    #         context = examples[self.config.context_column][i]
+    #         response = examples[self.config.response_column][i]
+    #         text = f'''Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
+
+    #         ### Instruction:
+    #         {instruction}
+            
+    #         ### Input:
+    #         {context}
+            
+    #         ### Response:
+    #         {response}
+    #         '''
+    #         output_text.append(text)
+    #     return output_text
+
+    def format_instruct_fn(self, examples): 
+        output = []
+        for i in range(len(examples[self.config.context_column])):
+            prompt = examples[self.config.context_column][i]
+            completion = examples[self.config.text_column][i]
+            output.append({"prompt": prompt, "completion": completion})
+        return output
+
+    def format_conversational_fn(self, examples):
+        output_data = []
+        for item in examples[self.config.messages_column]:
+            if isinstance(item, str):
+                try:
+                    # Attempt to parse the string as JSON
+                    item = json.loads(item)
+                except json.JSONDecodeError as e:
+                    print(f"Skipping invalid JSON entry: {e}")
+                    continue  # Skip the entry and move to the next
+            
+            # Check if the item is already properly structured
+            if isinstance(item, dict) and 'messages' in item:
+                json_data = item
+            elif isinstance(item, list):
+                # Wrap the list in a dict with a 'messages' key
+                json_data = {'messages': item}
+            else:
+                print(f"Skipping entry with unsupported type or structure: {type(item)}")
+                continue
+
+            output_data.append(json_data)
+        return output_data
+
+

@@ -7,7 +7,7 @@ from dataclasses import asdict, fields
 
 import yaml
 from cli import (DatasetConfig, ExtDataCollator, ExtLoraConfig, ModelConfig,
-                 QuantizationConfig, TokenizerParams, TrainerType)
+                 QuantizationConfig, TokenizerParams)
 from transformers import HfArgumentParser, TrainingArguments
 
 # Mapping from config section names to data classes
@@ -19,7 +19,6 @@ CONFIG_CLASS_MAP = {
     'TrainingArguments': TrainingArguments,
     'DatasetConfig': DatasetConfig,
     'DataCollator': ExtDataCollator,
-    'TrainerType': TrainerType,
 }
 
 def flatten_config_to_cli_args(config, prefix=''):
