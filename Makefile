@@ -36,7 +36,7 @@ GPU_PROVISIONER_MSI_NAME ?= gpuIdentity
 RUN_LLAMA_13B ?= false
 AI_MODELS_REGISTRY ?= modelregistry.azurecr.io
 AI_MODELS_REGISTRY_SECRET ?= modelregistry
-SUPPORTED_MODELS_YAML_PATH ?= ~/kaito/presets/models/supported_models.yaml
+SUPPORTED_MODELS_YAML_PATH ?= /home/runner/work/kaito/kaito/presets/models/supported_models.yaml
 
 # Scripts
 GO_INSTALL := ./hack/go-install.sh
