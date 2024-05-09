@@ -1,4 +1,5 @@
-import json
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
 import os
 from typing import Optional
 
@@ -141,4 +142,3 @@ class DatasetManager:
     #         '''
     #         output_text.append(text)
     #     return output_text
-    
