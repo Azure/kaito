@@ -27,10 +27,6 @@ spec:
                 operator: NotIn
                 values:
                 - virtual-kubelet
-              - key: karpenter.sh/provisioner-name
-                operator: Exists
-              - key: kaito.sh/machine-type
-                operator: Exists
       tolerations:
         # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
         # This, along with the annotation above marks this pod as a critical add-on.

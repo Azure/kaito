@@ -47,6 +47,8 @@ spec:
               value: {{ .Values.presetRegistryName }}
             - name: CLOUD_PROVIDER
               value: {{ .Values.cloudProviderName }}
+            - name: CLUSTER_NAME
+              value: {{ .Values.clusterName }}
           ports:
             - name: http-metrics
               containerPort: 8080
