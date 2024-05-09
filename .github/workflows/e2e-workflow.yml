@@ -198,7 +198,6 @@ jobs:
           RUN_LLAMA_13B: ${{ env.RUN_LLAMA_13B }}
           AI_MODELS_REGISTRY: ${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io
           AI_MODELS_REGISTRY_SECRET: ${{ secrets.E2E_AMRT_SECRET_NAME }}
-          SUPPORTED_MODELS_YAML_PATH: "/home/runner/work/kaito/kaito/presets/models/supported_models.yaml"
 
       - name: Cleanup e2e resources
         if: ${{ always() }}
