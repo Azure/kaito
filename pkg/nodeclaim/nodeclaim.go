@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
+
 package nodeclaim
 
 import (
@@ -24,10 +25,8 @@ import (
 )
 
 const (
-	NodePoolName                  = "default"
-	LabelGPUProvisionerCustom     = "kaito.sh/nodeclaim-type"
-	LabelNodePoolName             = "karpenter.sh/nodepool-name"
-	GPUString                     = "gpu"
+	KaitoNodePoolName             = "kaito"
+	LabelNodePool                 = "karpenter.sh/nodepool"
 	ErrorInstanceTypesUnavailable = "all requested instance types were unavailable during launch"
 )
 
@@ -38,17 +37,19 @@ var (
 
 // GenerateNodeClaimManifest generates a nodeClaim object from the given workspace.
 func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, workspaceObj *kaitov1alpha1.Workspace) *v1beta1.NodeClaim {
-	digest := sha256.Sum256([]byte(workspaceObj.Namespace + workspaceObj.Name + time.Now().Format("2006-01-02 15:04:05.000000000"))) // We make sure the nodeClaim name is not fixed to the a workspace
+	digest := sha256.Sum256([]byte(workspaceObj.Namespace + workspaceObj.Name + time.Now().
+		Format("2006-01-02 15:04:05.000000000"))) // We make sure the nodeClaim name is not fixed to the workspace
 	nodeClaimName := "ws" + hex.EncodeToString(digest[0:])[0:9]
+
 	nodeClaimLabels := map[string]string{
-		LabelNodePoolName:                     NodePoolName,
+		LabelNodePool:                         KaitoNodePoolName, // Fake nodepool name to prevent Karpenter from scaling up.
 		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
 		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
+		v1beta1.DoNotDisruptAnnotationKey:     "true", // To prevent Karpenter from scaling down.
 	}
 	if workspaceObj.Resource.LabelSelector != nil &&
 		len(workspaceObj.Resource.LabelSelector.MatchLabels) != 0 {
 		nodeClaimLabels = lo.Assign(nodeClaimLabels, workspaceObj.Resource.LabelSelector.MatchLabels)
-
 	}
 
 	return &v1beta1.NodeClaim{
@@ -69,17 +70,9 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 				},
 				{
 					NodeSelectorRequirement: v1.NodeSelectorRequirement{
-						Key:      LabelNodePoolName,
+						Key:      LabelNodePool,
 						Operator: v1.NodeSelectorOpIn,
-						Values:   []string{NodePoolName},
-					},
-					MinValues: lo.ToPtr(1),
-				},
-				{
-					NodeSelectorRequirement: v1.NodeSelectorRequirement{
-						Key:      LabelGPUProvisionerCustom,
-						Operator: v1.NodeSelectorOpIn,
-						Values:   []string{GPUString},
+						Values:   []string{KaitoNodePoolName},
 					},
 					MinValues: lo.ToPtr(1),
 				},
@@ -103,7 +96,7 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 			Taints: []v1.Taint{
 				{
 					Key:    "sku",
-					Value:  GPUString,
+					Value:  "gpu",
 					Effect: v1.TaintEffectNoSchedule,
 				},
 			},
