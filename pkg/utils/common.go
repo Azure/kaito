@@ -6,17 +6,18 @@ package utils
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"strings"
+
 	"github.com/azure/kaito/pkg/sku"
 	"github.com/azure/kaito/pkg/utils/consts"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"knative.dev/pkg/apis"
-	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 func Contains(s []string, e string) bool {

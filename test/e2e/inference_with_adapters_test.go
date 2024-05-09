@@ -50,7 +50,7 @@ func validateAdapters(workspaceObj *kaitov1alpha1.Workspace, expectedInitContain
 					Namespace: workspaceObj.Namespace,
 				},
 			}
-			err = TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err = utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, dep)
@@ -95,7 +95,11 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, numOfNode)
+		if suiteTestName == "azkarpenter" {
+			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
+		} else {
+			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
+		}
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
