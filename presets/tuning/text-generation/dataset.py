@@ -78,9 +78,47 @@ class DatasetManager:
         return self.dataset
     
 
-    def format_text_fn(self, examples):
-        # Use data from raw text column    
-        return examples[self.config.response_column]
+    def format_text(self):
+        if self.dataset is None:
+            raise ValueError("Dataset is not loaded.")
+        if self.config.response_column not in self.dataset.column_names:
+            raise ValueError(f"Column '{self.config.response_column}' does not exist in the dataset. Available columns: {self.dataset.column_names}")
+        self.dataset = self.dataset.select_columns([self.config.response_column])
+
+    def format_instruct(self):
+        """Ensure dataset is formatted for instruct fine tuning"""
+        if self.dataset is None:
+            raise ValueError("Dataset is not loaded.")        
+        required_columns = [self.config.context_column, self.config.response_column]
+        for column in required_columns:
+            if column not in self.dataset.column_names:
+                raise ValueError(f"Column '{column}' does not exist in the dataset. Available columns: {self.dataset.column_names}")
+       
+        # Select only the specified columns for fine tuning
+        self.dataset = self.dataset.select_columns(required_columns)
+       
+        # Ensure correct column name
+        if self.config.context_column != "prompt": 
+            self.dataset = self.dataset.rename_column(self.config.context_column, "prompt")
+        if self.config.response_column != "completion": 
+            self.dataset = self.dataset.rename_column(self.config.context_column, "completion")
+            
+
+    def format_conversational(self):
+        """Ensure some basic formatting of dataset for conversational fine tuning"""
+        if self.dataset is None:
+            raise ValueError("Dataset is not loaded.")
+         
+        # Check if the specified column exists in the dataset
+        if self.config.messages_column not in self.dataset.column_names:
+            raise ValueError(f"Column '{self.config.messages_column}' does not exist in the dataset. Available columns: {self.dataset.column_names}")
+        
+        # Select only the specified column for fine tuning
+        self.dataset = self.dataset.select_columns([self.config.messages_column])
+        
+        # Ensure correct column name
+        if self.config.messages_column != "messages": 
+            self.dataset = self.dataset.rename_column(self.config.messages_column, "messages")
 
     # Consider supporting in future
     # https://github.com/huggingface/trl/pull/444
@@ -103,37 +141,4 @@ class DatasetManager:
     #         '''
     #         output_text.append(text)
     #     return output_text
-
-    def format_instruct_fn(self, examples): 
-        output = []
-        for i in range(len(examples[self.config.context_column])):
-            prompt = examples[self.config.context_column][i]
-            completion = examples[self.config.text_column][i]
-            output.append({"prompt": prompt, "completion": completion})
-        return output
-
-    def format_conversational_fn(self, examples):
-        output_data = []
-        for item in examples[self.config.messages_column]:
-            if isinstance(item, str):
-                try:
-                    # Attempt to parse the string as JSON
-                    item = json.loads(item)
-                except json.JSONDecodeError as e:
-                    print(f"Skipping invalid JSON entry: {e}")
-                    continue  # Skip the entry and move to the next
-            
-            # Check if the item is already properly structured
-            if isinstance(item, dict) and 'messages' in item:
-                json_data = item
-            elif isinstance(item, list):
-                # Wrap the list in a dict with a 'messages' key
-                json_data = {'messages': item}
-            else:
-                print(f"Skipping entry with unsupported type or structure: {type(item)}")
-                continue
-
-            output_data.append(json_data)
-        return output_data
-
-
+    

@@ -102,13 +102,12 @@ if ds_config.shuffle_dataset:
 # OAI Compliant: https://platform.openai.com/docs/guides/fine-tuning/preparing-your-dataset
 # https://github.com/huggingface/trl/blob/main/trl/extras/dataset_formatting.py
 # https://huggingface.co/docs/trl/en/sft_trainer#dataset-format-support
-format_fn = None
 if ds_config.messages_column:
-    format_fn = dm.format_conversational_fn
+    dm.format_conversational()
 elif ds_config.context_column and ds_config.response_column:
-    format_fn = dm.format_instruct_fn
+    dm.format_instruct()
 elif ds_config.response_column:
-    format_fn = dm.format_text_fn
+    dm.format_text()
 
 train_dataset, eval_dataset = dm.split_dataset()
 
@@ -124,7 +123,6 @@ trainer = accelerator.prepare(SFTTrainer(
     eval_dataset=eval_dataset,
     args=ta_args,
     data_collator=dc_args,
-    formatting_func = format_fn,
     # metrics = "tensorboard" or "wandb" # TODO
 ))
 trainer.train()
