@@ -8,10 +8,10 @@ from datasets import load_dataset
 SUPPORTED_EXTENSIONS = {'csv', 'json', 'parquet', 'arrow', 'webdataset'}
 
 class DatasetManager:
-    def __init__(self, config, tokenizer_params, preprocess_function: Optional[callable] = None):
+    def __init__(self, config, tokenizer, tokenizer_params):
         self.config = config
         self.tokenizer_params = tokenizer_params
-        self.preprocess_function = preprocess_function
+        self.tokenizer = tokenizer
         self.dataset = None
 
     def load_dataset(self):
@@ -49,12 +49,6 @@ class DatasetManager:
         _, file_ext = os.path.splitext(file_path)
         return file_ext[1:]  # Remove leading "."
 
-    def preprocess_data(self):
-        if self.dataset is None:
-            raise ValueError("Dataset is not loaded.")
-        if self.preprocess_function:
-            self.dataset = self.dataset.map(self.preprocess_function, batched=True, fn_kwargs=self.tokenizer_params)
-
     def shuffle_dataset(self, seed=None):
         if self.dataset is None:
             raise ValueError("Dataset is not loaded.")
@@ -78,6 +72,20 @@ class DatasetManager:
             raise ValueError("Dataset is not loaded.")
         return self.dataset
     
+    def format_and_preprocess(self):
+        # OAI Compliant: https://platform.openai.com/docs/guides/fine-tuning/preparing-your-dataset
+        # https://github.com/huggingface/trl/blob/main/trl/extras/dataset_formatting.py
+        # https://huggingface.co/docs/trl/en/sft_trainer#dataset-format-support
+        if self.config.messages_column:
+            self.format_conversational()
+        elif self.config.context_column and self.config.response_column:
+            self.format_instruct()
+        elif self.config.response_column:
+            self.dataset = self.dataset.map(
+                lambda example: self.tokenizer(example[self.config.response_column], **self.tokenizer_params),
+                batched=True
+            )
+            self.format_text()
 
     def format_text(self):
         if self.dataset is None:

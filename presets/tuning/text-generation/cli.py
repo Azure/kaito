@@ -9,12 +9,12 @@ from typing import Any, Dict, List, Optional
 import torch
 from peft import LoraConfig
 from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
-                          PreTrainedTokenizer, TrainerCallback)
+                          PreTrainedTokenizer)
 
+# Consider Future Support for other trainers
 # class TrainerTypes(Enum):
-#     TRAINER = "Trainer"
-#     SFT_TRAINER = "SFTTrainer"
-    # TODO: Future Support for other trainers
+    # TRAINER = "Trainer"
+    # SFT_TRAINER = "SFTTrainer"
     # DPO_TRAINER = "DPOTrainer"
     # REWARD_TRAINER = "RewardTrainer"
     # PPO_TRAINER = "PPOTrainer"
@@ -24,16 +24,6 @@ from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
 # @dataclass
 # class TrainerType:
 #     trainer_type: TrainerTypes = field(default=TrainerTypes.SFT_TRAINER, metadata={"help": "Type of trainer to use for fine-tuning."})
-
-# class TrainingTypes(Enum):
-#     TEXT_ONLY = "Text"
-#     COMPLETION = "Completion"
-#     INSTRUCTION = "Instruction"
-#     CHAT = "Chat"
-
-# @dataclass
-# class TrainingType: 
-#     training_type: TrainingTypes = field(default=TrainingTypes.INSTRUCTION, metadata={"help": "Type of fine tuning being performed."})
 
 @dataclass
 class ExtDataCollator(DataCollatorForLanguageModeling):

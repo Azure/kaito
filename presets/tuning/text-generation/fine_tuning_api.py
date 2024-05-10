@@ -17,11 +17,6 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
 from trl import SFTTrainer
 
 CONFIG_YAML = os.environ.get('YAML_FILE_PATH', '/mnt/config/training_config.yaml')
-# TRAINER_CLASS_MAP = {
-#     TrainerTypes.TRAINER: Trainer,
-#     TrainerTypes.SFT_TRAINER: SFTTrainer,
-#     # Additional mappings as needed
-# }
 
 parsed_configs = parse_configs(CONFIG_YAML)
 
@@ -32,10 +27,6 @@ ext_lora_config = parsed_configs.get('LoraConfig')
 ta_args = parsed_configs.get('TrainingArguments')
 ds_config = parsed_configs.get('DatasetConfig')
 dc_args = parsed_configs.get('DataCollator')
-# tt_args = parsed_configs.get('TrainerType')
-# trainer_class = TRAINER_CLASS_MAP.get(tt_args.trainer_type)
-# if not trainer_class:
-#     raise ValueError(f"Unsupported trainer type: {tt_args.trainer_type}")
 
 accelerator = Accelerator()
 
@@ -54,7 +45,8 @@ enable_qlora = bnb_config.is_quantizable()
 tk_params = asdict(tk_params)
 
 # Load the Pre-Trained Tokenizer
-tokenizer = AutoTokenizer.from_pretrained(**model_args)
+tokenizer_args = {key: value for key, value in model_args.items() if key != "torch_dtype"}
+tokenizer = AutoTokenizer.from_pretrained(**tokenizer_args)
 if not tokenizer.pad_token:
     tokenizer.pad_token = tokenizer.eos_token
 if dc_args.mlm and tokenizer.mask_token is None:
@@ -88,10 +80,10 @@ model = get_peft_model(model, lora_config)
 model.config.use_cache = False
 model.print_trainable_parameters()
 
-dm = DatasetManager(ds_config, tk_params)
+dm = DatasetManager(ds_config, tokenizer, tk_params)
 # Load the dataset
 dm.load_dataset()
-if not dm.dataset:
+if not dm.get_dataset():
     print("Failed to load dataset.")
     raise ValueError("Unable to load the dataset.")
 
@@ -99,16 +91,7 @@ if not dm.dataset:
 if ds_config.shuffle_dataset:
     dm.shuffle_dataset()
 
-# OAI Compliant: https://platform.openai.com/docs/guides/fine-tuning/preparing-your-dataset
-# https://github.com/huggingface/trl/blob/main/trl/extras/dataset_formatting.py
-# https://huggingface.co/docs/trl/en/sft_trainer#dataset-format-support
-if ds_config.messages_column:
-    dm.format_conversational()
-elif ds_config.context_column and ds_config.response_column:
-    dm.format_instruct()
-elif ds_config.response_column:
-    dm.format_text()
-
+dm.format_and_preprocess()
 train_dataset, eval_dataset = dm.split_dataset()
 
 # checkpoint_callback = CheckpointCallback()
@@ -119,6 +102,7 @@ torch.cuda.empty_cache()
 # Training the Model
 trainer = accelerator.prepare(SFTTrainer(
     model=model,
+    tokenizer=tokenizer,
     train_dataset=train_dataset,
     eval_dataset=eval_dataset,
     args=ta_args,
