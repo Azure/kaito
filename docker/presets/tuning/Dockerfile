@@ -1,4 +1,4 @@
-FROM python:3.10-slim@sha256:684b1aaf96a7942b3c3af438d162e0baa3510aa7af25ad76d238e0c746bdec79
+FROM python:3.12-slim@sha256:2be8daddbb82756f7d1f2c7ece706aadcb284bf6ab6d769ea695cc3ed6016743
 
 ARG WEIGHTS_PATH
 ARG MODEL_TYPE
