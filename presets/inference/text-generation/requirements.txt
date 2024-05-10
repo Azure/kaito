@@ -1,7 +1,7 @@
 # Dependencies for TFS
 transformers==4.37.2
 torch==2.2.0
-accelerate==0.23.0
+accelerate==0.30.0
 fastapi==0.109.1
 pydantic==1.10.9
 uvicorn[standard]==0.23.2
