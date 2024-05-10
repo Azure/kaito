@@ -13,3 +13,4 @@ einops
 xformers
 deepspeed
 trl
+tensorboard

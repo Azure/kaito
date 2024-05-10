@@ -21,7 +21,7 @@ class DatasetManager:
             dataset_path = self.find_valid_dataset(os.environ.get('DATASET_FOLDER_PATH', '/mnt/data'))
             if not dataset_path:
                 raise ValueError("Unable to find a valid dataset file.")
-        
+
         file_ext = self.config.dataset_extension if self.config.dataset_extension else self.get_file_extension(dataset_path)
         try:
             self.dataset = load_dataset(file_ext, data_files=dataset_path, split="train")
@@ -71,7 +71,7 @@ class DatasetManager:
         if self.dataset is None:
             raise ValueError("Dataset is not loaded.")
         return self.dataset
-    
+
     def format_and_preprocess(self):
         # OAI Compliant: https://platform.openai.com/docs/guides/fine-tuning/preparing-your-dataset
         # https://github.com/huggingface/trl/blob/main/trl/extras/dataset_formatting.py
@@ -86,6 +86,8 @@ class DatasetManager:
                 batched=True
             )
             self.format_text()
+            return self.config.response_column
+        return None
 
     def format_text(self):
         if self.dataset is None:
@@ -110,7 +112,7 @@ class DatasetManager:
         if self.config.context_column != "prompt": 
             self.dataset = self.dataset.rename_column(self.config.context_column, "prompt")
         if self.config.response_column != "completion": 
-            self.dataset = self.dataset.rename_column(self.config.context_column, "completion")
+            self.dataset = self.dataset.rename_column(self.config.response_column, "completion")
             
 
     def format_conversational(self):
