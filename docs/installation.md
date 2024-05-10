@@ -8,6 +8,7 @@ Before you begin, ensure you have the following tools installed:
 - [Helm](https://helm.sh) to install this operator
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) to view Kubernetes resources
 - [git](https://git-scm.com/downloads) to clone this repo locally
+- [jq](https://jqlang.github.io/jq/download) to process JSON files
 
 **Important Note**:
 Ensure you use a release branch of the repository for a stable version of the installation.
@@ -110,7 +111,7 @@ helm list -n default
 Check status of the `workspace`.
 
 ```bash
-kubectl describe deploy workspace -n workspace
+kubectl describe deploy workspace -n kaito-workspace
 ```
 
 Check status of the `gpu-provisioner`.
