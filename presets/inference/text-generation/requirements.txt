@@ -2,7 +2,7 @@
 transformers==4.37.2
 torch==2.2.0
 accelerate==0.23.0
-fastapi==0.109.1
+fastapi==0.111.0
 pydantic==1.10.9
 uvicorn[standard]==0.23.2
 bitsandbytes==0.42.0
