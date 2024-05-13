@@ -1,5 +1,5 @@
 # Dependencies for TFS
-transformers==4.37.2
+transformers==4.40.2
 torch==2.2.0
 accelerate==0.23.0
 fastapi==0.109.1
