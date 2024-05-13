@@ -1,6 +1,6 @@
 # Dependencies for TFS
 
-# Core dependencies
+# Core Dependencies
 transformers==4.40.2
 torch==2.2.0
 accelerate==0.30.1

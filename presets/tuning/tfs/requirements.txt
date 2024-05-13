@@ -1,14 +1,19 @@
+# Core Dependencies
+transformers==4.40.2
+torch==2.2.0
+accelerate==0.30.1
+fastapi>=0.111.0,<0.112.0  # Allow patch updates
+pydantic>=2.7.1,<2.8      # Allow patch updates
+uvicorn[standard]>=0.29.0,<0.30.0  # Allow patch updates
+
+# Utility libraries
 datasets==2.16.1
 peft==0.8.2
-transformers==4.38.2
-torch==2.2.0
-accelerate==0.27.2
-fastapi==0.109.1
-pydantic==1.10.9
-uvicorn[standard]==0.23.2
 bitsandbytes==0.42.0
-gputil==1.4.0
+deepspeed==0.11.1
+
+# Less critical, can be latest
 loralib
 einops
 xformers
-deepspeed
+gputil
