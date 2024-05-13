@@ -7,6 +7,7 @@ import (
 	"errors"
 	"testing"
 
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/mock"
 	"gotest.tools/assert"
@@ -171,5 +172,10 @@ func TestGenerateNodeClaimManifest(t *testing.T) {
 
 		assert.Check(t, nodeClaim != nil, "NodeClaim must not be nil")
 		assert.Equal(t, nodeClaim.Namespace, mockWorkspace.Namespace, "NodeClaim must have same namespace as workspace")
+		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceName], mockWorkspace.Name, "label must have same workspace name as workspace")
+		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceNamespace], mockWorkspace.Namespace, "label must have same workspace namespace as workspace")
+		assert.Equal(t, nodeClaim.Labels[LabelNodePool], KaitoNodePoolName, "label must have same labels as workspace label selector")
+		assert.Equal(t, nodeClaim.Labels[v1beta1.DoNotDisruptAnnotationKey], "true", "label must have do not disrupt annotation")
+		assert.Equal(t, nodeClaim.Spec.Requirements[0].Values[0], mockWorkspace.Resource.InstanceType, "NodeClaim must have same instance type as workspace")
 	})
 }

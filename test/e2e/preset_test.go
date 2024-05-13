@@ -337,6 +337,7 @@ func deleteWorkspace(workspaceObj *kaitov1alpha1.Workspace) error {
 var runLlama13B bool
 var aiModelsRegistry string
 var aiModelsRegistrySecret string
+var supportedModelsYamlPath string
 var modelInfo map[string]string
 
 var _ = Describe("Workspace Preset", func() {
@@ -351,9 +352,10 @@ var _ = Describe("Workspace Preset", func() {
 
 		aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
 		aiModelsRegistrySecret = utils.GetEnv("AI_MODELS_REGISTRY_SECRET")
+		supportedModelsYamlPath = utils.GetEnv("SUPPORTED_MODELS_YAML_PATH")
 
 		// Load stable model versions
-		configs, err := utils.GetModelConfigInfo("/home/runner/work/kaito/kaito/presets/models/supported_models.yaml")
+		configs, err := utils.GetModelConfigInfo(supportedModelsYamlPath)
 		if err != nil {
 			fmt.Printf("Failed to load model configs: %v\n", err)
 			os.Exit(1)

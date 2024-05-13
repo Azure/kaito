@@ -32,7 +32,7 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	//check gpu-provisioner deployment is up and running
 	gpuProvisionerDeployment := &v1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kaito-gpu-provisioner",
+			Name:      "gpu-provisioner",
 			Namespace: gpuNamespace,
 		},
 	}
