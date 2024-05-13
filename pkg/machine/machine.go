@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
+
 package machine
 
 import (
@@ -162,7 +163,7 @@ func WaitForPendingMachines(ctx context.Context, workspaceObj *kaitov1alpha1.Wor
 	return nil
 }
 
-// ListMachines list all machine objects in the cluster that are created by the workspace identified by the label.
+// ListMachinesByWorkspace list all machine objects in the cluster that are created by the workspace identified by the label.
 func ListMachinesByWorkspace(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) (*v1alpha5.MachineList, error) {
 	machineList := &v1alpha5.MachineList{}
 
