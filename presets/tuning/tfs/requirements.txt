@@ -7,7 +7,7 @@ pydantic>=2.7.1,<2.8      # Allow patch updates
 uvicorn[standard]>=0.29.0,<0.30.0  # Allow patch updates
 
 # Utility libraries
-datasets==2.16.1
+datasets==2.19.1
 peft==0.8.2
 bitsandbytes==0.42.0
 
