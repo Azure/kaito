@@ -175,8 +175,8 @@ class GenerateKwargs(BaseModel):
     pad_token_id: Optional[int] = tokenizer.pad_token_id
     eos_token_id: Optional[int] = tokenizer.eos_token_id
     class Config:
-        extra = Extra.allow # Allows for additional fields not explicitly defined
-        schema_extra = {
+        extra = 'allow' # Allows for additional fields not explicitly defined
+        json_schema_extra = {
             "example": {
                 "max_length": 200,
                 "temperature": 0.7,

@@ -37,7 +37,7 @@ jobs:
       full_matrix: ${{ steps.images.outputs.full_matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b # v4.1.5
         with:
           submodules: true
           fetch-depth: 0
@@ -106,7 +106,7 @@ jobs:
         model: ${{fromJson(needs.determine-models.outputs.full_matrix)}}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.5
         with:
             submodules: true
             fetch-depth: 0
@@ -115,7 +115,7 @@ jobs:
         run: echo "MODEL_IS_OSS=${{ matrix.model.OSS }}" >> $GITHUB_ENV
 
       - name: 'Az CLI login'
-        uses: azure/login@v1.6.1
+        uses: azure/login@v2.1.0
         with:
             client-id: ${{ secrets.AZURE_CLIENT_ID }}
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
