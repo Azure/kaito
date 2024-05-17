@@ -9,7 +9,7 @@ pydantic>=2.7.1,<2.8      # Allow patch updates
 uvicorn[standard]>=0.29.0,<0.30.0  # Allow patch updates
 
 # Utility libraries
-bitsandbytes==0.42.0
+bitsandbytes==0.43.1
 
 # Less critical, can be latest
 deepspeed
