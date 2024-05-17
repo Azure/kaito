@@ -9,7 +9,7 @@ uvicorn[standard]>=0.29.0,<0.30.0  # Allow patch updates
 # Utility libraries
 datasets==2.19.1
 peft==0.8.2
-bitsandbytes==0.42.0
+bitsandbytes==0.43.1
 
 # Less critical, can be latest
 deepspeed
