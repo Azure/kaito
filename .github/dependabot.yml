@@ -16,29 +16,25 @@ updates:
     directory: /docker/presets/inference/llama-2
     schedule:
       interval: daily
-    allow:
-      - update-type: "security"
+    open-pull-requests-limit: 0
 
   - package-ecosystem: docker
     directory: /docker/presets/inference/tfs-onnx
     schedule:
       interval: daily
-    allow:
-      - update-type: "security"
+    open-pull-requests-limit: 0
 
   - package-ecosystem: docker
     directory: /docker/presets/inference/tfs
     schedule:
       interval: daily
-    allow:
-      - update-type: "security"
+    open-pull-requests-limit: 0
 
   - package-ecosystem: docker
     directory: /docker/presets/tuning
     schedule:
       interval: daily
-    allow:
-      - update-type: "security"
+    open-pull-requests-limit: 0
 
   - package-ecosystem: gomod
     directory: /
@@ -49,12 +45,10 @@ updates:
     directory: /presets/inference/text-generation
     schedule:
       interval: daily
-    allow:
-      - update-type: "security"
+    open-pull-requests-limit: 0
 
   - package-ecosystem: pip
     directory: /presets/tuning/tfs
     schedule:
       interval: daily
-    allow:
-      - update-type: "security"
+    open-pull-requests-limit: 0
