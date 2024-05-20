@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/azure/kaito/pkg/utils/consts"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func Contains(s []string, e string) bool {
@@ -21,7 +22,7 @@ func Contains(s []string, e string) bool {
 }
 
 // SearchMap performs a search for a key in a map[string]interface{}.
-func SearchMap(m map[string]interface{}, key string) (value interface{}, exists bool) {
+func SearchMap(m map[string]runtime.RawExtension, key string) (value interface{}, exists bool) {
 	if val, ok := m[key]; ok {
 		return val, true
 	}

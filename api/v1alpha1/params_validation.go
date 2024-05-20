@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"knative.dev/pkg/apis"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -22,13 +23,13 @@ type Config struct {
 }
 
 type TrainingConfig struct {
-	ModelConfig        map[string]interface{} `yaml:"ModelConfig"`
-	TokenizerParams    map[string]interface{} `yaml:"TokenizerParams"`
-	QuantizationConfig map[string]interface{} `yaml:"QuantizationConfig"`
-	LoraConfig         map[string]interface{} `yaml:"LoraConfig"`
-	TrainingArguments  map[string]interface{} `yaml:"TrainingArguments"`
-	DatasetConfig      map[string]interface{} `yaml:"DatasetConfig"`
-	DataCollator       map[string]interface{} `yaml:"DataCollator"`
+	ModelConfig        map[string]runtime.RawExtension `yaml:"ModelConfig"`
+	TokenizerParams    map[string]runtime.RawExtension `yaml:"TokenizerParams"`
+	QuantizationConfig map[string]runtime.RawExtension `yaml:"QuantizationConfig"`
+	LoraConfig         map[string]runtime.RawExtension `yaml:"LoraConfig"`
+	TrainingArguments  map[string]runtime.RawExtension `yaml:"TrainingArguments"`
+	DatasetConfig      map[string]runtime.RawExtension `yaml:"DatasetConfig"`
+	DataCollator       map[string]runtime.RawExtension `yaml:"DataCollator"`
 }
 
 func validateNilOrBool(value interface{}) error {
