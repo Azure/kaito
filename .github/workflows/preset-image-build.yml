@@ -73,7 +73,7 @@ jobs:
   build-models:
     needs: determine-models
     if: needs.determine-models.outputs.is_matrix_empty == 'false'
-    runs-on: [self-hosted, 'hostname:model-server']
+    runs-on: [ "self-hosted", "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu" ]
     environment: preset-env
     strategy:
       fail-fast: false
