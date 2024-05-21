@@ -52,21 +52,22 @@ func (t *TrainingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	// This function converts a map[string]interface{} to a map[string]runtime.RawExtension.
 	// It does this by setting the raw marshalled data of the unmarshalled YAML to
 	// be the raw data of the runtime.RawExtension object.
-	handleRawExtension := func(raw map[string]interface{}, field string, target *map[string]runtime.RawExtension) error {
+	handleRawExtension := func(raw map[string]interface{}, field string) (map[string]runtime.RawExtension, error) {
+		var target map[string]runtime.RawExtension
 		if value, found := raw[field]; found {
 			delete(raw, field)
 			var ext runtime.RawExtension
 			data, err := yaml.Marshal(value)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			ext.Raw = data
-			if *target == nil {
-				*target = make(map[string]runtime.RawExtension)
+			if target == nil {
+				target = make(map[string]runtime.RawExtension)
 			}
-			(*target)[field] = ext
+			target[field] = ext
 		}
-		return nil
+		return target, nil
 	}
 
 	fields := []struct {
@@ -82,8 +83,10 @@ func (t *TrainingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		{"DataCollator", &t.DataCollator},
 	}
 
+	var err error
 	for _, field := range fields {
-		if err := handleRawExtension(raw, field.name, field.target); err != nil {
+		*field.target, err = handleRawExtension(raw, field.name)
+		if err != nil {
 			return err
 		}
 	}
