@@ -42,6 +42,57 @@ func validateNilOrBool(value interface{}) error {
 	return fmt.Errorf("value must be either nil or a boolean, got type %T", value)
 }
 
+func (t *TrainingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var raw map[string]interface{}
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+
+	// This function converts a map[string]interface{} to a map[string]runtime.RawExtension.
+	// It does this by setting the raw marshalled data of the unmarshalled YAML to
+	// be the raw data of the runtime.RawExtension object.
+	handleRawExtension := func(raw map[string]interface{}, field string, target *map[string]runtime.RawExtension) error {
+		if value, found := raw[field]; found {
+			delete(raw, field)
+			var ext runtime.RawExtension
+			data, err := yaml.Marshal(value)
+			if err != nil {
+				return err
+			}
+			ext.Raw = data
+			if *target == nil {
+				*target = make(map[string]runtime.RawExtension)
+			}
+			(*target)[field] = ext
+		}
+		return nil
+	}
+
+	if err := handleRawExtension(raw, "ModelConfig", &t.ModelConfig); err != nil {
+		return err
+	}
+	if err := handleRawExtension(raw, "TokenizerParams", &t.TokenizerParams); err != nil {
+		return err
+	}
+	if err := handleRawExtension(raw, "QuantizationConfig", &t.QuantizationConfig); err != nil {
+		return err
+	}
+	if err := handleRawExtension(raw, "LoraConfig", &t.LoraConfig); err != nil {
+		return err
+	}
+	if err := handleRawExtension(raw, "TrainingArguments", &t.TrainingArguments); err != nil {
+		return err
+	}
+	if err := handleRawExtension(raw, "DatasetConfig", &t.DatasetConfig); err != nil {
+		return err
+	}
+	if err := handleRawExtension(raw, "DataCollator", &t.DataCollator); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *apis.FieldError {
 	trainingConfigYAML, ok := cm.Data["training_config.yaml"]
 	if !ok {
