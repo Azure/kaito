@@ -52,7 +52,7 @@ func (t *TrainingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	// This function converts a map[string]interface{} to a map[string]runtime.RawExtension.
 	// It does this by setting the raw marshalled data of the unmarshalled YAML to
 	// be the raw data of the runtime.RawExtension object.
-	handleRawExtension := func(raw map[string]interface{}, field string, target map[string]runtime.RawExtension) error {
+	handleRawExtension := func(raw map[string]interface{}, field string, target *map[string]runtime.RawExtension) error {
 		if value, found := raw[field]; found {
 			delete(raw, field)
 			var ext runtime.RawExtension
@@ -61,25 +61,25 @@ func (t *TrainingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 				return err
 			}
 			ext.Raw = data
-			if target == nil {
-				target = make(map[string]runtime.RawExtension)
+			if *target == nil {
+				*target = make(map[string]runtime.RawExtension)
 			}
-			target[field] = ext
+			(*target)[field] = ext
 		}
 		return nil
 	}
 
 	fields := []struct {
 		name   string
-		target map[string]runtime.RawExtension
+		target *map[string]runtime.RawExtension
 	}{
-		{"ModelConfig", t.ModelConfig},
-		{"TokenizerParams", t.TokenizerParams},
-		{"QuantizationConfig", t.QuantizationConfig},
-		{"LoraConfig", t.LoraConfig},
-		{"TrainingArguments", t.TrainingArguments},
-		{"DatasetConfig", t.DatasetConfig},
-		{"DataCollator", t.DataCollator},
+		{"ModelConfig", &t.ModelConfig},
+		{"TokenizerParams", &t.TokenizerParams},
+		{"QuantizationConfig", &t.QuantizationConfig},
+		{"LoraConfig", &t.LoraConfig},
+		{"TrainingArguments", &t.TrainingArguments},
+		{"DatasetConfig", &t.DatasetConfig},
+		{"DataCollator", &t.DataCollator},
 	}
 
 	for _, field := range fields {
