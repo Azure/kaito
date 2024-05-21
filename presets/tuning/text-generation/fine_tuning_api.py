@@ -82,7 +82,7 @@ model.print_trainable_parameters()
 
 dm = DatasetManager(ds_config, tokenizer, tk_params)
 # Load the dataset
-dm.load_dataset()
+dm.load_data()
 if not dm.get_dataset():
     print("Failed to load dataset.")
     raise ValueError("Unable to load the dataset.")

@@ -14,7 +14,7 @@ class DatasetManager:
         self.tokenizer = tokenizer
         self.dataset = None
 
-    def load_dataset(self):
+    def load_data(self):
         if self.config.dataset_path:
             dataset_path = os.path.join("/mnt", self.config.dataset_path.strip("/"))
         else:
@@ -57,7 +57,8 @@ class DatasetManager:
     def split_dataset(self):
         if self.dataset is None:
             raise ValueError("Dataset is not loaded.")
-        assert 0 < self.config.train_test_split <= 1, "Train/Test split needs to be between 0 and 1"
+        if not (0 < self.config.train_test_split <= 1):
+            raise ValueError("Train/Test split needs to be between 0 and 1")
         if self.config.train_test_split < 1:
             split_dataset = self.dataset.train_test_split(
                 test_size=1-self.config.train_test_split,
