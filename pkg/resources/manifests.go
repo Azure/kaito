@@ -203,12 +203,24 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 		{
 			Name:           wObj.Name,
 			Image:          imageName,
-			Command:        commands,
+			Command:        []string{"/bin/sh", "-c"},
+			Args:           []string{"sleep infinity"},
 			Resources:      resourceRequirements,
 			LivenessProbe:  livenessProbe,
 			ReadinessProbe: readinessProbe,
 			Ports:          containerPorts,
 			VolumeMounts:   volumeMounts,
+		},
+		{
+			Name:  wObj.Name + "dup",
+			Image: imageName,
+			//Resources:      resourceRequirements,
+			//LivenessProbe:  livenessProbe,
+			//ReadinessProbe: readinessProbe,
+			Command:      []string{"/bin/sh", "-c"},
+			Args:         []string{"sleep infinity"},
+			Ports:        containerPorts,
+			VolumeMounts: volumeMounts,
 		},
 	}, sidecarContainers...)
 

@@ -55,7 +55,7 @@ type testModelPrivate struct{}
 
 func (*testModelPrivate) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
-		ImageAccessMode:           "private",
+		ImageAccessMode:           string(ModelImageAccessModePrivate),
 		GPUCountRequirement:       gpuCountRequirement,
 		TotalGPUMemoryRequirement: totalGPUMemoryRequirement,
 		PerGPUMemoryRequirement:   perGPUMemoryRequirement,
@@ -63,7 +63,7 @@ func (*testModelPrivate) GetInferenceParameters() *model.PresetParam {
 }
 func (*testModelPrivate) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
-		ImageAccessMode:           "private",
+		ImageAccessMode:           string(ModelImageAccessModePrivate),
 		GPUCountRequirement:       gpuCountRequirement,
 		TotalGPUMemoryRequirement: totalGPUMemoryRequirement,
 		PerGPUMemoryRequirement:   perGPUMemoryRequirement,
@@ -414,7 +414,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
 						Name:       ModelName("test-validation"),
-						AccessMode: "private",
+						AccessMode: ModelImageAccessModePrivate,
 					},
 					PresetOptions: PresetOptions{},
 				},
@@ -441,7 +441,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
 						Name:       ModelName("test-validation"),
-						AccessMode: "public",
+						AccessMode: ModelImageAccessModePublic,
 					},
 				},
 			},
