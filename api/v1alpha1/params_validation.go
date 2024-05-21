@@ -42,6 +42,7 @@ func validateNilOrBool(value interface{}) error {
 	return fmt.Errorf("value must be either nil or a boolean, got type %T", value)
 }
 
+// UnmarshalYAML custom method
 func (t *TrainingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var raw map[string]interface{}
 	if err := unmarshal(&raw); err != nil {
@@ -68,26 +69,23 @@ func (t *TrainingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return nil
 	}
 
-	if err := handleRawExtension(raw, "ModelConfig", &t.ModelConfig); err != nil {
-		return err
+	fields := []struct {
+		name   string
+		target *map[string]runtime.RawExtension
+	}{
+		{"ModelConfig", &t.ModelConfig},
+		{"TokenizerParams", &t.TokenizerParams},
+		{"QuantizationConfig", &t.QuantizationConfig},
+		{"LoraConfig", &t.LoraConfig},
+		{"TrainingArguments", &t.TrainingArguments},
+		{"DatasetConfig", &t.DatasetConfig},
+		{"DataCollator", &t.DataCollator},
 	}
-	if err := handleRawExtension(raw, "TokenizerParams", &t.TokenizerParams); err != nil {
-		return err
-	}
-	if err := handleRawExtension(raw, "QuantizationConfig", &t.QuantizationConfig); err != nil {
-		return err
-	}
-	if err := handleRawExtension(raw, "LoraConfig", &t.LoraConfig); err != nil {
-		return err
-	}
-	if err := handleRawExtension(raw, "TrainingArguments", &t.TrainingArguments); err != nil {
-		return err
-	}
-	if err := handleRawExtension(raw, "DatasetConfig", &t.DatasetConfig); err != nil {
-		return err
-	}
-	if err := handleRawExtension(raw, "DataCollator", &t.DataCollator); err != nil {
-		return err
+
+	for _, field := range fields {
+		if err := handleRawExtension(raw, field.name, field.target); err != nil {
+			return err
+		}
 	}
 
 	return nil
