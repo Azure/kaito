@@ -105,31 +105,41 @@ func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *a
 	// Validate QuantizationConfig if it exists
 	quantConfig := config.TrainingConfig.QuantizationConfig
 	if quantConfig != nil {
-		// Dynamic field search for quantization settings within ModelConfig
-		loadIn4bit, _ := utils.SearchMap(quantConfig, "load_in_4bit")
-		loadIn8bit, _ := utils.SearchMap(quantConfig, "load_in_8bit")
-
-		// Validate both loadIn4bit and loadIn8bit
-		if err := validateNilOrBool(loadIn4bit); err != nil {
-			return apis.ErrInvalidValue(err.Error(), "load_in_4bit")
-		}
-		if err := validateNilOrBool(loadIn8bit); err != nil {
-			return apis.ErrInvalidValue(err.Error(), "load_in_8bit")
-		}
-
-		loadIn4bitBool, _ := loadIn4bit.(bool)
-		loadIn8bitBool, _ := loadIn8bit.(bool)
-
-		if loadIn4bitBool && loadIn8bitBool {
-			return apis.ErrGeneric(fmt.Sprintf("Cannot set both 'load_in_4bit' and 'load_in_8bit' to true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
-		}
-		if methodLowerCase == string(TuningMethodLora) {
-			if loadIn4bitBool || loadIn8bitBool {
-				return apis.ErrGeneric(fmt.Sprintf("For method 'lora', 'load_in_4bit' or 'load_in_8bit' in ConfigMap '%s' must not be true", cm.Name), "QuantizationConfig")
+		quantConfigRaw, quantConfigExists := quantConfig["QuantizationConfig"]
+		if quantConfigExists {
+			// Dynamic field search for quantization settings within ModelConfig
+			loadIn4bit, _, err := utils.SearchRawExtension(quantConfigRaw, "load_in_4bit")
+			if err != nil {
+				return apis.ErrInvalidValue(err.Error(), "load_in_4bit")
 			}
-		} else if methodLowerCase == string(TuningMethodQLora) {
-			if !loadIn4bitBool && !loadIn8bitBool {
-				return apis.ErrMissingField(fmt.Sprintf("For method 'qlora', either 'load_in_4bit' or 'load_in_8bit' must be true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
+			loadIn8bit, _, err := utils.SearchRawExtension(quantConfigRaw, "load_in_8bit")
+			if err != nil {
+				return apis.ErrInvalidValue(err.Error(), "load_in_8bit")
+			}
+
+			// Validate both loadIn4bit and loadIn8bit
+			if err := validateNilOrBool(loadIn4bit); err != nil {
+				return apis.ErrInvalidValue(err.Error(), "load_in_4bit")
+			}
+			if err := validateNilOrBool(loadIn8bit); err != nil {
+				return apis.ErrInvalidValue(err.Error(), "load_in_8bit")
+			}
+
+			loadIn4bitBool, _ := loadIn4bit.(bool)
+			loadIn8bitBool, _ := loadIn8bit.(bool)
+
+			// Validation Logic
+			if loadIn4bitBool && loadIn8bitBool {
+				return apis.ErrGeneric(fmt.Sprintf("Cannot set both 'load_in_4bit' and 'load_in_8bit' to true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
+			}
+			if methodLowerCase == string(TuningMethodLora) {
+				if loadIn4bitBool || loadIn8bitBool {
+					return apis.ErrGeneric(fmt.Sprintf("For method 'lora', 'load_in_4bit' or 'load_in_8bit' in ConfigMap '%s' must not be true", cm.Name), "QuantizationConfig")
+				}
+			} else if methodLowerCase == string(TuningMethodQLora) {
+				if !loadIn4bitBool && !loadIn8bitBool {
+					return apis.ErrMissingField(fmt.Sprintf("For method 'qlora', either 'load_in_4bit' or 'load_in_8bit' must be true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
+				}
 			}
 		}
 	} else if methodLowerCase == string(TuningMethodQLora) {

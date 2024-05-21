@@ -5,11 +5,12 @@ package utils
 
 import (
 	"fmt"
+	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"k8s.io/apimachinery/pkg/runtime"
 	"os"
 
 	"github.com/azure/kaito/pkg/utils/consts"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func Contains(s []string, e string) bool {
@@ -22,11 +23,26 @@ func Contains(s []string, e string) bool {
 }
 
 // SearchMap performs a search for a key in a map[string]interface{}.
-func SearchMap(m map[string]runtime.RawExtension, key string) (value interface{}, exists bool) {
+func SearchMap(m map[string]interface{}, key string) (value interface{}, exists bool) {
 	if val, ok := m[key]; ok {
 		return val, true
 	}
 	return nil, false
+}
+
+// SearchRawExtension performs a search for a key within a runtime.RawExtension.
+func SearchRawExtension(raw runtime.RawExtension, key string) (interface{}, bool, error) {
+	var data map[string]interface{}
+	if err := yaml.Unmarshal(raw.Raw, &data); err != nil {
+		return nil, false, fmt.Errorf("failed to unmarshal runtime.RawExtension: %w", err)
+	}
+
+	result, found := data[key]
+	if !found {
+		return nil, false, nil
+	}
+
+	return result, true, nil
 }
 
 func MergeConfigMaps(baseMap, overrideMap map[string]string) map[string]string {
