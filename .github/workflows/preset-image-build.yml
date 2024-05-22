@@ -33,7 +33,36 @@ permissions:
   contents: write
 
 jobs:
+  setup: 
+    runs-on: [ "self-hosted", "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu" ]
+    environment: preset-env
+    steps: 
+      - name: List All Disks
+        run: lsblk
+
+      - name: Check Available Disk Space
+        run: df -h
+
+      - name: Ensure Python is Installed
+        run: |
+          if ! command -v python3 &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y python3
+          fi
+
+      - name: Ensure Kind is Installed
+        run: |
+          if ! command -v kind &> /dev/null; then
+            if [ $(uname -m) = x86_64 ]; then
+              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
+            elif [ $(uname -m) = aarch64 ]; then
+              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-arm64
+            fi
+            chmod +x ./kind
+            sudo mv ./kind /usr/local/bin/kind
+          fi
   determine-models: 
+    needs: setup
     runs-on: [ "self-hosted", "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu" ]
     environment: preset-env
     outputs:
@@ -86,9 +115,6 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
-      
-      - name: Check Available Disk Space
-        run: df -h
 
       - name: Install Azure CLI latest
         run: |
