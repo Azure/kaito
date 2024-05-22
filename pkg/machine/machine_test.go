@@ -5,8 +5,9 @@ package machine
 import (
 	"context"
 	"errors"
-	"github.com/azure/kaito/pkg/utils/test"
 	"testing"
+
+	"github.com/azure/kaito/pkg/utils/test"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/stretchr/testify/mock"
@@ -25,9 +26,9 @@ func TestCreateMachine(t *testing.T) {
 	}{
 		"Machine creation fails": {
 			callMocks: func(c *test.MockClient) {
-				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(errors.New("Failed to create machine"))
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(errors.New("failed to create machine"))
 			},
-			expectedError: errors.New("Failed to create machine"),
+			expectedError: errors.New("failed to create machine"),
 		},
 		"Machine creation fails because SKU is not available": {
 			callMocks: func(c *test.MockClient) {
@@ -84,9 +85,9 @@ func TestWaitForPendingMachines(t *testing.T) {
 	}{
 		"Fail to list machines because associated machines cannot be retrieved": {
 			callMocks: func(c *test.MockClient) {
-				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1alpha5.MachineList{}), mock.Anything).Return(errors.New("Failed to retrieve machines"))
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1alpha5.MachineList{}), mock.Anything).Return(errors.New("failed to retrieve machines"))
 			},
-			expectedError: errors.New("Failed to retrieve machines"),
+			expectedError: errors.New("failed to retrieve machines"),
 		},
 		"Fail to list machines because machine status cannot be retrieved": {
 			callMocks: func(c *test.MockClient) {
@@ -103,7 +104,7 @@ func TestWaitForPendingMachines(t *testing.T) {
 				}
 
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&v1alpha5.MachineList{}), mock.Anything).Return(nil)
-				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(errors.New("Fail to get machine"))
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha5.Machine{}), mock.Anything).Return(errors.New("fail to get machine"))
 			},
 			machineConditions: apis.Conditions{
 				{
@@ -111,7 +112,7 @@ func TestWaitForPendingMachines(t *testing.T) {
 					Status: corev1.ConditionFalse,
 				},
 			},
-			expectedError: errors.New("Fail to get machine"),
+			expectedError: errors.New("fail to get machine"),
 		},
 		"Successfully waits for all pending machines": {
 			callMocks: func(c *test.MockClient) {
@@ -163,7 +164,7 @@ func TestWaitForPendingMachines(t *testing.T) {
 	}
 }
 
-func TestGenerateMachineManifiest(t *testing.T) {
+func TestGenerateMachineManifest(t *testing.T) {
 	t.Run("Should generate a machine object from the given workspace", func(t *testing.T) {
 		mockWorkspace := test.MockWorkspaceWithPreset
 

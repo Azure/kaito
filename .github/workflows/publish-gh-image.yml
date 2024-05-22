@@ -33,12 +33,12 @@ jobs:
             echo "tag=$(echo ${{ github.event.inputs.release_version }})" >> $GITHUB_OUTPUT
 
       - name: Harden Runner
-        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+        uses: step-security/harden-runner@a4aa98b93cab29d9b1101a6143fb8bce00e2eac4 # v2.7.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
         with:
           fetch-depth: 0
 
@@ -80,14 +80,14 @@ jobs:
         run: |
           echo "IMG_TAG=$(echo ${{ needs.check-tag.outputs.tag }} | tr -d v)" >> $GITHUB_ENV
 
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
         with:
           submodules: true
           fetch-depth: 0
           ref: ${{ needs.check-tag.outputs.tag }}
 
       - name: Login to ${{ steps.get-registry.outputs.registry_repository }}
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d
+        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}

@@ -10,6 +10,9 @@ const (
 	// WorkspaceConditionTypeMachineStatus is the state when checking machine status.
 	WorkspaceConditionTypeMachineStatus = ConditionType("MachineReady")
 
+	// WorkspaceConditionTypeNodeClaimStatus is the state when checking nodeClaim status.
+	WorkspaceConditionTypeNodeClaimStatus = ConditionType("NodeClaimReady")
+
 	// WorkspaceConditionTypeResourceStatus is the state when Resource has been created.
 	WorkspaceConditionTypeResourceStatus = ConditionType("ResourceReady")
 
