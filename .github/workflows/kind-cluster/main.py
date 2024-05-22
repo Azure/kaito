@@ -70,6 +70,9 @@ def download_new_model(model_name, model_url):
     """Given URL download new model."""
     weights_path = get_weights_path(model_name)
     git_files_path = os.path.join(weights_path, "..", "git_files")  # Path for git_files directory
+    print("Weights Path:", weights_path)
+    print("Git Files Path:", git_files_path)
+
     start_dir = os.getcwd()
     
     if not os.path.exists(weights_path) and model_url:
