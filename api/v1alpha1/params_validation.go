@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"knative.dev/pkg/apis"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -22,13 +23,13 @@ type Config struct {
 }
 
 type TrainingConfig struct {
-	ModelConfig        map[string]interface{} `yaml:"ModelConfig"`
-	TokenizerParams    map[string]interface{} `yaml:"TokenizerParams"`
-	QuantizationConfig map[string]interface{} `yaml:"QuantizationConfig"`
-	LoraConfig         map[string]interface{} `yaml:"LoraConfig"`
-	TrainingArguments  map[string]interface{} `yaml:"TrainingArguments"`
-	DatasetConfig      map[string]interface{} `yaml:"DatasetConfig"`
-	DataCollator       map[string]interface{} `yaml:"DataCollator"`
+	ModelConfig        map[string]runtime.RawExtension `yaml:"ModelConfig"`
+	TokenizerParams    map[string]runtime.RawExtension `yaml:"TokenizerParams"`
+	QuantizationConfig map[string]runtime.RawExtension `yaml:"QuantizationConfig"`
+	LoraConfig         map[string]runtime.RawExtension `yaml:"LoraConfig"`
+	TrainingArguments  map[string]runtime.RawExtension `yaml:"TrainingArguments"`
+	DatasetConfig      map[string]runtime.RawExtension `yaml:"DatasetConfig"`
+	DataCollator       map[string]runtime.RawExtension `yaml:"DataCollator"`
 }
 
 func validateNilOrBool(value interface{}) error {
@@ -39,6 +40,58 @@ func validateNilOrBool(value interface{}) error {
 		return nil // Correct type
 	}
 	return fmt.Errorf("value must be either nil or a boolean, got type %T", value)
+}
+
+// UnmarshalYAML custom method
+func (t *TrainingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var raw map[string]interface{}
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+
+	// This function converts a map[string]interface{} to a map[string]runtime.RawExtension.
+	// It does this by setting the raw marshalled data of the unmarshalled YAML to
+	// be the raw data of the runtime.RawExtension object.
+	handleRawExtension := func(raw map[string]interface{}, field string) (map[string]runtime.RawExtension, error) {
+		var target map[string]runtime.RawExtension
+		if value, found := raw[field]; found {
+			delete(raw, field)
+			var ext runtime.RawExtension
+			data, err := yaml.Marshal(value)
+			if err != nil {
+				return nil, err
+			}
+			ext.Raw = data
+			if target == nil {
+				target = make(map[string]runtime.RawExtension)
+			}
+			target[field] = ext
+		}
+		return target, nil
+	}
+
+	fields := []struct {
+		name   string
+		target *map[string]runtime.RawExtension
+	}{
+		{"ModelConfig", &t.ModelConfig},
+		{"TokenizerParams", &t.TokenizerParams},
+		{"QuantizationConfig", &t.QuantizationConfig},
+		{"LoraConfig", &t.LoraConfig},
+		{"TrainingArguments", &t.TrainingArguments},
+		{"DatasetConfig", &t.DatasetConfig},
+		{"DataCollator", &t.DataCollator},
+	}
+
+	var err error
+	for _, field := range fields {
+		*field.target, err = handleRawExtension(raw, field.name)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *apis.FieldError {
@@ -55,31 +108,41 @@ func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *a
 	// Validate QuantizationConfig if it exists
 	quantConfig := config.TrainingConfig.QuantizationConfig
 	if quantConfig != nil {
-		// Dynamic field search for quantization settings within ModelConfig
-		loadIn4bit, _ := utils.SearchMap(quantConfig, "load_in_4bit")
-		loadIn8bit, _ := utils.SearchMap(quantConfig, "load_in_8bit")
-
-		// Validate both loadIn4bit and loadIn8bit
-		if err := validateNilOrBool(loadIn4bit); err != nil {
-			return apis.ErrInvalidValue(err.Error(), "load_in_4bit")
-		}
-		if err := validateNilOrBool(loadIn8bit); err != nil {
-			return apis.ErrInvalidValue(err.Error(), "load_in_8bit")
-		}
-
-		loadIn4bitBool, _ := loadIn4bit.(bool)
-		loadIn8bitBool, _ := loadIn8bit.(bool)
-
-		if loadIn4bitBool && loadIn8bitBool {
-			return apis.ErrGeneric(fmt.Sprintf("Cannot set both 'load_in_4bit' and 'load_in_8bit' to true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
-		}
-		if methodLowerCase == string(TuningMethodLora) {
-			if loadIn4bitBool || loadIn8bitBool {
-				return apis.ErrGeneric(fmt.Sprintf("For method 'lora', 'load_in_4bit' or 'load_in_8bit' in ConfigMap '%s' must not be true", cm.Name), "QuantizationConfig")
+		quantConfigRaw, quantConfigExists := quantConfig["QuantizationConfig"]
+		if quantConfigExists {
+			// Dynamic field search for quantization settings within ModelConfig
+			loadIn4bit, _, err := utils.SearchRawExtension(quantConfigRaw, "load_in_4bit")
+			if err != nil {
+				return apis.ErrInvalidValue(err.Error(), "load_in_4bit")
 			}
-		} else if methodLowerCase == string(TuningMethodQLora) {
-			if !loadIn4bitBool && !loadIn8bitBool {
-				return apis.ErrMissingField(fmt.Sprintf("For method 'qlora', either 'load_in_4bit' or 'load_in_8bit' must be true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
+			loadIn8bit, _, err := utils.SearchRawExtension(quantConfigRaw, "load_in_8bit")
+			if err != nil {
+				return apis.ErrInvalidValue(err.Error(), "load_in_8bit")
+			}
+
+			// Validate both loadIn4bit and loadIn8bit
+			if err := validateNilOrBool(loadIn4bit); err != nil {
+				return apis.ErrInvalidValue(err.Error(), "load_in_4bit")
+			}
+			if err := validateNilOrBool(loadIn8bit); err != nil {
+				return apis.ErrInvalidValue(err.Error(), "load_in_8bit")
+			}
+
+			loadIn4bitBool, _ := loadIn4bit.(bool)
+			loadIn8bitBool, _ := loadIn8bit.(bool)
+
+			// Validation Logic
+			if loadIn4bitBool && loadIn8bitBool {
+				return apis.ErrGeneric(fmt.Sprintf("Cannot set both 'load_in_4bit' and 'load_in_8bit' to true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
+			}
+			if methodLowerCase == string(TuningMethodLora) {
+				if loadIn4bitBool || loadIn8bitBool {
+					return apis.ErrGeneric(fmt.Sprintf("For method 'lora', 'load_in_4bit' or 'load_in_8bit' in ConfigMap '%s' must not be true", cm.Name), "QuantizationConfig")
+				}
+			} else if methodLowerCase == string(TuningMethodQLora) {
+				if !loadIn4bitBool && !loadIn8bitBool {
+					return apis.ErrMissingField(fmt.Sprintf("For method 'qlora', either 'load_in_4bit' or 'load_in_8bit' must be true in ConfigMap '%s'", cm.Name), "QuantizationConfig")
+				}
 			}
 		}
 	} else if methodLowerCase == string(TuningMethodQLora) {
