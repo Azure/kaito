@@ -71,7 +71,9 @@ if enable_qlora:
     model = prepare_model_for_kbit_training(model)
     print("QLoRA Enabled")
 
-assert ext_lora_config is not None, "LoraConfig must be specified"
+if not ext_lora_config:
+    raise ValueError("LoraConfig must be specified")
+
 lora_config_args = asdict(ext_lora_config)
 lora_config = LoraConfig(**lora_config_args)
 
@@ -91,7 +93,7 @@ if not dm.get_dataset():
 if ds_config.shuffle_dataset:
     dm.shuffle_dataset()
 
-dataset_text_field = dm.format_and_preprocess()
+dm.format_and_preprocess()
 train_dataset, eval_dataset = dm.split_dataset()
 
 # checkpoint_callback = CheckpointCallback()
@@ -107,7 +109,7 @@ trainer = accelerator.prepare(SFTTrainer(
     eval_dataset=eval_dataset,
     args=ta_args,
     data_collator=dc_args,
-    dataset_text_field=dataset_text_field,
+    dataset_text_field=dm.dataset_text_field,
     # metrics = "tensorboard" or "wandb" # TODO
 ))
 trainer.train()

@@ -53,7 +53,7 @@ def parse_configs(config_yaml):
     with open(config_yaml, 'r') as file:
         full_config = yaml.safe_load(file)
     training_config = full_config.get('training_config', {})
-    print(training_config, "training_config")
+    print("training_config:", training_config)
 
     # Parse and merge configurations
     parsed_configs = {}

@@ -13,10 +13,22 @@ class DatasetManager:
         self.tokenizer_params = tokenizer_params
         self.tokenizer = tokenizer
         self.dataset = None
+        self.dataset_text_field = None # Set this field if dataset consists of singular text column
 
     def check_dataset_loaded(self):
         if self.dataset is None:
             raise ValueError("Dataset is not loaded.")
+
+    def check_column_exists(self, column_name):
+        if column_name not in self.dataset.column_names:
+            raise ValueError(f"Column '{column_name}' does not exist in the dataset. Available columns: {self.dataset.column_names}")
+
+    def select_and_rename_columns(self, columns_to_select, rename_map=None):
+        self.dataset = self.dataset.select_columns(columns_to_select)
+        if rename_map:
+            for old_name, new_name in rename_map.items():
+                if old_name != new_name:
+                    self.dataset = self.dataset.rename_column(old_name, new_name)
 
     def load_data(self):
         if self.config.dataset_path:
@@ -88,46 +100,39 @@ class DatasetManager:
                 batched=True
             )
             self.format_text()
-            return self.config.response_column
-        return None
+            self.dataset_text_field = self.config.response_column
 
     def format_text(self):
         self.check_dataset_loaded()
-        if self.config.response_column not in self.dataset.column_names:
-            raise ValueError(f"Column '{self.config.response_column}' does not exist in the dataset. Available columns: {self.dataset.column_names}")
-        self.dataset = self.dataset.select_columns([self.config.response_column])
+        self.check_column_exists(self.config.response_column)
+        self.select_and_rename_columns([self.config.response_column])
 
     def format_instruct(self):
         """Ensure dataset is formatted for instruct fine tuning"""
         self.check_dataset_loaded()
         required_columns = [self.config.context_column, self.config.response_column]
         for column in required_columns:
-            if column not in self.dataset.column_names:
-                raise ValueError(f"Column '{column}' does not exist in the dataset. Available columns: {self.dataset.column_names}")
-       
-        # Select only the specified columns for fine tuning
-        self.dataset = self.dataset.select_columns(required_columns)
-       
-        # Ensure correct column name
-        if self.config.context_column != "prompt": 
-            self.dataset = self.dataset.rename_column(self.config.context_column, "prompt")
-        if self.config.response_column != "completion": 
-            self.dataset = self.dataset.rename_column(self.config.response_column, "completion")
-            
+            self.check_column_exists(column)
+
+        # Select and rename columns
+        rename_map = {}
+        if self.config.context_column != "prompt":
+            rename_map[self.config.context_column] = "prompt"
+        if self.config.response_column != "completion":
+            rename_map[self.config.response_column] = "completion"
+        self.select_and_rename_columns(required_columns, rename_map)
 
     def format_conversational(self):
         """Ensure some basic formatting of dataset for conversational fine tuning"""
         self.check_dataset_loaded()
         # Check if the specified column exists in the dataset
-        if self.config.messages_column not in self.dataset.column_names:
-            raise ValueError(f"Column '{self.config.messages_column}' does not exist in the dataset. Available columns: {self.dataset.column_names}")
-        
-        # Select only the specified column for fine tuning
-        self.dataset = self.dataset.select_columns([self.config.messages_column])
-        
-        # Ensure correct column name
-        if self.config.messages_column != "messages": 
-            self.dataset = self.dataset.rename_column(self.config.messages_column, "messages")
+        self.check_column_exists(self.config.messages_column)
+
+         # Select and rename columns
+        rename_map = {}
+        if self.config.messages_column != "messages":
+            rename_map[self.config.messages_column] = "messages"
+        self.select_and_rename_columns([self.config.messages_column], rename_map)
 
     # Consider supporting in future
     # https://github.com/huggingface/trl/pull/444
