@@ -38,7 +38,19 @@ jobs:
     environment: preset-env
     steps: 
       - name: List All Disks
-        run: lsblk
+        run: |
+          lsblk
+          if ! lsblk /dev/sda1 &> /dev/null; then
+            echo "Failed to find required disk /dev/sda1"
+            exit 1
+          fi
+
+      - name: Mount /dev/sda1
+        run: |
+          if ! mountpoint -q /datadrive; then
+            sudo mkdir -p /datadrive
+            sudo mount /dev/sda1 /datadrive
+          fi
 
       - name: Check Available Disk Space
         run: df -h
