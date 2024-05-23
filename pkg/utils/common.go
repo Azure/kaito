@@ -5,7 +5,9 @@ package utils
 
 import (
 	"fmt"
+	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"k8s.io/apimachinery/pkg/runtime"
 	"os"
 
 	"github.com/azure/kaito/pkg/utils/consts"
@@ -26,6 +28,21 @@ func SearchMap(m map[string]interface{}, key string) (value interface{}, exists 
 		return val, true
 	}
 	return nil, false
+}
+
+// SearchRawExtension performs a search for a key within a runtime.RawExtension.
+func SearchRawExtension(raw runtime.RawExtension, key string) (interface{}, bool, error) {
+	var data map[string]interface{}
+	if err := yaml.Unmarshal(raw.Raw, &data); err != nil {
+		return nil, false, fmt.Errorf("failed to unmarshal runtime.RawExtension: %w", err)
+	}
+
+	result, found := data[key]
+	if !found {
+		return nil, false, nil
+	}
+
+	return result, true, nil
 }
 
 func MergeConfigMaps(baseMap, overrideMap map[string]string) map[string]string {
