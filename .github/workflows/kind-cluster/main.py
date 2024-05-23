@@ -33,6 +33,13 @@ def run_command(command):
         print(f"An error occurred: {e}")
         return None
 
+def get_kubectl_path(): 
+    """Get the full path to kubectl."""
+    kubectl_path = "/usr/local/bin/kubectl"
+    if not os.path.exists(kubectl_path):
+        raise FileNotFoundError("kubectl not found at /usr/local/bin/kubectl")
+    return kubectl_path
+
 def get_model_git_info(model_version):
     """Get model Git Repo link and commit ID"""
     url_parts = model_version.split('/')
@@ -110,10 +117,14 @@ def main():
     job_yaml = populate_job_template(model_name, model_type, model_runtime, model_tag, job_name, os.environ)
     write_job_file(job_yaml, job_name)
 
+    weights = run_command(f"ls {WEIGHTS_FOLDER}")
+    print("Models Present:", weights)
+    
     output = run_command(f"ls {get_weights_path(model_name)}")
     print("Model Weights:", output)
 
-    run_command(f"kubectl apply -f {job_name}-job.yaml")
+    kubectl_path = get_kubectl_path()
+    run_command(f"{kubectl_path} apply -f {job_name}-job.yaml")
     job_names.append(job_name)
     
     if not wait_for_jobs_to_complete(job_names):
