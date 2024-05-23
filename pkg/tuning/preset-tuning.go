@@ -21,7 +21,7 @@ import (
 
 const (
 	Port5000   = int32(5000)
-	TuningFile = "fine_tuning_api.py"
+	TuningFile = "fine_tuning.py"
 )
 
 var (
