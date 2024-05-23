@@ -115,6 +115,10 @@ jobs:
           inlineScript: |
             az identity create --name gpuIdentity --resource-group  ${{ env.CLUSTER_NAME }}
 
+      - name: Generate APIs
+        run: |
+          make generate
+
       - name: build KAITO image
         if: ${{ !inputs.isRelease }}
         shell: bash
