@@ -24,7 +24,7 @@ COPY kaito/presets/tuning/${MODEL_TYPE}/requirements.txt /workspace/tfs/tuning-r
 RUN pip install --no-cache-dir -r tuning-requirements.txt
 
 COPY kaito/presets/tuning/${MODEL_TYPE}/cli.py /workspace/tfs/cli.py
-COPY kaito/presets/tuning/${MODEL_TYPE}/fine_tuning_api.py /workspace/tfs/fine_tuning_api.py
+COPY kaito/presets/tuning/${MODEL_TYPE}/fine_tuning.py /workspace/tfs/fine_tuning.py
 COPY kaito/presets/tuning/${MODEL_TYPE}/parser.py /workspace/tfs/parser.py
 COPY kaito/presets/tuning/${MODEL_TYPE}/dataset.py /workspace/tfs/dataset.py
 
