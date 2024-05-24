@@ -90,7 +90,6 @@ jobs:
         run: |
           ls -l /var/run/docker.sock
           docker run hello-world
-        
 
       - name: Ensure Kind is Installed
         run: |
@@ -208,6 +207,18 @@ jobs:
                     echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
                 fi
             fi
+
+      - name: Set Permissions for DataDrive /mnt/storage
+        run : |
+          sudo chown -R user:group /mnt/storage
+          sudo chmod -R 775 /mnt/storage
+          
+          sudo apt-get update
+          sudo apt-get install acl -y
+
+          sudo setfacl -dm u::rwx /mnt/storage  # Default user permissions
+          sudo setfacl -dm g::rwx /mnt/storage  # Default group permissions
+          sudo setfacl -dm o::rx /mnt/storage   # Default others permissions
 
       - name: Check and Create Kind Cluster
         run: |
