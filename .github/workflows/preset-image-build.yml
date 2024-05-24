@@ -98,7 +98,7 @@ jobs:
           PR_BRANCH=${{ env.BRANCH_NAME }} \
           FORCE_RUN_ALL=${{ env.FORCE_RUN_ALL }} \
           python3 .github/workflows/kind-cluster/determine_models.py
-            
+
       - name: Print Determined Models
         run: |
           echo "Output from affected_models: ${{ steps.affected_models.outputs.matrix }}"
@@ -137,14 +137,14 @@ jobs:
               else
                   echo "Azure CLI already installed."
               fi
-    
+
       - name: 'Az CLI login'
         uses: azure/login@v2.1.0
         with:
             client-id: ${{ secrets.AZURE_CLIENT_ID }}
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
             allow-no-subscriptions: true
-        
+
       - name: 'Set subscription'
         run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
 
@@ -157,7 +157,7 @@ jobs:
           echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
           echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
           echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
-      
+
       - name: 'Check if Image exists in Test ACR'
         id: check_test_image
         run: |
@@ -179,7 +179,18 @@ jobs:
                     echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
                 fi
             fi
-      
+
+      - name: Check and Create Kind Cluster
+        run: |
+          if ! kind get clusters | grep -q kind; then
+            echo "Creating directory for etcd storage"
+            sudo mkdir -p /mnt/storage/etcd
+            echo "Creating Kind cluster using kind-1es.yaml"
+            kind create cluster --config .github/workflows/kind-cluster/kind-1es.yaml
+          else
+            echo "Kind cluster already exists"
+          fi
+
       - name: Launch Python Script to Kickoff Build Jobs
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'false'
         id: launch_script
