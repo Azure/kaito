@@ -137,6 +137,53 @@ func defaultConfigMapManifest() *v1.ConfigMap {
 	}
 }
 
+func qloraConfigMapManifest() *v1.ConfigMap {
+	return &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      DefaultQloraConfigMapTemplate,
+			Namespace: DefaultReleaseNamespace,
+		},
+		Data: map[string]string{
+			"training_config.yaml": `training_config:
+  ModelConfig:
+    torch_dtype: "bfloat16"
+    local_files_only: true
+    device_map: "auto"
+
+  TokenizerParams:
+    padding: true
+    truncation: true
+
+  QuantizationConfig:
+    load_in_4bit: true
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_compute_dtype: "bfloat16"
+    bnb_4bit_use_double_quant: true
+
+  LoraConfig:
+    r: 16
+    lora_alpha: 32
+    target_modules: "query_key_value"
+    lora_dropout: 0.05
+    bias: "none"
+
+  TrainingArguments:
+    output_dir: "."
+    num_train_epochs: 4
+    auto_find_batch_size: true
+    ddp_find_unused_parameters: false
+    save_strategy: "epoch"
+
+  DatasetConfig:
+    shuffle_dataset: true
+    train_test_split: 1
+
+  DataCollator:
+    mlm: true`,
+		},
+	}
+}
+
 func TestResourceSpecValidateCreate(t *testing.T) {
 	RegisterValidationTestModels()
 	tests := []struct {
@@ -700,7 +747,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 	// Create fake client with default ConfigMap
 	scheme := runtime.NewScheme()
 	_ = v1.AddToScheme(scheme)
-	client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(defaultConfigMapManifest()).Build()
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(defaultConfigMapManifest(), qloraConfigMapManifest()).Build()
 	k8sclient.SetGlobalClient(client)
 	// Include client in ctx
 	ctx := context.Background()
@@ -718,6 +765,17 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 				Output: &DataDestination{Volume: &v1.VolumeSource{}},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
+			},
+			wantErr:   false,
+			errFields: nil,
+		},
+		{
+			name: "Verify QLoRA Config",
+			tuningSpec: &TuningSpec{
+				Input:  &DataSource{Name: "valid-input", Volume: &v1.VolumeSource{}},
+				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method: TuningMethodQLora,
 			},
 			wantErr:   false,
 			errFields: nil,
