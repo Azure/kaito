@@ -3,6 +3,8 @@
 #              --build-arg WEIGHTS_PATH=/weights \
 #              --build-arg VERSION={{VERSION}} \
 #              --build-arg MODEL_TYPE={{MODEL_TYPE}} \
+#              --build-arg IMAGE_NAME={{IMAGE_NAME}} \
+#              --build-arg MODEL_VERSION={{MODEL_VERSION}} \
 
 FROM python:3.8-slim@sha256:95bfecec648356cdd0b28c8b00ce00009baff10c99d1126a82d1aca716453a1a
 WORKDIR /workspace
@@ -26,8 +28,12 @@ RUN pip install 'uvicorn[standard]'
 ARG WEIGHTS_PATH
 ARG MODEL_TYPE
 ARG VERSION
-# Write the version to a file
-RUN echo $VERSION > /workspace/llama/version.txt
+ARG IMAGE_NAME
+ARG MODEL_VERSION
+
+# Write metadata to model_info.json file
+RUN MODEL_VERSION_HASH="${MODEL_VERSION##*/}" && \
+    echo "{\"Model Type\": \"$MODEL_TYPE\", \"Version\": \"$VERSION\", \"Image Name\": \"$IMAGE_NAME\", \"Model Version URL\": \"$MODEL_VERSION\", \"REVISION_ID\": \"$MODEL_VERSION_HASH\"}" > /workspace/llama/model_info.json
 
 ADD ${WEIGHTS_PATH} /workspace/llama/llama-2/weights
 ADD kaito/presets/inference/${MODEL_TYPE} /workspace/llama/llama-2

@@ -90,7 +90,7 @@ def models_to_build(files_changed):
                 seen_model_types.add(model_info["type"])
     return list(models)
 
-def check_modified_models(pr_branch):
+def check_modified_models(pr_branch, pr_repo_url):
     """Check for modified models in the repository."""
     repo_dir = Path.cwd() / "repo"
 
@@ -102,7 +102,14 @@ def check_modified_models(pr_branch):
 
     run_command("git checkout --detach")
     run_command("git fetch origin main:main")
-    run_command(f"git fetch origin {pr_branch}:{pr_branch}")
+
+    fetch_command = f"git fetch origin {pr_branch}:{pr_branch}"
+    if pr_repo_url != KAITO_REPO_URL:
+        # Add the PR's repo as a new remote only if it's different from the main repo
+        run_command("git remote add pr_repo {}".format(pr_repo_url))
+        fetch_command = f"git fetch pr_repo {pr_branch}"
+
+    run_command(fetch_command)
     run_command(f"git checkout {pr_branch}")
 
     files = run_command("git diff --name-only origin/main") # Returns each file on newline
@@ -118,6 +125,7 @@ def check_modified_models(pr_branch):
 def main():
     pr_branch = os.environ.get("PR_BRANCH", "main") # If not specified default to 'main'
     force_run_all = os.environ.get("FORCE_RUN_ALL", "false") # If not specified default to False
+    pr_repo_url = os.environ.get("PR_REPO_URL", KAITO_REPO_URL)
 
     affected_models = []
     if force_run_all != "false":
@@ -125,7 +133,7 @@ def main():
     else:
         # Logic to determine affected models
         # Example: affected_models = ['model1', 'model2', 'model3']
-        affected_models = check_modified_models(pr_branch)
+        affected_models = check_modified_models(pr_branch, pr_repo_url)
 
     # Convert the list of models into JSON matrix format
     matrix = create_matrix(affected_models)

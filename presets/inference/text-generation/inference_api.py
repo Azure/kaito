@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import json
 import os
 from dataclasses import asdict, dataclass, field
 from typing import Annotated, Any, Dict, List, Optional
@@ -15,6 +16,10 @@ from pydantic import BaseModel, Extra, Field
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
 
+# Constants
+APP_DIR = "/workspace/tfs"
+WEIGHTS_DIR = f"{APP_DIR}/weights"
+MODEL_INFO_FILE = f"{APP_DIR}/model_info.json"
 
 @dataclass
 class ModelConfig:
@@ -22,7 +27,7 @@ class ModelConfig:
     Transformers Model Configuration Parameters
     """
     pipeline: str = field(metadata={"help": "The model pipeline for the pre-trained model"})
-    pretrained_model_name_or_path: Optional[str] = field(default="/workspace/tfs/weights", metadata={"help": "Path to the pretrained model or model identifier from huggingface.co/models"})
+    pretrained_model_name_or_path: Optional[str] = field(default=WEIGHTS_DIR, metadata={"help": "Path to the pretrained model or model identifier from huggingface.co/models"})
     state_dict: Optional[Dict[str, Any]] = field(default=None, metadata={"help": "State dictionary for the model"})
     cache_dir: Optional[str] = field(default=None, metadata={"help": "Cache directory for the model"})
     from_tf: bool = field(default=False, metadata={"help": "Load model from a TensorFlow checkpoint"})
@@ -427,6 +432,74 @@ def get_metrics():
             return MetricsResponse(cpu_info=cpu_info)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get(
+    "/version",
+    summary="Get Model Information",
+    response_description="Model Version Information",
+    responses={
+        200: {
+            "description": "Successful Response",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "model_info": {
+                            "summary": "Model Information Response",
+                            "value": {
+                                "Model Type": "Your Model Type",
+                                "Version": "1.0.0",
+                                "Image Name": "model_image_name",
+                                "Model Version URL": "http://example.com/model/version",
+                                "REVISION_ID": "revision_hash"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Model Info Not Found",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "file_not_found": {
+                            "summary": "Model Info File Not Found",
+                            "value": {"detail": f"{MODEL_INFO_FILE} file not found."}
+                        }
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Internal Server Error",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "unexpected_error": {
+                            "summary": "Unexpected Error",
+                            "value": {
+                                "detail": "An unexpected error occurred on the server."
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+)
+def get_version():
+    """
+    Reads and returns model version information from a predefined JSON file.
+    """
+    try:
+        with open(MODEL_INFO_FILE, "r") as f:
+            model_info = json.load(f)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="model_info.json file not found.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    return model_info
 
 if __name__ == "__main__":
     local_rank = int(os.environ.get("LOCAL_RANK", 0)) # Default to 0 if not set

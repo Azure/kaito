@@ -43,6 +43,8 @@ spec:
                          --build-arg WEIGHTS_PATH=/weights \
                          --build-arg VERSION={{VERSION}} \
                          --build-arg MODEL_TYPE={{MODEL_TYPE}} \
+                         --build-arg IMAGE_NAME={{IMAGE_NAME}} \
+                         --build-arg MODEL_VERSION={{MODEL_VERSION}} \
                          -f $DOCKERFILE_PATH /
             docker push $ACR_NAME.azurecr.io/{{IMAGE_NAME}}:$VERSION
         env:

@@ -8,6 +8,7 @@ import os
 import signal
 import sys
 import threading
+import json
 from typing import Optional
 
 import GPUtil
@@ -17,6 +18,9 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from llama import Llama
 from pydantic import BaseModel
+
+# Constants
+MODEL_INFO = "model_info.json"
 
 # Setup argparse
 parser = argparse.ArgumentParser(description="Llama API server.")
@@ -179,6 +183,13 @@ def setup_main_routes():
             return {"gpu_info": gpu_info}
         except Exception as e:
             return {"error": str(e)}
+
+    @app_main.get("/version")
+    def get_version():
+        with open(f"/workspace/tfs/{MODEL_INFO}", "r") as f:
+            model_info = json.load(f)
+
+        return model_info
 
 def setup_worker_routes(): 
     @app_worker.get("/healthz")
