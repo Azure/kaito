@@ -210,7 +210,7 @@ jobs:
 
       - name: Set Permissions for DataDrive /mnt/storage
         run : |
-          sudo chown -R user:group /mnt/storage
+          sudo chown -R $(whoami) /mnt/storage
           sudo chmod -R 775 /mnt/storage
           
           sudo apt-get update
