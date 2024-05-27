@@ -239,13 +239,75 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 			tc.workspaceObj.SetNamespace("workspace-namespace")
-			err := EnsureTuningConfigMap(context.Background(), tc.workspaceObj, nil, mockClient)
+			_, err := EnsureTuningConfigMap(context.Background(), tc.workspaceObj, nil, mockClient)
 			if tc.expectedError != "" {
 				assert.EqualError(t, err, tc.expectedError)
 			} else {
 				assert.NoError(t, err)
 			}
 			mockClient.AssertExpectations(t)
+		})
+	}
+}
+
+func TestSetupTrainingOutputVolume(t *testing.T) {
+	testcases := map[string]struct {
+		configMap       *corev1.ConfigMap
+		expectedVolPath string
+	}{
+		"Default Output Dir": {
+			configMap: &corev1.ConfigMap{
+				Data: map[string]string{
+					"training_config.yaml": `
+training_config:
+  TrainingArguments:
+    output_dir: ""
+`,
+				},
+			},
+			expectedVolPath: DefaultOutputVolumePath,
+		},
+		"Valid Custom Output Dir": {
+			configMap: &corev1.ConfigMap{
+				Data: map[string]string{
+					"training_config.yaml": `
+training_config:
+  TrainingArguments:
+    output_dir: "custom/path"
+`,
+				},
+			},
+			expectedVolPath: "/mnt/custom/path",
+		},
+		"Invalid Output Dir": {
+			configMap: &corev1.ConfigMap{
+				Data: map[string]string{
+					"training_config.yaml": `
+training_config:
+  TrainingArguments:
+    output_dir: "../../etc/passwd"
+`,
+				},
+			},
+			expectedVolPath: DefaultOutputVolumePath,
+		},
+		"No Output Dir Specified": {
+			configMap: &corev1.ConfigMap{
+				Data: map[string]string{
+					"training_config.yaml": `
+training_config:
+  TrainingArguments: {}
+`,
+				},
+			},
+			expectedVolPath: DefaultOutputVolumePath,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			_, _, resultVolPath := SetupTrainingOutputVolume(context.Background(), tc.configMap)
+			assert.Equal(t, tc.expectedVolPath, resultVolPath)
 		})
 	}
 }

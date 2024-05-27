@@ -121,7 +121,7 @@ func defaultConfigMapManifest() *v1.ConfigMap {
     bias: "none"
 
   TrainingArguments:
-    output_dir: "."
+    output_dir: "output"
     num_train_epochs: 4
     auto_find_batch_size: true
     ddp_find_unused_parameters: false
@@ -168,7 +168,7 @@ func qloraConfigMapManifest() *v1.ConfigMap {
     bias: "none"
 
   TrainingArguments:
-    output_dir: "."
+    output_dir: "output"
     num_train_epochs: 4
     auto_find_batch_size: true
     ddp_find_unused_parameters: false
