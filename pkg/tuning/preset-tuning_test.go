@@ -252,8 +252,8 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 
 func TestSetupTrainingOutputVolume(t *testing.T) {
 	testcases := map[string]struct {
-		configMap       *corev1.ConfigMap
-		expectedVolPath string
+		configMap         *corev1.ConfigMap
+		expectedOutputDir string
 	}{
 		"Default Output Dir": {
 			configMap: &corev1.ConfigMap{
@@ -265,7 +265,7 @@ training_config:
 `,
 				},
 			},
-			expectedVolPath: DefaultOutputVolumePath,
+			expectedOutputDir: DefaultOutputVolumePath,
 		},
 		"Valid Custom Output Dir": {
 			configMap: &corev1.ConfigMap{
@@ -277,7 +277,7 @@ training_config:
 `,
 				},
 			},
-			expectedVolPath: "/mnt/custom/path",
+			expectedOutputDir: "/mnt/custom/path",
 		},
 		"Invalid Output Dir": {
 			configMap: &corev1.ConfigMap{
@@ -289,7 +289,7 @@ training_config:
 `,
 				},
 			},
-			expectedVolPath: DefaultOutputVolumePath,
+			expectedOutputDir: DefaultOutputVolumePath,
 		},
 		"No Output Dir Specified": {
 			configMap: &corev1.ConfigMap{
@@ -300,14 +300,14 @@ training_config:
 `,
 				},
 			},
-			expectedVolPath: DefaultOutputVolumePath,
+			expectedOutputDir: DefaultOutputVolumePath,
 		},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			_, _, resultVolPath := SetupTrainingOutputVolume(context.Background(), tc.configMap)
-			assert.Equal(t, tc.expectedVolPath, resultVolPath)
+			_, _, resultOutputDir := SetupTrainingOutputVolume(context.Background(), tc.configMap)
+			assert.Equal(t, tc.expectedOutputDir, resultOutputDir)
 		})
 	}
 }
