@@ -133,7 +133,7 @@ func validateTrainingArgsViaConfigMap(cm *corev1.ConfigMap) *apis.FieldError {
 				baseDir := "/mnt"
 				cleanPath := filepath.Clean(filepath.Join(baseDir, userSpecifiedDir))
 				if cleanPath == baseDir || !strings.HasPrefix(cleanPath, baseDir) {
-					return apis.ErrInvalidValue(fmt.Sprintf("Invalid output_dir specified: %s. Must be a directory.", userSpecifiedDir), "output_dir")
+					return apis.ErrInvalidValue(fmt.Sprintf("Invalid output_dir specified: '%s', must be a directory", userSpecifiedDir), "output_dir")
 				}
 			}
 
