@@ -108,6 +108,38 @@ func UnmarshalTrainingConfig(cm *corev1.ConfigMap) (*Config, *apis.FieldError) {
 	return &config, nil
 }
 
+func validateLoraConfigViaConfigMap(cm *corev1.ConfigMap) *apis.FieldError {
+	config, err := UnmarshalTrainingConfig(cm)
+	if err != nil {
+		return err
+	}
+	loraConfig := config.TrainingConfig.LoraConfig
+	if loraConfig != nil {
+		loraConfigRaw, loraConfigExists := loraConfig["LoraConfig"]
+		if loraConfigExists {
+			targetModulesValue, found, err := utils.SearchRawExtension(loraConfigRaw, "target_modules")
+			if err != nil {
+				return apis.ErrGeneric(fmt.Sprintf("Failed to parse 'target_modules' in ConfigMap '%s' in namespace '%s': %v", cm.Name, cm.Namespace, err), "target_modules")
+			}
+			if found {
+				switch v := targetModulesValue.(type) {
+				case string:
+					// Valid single string
+				case []interface{}:
+					for _, item := range v {
+						if _, ok := item.(string); !ok {
+							return apis.ErrInvalidValue(fmt.Sprintf("All elements in 'target_modules' must be strings in ConfigMap '%s' in namespace '%s'", cm.Name, cm.Namespace), "target_modules")
+						}
+					}
+				default:
+					return apis.ErrInvalidValue(fmt.Sprintf("'target_modules' must be either a string or an array of strings in ConfigMap '%s' in namespace '%s'", cm.Name, cm.Namespace), "target_modules")
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func validateTrainingArgsViaConfigMap(cm *corev1.ConfigMap) *apis.FieldError {
 	config, err := UnmarshalTrainingConfig(cm)
 	if err != nil {
@@ -271,6 +303,9 @@ func (r *TuningSpec) validateConfigMap(ctx context.Context, namespace string, me
 			errs = errs.Also(err)
 		}
 		if err := validateTrainingArgsViaConfigMap(&cm); err != nil {
+			errs = errs.Also(err)
+		}
+		if err := validateLoraConfigViaConfigMap(&cm); err != nil {
 			errs = errs.Also(err)
 		}
 	}

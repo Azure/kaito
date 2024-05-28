@@ -116,7 +116,7 @@ func defaultConfigMapManifest() *v1.ConfigMap {
   LoraConfig:
     r: 16
     lora_alpha: 32
-    target_modules: "query_key_value"
+    target_modules: ["query_key_value"]
     lora_dropout: 0.05
     bias: "none"
 
