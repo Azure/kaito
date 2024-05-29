@@ -31,7 +31,7 @@ data:
         per_device_train_batch_size: 1
     
       DataCollator: # Configurable Parameters: https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/data_collator#transformers.DataCollatorForLanguageModeling
-        mlm: true
+        mlm: true # Default setting; included to show DataCollator can be updated.
     
       DatasetConfig: # Configurable Parameters: https://github.com/Azure/kaito/blob/main/presets/tuning/text-generation/cli.py#L44
         shuffle_dataset: true
