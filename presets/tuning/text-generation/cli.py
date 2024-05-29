@@ -112,6 +112,7 @@ class QuantizationConfig(BitsAndBytesConfig):
     """
     Quanitization Configuration
     """
+    quant_method: str = field(default="bitsandbytes", metadata={"help": "Quantization Method {bitsandbytes,gptq,awq}"})
     load_in_8bit: bool = field(default=False, metadata={"help": "Enable 8-bit quantization"})
     load_in_4bit: bool = field(default=False, metadata={"help": "Enable 4-bit quantization"})
     llm_int8_threshold: float = field(default=6.0, metadata={"help": "LLM.int8 threshold"})
