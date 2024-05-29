@@ -12,8 +12,8 @@ data:
         device_map: "auto"
     
       TokenizerParams: # Configurable Parameters: https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/tokenizer#transformers.PreTrainedTokenizer.__call__
-        padding: false
-        truncation: false
+        padding: true # Default to true, generally recommended to pad to the longest sequence in the batch
+        truncation: true # Default to true to prevent errors from input sequences longer than max length
     
       QuantizationConfig: # Configurable Parameters: https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/quantization#transformers.BitsAndBytesConfig
         load_in_4bit: true
@@ -31,7 +31,7 @@ data:
         # num_train_epochs: <Defaults to 3, adjustable>
         ddp_find_unused_parameters: false # Default to false to prevent errors during distributed training.
         save_strategy: "epoch" # Default to save at end of each epoch
-        per_device_batch_size: 1
+        per_device_train_batch_size: 1
     
       DatasetConfig: # Configurable Parameters: https://github.com/Azure/kaito/blob/main/presets/tuning/text-generation/cli.py#L44
         shuffle_dataset: true
