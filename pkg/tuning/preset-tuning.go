@@ -85,11 +85,29 @@ func GetDataSrcImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace) (st
 	return wObj.Tuning.Input.Image, imagePullSecretRefs
 }
 
+// EnsureTuningConfigMap handles two scenarios:
+// 1. Custom config template specified:
+//   - Check if it exists in the target namespace.
+//   - If not, check the release namespace and copy it to the target namespace if found.
+//
+// 2. No custom config template specified:
+//   - Use the default config template based on the tuning method (e.g., LoRA or QLoRA).
+//   - Check if it exists in the target namespace.
+//   - If not, check the release namespace and copy it to the target namespace if found.
 func EnsureTuningConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	tuningObj *model.PresetParam, kubeClient client.Client) (*corev1.ConfigMap, error) {
-	// Copy Configmap from helm chart configmap into workspace
+	tuningConfigMapName := workspaceObj.Tuning.ConfigTemplate
+	if tuningConfigMapName == "" {
+		if workspaceObj.Tuning.Method == kaitov1alpha1.TuningMethodLora {
+			tuningConfigMapName = kaitov1alpha1.DefaultLoraConfigMapTemplate
+		} else if workspaceObj.Tuning.Method == kaitov1alpha1.TuningMethodQLora {
+			tuningConfigMapName = kaitov1alpha1.DefaultQloraConfigMapTemplate
+		}
+	}
+
+	// Check if intended configmap already exists in target namespace
 	existingCM := &corev1.ConfigMap{}
-	err := resources.GetResource(ctx, workspaceObj.Tuning.ConfigTemplate, workspaceObj.Namespace, kubeClient, existingCM)
+	err := resources.GetResource(ctx, tuningConfigMapName, workspaceObj.Namespace, kubeClient, existingCM)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return nil, err
@@ -104,7 +122,7 @@ func EnsureTuningConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		return nil, fmt.Errorf("failed to get release namespace: %v", err)
 	}
 	templateCM := &corev1.ConfigMap{}
-	err = resources.GetResource(ctx, workspaceObj.Tuning.ConfigTemplate, releaseNamespace, kubeClient, templateCM)
+	err = resources.GetResource(ctx, tuningConfigMapName, releaseNamespace, kubeClient, templateCM)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ConfigMap from template namespace: %v", err)
 	}
