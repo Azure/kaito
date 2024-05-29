@@ -95,7 +95,7 @@ func GetDataSrcImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace) (st
 //   - Check if it exists in the target namespace.
 //   - If not, check the release namespace and copy it to the target namespace if found.
 func EnsureTuningConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
-	tuningObj *model.PresetParam, kubeClient client.Client) (*corev1.ConfigMap, error) {
+	kubeClient client.Client) (*corev1.ConfigMap, error) {
 	tuningConfigMapName := workspaceObj.Tuning.ConfigTemplate
 	if tuningConfigMapName == "" {
 		if workspaceObj.Tuning.Method == kaitov1alpha1.TuningMethodLora {
@@ -240,7 +240,7 @@ func SetupTrainingOutputVolume(ctx context.Context, configMap *corev1.ConfigMap)
 	return resultsVolume, resultsVolumeMount, outputDir
 }
 
-func setupDefaultSharedVolumes(workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Volume, []corev1.VolumeMount) {
+func setupDefaultSharedVolumes(workspaceObj *kaitov1alpha1.Workspace, cmName string) ([]corev1.Volume, []corev1.VolumeMount) {
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
 
@@ -254,7 +254,7 @@ func setupDefaultSharedVolumes(workspaceObj *kaitov1alpha1.Workspace) ([]corev1.
 	}
 
 	// Add shared volume for tuning parameters
-	cmVolume, cmVolumeMount := utils.ConfigCMVolume(workspaceObj.Tuning.ConfigTemplate)
+	cmVolume, cmVolumeMount := utils.ConfigCMVolume(cmName)
 	volumes = append(volumes, cmVolume)
 	volumeMounts = append(volumeMounts, cmVolumeMount)
 
@@ -263,13 +263,13 @@ func setupDefaultSharedVolumes(workspaceObj *kaitov1alpha1.Workspace) ([]corev1.
 
 func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	tuningObj *model.PresetParam, kubeClient client.Client) (client.Object, error) {
-	var initContainers, sidecarContainers []corev1.Container
-	volumes, volumeMounts := setupDefaultSharedVolumes(workspaceObj)
-
-	cm, err := EnsureTuningConfigMap(ctx, workspaceObj, tuningObj, kubeClient)
+	cm, err := EnsureTuningConfigMap(ctx, workspaceObj, kubeClient)
 	if err != nil {
 		return nil, err
 	}
+
+	var initContainers, sidecarContainers []corev1.Container
+	volumes, volumeMounts := setupDefaultSharedVolumes(workspaceObj, cm.Name)
 
 	// Add shared volume for training output
 	trainingOutputVolume, trainingOutputVolumeMount, outputDir := SetupTrainingOutputVolume(ctx, cm)
