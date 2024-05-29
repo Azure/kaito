@@ -26,6 +26,10 @@ def flatten_config_to_cli_args(config, prefix=''):
     for key, value in config.items():
         if isinstance(value, dict):
             cli_args.extend(flatten_config_to_cli_args(value, prefix=f'{prefix}{key}_'))
+        elif isinstance(value, list):
+            cli_arg = f'--{prefix}{key}'
+            cli_args.append(cli_arg)
+            cli_args.extend(map(str, value))
         else:
             cli_arg = f'--{prefix}{key}'
             cli_args.append(cli_arg)
