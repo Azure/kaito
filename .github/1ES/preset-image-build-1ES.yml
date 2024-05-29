@@ -30,11 +30,81 @@ env:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 jobs:
+  setup: 
+    runs-on: [ "self-hosted", "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu" ]
+    environment: preset-env
+    steps: 
+      - name: List All Disks
+        run: |
+          lsblk
+          if ! mountpoint -q /mnt/storage; then
+            echo "Failed to find required storage partition /mnt/storage"
+            exit 1
+          fi
+
+      - name: Check Available Disk Space
+        run: df -h
+
+      - name: Ensure Python is Installed
+        run: |
+          if ! command -v python3 &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y python3
+          fi
+
+      - name: Ensure kubectl is Installed
+        run: |
+          if ! command -v kubectl &> /dev/null; then
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            kubectl version --client --output=yaml
+          fi
+
+      - name: Ensure Docker is Installed
+        run: |
+          # Add Docker's official GPG key:
+          sudo apt-get update
+          sudo apt-get install ca-certificates curl -y
+          sudo install -m 0755 -d /etc/apt/keyrings
+          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+          sudo chmod a+r /etc/apt/keyrings/docker.asc
+          
+          # Add the repository to Apt sources:
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          sudo apt-get update
+
+          sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
+          
+          # User Permissions
+          sudo usermod -aG docker $(whoami)
+          sudo systemctl restart docker
+          sudo chmod 666 /var/run/docker.sock
+      
+      - name: Test Docker Access
+        run: |
+          ls -l /var/run/docker.sock
+          docker run hello-world
+
+      - name: Ensure Kind is Installed
+        run: |
+          if ! command -v kind &> /dev/null; then
+            if [ $(uname -m) = x86_64 ]; then
+              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
+            elif [ $(uname -m) = aarch64 ]; then
+              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-arm64
+            fi
+            chmod +x ./kind
+            sudo mv ./kind /usr/local/bin/kind
+          fi
   determine-models: 
-    runs-on: ubuntu-latest
+    needs: setup
+    runs-on: [ "self-hosted", "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu" ]
     environment: preset-env
     outputs:
       matrix: ${{ steps.affected_models.outputs.matrix }}
@@ -56,7 +126,7 @@ jobs:
           PR_BRANCH=${{ env.BRANCH_NAME }} \
           FORCE_RUN_ALL=${{ env.FORCE_RUN_ALL }} \
           python3 .github/workflows/kind-cluster/determine_models.py
-            
+
       - name: Print Determined Models
         run: |
           echo "Output from affected_models: ${{ steps.affected_models.outputs.matrix }}"
@@ -73,7 +143,7 @@ jobs:
   build-models:
     needs: determine-models
     if: needs.determine-models.outputs.is_matrix_empty == 'false'
-    runs-on: [self-hosted, 'hostname:model-server']
+    runs-on: [ "self-hosted", "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu" ]
     environment: preset-env
     strategy:
       fail-fast: false
@@ -86,9 +156,6 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
-      
-      - name: Check Available Disk Space
-        run: df -h
 
       - name: Install Azure CLI latest
         run: |
@@ -98,14 +165,14 @@ jobs:
               else
                   echo "Azure CLI already installed."
               fi
-    
+
       - name: 'Az CLI login'
-        uses: azure/login@v2.1.1
+        uses: azure/login@v2.1.0
         with:
             client-id: ${{ secrets.AZURE_CLIENT_ID }}
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
             allow-no-subscriptions: true
-        
+
       - name: 'Set subscription'
         run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
 
@@ -118,7 +185,7 @@ jobs:
           echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
           echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
           echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
-      
+
       - name: 'Check if Image exists in Test ACR'
         id: check_test_image
         run: |
@@ -140,7 +207,30 @@ jobs:
                     echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
                 fi
             fi
-      
+
+      - name: Set Permissions for DataDrive /mnt/storage
+        run : |
+          sudo chown -R $(whoami) /mnt/storage
+          sudo chmod -R 775 /mnt/storage
+          
+          sudo apt-get update
+          sudo apt-get install acl -y
+
+          sudo setfacl -dm u::rwx /mnt/storage  # Default user permissions
+          sudo setfacl -dm g::rwx /mnt/storage  # Default group permissions
+          sudo setfacl -dm o::rx /mnt/storage   # Default others permissions
+
+      - name: Check and Create Kind Cluster
+        run: |
+          if ! kind get clusters | grep -q kind; then
+            echo "Creating directory for etcd storage"
+            sudo mkdir -p /mnt/storage/etcd
+            echo "Creating Kind cluster using kind-1es.yaml"
+            kind create cluster --config .github/workflows/kind-cluster/kind-1es.yaml
+          else
+            echo "Kind cluster already exists"
+          fi
+
       - name: Launch Python Script to Kickoff Build Jobs
         if: steps.check_test_image.outputs.IMAGE_EXISTS == 'false'
         id: launch_script
