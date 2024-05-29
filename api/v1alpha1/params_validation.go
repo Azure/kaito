@@ -6,8 +6,6 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
-	"reflect"
-
 	"github.com/azure/kaito/pkg/k8sclient"
 	"github.com/azure/kaito/pkg/utils"
 	"gopkg.in/yaml.v2"
@@ -15,7 +13,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"knative.dev/pkg/apis"
+	"path/filepath"
+	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 )
 
 type Config struct {
@@ -94,15 +95,59 @@ func (t *TrainingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	return nil
 }
 
-func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *apis.FieldError {
+func UnmarshalTrainingConfig(cm *corev1.ConfigMap) (*Config, *apis.FieldError) {
 	trainingConfigYAML, ok := cm.Data["training_config.yaml"]
 	if !ok {
-		return apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' does not contain 'training_config.yaml' in namespace '%s'", cm.Name, cm.Namespace), "config")
+		return nil, apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' does not contain 'training_config.yaml' in namespace '%s'", cm.Name, cm.Namespace), "config")
 	}
 
 	var config Config
 	if err := yaml.Unmarshal([]byte(trainingConfigYAML), &config); err != nil {
-		return apis.ErrGeneric(fmt.Sprintf("Failed to parse 'training_config.yaml' in ConfigMap '%s' in namespace '%s': %v", cm.Name, cm.Namespace, err), "config")
+		return nil, apis.ErrGeneric(fmt.Sprintf("Failed to parse 'training_config.yaml' in ConfigMap '%s' in namespace '%s': %v", cm.Name, cm.Namespace, err), "config")
+	}
+	return &config, nil
+}
+
+func validateTrainingArgsViaConfigMap(cm *corev1.ConfigMap) *apis.FieldError {
+	config, err := UnmarshalTrainingConfig(cm)
+	if err != nil {
+		return err
+	}
+
+	trainingArgs := config.TrainingConfig.TrainingArguments
+	if trainingArgs != nil {
+		trainingArgsRaw, trainingArgsExists := trainingArgs["TrainingArguments"]
+		if trainingArgsExists {
+			// If specified, ensure output dir is of type string
+			outputDirValue, found, err := utils.SearchRawExtension(trainingArgsRaw, "output_dir")
+			if err != nil {
+				return apis.ErrGeneric(fmt.Sprintf("Failed to parse 'output_dir' in ConfigMap '%s' in namespace '%s': %v", cm.Name, cm.Namespace, err), "output_dir")
+			}
+			if found {
+				userSpecifiedDir, ok := outputDirValue.(string)
+				if !ok {
+					return apis.ErrInvalidValue(fmt.Sprintf("output_dir is not a string in ConfigMap '%s' in namespace '%s'", cm.Name, cm.Namespace), "output_dir")
+				}
+
+				// Ensure the user-specified directory is under baseDir
+				baseDir := "/mnt"
+				cleanPath := filepath.Clean(filepath.Join(baseDir, userSpecifiedDir))
+				if cleanPath == baseDir || !strings.HasPrefix(cleanPath, baseDir) {
+					return apis.ErrInvalidValue(fmt.Sprintf("Invalid output_dir specified: '%s', must be a directory", userSpecifiedDir), "output_dir")
+				}
+			}
+
+			// TODO: Here we perform the tuning GPU Memory Checks!
+			fmt.Println(trainingArgsRaw)
+		}
+	}
+	return nil
+}
+
+func validateMethodViaConfigMap(cm *corev1.ConfigMap, methodLowerCase string) *apis.FieldError {
+	config, err := UnmarshalTrainingConfig(cm)
+	if err != nil {
+		return err
 	}
 
 	// Validate QuantizationConfig if it exists
@@ -223,6 +268,9 @@ func (r *TuningSpec) validateConfigMap(ctx context.Context, namespace string, me
 			errs = errs.Also(err)
 		}
 		if err := validateMethodViaConfigMap(&cm, methodLowerCase); err != nil {
+			errs = errs.Also(err)
+		}
+		if err := validateTrainingArgsViaConfigMap(&cm); err != nil {
 			errs = errs.Also(err)
 		}
 	}
