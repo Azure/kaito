@@ -108,7 +108,7 @@ func TestGetTuningImageInfo(t *testing.T) {
 			presetObj: &model.PresetParam{
 				Tag: "latest",
 			},
-			expected: "testregistry/kaito-tuning-testpreset:latest",
+			expected: "testregistry/kaito-testpreset:latest",
 		},
 		"Empty Registry Name": {
 			registryName: "",
@@ -124,14 +124,14 @@ func TestGetTuningImageInfo(t *testing.T) {
 			presetObj: &model.PresetParam{
 				Tag: "latest",
 			},
-			expected: "/kaito-tuning-testpreset:latest",
+			expected: "/kaito-testpreset:latest",
 		},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			os.Setenv("PRESET_REGISTRY_NAME", tc.registryName)
-			result := GetTuningImageInfo(context.Background(), tc.wObj, tc.presetObj)
+			result, _ := GetTuningImageInfo(context.Background(), tc.wObj, tc.presetObj)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -239,13 +239,75 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 			tc.workspaceObj.SetNamespace("workspace-namespace")
-			err := EnsureTuningConfigMap(context.Background(), tc.workspaceObj, nil, mockClient)
+			_, err := EnsureTuningConfigMap(context.Background(), tc.workspaceObj, nil, mockClient)
 			if tc.expectedError != "" {
 				assert.EqualError(t, err, tc.expectedError)
 			} else {
 				assert.NoError(t, err)
 			}
 			mockClient.AssertExpectations(t)
+		})
+	}
+}
+
+func TestSetupTrainingOutputVolume(t *testing.T) {
+	testcases := map[string]struct {
+		configMap         *corev1.ConfigMap
+		expectedOutputDir string
+	}{
+		"Default Output Dir": {
+			configMap: &corev1.ConfigMap{
+				Data: map[string]string{
+					"training_config.yaml": `
+training_config:
+  TrainingArguments:
+    output_dir: ""
+`,
+				},
+			},
+			expectedOutputDir: DefaultOutputVolumePath,
+		},
+		"Valid Custom Output Dir": {
+			configMap: &corev1.ConfigMap{
+				Data: map[string]string{
+					"training_config.yaml": `
+training_config:
+  TrainingArguments:
+    output_dir: "custom/path"
+`,
+				},
+			},
+			expectedOutputDir: "/mnt/custom/path",
+		},
+		"Invalid Output Dir": {
+			configMap: &corev1.ConfigMap{
+				Data: map[string]string{
+					"training_config.yaml": `
+training_config:
+  TrainingArguments:
+    output_dir: "../../etc/passwd"
+`,
+				},
+			},
+			expectedOutputDir: DefaultOutputVolumePath,
+		},
+		"No Output Dir Specified": {
+			configMap: &corev1.ConfigMap{
+				Data: map[string]string{
+					"training_config.yaml": `
+training_config:
+  TrainingArguments: {}
+`,
+				},
+			},
+			expectedOutputDir: DefaultOutputVolumePath,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			_, _, resultOutputDir := SetupTrainingOutputVolume(context.Background(), tc.configMap)
+			assert.Equal(t, tc.expectedOutputDir, resultOutputDir)
 		})
 	}
 }
