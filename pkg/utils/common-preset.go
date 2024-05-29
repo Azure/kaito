@@ -10,10 +10,9 @@ const (
 	DefaultVolumeMountPath    = "/dev/shm"
 	DefaultConfigMapMountPath = "/mnt/config"
 	DefaultDataVolumePath     = "/mnt/data"
-	DefaultResultsVolumePath  = "/mnt/results"
 )
 
-func ConfigResultsVolume() (corev1.Volume, corev1.VolumeMount) {
+func ConfigResultsVolume(outputPath string) (corev1.Volume, corev1.VolumeMount) {
 	sharedWorkspaceVolume := corev1.Volume{
 		Name: "results-volume",
 		VolumeSource: corev1.VolumeSource{
@@ -21,9 +20,8 @@ func ConfigResultsVolume() (corev1.Volume, corev1.VolumeMount) {
 		},
 	}
 	sharedVolumeMount := corev1.VolumeMount{
-		Name: "results-volume",
-		// TODO: Override output path if specified in trainingconfig
-		MountPath: DefaultResultsVolumePath,
+		Name:      "results-volume",
+		MountPath: outputPath,
 	}
 	return sharedWorkspaceVolume, sharedVolumeMount
 }

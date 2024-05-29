@@ -3,8 +3,11 @@ package tuning
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
+	"knative.dev/pkg/apis"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -20,8 +23,10 @@ import (
 )
 
 const (
-	Port5000   = int32(5000)
-	TuningFile = "fine_tuning_api.py"
+	Port5000                = int32(5000)
+	TuningFile              = "fine_tuning.py"
+	DefaultBaseDir          = "/mnt"
+	DefaultOutputVolumePath = "/mnt/output"
 )
 
 var (
@@ -55,9 +60,21 @@ func getInstanceGPUCount(sku string) int {
 	return gpuConfig.GPUCount
 }
 
-func GetTuningImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace, presetObj *model.PresetParam) string {
-	registryName := os.Getenv("PRESET_REGISTRY_NAME")
-	return fmt.Sprintf("%s/%s:%s", registryName, "kaito-tuning-"+string(wObj.Tuning.Preset.Name), presetObj.Tag)
+func GetTuningImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, presetObj *model.PresetParam) (string, []corev1.LocalObjectReference) {
+	imagePullSecretRefs := []corev1.LocalObjectReference{}
+	if presetObj.ImageAccessMode == string(kaitov1alpha1.ModelImageAccessModePrivate) {
+		imageName := workspaceObj.Tuning.Preset.PresetOptions.Image
+		for _, secretName := range workspaceObj.Tuning.Preset.PresetOptions.ImagePullSecrets {
+			imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
+		}
+		return imageName, imagePullSecretRefs
+	} else {
+		imageName := string(workspaceObj.Tuning.Preset.Name)
+		imageTag := presetObj.Tag
+		registryName := os.Getenv("PRESET_REGISTRY_NAME")
+		imageName = fmt.Sprintf("%s/kaito-%s:%s", registryName, imageName, imageTag)
+		return imageName, imagePullSecretRefs
+	}
 }
 
 func GetDataSrcImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace) (string, []corev1.LocalObjectReference) {
@@ -69,27 +86,27 @@ func GetDataSrcImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace) (st
 }
 
 func EnsureTuningConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
-	tuningObj *model.PresetParam, kubeClient client.Client) error {
+	tuningObj *model.PresetParam, kubeClient client.Client) (*corev1.ConfigMap, error) {
 	// Copy Configmap from helm chart configmap into workspace
 	existingCM := &corev1.ConfigMap{}
 	err := resources.GetResource(ctx, workspaceObj.Tuning.ConfigTemplate, workspaceObj.Namespace, kubeClient, existingCM)
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			return err
+			return nil, err
 		}
 	} else {
 		klog.Infof("ConfigMap already exists in target namespace: %s, no action taken.\n", workspaceObj.Namespace)
-		return nil
+		return existingCM, nil
 	}
 
 	releaseNamespace, err := utils.GetReleaseNamespace()
 	if err != nil {
-		return fmt.Errorf("failed to get release namespace: %v", err)
+		return nil, fmt.Errorf("failed to get release namespace: %v", err)
 	}
 	templateCM := &corev1.ConfigMap{}
 	err = resources.GetResource(ctx, workspaceObj.Tuning.ConfigTemplate, releaseNamespace, kubeClient, templateCM)
 	if err != nil {
-		return fmt.Errorf("failed to get ConfigMap from template namespace: %v", err)
+		return nil, fmt.Errorf("failed to get ConfigMap from template namespace: %v", err)
 	}
 
 	templateCM.Namespace = workspaceObj.Namespace
@@ -99,14 +116,13 @@ func EnsureTuningConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	// TODO: Any Custom Preset override logic for the configmap can go here
 	err = resources.CreateResource(ctx, templateCM, kubeClient)
 	if err != nil {
-		return fmt.Errorf("failed to create ConfigMap in target namespace, %s: %v", workspaceObj.Namespace, err)
+		return nil, fmt.Errorf("failed to create ConfigMap in target namespace, %s: %v", workspaceObj.Namespace, err)
 	}
 
-	return nil
+	return templateCM, nil
 }
 
-func dockerSidecarScriptPushImage(image string) string {
-	// TODO: Override output path if specified in trainingconfig (instead of /mnt/results)
+func dockerSidecarScriptPushImage(outputDir, image string) string {
 	return fmt.Sprintf(`
 # Start the Docker daemon in the background with specific options for DinD
 dockerd &
@@ -118,7 +134,7 @@ done
 echo 'Docker daemon started'
 
 while true; do
-  FILE_PATH=$(find /mnt/results -name 'fine_tuning_completed.txt')
+  FILE_PATH=$(find %s -name 'fine_tuning_completed.txt')
   if [ ! -z "$FILE_PATH" ]; then
     echo "FOUND TRAINING COMPLETED FILE at $FILE_PATH"
 
@@ -146,7 +162,64 @@ while true; do
     exit 0
   fi
   sleep 10  # Check every 10 seconds
-done`, image, image)
+done`, outputDir, image, image)
+}
+
+// PrepareOutputDir ensures the output directory is within the base directory.
+func PrepareOutputDir(outputDir string) (string, error) {
+	if outputDir == "" {
+		return DefaultOutputVolumePath, nil
+	}
+
+	cleanPath := filepath.Clean(filepath.Join(DefaultBaseDir, outputDir))
+	if cleanPath == DefaultBaseDir || !strings.HasPrefix(cleanPath, DefaultBaseDir) {
+		klog.InfoS("Invalid output_dir specified: '%s', must be a directory. Using default output_dir: %s", outputDir, DefaultOutputVolumePath)
+		return DefaultOutputVolumePath, fmt.Errorf("invalid output_dir specified: '%s', must be a directory", outputDir)
+	}
+	return cleanPath, nil
+}
+
+// GetOutputDirFromTrainingArgs retrieves the output directory from training arguments if specified.
+func GetOutputDirFromTrainingArgs(trainingArgs map[string]runtime.RawExtension) (string, *apis.FieldError) {
+	if trainingArgsRaw, exists := trainingArgs["TrainingArguments"]; exists {
+		outputDirValue, found, err := utils.SearchRawExtension(trainingArgsRaw, "output_dir")
+		if err != nil {
+			return "", apis.ErrGeneric(fmt.Sprintf("Failed to parse 'output_dir': %v", err), "output_dir")
+		}
+		if found {
+			outputDir, ok := outputDirValue.(string)
+			if !ok {
+				return "", apis.ErrInvalidValue("output_dir is not a string", "output_dir")
+			}
+			return outputDir, nil
+		}
+	}
+	return "", nil
+}
+
+// GetTrainingOutputDir retrieves and validates the output directory from the ConfigMap.
+func GetTrainingOutputDir(ctx context.Context, configMap *corev1.ConfigMap) (string, error) {
+	config, err := kaitov1alpha1.UnmarshalTrainingConfig(configMap)
+	if err != nil {
+		return "", err
+	}
+
+	outputDir := ""
+	if trainingArgs := config.TrainingConfig.TrainingArguments; trainingArgs != nil {
+		outputDir, err = GetOutputDirFromTrainingArgs(trainingArgs)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return PrepareOutputDir(outputDir)
+}
+
+// SetupTrainingOutputVolume adds shared volume for results dir
+func SetupTrainingOutputVolume(ctx context.Context, configMap *corev1.ConfigMap) (corev1.Volume, corev1.VolumeMount, string) {
+	outputDir, _ := GetTrainingOutputDir(ctx, configMap)
+	resultsVolume, resultsVolumeMount := utils.ConfigResultsVolume(outputDir)
+	return resultsVolume, resultsVolumeMount, outputDir
 }
 
 func setupDefaultSharedVolumes(workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Volume, []corev1.VolumeMount) {
@@ -167,14 +240,6 @@ func setupDefaultSharedVolumes(workspaceObj *kaitov1alpha1.Workspace) ([]corev1.
 	volumes = append(volumes, cmVolume)
 	volumeMounts = append(volumeMounts, cmVolumeMount)
 
-	// Add shared volume for results dir
-	resultsVolume, resultsVolumeMount := utils.ConfigResultsVolume()
-	if resultsVolume.Name != "" {
-		volumes = append(volumes, resultsVolume)
-	}
-	if resultsVolumeMount.Name != "" {
-		volumeMounts = append(volumeMounts, resultsVolumeMount)
-	}
 	return volumes, volumeMounts
 }
 
@@ -182,6 +247,16 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	tuningObj *model.PresetParam, kubeClient client.Client) (client.Object, error) {
 	var initContainers, sidecarContainers []corev1.Container
 	volumes, volumeMounts := setupDefaultSharedVolumes(workspaceObj)
+
+	cm, err := EnsureTuningConfigMap(ctx, workspaceObj, tuningObj, kubeClient)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add shared volume for training output
+	trainingOutputVolume, trainingOutputVolumeMount, outputDir := SetupTrainingOutputVolume(ctx, cm)
+	volumes = append(volumes, trainingOutputVolume)
+	volumeMounts = append(volumeMounts, trainingOutputVolumeMount)
 
 	initContainer, imagePullSecrets, dataSourceVolume, dataSourceVolumeMount, err := prepareDataSource(ctx, workspaceObj)
 	if err != nil {
@@ -193,7 +268,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		initContainers = append(initContainers, *initContainer)
 	}
 
-	sidecarContainer, imagePushSecret, dataDestVolume, dataDestVolumeMount, err := prepareDataDestination(ctx, workspaceObj)
+	sidecarContainer, imagePushSecret, dataDestVolume, dataDestVolumeMount, err := prepareDataDestination(ctx, workspaceObj, outputDir)
 	if err != nil {
 		return nil, err
 	}
@@ -206,17 +281,15 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		imagePullSecrets = append(imagePullSecrets, *imagePushSecret)
 	}
 
-	err = EnsureTuningConfigMap(ctx, workspaceObj, tuningObj, kubeClient)
-	if err != nil {
-		return nil, err
-	}
-
 	modelCommand, err := prepareModelRunParameters(ctx, tuningObj)
 	if err != nil {
 		return nil, err
 	}
 	commands, resourceReq := prepareTuningParameters(ctx, workspaceObj, modelCommand, tuningObj)
-	tuningImage := GetTuningImageInfo(ctx, workspaceObj, tuningObj)
+	tuningImage, tuningImagePullSecrets := GetTuningImageInfo(ctx, workspaceObj, tuningObj)
+	if tuningImagePullSecrets != nil {
+		imagePullSecrets = append(imagePullSecrets, tuningImagePullSecrets...)
+	}
 
 	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, tuningImage, imagePullSecrets, *workspaceObj.Resource.Count, commands,
 		containerPorts, nil, nil, resourceReq, tolerations, initContainers, sidecarContainers, volumes, volumeMounts)
@@ -229,7 +302,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 }
 
 // Now there are two options for data destination 1. HostPath - 2. Image
-func prepareDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) (*corev1.Container, *corev1.LocalObjectReference, corev1.Volume, corev1.VolumeMount, error) {
+func prepareDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, outputDir string) (*corev1.Container, *corev1.LocalObjectReference, corev1.Volume, corev1.VolumeMount, error) {
 	var sidecarContainer *corev1.Container
 	var volume corev1.Volume
 	var volumeMount corev1.VolumeMount
@@ -238,14 +311,14 @@ func prepareDataDestination(ctx context.Context, workspaceObj *kaitov1alpha1.Wor
 	case workspaceObj.Tuning.Output.Image != "":
 		image, secret := workspaceObj.Tuning.Output.Image, workspaceObj.Tuning.Output.ImagePushSecret
 		imagePushSecret = &corev1.LocalObjectReference{Name: secret}
-		sidecarContainer, volume, volumeMount = handleImageDataDestination(ctx, image, secret)
+		sidecarContainer, volume, volumeMount = handleImageDataDestination(ctx, outputDir, image, secret)
 		// TODO: Future PR include
 		//case workspaceObj.Tuning.Output.Volume != nil:
 	}
 	return sidecarContainer, imagePushSecret, volume, volumeMount, nil
 }
 
-func handleImageDataDestination(ctx context.Context, image, imagePushSecret string) (*corev1.Container, corev1.Volume, corev1.VolumeMount) {
+func handleImageDataDestination(ctx context.Context, outputDir, image, imagePushSecret string) (*corev1.Container, corev1.Volume, corev1.VolumeMount) {
 	sidecarContainer := &corev1.Container{
 		Name:  "docker-sidecar",
 		Image: "docker:dind",
@@ -253,7 +326,7 @@ func handleImageDataDestination(ctx context.Context, image, imagePushSecret stri
 			Privileged: pointer.BoolPtr(true),
 		},
 		Command: []string{"/bin/sh", "-c"},
-		Args:    []string{dockerSidecarScriptPushImage(image)},
+		Args:    []string{dockerSidecarScriptPushImage(outputDir, image)},
 	}
 
 	volume, volumeMount := utils.ConfigImagePushSecretVolume(imagePushSecret)
