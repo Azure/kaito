@@ -138,7 +138,7 @@ func validateTrainingArgsViaConfigMap(cm *corev1.ConfigMap, modelName, methodLow
 				}
 			}
 
-			// Validate GPU Memory Requirements using batch size, tuning method, model etc.
+			// Validate GPU Memory Requirements for batch size of 1 using model and tuning method
 			errs := validateTuningParameters(modelName, methodLowerCase, sku)
 			if errs != nil {
 				return errs
