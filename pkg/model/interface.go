@@ -21,6 +21,7 @@ type PresetParam struct {
 	GPUCountRequirement       string            // Number of GPUs required for the Preset.
 	TotalGPUMemoryRequirement string            // Total GPU memory required for the Preset.
 	PerGPUMemoryRequirement   string            // GPU memory required per GPU.
+	TuningMethodGPUMemory     map[string]int    // Min GPU memory per tuning method (batch size 1).
 	TorchRunParams            map[string]string // Parameters for configuring the torchrun command.
 	TorchRunRdzvParams        map[string]string // Optional rendezvous parameters for distributed training/inference using torchrun (elastic).
 	// BaseCommand is the initial command (e.g., 'torchrun', 'accelerate launch') used in the command line.

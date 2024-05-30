@@ -85,11 +85,29 @@ func GetDataSrcImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace) (st
 	return wObj.Tuning.Input.Image, imagePullSecretRefs
 }
 
+// EnsureTuningConfigMap handles two scenarios:
+// 1. Custom config template specified:
+//   - Check if it exists in the target namespace.
+//   - If not, check the release namespace and copy it to the target namespace if found.
+//
+// 2. No custom config template specified:
+//   - Use the default config template based on the tuning method (e.g., LoRA or QLoRA).
+//   - Check if it exists in the target namespace.
+//   - If not, check the release namespace and copy it to the target namespace if found.
 func EnsureTuningConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
-	tuningObj *model.PresetParam, kubeClient client.Client) (*corev1.ConfigMap, error) {
-	// Copy Configmap from helm chart configmap into workspace
+	kubeClient client.Client) (*corev1.ConfigMap, error) {
+	tuningConfigMapName := workspaceObj.Tuning.ConfigTemplate
+	if tuningConfigMapName == "" {
+		if workspaceObj.Tuning.Method == kaitov1alpha1.TuningMethodLora {
+			tuningConfigMapName = kaitov1alpha1.DefaultLoraConfigMapTemplate
+		} else if workspaceObj.Tuning.Method == kaitov1alpha1.TuningMethodQLora {
+			tuningConfigMapName = kaitov1alpha1.DefaultQloraConfigMapTemplate
+		}
+	}
+
+	// Check if intended configmap already exists in target namespace
 	existingCM := &corev1.ConfigMap{}
-	err := resources.GetResource(ctx, workspaceObj.Tuning.ConfigTemplate, workspaceObj.Namespace, kubeClient, existingCM)
+	err := resources.GetResource(ctx, tuningConfigMapName, workspaceObj.Namespace, kubeClient, existingCM)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return nil, err
@@ -104,7 +122,7 @@ func EnsureTuningConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		return nil, fmt.Errorf("failed to get release namespace: %v", err)
 	}
 	templateCM := &corev1.ConfigMap{}
-	err = resources.GetResource(ctx, workspaceObj.Tuning.ConfigTemplate, releaseNamespace, kubeClient, templateCM)
+	err = resources.GetResource(ctx, tuningConfigMapName, releaseNamespace, kubeClient, templateCM)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ConfigMap from template namespace: %v", err)
 	}
@@ -222,7 +240,7 @@ func SetupTrainingOutputVolume(ctx context.Context, configMap *corev1.ConfigMap)
 	return resultsVolume, resultsVolumeMount, outputDir
 }
 
-func setupDefaultSharedVolumes(workspaceObj *kaitov1alpha1.Workspace) ([]corev1.Volume, []corev1.VolumeMount) {
+func setupDefaultSharedVolumes(workspaceObj *kaitov1alpha1.Workspace, cmName string) ([]corev1.Volume, []corev1.VolumeMount) {
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
 
@@ -236,7 +254,7 @@ func setupDefaultSharedVolumes(workspaceObj *kaitov1alpha1.Workspace) ([]corev1.
 	}
 
 	// Add shared volume for tuning parameters
-	cmVolume, cmVolumeMount := utils.ConfigCMVolume(workspaceObj.Tuning.ConfigTemplate)
+	cmVolume, cmVolumeMount := utils.ConfigCMVolume(cmName)
 	volumes = append(volumes, cmVolume)
 	volumeMounts = append(volumeMounts, cmVolumeMount)
 
@@ -245,13 +263,13 @@ func setupDefaultSharedVolumes(workspaceObj *kaitov1alpha1.Workspace) ([]corev1.
 
 func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	tuningObj *model.PresetParam, kubeClient client.Client) (client.Object, error) {
-	var initContainers, sidecarContainers []corev1.Container
-	volumes, volumeMounts := setupDefaultSharedVolumes(workspaceObj)
-
-	cm, err := EnsureTuningConfigMap(ctx, workspaceObj, tuningObj, kubeClient)
+	cm, err := EnsureTuningConfigMap(ctx, workspaceObj, kubeClient)
 	if err != nil {
 		return nil, err
 	}
+
+	var initContainers, sidecarContainers []corev1.Container
+	volumes, volumeMounts := setupDefaultSharedVolumes(workspaceObj, cm.Name)
 
 	// Add shared volume for training output
 	trainingOutputVolume, trainingOutputVolumeMount, outputDir := SetupTrainingOutputVolume(ctx, cm)
