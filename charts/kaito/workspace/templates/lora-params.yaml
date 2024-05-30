@@ -30,9 +30,26 @@ data:
         save_strategy: "epoch" # Default to save at end of each epoch
         per_device_train_batch_size: 1
     
+      DataCollator: # Configurable Parameters: https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/data_collator#transformers.DataCollatorForLanguageModeling
+        mlm: true # Default setting; included to show DataCollator can be updated.
+    
       DatasetConfig: # Configurable Parameters: https://github.com/Azure/kaito/blob/main/presets/tuning/text-generation/cli.py#L44
         shuffle_dataset: true
         train_test_split: 1 # Default to using all data for fine-tuning due to strong pre-trained baseline and typically limited fine-tuning data.
+        # context_column: <Optional> For additional context or prompts, used in instruction fine-tuning.
+        # response_column: <Defaults to "text"> Main text column, required for general and instruction fine-tuning.
+        # messages_column: <Optional> For structured conversational data, used in chat fine-tuning.
     
-      DataCollator: # Configurable Parameters: https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/data_collator#transformers.DataCollatorForLanguageModeling
-        mlm: true
+        # Column usage examples:
+        # 1. General Fine-Tuning:
+        #    - Required Field: response_column
+        #    - Example: response_column: "text"
+        #    - Example Dataset: https://huggingface.co/datasets/stanfordnlp/imdb
+        # 2. Instruction Fine-Tuning:
+        #    - Required Fields: context_column, response_column
+        #    - Example: context_column: "question", response_column: "response"
+        #    - Example Dataset: https://huggingface.co/datasets/Open-Orca/OpenOrca
+        # 3. Chat Fine-Tuning:
+        #    - Required Field: messages_column
+        #    - Example: messages_column: "messages"
+        #    - Example Dataset: https://huggingface.co/datasets/philschmid/dolly-15k-oai-style
