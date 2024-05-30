@@ -239,7 +239,7 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 			tc.workspaceObj.SetNamespace("workspace-namespace")
-			_, err := EnsureTuningConfigMap(context.Background(), tc.workspaceObj, nil, mockClient)
+			_, err := EnsureTuningConfigMap(context.Background(), tc.workspaceObj, mockClient)
 			if tc.expectedError != "" {
 				assert.EqualError(t, err, tc.expectedError)
 			} else {
