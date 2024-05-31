@@ -16,4 +16,6 @@ deepspeed
 loralib
 einops
 xformers
+trl
+tensorboard
 gputil

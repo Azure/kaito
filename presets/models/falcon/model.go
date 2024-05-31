@@ -80,9 +80,10 @@ func (*falcon7b) GetTuningParameters() *model.PresetParam {
 		PerGPUMemoryRequirement:   "16Gi",
 		TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunPrams:             falconRunTuningParams, // TODO
-		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetFalcon,
-		Tag:              PresetFalconTagMap["Falcon7B"],
+		ReadinessTimeout:              time.Duration(30) * time.Minute,
+		BaseCommand:                   baseCommandPresetFalcon,
+		Tag:                           PresetFalconTagMap["Falcon7B"],
+		TuningPerGPUMemoryRequirement: map[string]int{"qlora": 16},
 	}
 }
 

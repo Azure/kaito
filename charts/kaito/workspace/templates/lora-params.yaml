@@ -6,35 +6,50 @@ metadata:
 data:
   training_config.yaml: |
     training_config:
-      ModelConfig:
+      ModelConfig: # Configurable Parameters: https://huggingface.co/docs/transformers/v4.40.2/en/model_doc/auto#transformers.AutoModelForCausalLM.from_pretrained
         torch_dtype: "bfloat16"
         local_files_only: true
         device_map: "auto"
     
-      TokenizerParams:
-        padding: true
-        truncation: true
+      TokenizerParams: # Configurable Parameters: https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/tokenizer#transformers.PreTrainedTokenizer.__call__
+        padding: true # Default to true, generally recommended to pad to the longest sequence in the batch
+        truncation: true # Default to true to prevent errors from input sequences longer than max length
     
-      QuantizationConfig:
+      QuantizationConfig: # Configurable Parameters: https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/quantization#transformers.BitsAndBytesConfig
         load_in_4bit: false
     
-      LoraConfig:
-        r: 16
-        lora_alpha: 32
-        target_modules: "query_key_value"
-        lora_dropout: 0.05
-        bias: "none"
+      LoraConfig: # Configurable Parameters: https://huggingface.co/docs/peft/v0.8.2/en/package_reference/lora#peft.LoraConfig
+        r: 8
+        lora_alpha: 8
+        lora_dropout: 0.0
     
-      TrainingArguments:
-        output_dir: "."
-        num_train_epochs: 4
-        auto_find_batch_size: true
-        ddp_find_unused_parameters: false
-        save_strategy: "epoch"
+      TrainingArguments: # Configurable Parameters: https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/trainer#transformers.TrainingArguments
+        output_dir: "/mnt/results"
+        # num_train_epochs: <Defaults to 3, adjustable>
+        ddp_find_unused_parameters: false # Default to false to prevent errors during distributed training.
+        save_strategy: "epoch" # Default to save at end of each epoch
+        per_device_train_batch_size: 1
     
-      DatasetConfig:
+      DataCollator: # Configurable Parameters: https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/data_collator#transformers.DataCollatorForLanguageModeling
+        mlm: true # Default setting; included to show DataCollator can be updated.
+    
+      DatasetConfig: # Configurable Parameters: https://github.com/Azure/kaito/blob/main/presets/tuning/text-generation/cli.py#L44
         shuffle_dataset: true
-        train_test_split: 1
+        train_test_split: 1 # Default to using all data for fine-tuning due to strong pre-trained baseline and typically limited fine-tuning data.
+        # context_column: <Optional> For additional context or prompts, used in instruction fine-tuning.
+        # response_column: <Defaults to "text"> Main text column, required for general and instruction fine-tuning.
+        # messages_column: <Optional> For structured conversational data, used in chat fine-tuning.
     
-      DataCollator:
-        mlm: true
+        # Column usage examples:
+        # 1. General Fine-Tuning:
+        #    - Required Field: response_column
+        #    - Example: response_column: "text"
+        #    - Example Dataset: https://huggingface.co/datasets/stanfordnlp/imdb
+        # 2. Instruction Fine-Tuning:
+        #    - Required Fields: context_column, response_column
+        #    - Example: context_column: "question", response_column: "response"
+        #    - Example Dataset: https://huggingface.co/datasets/Open-Orca/OpenOrca
+        # 3. Chat Fine-Tuning:
+        #    - Required Field: messages_column
+        #    - Example: messages_column: "messages"
+        #    - Example Dataset: https://huggingface.co/datasets/philschmid/dolly-15k-oai-style
