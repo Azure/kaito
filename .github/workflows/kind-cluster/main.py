@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 KAITO_REPO_URL = "https://github.com/Azure/kaito.git"
-WEIGHTS_FOLDER = "/mnt/storage"
+WEIGHTS_FOLDER = os.environ.get("WEIGHTS_FOLDER", None)
 
 def get_weights_path(model_name): 
     return f"{WEIGHTS_FOLDER}/{model_name}/weights"
@@ -162,7 +162,7 @@ def populate_job_template(model_name, model_type, model_runtime, model_tag, job_
 
         replacements = {
             "{{JOB_ID}}": f"{job_name}",
-            "{{IMAGE_NAME}}": model_name,
+            "{{IMAGE_NAME}}": f"staging/aks/kaito/kaito-{model_name}",
             "{{ACR_NAME}}": env_vars["ACR_NAME"],
             "{{ACR_USERNAME}}": env_vars["ACR_USERNAME"],
             "{{ACR_PASSWORD}}": env_vars["ACR_PASSWORD"],

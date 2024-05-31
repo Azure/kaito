@@ -1,4 +1,4 @@
-name: Build and Push Preset Models
+name: Build and Push Preset Models 1ES
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -27,6 +27,7 @@ on:
 env:
     GO_VERSION: "1.22"
     BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+    WEIGHTS_DIR: "/mnt/storage"
 
 permissions:
   id-token: write
@@ -104,7 +105,7 @@ jobs:
           fi
   determine-models: 
     needs: setup
-    runs-on: [ "self-hosted", "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu" ]
+    runs-on: ubuntu-latest
     environment: preset-env
     outputs:
       matrix: ${{ steps.affected_models.outputs.matrix }}
@@ -159,29 +160,24 @@ jobs:
 
       - name: Install Azure CLI latest
         run: |
-              if ! which az > /dev/null; then
-                  echo "Azure CLI not found. Installing..."
-                  curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-              else
-                  echo "Azure CLI already installed."
-              fi
+          if ! which az > /dev/null; then
+              echo "Azure CLI not found. Installing..."
+              curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          else
+              echo "Azure CLI already installed."
+          fi
 
-      - name: 'Az CLI login'
-        uses: azure/login@v2.1.0
-        with:
-            client-id: ${{ secrets.AZURE_CLIENT_ID }}
-            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-            allow-no-subscriptions: true
-
-      - name: 'Set subscription'
-        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
+      - name: Authenticate to ACR
+        run: |
+          az login --identity
+          az acr login -n ${{ secrets.PROD_1ES_ACR_USERNAME }}
 
       - name: 'Get ACR Info'
         id: acr_info
         run: |
-          ACR_NAME="${{ secrets.ACR_AMRT_USERNAME }}"
-          ACR_USERNAME=${{ secrets.ACR_AMRT_USERNAME }}
-          ACR_PASSWORD=${{ secrets.ACR_AMRT_PASSWORD }} 
+          ACR_NAME="${{ secrets.PROD_1ES_ACR_USERNAME }}"
+          ACR_USERNAME=${{ secrets.PROD_1ES_ACR_USERNAME }}
+          ACR_PASSWORD=${{ secrets.PROD_1ES_ACR_PASSWORD }} 
           echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
           echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
           echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
@@ -190,7 +186,7 @@ jobs:
         id: check_test_image
         run: |
             ACR_NAME=${{ steps.acr_info.outputs.ACR_USERNAME }}
-            IMAGE_NAME=${{ matrix.model.name }}
+            IMAGE_NAME=staging/aks/kaito/kaito-${{ matrix.model.name }}
             TAG=${{ matrix.model.tag }}
 
             # Use '|| true' to prevent script from exiting with an error if the repository is not found
@@ -244,6 +240,7 @@ jobs:
           MODEL_VERSION=${{ matrix.model.version }} \
           MODEL_RUNTIME=${{ matrix.model.runtime }} \
           MODEL_TAG=${{ matrix.model.tag }} \
+          WEIGHTS_DIR=${{ env.WEIGHTS_DIR }} \
           python3 .github/workflows/kind-cluster/main.py
       
       # Check the exit status of the Python script

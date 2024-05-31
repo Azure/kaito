@@ -27,6 +27,7 @@ on:
 env:
     GO_VERSION: "1.22"
     BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+    WEIGHTS_DIR: "/datadrive"
 
 permissions:
   id-token: write
@@ -154,6 +155,7 @@ jobs:
           MODEL_VERSION=${{ matrix.model.version }} \
           MODEL_RUNTIME=${{ matrix.model.runtime }} \
           MODEL_TAG=${{ matrix.model.tag }} \
+          WEIGHTS_DIR=${{ env.WEIGHTS_DIR }} \
           python3 .github/workflows/kind-cluster/main.py
       
       # Check the exit status of the Python script

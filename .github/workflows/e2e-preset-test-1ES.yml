@@ -1,8 +1,8 @@
-name: E2E Preset Test
+name: E2E Preset Test 1ES
 
 on:
     workflow_run:
-        workflows: ["Build and Push Preset Models"]
+        workflows: ["Build and Push Preset Models 1ES"]
         types: 
             - completed
     workflow_dispatch:
@@ -94,7 +94,7 @@ jobs:
   e2e-preset-tests:
     needs: determine-models
     if: needs.determine-models.outputs.is_matrix_empty == 'false' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
-    runs-on: ubuntu-latest
+    runs-on: [ "self-hosted", "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu" ]
     environment: preset-env
     strategy:
       fail-fast: false
@@ -114,20 +114,18 @@ jobs:
       - name: Set OSS Flag
         run: echo "MODEL_IS_OSS=${{ matrix.model.OSS }}" >> $GITHUB_ENV
 
-      - name: 'Az CLI login'
-        uses: azure/login@v2.1.0
-        with:
-            client-id: ${{ secrets.AZURE_CLIENT_ID }}
-            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-            allow-no-subscriptions: true
-      
+      - name: Authenticate to ACR
+        run: |
+          az login --identity
+          az acr login -n ${{ secrets.PROD_1ES_ACR_USERNAME }}
+
       - name: 'Set Prod Subscription'
         run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
         
       - name: 'Check if Image exists in Prod ACR'
         id: check_prod_image
         run: |
-            ACR_NAME=${{ secrets.PROD_ACR_USERNAME }}
+            ACR_NAME=${{ secrets.PROD_1ES_ACR_USERNAME }}
             IMAGE_NAME=unlisted/aks/kaito/kaito-${{ matrix.model.name }}
             TAG=${{ matrix.model.tag }}
         
@@ -152,8 +150,8 @@ jobs:
       - name: 'Check if Image exists in Test ACR'
         id: check_test_image
         run: |
-            ACR_NAME=${{ secrets.ACR_AMRT_USERNAME }}
-            IMAGE_NAME=${{ matrix.model.name }}
+            ACR_NAME=${{ secrets.PROD_1ES_ACR_USERNAME }}
+            IMAGE_NAME=staging/aks/kaito/kaito-${{ matrix.model.name }}
             TAG=${{ matrix.model.tag }}
         
             # Use '|| true' to prevent script from exiting with an error if the repository is not found
@@ -257,7 +255,7 @@ jobs:
         run: |
             sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}.yaml
             sed -i "s/TAG_HERE/${{ matrix.model.tag }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}.yaml
-            sed -i "s/REPO_HERE/${{ secrets.ACR_AMRT_USERNAME }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}.yaml
+            sed -i "s/REPO_HERE/${{ secrets.PROD_1ES_ACR_USERNAME }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}.yaml
             kubectl apply -f presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}.yaml
 
       - name: Wait for Resource to be ready
@@ -365,13 +363,13 @@ jobs:
 
             az account set --subscription ${{secrets.PROD_ACR_SUB_ID}}
 
-            TEST_ACR_NAME=${{ secrets.ACR_AMRT_USERNAME }}
-            PROD_ACR_NAME=${{ secrets.PROD_ACR_USERNAME }}
+            TEST_ACR_NAME=${{ secrets.PROD_1ES_ACR_USERNAME }}
+            PROD_ACR_NAME=${{ secrets.PROD_1ES_ACR_USERNAME }}
             IMAGE_NAME=${{ matrix.model.name }}
             TAG=${{ matrix.model.tag }}
 
             # Formulate the source image reference
-            SOURCE_IMAGE=$IMAGE_NAME:$TAG
+            SOURCE_IMAGE=staging/aks/kaito/kaito-$IMAGE_NAME:$TAG
             DEST_IMAGE=unlisted/aks/kaito/kaito-$IMAGE_NAME:$TAG
 
             # Import the image from Test ACR to Prod ACR
