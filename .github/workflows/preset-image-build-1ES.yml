@@ -103,9 +103,9 @@ jobs:
             chmod +x ./kind
             sudo mv ./kind /usr/local/bin/kind
           fi
-  determine-models: 
+  determine-models:
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: [ "self-hosted", "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu" ]
     environment: preset-env
     outputs:
       matrix: ${{ steps.affected_models.outputs.matrix }}
