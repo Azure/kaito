@@ -34,7 +34,7 @@ models:
     type: text-generation
     version: https://huggingface.co/tiiuae/falcon-7b/commit/898df1396f35e447d5fe44e0a3ccaaaa69f30d36
     runtime: tfs
-    tag: 0.0.5
+    tag: 0.0.6
   - name: falcon-7b-instruct
     type: text-generation
     version: https://huggingface.co/tiiuae/falcon-7b-instruct/commit/cf4b3c42ce2fdfe24f753f0f0d179202fea59c99
