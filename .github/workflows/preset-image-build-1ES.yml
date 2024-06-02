@@ -34,78 +34,8 @@ permissions:
   contents: write
 
 jobs:
-  setup: 
-    runs-on: [ "self-hosted", "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu" ]
-    environment: preset-env
-    steps: 
-      - name: List All Disks
-        run: |
-          lsblk
-          if ! mountpoint -q /mnt/storage; then
-            echo "Failed to find required storage partition /mnt/storage"
-            exit 1
-          fi
-
-      - name: Check Available Disk Space
-        run: df -h
-
-      - name: Ensure Python is Installed
-        run: |
-          if ! command -v python3 &> /dev/null; then
-            sudo apt-get update
-            sudo apt-get install -y python3
-          fi
-
-      - name: Ensure kubectl is Installed
-        run: |
-          if ! command -v kubectl &> /dev/null; then
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-            kubectl version --client --output=yaml
-          fi
-
-      - name: Ensure Docker is Installed
-        run: |
-          # Add Docker's official GPG key:
-          sudo apt-get update
-          sudo apt-get install ca-certificates curl -y
-          sudo install -m 0755 -d /etc/apt/keyrings
-          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-          sudo chmod a+r /etc/apt/keyrings/docker.asc
-          
-          # Add the repository to Apt sources:
-          echo \
-            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-          sudo apt-get update
-
-          sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
-          
-          # User Permissions
-          sudo usermod -aG docker $(whoami)
-          sudo systemctl restart docker
-          sudo chmod 666 /var/run/docker.sock
-      
-      - name: Test Docker Access
-        run: |
-          ls -l /var/run/docker.sock
-          docker run hello-world
-
-      - name: Ensure Kind is Installed
-        run: |
-          if ! command -v kind &> /dev/null; then
-            if [ $(uname -m) = x86_64 ]; then
-              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
-            elif [ $(uname -m) = aarch64 ]; then
-              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-arm64
-            fi
-            chmod +x ./kind
-            sudo mv ./kind /usr/local/bin/kind
-          fi
   determine-models:
-    needs: setup
-    runs-on: [ "self-hosted", "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu" ]
+    runs-on: ubuntu-latest
     environment: preset-env
     outputs:
       matrix: ${{ steps.affected_models.outputs.matrix }}
@@ -165,6 +95,85 @@ jobs:
               curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
           else
               echo "Azure CLI already installed."
+          fi
+
+      - name: List All Disks
+        run: |
+          lsblk
+          if ! mountpoint -q /mnt/storage; then
+            echo "Failed to find required storage partition /mnt/storage"
+            exit 1
+          fi
+
+      - name: Check Available Disk Space
+        run: df -h
+
+      - name: Ensure Python is Installed
+        run: |
+          if ! command -v python3 &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y python3
+          fi
+
+      - name: Ensure git and git LFS is Installed
+        run: |
+          if ! command -v git &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y git
+          fi
+          if ! git lfs --version &> /dev/null; then
+            sudo apt-get update
+            curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+            sudo apt-get install -y git-lfs
+            git lfs install
+          fi
+
+      - name: Ensure kubectl is Installed
+        run: |
+          if ! command -v kubectl &> /dev/null; then
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            kubectl version --client --output=yaml
+          fi
+
+      - name: Ensure Docker is Installed
+        run: |
+          # Add Docker's official GPG key:
+          sudo apt-get update
+          sudo apt-get install ca-certificates curl -y
+          sudo install -m 0755 -d /etc/apt/keyrings
+          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+          sudo chmod a+r /etc/apt/keyrings/docker.asc
+          
+          # Add the repository to Apt sources:
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          sudo apt-get update
+
+          sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
+          
+          # User Permissions
+          sudo usermod -aG docker $(whoami)
+          sudo systemctl restart docker
+          sudo chmod 666 /var/run/docker.sock
+      
+      - name: Test Docker Access
+        run: |
+          ls -l /var/run/docker.sock
+          docker run hello-world
+
+      - name: Ensure Kind is Installed
+        run: |
+          if ! command -v kind &> /dev/null; then
+            if [ $(uname -m) = x86_64 ]; then
+              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
+            elif [ $(uname -m) = aarch64 ]; then
+              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-arm64
+            fi
+            chmod +x ./kind
+            sudo mv ./kind /usr/local/bin/kind
           fi
 
       - name: Authenticate to ACR
