@@ -89,7 +89,6 @@ if not dm.get_dataset():
 if ds_config.shuffle_dataset:
     dm.shuffle_dataset()
 
-dm.format_and_preprocess()
 train_dataset, eval_dataset = dm.split_dataset()
 
 # checkpoint_callback = CheckpointCallback()
