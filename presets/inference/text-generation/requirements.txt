@@ -18,3 +18,4 @@ psutil
 # For UTs
 pytest
 httpx
+peft
