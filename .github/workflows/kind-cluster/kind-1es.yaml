@@ -4,7 +4,7 @@ nodes:
 - role: control-plane
   extraMounts:
   - hostPath: /mnt/storage
-    containerPath: /
+    containerPath: /mnt/storage
   - hostPath: /home
     containerPath: /home
   - hostPath: /mnt/storage/etcd

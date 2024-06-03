@@ -27,7 +27,7 @@ on:
 env:
     GO_VERSION: "1.22"
     BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
-    WEIGHTS_DIR: ""
+    WEIGHTS_DIR: "/mnt/storage"
 
 permissions:
   id-token: write
@@ -188,6 +188,20 @@ jobs:
             chmod +x ./kind
             sudo mv ./kind /usr/local/bin/kind
           fi
+
+      - name: Configure Docker to Use /mnt/storage/docker
+        run: |
+          sudo systemctl stop docker
+          sudo mkdir -p /mnt/storage/docker
+          if [ -d /var/lib/docker ]; then
+            sudo rsync -aP /var/lib/docker/ /mnt/storage/docker/
+          fi
+          echo '{"data-root":"/mnt/storage/docker"}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl start docker
+  
+      - name: Verify Docker Configuration
+        run: |
+          docker info | grep "Docker Root Dir"
 
       - name: Authenticate to ACR
         run: |
