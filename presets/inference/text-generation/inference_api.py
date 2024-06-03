@@ -95,7 +95,7 @@ adapters_list = parse_adapter_paths(adapters_name_or_path)
 adapters_list= [adapter.strip() for adapter in adapters_list if adapter.strip()]
 
 if len(adapters_list) == 0:
-    model = PeftModel.from_pretrained(base_model, adapter=None)
+    model = base_model
 else: 
     model = PeftModel.from_pretrained(base_model, adapters_list[0])
     for i in range(1, len(adapters_list)):
