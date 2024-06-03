@@ -9,7 +9,7 @@ from pathlib import Path
 KAITO_REPO_URL = "https://github.com/Azure/kaito.git"
 WEIGHTS_FOLDER = os.environ.get("WEIGHTS_DIR", None)
 
-def get_weights_path(model_name): 
+def get_weights_path(model_name):
     return f"{WEIGHTS_FOLDER}/{model_name}/weights"
 
 def get_dockerfile_path(model_runtime):

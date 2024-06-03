@@ -27,7 +27,7 @@ on:
 env:
     GO_VERSION: "1.22"
     BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
-    WEIGHTS_DIR: "/mnt/storage"
+    WEIGHTS_DIR: ""
 
 permissions:
   id-token: write
