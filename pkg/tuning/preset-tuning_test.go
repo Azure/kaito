@@ -279,6 +279,18 @@ training_config:
 			},
 			expectedOutputDir: "/mnt/custom/path",
 		},
+		"Output Dir already includes /mnt": {
+			configMap: &corev1.ConfigMap{
+				Data: map[string]string{
+					"training_config.yaml": `
+training_config:
+  TrainingArguments:
+    output_dir: "/mnt/output"
+`,
+				},
+			},
+			expectedOutputDir: DefaultOutputVolumePath,
+		},
 		"Invalid Output Dir": {
 			configMap: &corev1.ConfigMap{
 				Data: map[string]string{
