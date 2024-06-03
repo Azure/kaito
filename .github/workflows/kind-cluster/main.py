@@ -238,7 +238,7 @@ def wait_for_jobs_to_complete(job_names, timeout=21600):
         if all_completed:
             print("All jobs completed successfully.")
             return True
-        time.sleep(30)  # Wait for 30 seconds before checking again
+        time.sleep(1)  # Wait for 30 seconds before checking again
         iteration += 1
     print("Timeout waiting for jobs to complete.")
     return False
