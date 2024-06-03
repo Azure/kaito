@@ -5,11 +5,14 @@ package utils
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
-	"k8s.io/apimachinery/pkg/runtime"
 	"os"
 
+	"gopkg.in/yaml.v2"
+	"k8s.io/apimachinery/pkg/runtime"
+	"knative.dev/pkg/apis"
+
+	"github.com/azure/kaito/pkg/sku"
 	"github.com/azure/kaito/pkg/utils/consts"
 )
 
@@ -94,4 +97,20 @@ func GetReleaseNamespace() (string, error) {
 		return namespace, nil
 	}
 	return "", fmt.Errorf("failed to determine release namespace from file %s and env var %s", namespaceFilePath, consts.DefaultReleaseNamespaceEnvVar)
+}
+
+func GetSKUHandler() (sku.CloudSKUHandler, error) {
+	// Get the cloud provider from the environment
+	provider := os.Getenv("CLOUD_PROVIDER")
+
+	if provider == "" {
+		return nil, apis.ErrMissingField("CLOUD_PROVIDER environment variable must be set")
+	}
+	// Select the correct SKU handler based on the cloud provider
+	skuHandler := sku.GetCloudSKUHandler(provider)
+	if skuHandler == nil {
+		return nil, apis.ErrInvalidValue(fmt.Sprintf("Unsupported cloud provider %s", provider), "CLOUD_PROVIDER")
+	}
+
+	return skuHandler, nil
 }

@@ -3,6 +3,7 @@
 package utils
 
 import (
+	"github.com/azure/kaito/pkg/utils/plugin"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -120,4 +121,8 @@ func ConfigDataVolume(hostPath *string) (corev1.Volume, corev1.VolumeMount) {
 		MountPath: DefaultDataVolumePath,
 	}
 	return volume, volumeMount
+}
+
+func IsValidPreset(preset string) bool {
+	return plugin.KaitoModelRegister.Has(preset)
 }

@@ -14,3 +14,14 @@ type GPUConfig struct {
 	GPUMem   int
 	GPUModel string
 }
+
+func GetCloudSKUHandler(cloud string) CloudSKUHandler {
+	switch cloud {
+	case "azure":
+		return NewAzureSKUHandler()
+	case "aws":
+		return NewAwsSKUHandler()
+	default:
+		return nil
+	}
+}
