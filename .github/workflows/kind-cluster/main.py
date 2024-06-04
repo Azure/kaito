@@ -204,7 +204,7 @@ def log_job_info(job_name):
 def check_job_status(job_name, iteration):
     """Check the status of a Kubernetes job."""
     # Every 2.5 minutes log job information
-    if iteration % 1 == 0: 
+    if iteration % 5 == 0:
         log_job_info(job_name)
     # Query for the specific fields 'succeeded' and 'failed' in the job's status
     command_succeeded = f"kubectl get job docker-build-job-{job_name} -o jsonpath='{{.status.succeeded}}'"
@@ -238,7 +238,7 @@ def wait_for_jobs_to_complete(job_names, timeout=21600):
         if all_completed:
             print("All jobs completed successfully.")
             return True
-        time.sleep(3)  # Wait for 30 seconds before checking again
+        time.sleep(30)  # Wait for 30 seconds before checking again
         iteration += 1
     print("Timeout waiting for jobs to complete.")
     return False

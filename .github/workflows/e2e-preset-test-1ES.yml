@@ -111,6 +111,47 @@ jobs:
             submodules: true
             fetch-depth: 0
 
+      - name: Install Azure CLI latest
+        run: |
+            if ! which az > /dev/null; then
+                echo "Azure CLI not found. Installing..."
+                curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+            else
+                echo "Azure CLI already installed."
+            fi
+          
+      - name: List All Disks
+        run: |
+            lsblk
+            if ! mountpoint -q /mnt/storage; then
+                echo "Failed to find required storage partition /mnt/storage"
+                exit 1
+            fi
+    
+      - name: Check Available Disk Space
+        run: |
+            echo "Initial disk usage:"
+            df -h
+
+            # Remove unused Docker resources
+            docker system prune -a -f --volumes
+
+            # Check Docker-related disk usage
+            echo "Docker-related disk usage after cleanup:"
+            docker system df
+
+            # Check final disk usage
+            echo "Final disk usage:"
+            df -h
+    
+      - name: Ensure kubectl is Installed
+        run: |
+            if ! command -v kubectl &> /dev/null; then
+                curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+                kubectl version --client --output=yaml
+            fi
+    
       - name: Set OSS Flag
         run: echo "MODEL_IS_OSS=${{ matrix.model.OSS }}" >> $GITHUB_ENV
 

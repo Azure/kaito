@@ -193,6 +193,7 @@ jobs:
         run: |
           sudo systemctl stop docker
           sudo mkdir -p /mnt/storage/docker
+          # Move existing Docker data
           if [ -d /var/lib/docker ]; then
             sudo rsync -aP /var/lib/docker/ /mnt/storage/docker/
           fi
