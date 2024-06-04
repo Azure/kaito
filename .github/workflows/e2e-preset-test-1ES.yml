@@ -217,9 +217,6 @@ jobs:
           az login --identity
           az acr login -n ${{ secrets.PROD_1ES_ACR_USERNAME }}
 
-      - name: 'Set Prod Subscription'
-        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
-        
       - name: 'Check if Image exists in Prod ACR'
         id: check_prod_image
         run: |
