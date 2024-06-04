@@ -248,13 +248,6 @@ func (in *TrainingConfig) DeepCopyInto(out *TrainingConfig) {
 			(*out)[key] = *val.DeepCopy()
 		}
 	}
-	if in.TokenizerParams != nil {
-		in, out := &in.TokenizerParams, &out.TokenizerParams
-		*out = make(map[string]runtime.RawExtension, len(*in))
-		for key, val := range *in {
-			(*out)[key] = *val.DeepCopy()
-		}
-	}
 	if in.QuantizationConfig != nil {
 		in, out := &in.QuantizationConfig, &out.QuantizationConfig
 		*out = make(map[string]runtime.RawExtension, len(*in))
