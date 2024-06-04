@@ -130,18 +130,6 @@ jobs:
     
       - name: Check Available Disk Space
         run: |
-            echo "Initial disk usage:"
-            df -h
-
-            # Remove unused Docker resources
-            docker system prune -a -f --volumes
-
-            # Check Docker-related disk usage
-            echo "Docker-related disk usage after cleanup:"
-            docker system df
-
-            # Check final disk usage
-            echo "Final disk usage:"
             df -h
     
       - name: Ensure kubectl is Installed
