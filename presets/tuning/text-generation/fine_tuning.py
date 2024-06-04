@@ -78,7 +78,7 @@ model = get_peft_model(model, lora_config)
 model.config.use_cache = False
 model.print_trainable_parameters()
 
-dm = DatasetManager(ds_config, tokenizer)
+dm = DatasetManager(ds_config)
 # Load the dataset
 dm.load_data()
 if not dm.get_dataset():

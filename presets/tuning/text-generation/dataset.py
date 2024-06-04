@@ -8,9 +8,8 @@ from datasets import load_dataset
 SUPPORTED_EXTENSIONS = {'csv', 'json', 'parquet', 'arrow', 'webdataset'}
 
 class DatasetManager:
-    def __init__(self, config, tokenizer):
+    def __init__(self, config):
         self.config = config
-        self.tokenizer = tokenizer
         self.dataset = None
         self.dataset_text_field = None # Set this field if dataset consists of singular text column
 
