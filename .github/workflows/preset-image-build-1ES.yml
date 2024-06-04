@@ -219,7 +219,7 @@ jobs:
           echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
           echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
 
-      - name: 'Check if Image exists in Test ACR'
+      - name: 'Check if Image exists in staging/aks/kaito'
         id: check_test_image
         run: |
             ACR_NAME=${{ steps.acr_info.outputs.ACR_USERNAME }}
