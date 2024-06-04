@@ -239,9 +239,6 @@ jobs:
                 fi
             fi
 
-      - name: 'Set Test Subscription'
-        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
-
       - name: 'Check if Image exists in Test ACR'
         id: check_test_image
         run: |
