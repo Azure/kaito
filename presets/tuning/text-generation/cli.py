@@ -56,27 +56,6 @@ class DatasetConfig:
     train_test_split: float = field(default=0.8, metadata={"help": "Split between test and training data (e.g. 0.8 means 80/20% train/test split)"})
 
 @dataclass
-class TokenizerParams:
-    """
-    Tokenizer params
-    """
-    add_special_tokens: bool = field(default=True, metadata={"help": ""})
-    padding: bool = field(default=False, metadata={"help": ""})
-    truncation: bool = field(default=None, metadata={"help": ""})
-    max_length: Optional[int] = field(default=None, metadata={"help": ""})
-    stride: int = field(default=0, metadata={"help": ""})
-    is_split_into_words: bool = field(default=False, metadata={"help": ""})
-    pad_to_multiple_of: Optional[int] = field(default=None, metadata={"help": ""})
-    return_tensors: Optional[str] = field(default=None, metadata={"help": ""})
-    return_token_type_ids: Optional[bool] = field(default=None, metadata={"help": ""})
-    return_attention_mask: Optional[bool] = field(default=None, metadata={"help": ""})
-    return_overflowing_tokens: bool = field(default=False, metadata={"help": ""})
-    return_special_tokens_mask: bool = field(default=False, metadata={"help": ""})
-    return_offsets_mapping: bool = field(default=False, metadata={"help": ""})
-    return_length: bool = field(default=False, metadata={"help": ""})
-    verbose: bool = field(default=True, metadata={"help": ""})
-
-@dataclass
 class ModelConfig:
     """
     Transformers Model Configuration Parameters

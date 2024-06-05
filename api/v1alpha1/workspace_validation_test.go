@@ -106,10 +106,6 @@ func defaultConfigMapManifest() *v1.ConfigMap {
     local_files_only: true
     device_map: "auto"
 
-  TokenizerParams:
-    padding: true
-    truncation: true
-
   QuantizationConfig:
     load_in_4bit: false
 
@@ -149,10 +145,6 @@ func qloraConfigMapManifest() *v1.ConfigMap {
     torch_dtype: "bfloat16"
     local_files_only: true
     device_map: "auto"
-
-  TokenizerParams:
-    padding: true
-    truncation: true
 
   QuantizationConfig:
     load_in_4bit: true
