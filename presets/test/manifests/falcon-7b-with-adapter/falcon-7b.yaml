@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: falcon-7b
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: falcon
+  template:
+    metadata:
+      labels:
+        app: falcon
+    spec:
+      volumes:
+      - name: shared
+        emptyDir: {}
+      initContainers:
+      - name: init-container-2
+        image: aimodelsregistrytest.azurecr.io/adapter-output-ubuntu:0.0.1
+        imagePullPolicy: Always
+        command: ["/bin/sh", "-c", "mkdir /data/mental && cp -r * /data/mental"]
+        volumeMounts:
+        - name: shared
+          mountPath: /data
+      containers:
+      - name: falcon-container
+        image: aimodelsregistrytest.azurecr.io/falcon-7b:0.0.4
+        command:
+          - /bin/sh
+          - -c
+          - sleep infinity && accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference_api.py --pipeline text-generation --torch_dtype bfloat16
+        resources:
+          requests:
+            nvidia.com/gpu: 2
+          limits:
+            nvidia.com/gpu: 2  # Requesting 2 GPUs
+        volumeMounts:
+        - name: shared
+          mountPath: /data
+        env:
+        - name: ADAPTER_WEIGHT_0
+          value: "0.2"
+      volumes:
+      - name: shared
+        emptyDir:
+          medium: Memory
+      tolerations:
+      - effect: NoSchedule
+        key: sku
+        operator: Equal
+        value: gpu
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        operator: Exists
