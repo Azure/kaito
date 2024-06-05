@@ -25,7 +25,6 @@ type Config struct {
 
 type TrainingConfig struct {
 	ModelConfig        map[string]runtime.RawExtension `yaml:"ModelConfig"`
-	TokenizerParams    map[string]runtime.RawExtension `yaml:"TokenizerParams"`
 	QuantizationConfig map[string]runtime.RawExtension `yaml:"QuantizationConfig"`
 	LoraConfig         map[string]runtime.RawExtension `yaml:"LoraConfig"`
 	TrainingArguments  map[string]runtime.RawExtension `yaml:"TrainingArguments"`
@@ -76,7 +75,6 @@ func (t *TrainingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		target *map[string]runtime.RawExtension
 	}{
 		{"ModelConfig", &t.ModelConfig},
-		{"TokenizerParams", &t.TokenizerParams},
 		{"QuantizationConfig", &t.QuantizationConfig},
 		{"LoraConfig", &t.LoraConfig},
 		{"TrainingArguments", &t.TrainingArguments},
