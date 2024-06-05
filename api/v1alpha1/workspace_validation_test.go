@@ -689,7 +689,7 @@ func TestAdapterSpecValidateCreateorUpdate(t *testing.T) {
 			expectErrs: true,
 		},
 		{
-			name: "Valid Adpater",
+			name: "Valid Adapter",
 			adapterSpec: &AdapterSpec{
 				Source: &DataSource{
 					Name:   "Adapter-1",
