@@ -23,7 +23,7 @@ class ModelConfig:
     """
     pipeline: str = field(metadata={"help": "The model pipeline for the pre-trained model"})
     pretrained_model_name_or_path: Optional[str] = field(default="/workspace/tfs/weights", metadata={"help": "Path to the pretrained model or model identifier from huggingface.co/models"})
-    adapters_name_or_path: Optional[str] = field(default="", metadata={"help": "Paths of the adapter to load to the base model, split by comma"})
+    adapters_name_or_path: Optional[str] = field(default="/data/mental", metadata={"help": "Paths of the adapter to load to the base model, split by comma"})
     state_dict: Optional[Dict[str, Any]] = field(default=None, metadata={"help": "State dictionary for the model"})
     cache_dir: Optional[str] = field(default=None, metadata={"help": "Cache directory for the model"})
     from_tf: bool = field(default=False, metadata={"help": "Load model from a TensorFlow checkpoint"})
@@ -83,7 +83,7 @@ model_args = asdict(args)
 model_args["local_files_only"] = not model_args.pop('allow_remote_files')
 model_pipeline = model_args.pop('pipeline')
 adapters_name_or_path = model_args.pop('adapters_name_or_path')
-print("adapters_name_or_path:",adapters_name_or_path)
+
 app = FastAPI()
 tokenizer = AutoTokenizer.from_pretrained(**model_args)
 base_model = AutoModelForCausalLM.from_pretrained(**model_args)
@@ -91,16 +91,28 @@ base_model = AutoModelForCausalLM.from_pretrained(**model_args)
 def parse_adapter_paths(adapter_paths_str):
     adapter_paths_list = adapter_paths_str.split(',')
     return adapter_paths_list
+
 adapters_list = parse_adapter_paths(adapters_name_or_path)
 adapters_list= [adapter.strip() for adapter in adapters_list if adapter.strip()]
 
 if len(adapters_list) == 0:
     model = base_model
 else: 
-    model = PeftModel.from_pretrained(base_model, adapters_list[0])
+    model = PeftModel.from_pretrained(base_model, adapters_list[0], adapter_name="adapter-0")
     for i in range(1, len(adapters_list)):
         model.load_adapter(adapters_list[i], "adapter-"+str(i))
-    
+    adapters, weights= [], []
+    for i in range(0, len(adapters_list)):
+        adapters.append("adapter-"+str(i))
+        adapter_num="ADAPTER_WEIGHT_"+str(i)
+        weights.append(float(os.getenv(adapter_num)))
+
+    model.add_weighted_adapter(
+        adapters = adapters,
+        weights = weights,
+        adapter_name="final",
+        combination_type="svd",
+    )
 
 pipeline_kwargs = {
     "trust_remote_code": args.trust_remote_code,
