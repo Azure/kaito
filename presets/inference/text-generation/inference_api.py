@@ -103,15 +103,16 @@ def list_files(directory):
 output = list_files('/data')
 filtered_output = [s for s in output if s.strip()]
 adapters_list = [f"/data/{file}" for file in filtered_output]
+filtered_adapters_list = [path for path in adapters_list if os.path.exists(os.path.join(path, "adapter_config.json"))]
 
-if len(adapters_list) == 0:
+if len(filtered_adapters_list) == 0:
     model = base_model
 else: 
-    model = PeftModel.from_pretrained(base_model, adapters_list[0], adapter_name="adapter-0")
-    for i in range(1, len(adapters_list)):
-        model.load_adapter(adapters_list[i], "adapter-"+str(i))
+    model = PeftModel.from_pretrained(base_model, filtered_adapters_list[0], adapter_name="adapter-0")
+    for i in range(1, len(filtered_adapters_list)):
+        model.load_adapter(filtered_adapters_list[i], "adapter-"+str(i))
     adapters, weights= [], []
-    for i in range(0, len(adapters_list)):
+    for i in range(0, len(filtered_adapters_list)):
         adapters.append("adapter-"+str(i))
         adapter_num="ADAPTER_WEIGHT_"+str(i)
         weights.append(float(os.getenv(adapter_num)))
