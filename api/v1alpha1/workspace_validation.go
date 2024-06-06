@@ -41,34 +41,34 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 	base := apis.GetBaseline(ctx)
 	if base == nil {
 		klog.InfoS("Validate creation", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
-		errs = errs.Also(w.validateCreateWorkspace().ViaField("spec"))
+		errs = errs.Also(w.validateCreate().ViaField("spec"))
 		if w.Inference != nil {
 			// TODO: Add Adapter Spec Validation - Including DataSource Validation for Adapter
-			errs = errs.Also(w.Resource.validateCreateResourceSpec(*w.Inference).ViaField("resource"),
-				w.Inference.validateCreateInferenceSpec().ViaField("inference"))
+			errs = errs.Also(w.Resource.validateCreate(*w.Inference).ViaField("resource"),
+				w.Inference.validateCreate().ViaField("inference"))
 		}
 		if w.Tuning != nil {
 			// TODO: Add validate resource based on Tuning Spec
-			errs = errs.Also(w.Tuning.validateCreateTuningSpec(ctx, w.Namespace).ViaField("tuning"))
+			errs = errs.Also(w.Tuning.validateCreate(ctx, w.Namespace).ViaField("tuning"))
 		}
 	} else {
 		klog.InfoS("Validate update", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
 		old := base.(*Workspace)
 		errs = errs.Also(
-			w.validateUpdateWorkspace(old).ViaField("spec"),
-			w.Resource.validateUpdateResourceSpec(&old.Resource).ViaField("resource"),
+			w.validateUpdate(old).ViaField("spec"),
+			w.Resource.validateUpdate(&old.Resource).ViaField("resource"),
 		)
 		if w.Inference != nil {
-			errs = errs.Also(w.Inference.validateUpdateInferenceSpec(old.Inference).ViaField("inference"))
+			errs = errs.Also(w.Inference.validateUpdate(old.Inference).ViaField("inference"))
 		}
 		if w.Tuning != nil {
-			errs = errs.Also(w.Tuning.validateUpdateTuningSpec(old.Tuning).ViaField("tuning"))
+			errs = errs.Also(w.Tuning.validateUpdate(old.Tuning).ViaField("tuning"))
 		}
 	}
 	return errs
 }
 
-func (w *Workspace) validateCreateWorkspace() (errs *apis.FieldError) {
+func (w *Workspace) validateCreate() (errs *apis.FieldError) {
 	if w.Inference == nil && w.Tuning == nil {
 		errs = errs.Also(apis.ErrGeneric("Either Inference or Tuning must be specified, not neither", ""))
 	}
@@ -78,7 +78,7 @@ func (w *Workspace) validateCreateWorkspace() (errs *apis.FieldError) {
 	return errs
 }
 
-func (w *Workspace) validateUpdateWorkspace(old *Workspace) (errs *apis.FieldError) {
+func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
 	if (old.Inference == nil && w.Inference != nil) || (old.Inference != nil && w.Inference == nil) {
 		errs = errs.Also(apis.ErrGeneric("Inference field cannot be toggled once set", "inference"))
 	}
@@ -89,31 +89,42 @@ func (w *Workspace) validateUpdateWorkspace(old *Workspace) (errs *apis.FieldErr
 	return errs
 }
 
-func (r *AdapterSpec) validateCreateorUpdateAdapter() (errs *apis.FieldError) {
+func ValidateDNSSubdomain(name string) bool {
+	var dnsSubDomainRegexp = regexp.MustCompile(`^(?i:[a-z0-9]([-a-z0-9]*[a-z0-9])?)$`)
+	if len(name) < 1 || len(name) > 253 {
+		return false
+	}
+	return dnsSubDomainRegexp.MatchString(name)
+}
+
+func (r *AdapterSpec) validateCreateorUpdate() (errs *apis.FieldError) {
 	if r.Source == nil {
 		errs = errs.Also(apis.ErrMissingField("Source"))
 	} else {
-		errs = errs.Also(r.Source.validateCreateDataSource().ViaField("Adapters"))
+		errs = errs.Also(r.Source.validateCreate().ViaField("Adapters"))
 
 		if r.Source.Name == "" {
 			errs = errs.Also(apis.ErrMissingField("Name of Adapter field must be specified"))
+		} else if !ValidateDNSSubdomain(r.Source.Name) {
+			errs = errs.Also(apis.ErrMissingField("Name of Adapter must be a valid DNS subdomain value"))
 		}
 		if r.Strength == nil {
-			errs = errs.Also(apis.ErrMissingField(fmt.Sprintf("Strength value for Adapter '%s' must be specified", r.Source.Name), "adapter"))
-		} else {
-			strength, err := strconv.ParseFloat(*r.Strength, 64)
-			if err != nil {
-				errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Invalid strength value for Adapter '%s': %v", r.Source.Name, err), "adapter"))
-			}
-			if strength < 0 || strength > 1 {
-				errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Strength value for Adapter '%s' must be between 0 and 1", r.Source.Name), "adapter"))
-			}
+			var defaultStrength = "1.0"
+			r.Strength = &defaultStrength
 		}
+		strength, err := strconv.ParseFloat(*r.Strength, 64)
+		if err != nil {
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Invalid strength value for Adapter '%s': %v", r.Source.Name, err), "adapter"))
+		}
+		if strength < 0 || strength > 1.0 {
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Strength value for Adapter '%s' must be between 0 and 1", r.Source.Name), "adapter"))
+		}
+
 	}
 	return errs
 }
 
-func (r *TuningSpec) validateCreateTuningSpec(ctx context.Context, workspaceNamespace string) (errs *apis.FieldError) {
+func (r *TuningSpec) validateCreate(ctx context.Context, workspaceNamespace string) (errs *apis.FieldError) {
 	methodLowerCase := strings.ToLower(string(r.Method))
 	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
 		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
@@ -141,12 +152,12 @@ func (r *TuningSpec) validateCreateTuningSpec(ctx context.Context, workspaceName
 	if r.Input == nil {
 		errs = errs.Also(apis.ErrMissingField("Input"))
 	} else {
-		errs = errs.Also(r.Input.validateCreateDataSource().ViaField("Input"))
+		errs = errs.Also(r.Input.validateCreate().ViaField("Input"))
 	}
 	if r.Output == nil {
 		errs = errs.Also(apis.ErrMissingField("Output"))
 	} else {
-		errs = errs.Also(r.Output.validateCreateDataDestination().ViaField("Output"))
+		errs = errs.Also(r.Output.validateCreate().ViaField("Output"))
 	}
 	// Currently require a preset to specified, in future we can consider defining a template
 	if r.Preset == nil {
@@ -157,16 +168,16 @@ func (r *TuningSpec) validateCreateTuningSpec(ctx context.Context, workspaceName
 	return errs
 }
 
-func (r *TuningSpec) validateUpdateTuningSpec(old *TuningSpec) (errs *apis.FieldError) {
+func (r *TuningSpec) validateUpdate(old *TuningSpec) (errs *apis.FieldError) {
 	if r.Input == nil {
 		errs = errs.Also(apis.ErrMissingField("Input"))
 	} else {
-		errs = errs.Also(r.Input.validateUpdateDataSource(old.Input, true).ViaField("Input"))
+		errs = errs.Also(r.Input.validateUpdate(old.Input, true).ViaField("Input"))
 	}
 	if r.Output == nil {
 		errs = errs.Also(apis.ErrMissingField("Output"))
 	} else {
-		errs = errs.Also(r.Output.validateUpdateDataDestination(old.Output).ViaField("Output"))
+		errs = errs.Also(r.Output.validateUpdate(old.Output).ViaField("Output"))
 	}
 	if !reflect.DeepEqual(old.Preset, r.Preset) {
 		errs = errs.Also(apis.ErrGeneric("Preset cannot be changed", "Preset"))
@@ -179,7 +190,7 @@ func (r *TuningSpec) validateUpdateTuningSpec(old *TuningSpec) (errs *apis.Field
 	return errs
 }
 
-func (r *DataSource) validateCreateDataSource() (errs *apis.FieldError) {
+func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 	sourcesSpecified := 0
 	if len(r.URLs) > 0 {
 		sourcesSpecified++
@@ -204,7 +215,7 @@ func (r *DataSource) validateCreateDataSource() (errs *apis.FieldError) {
 	return errs
 }
 
-func (r *DataSource) validateUpdateDataSource(old *DataSource, isTuning bool) (errs *apis.FieldError) {
+func (r *DataSource) validateUpdate(old *DataSource, isTuning bool) (errs *apis.FieldError) {
 	if isTuning && !reflect.DeepEqual(old.Name, r.Name) {
 		errs = errs.Also(apis.ErrInvalidValue("During tuning Name field cannot be changed once set", "Name"))
 	}
@@ -238,7 +249,7 @@ func (r *DataSource) validateUpdateDataSource(old *DataSource, isTuning bool) (e
 	return errs
 }
 
-func (r *DataDestination) validateCreateDataDestination() (errs *apis.FieldError) {
+func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 	destinationsSpecified := 0
 	if r.Volume != nil {
 		destinationsSpecified++
@@ -263,7 +274,7 @@ func (r *DataDestination) validateCreateDataDestination() (errs *apis.FieldError
 	return errs
 }
 
-func (r *DataDestination) validateUpdateDataDestination(old *DataDestination) (errs *apis.FieldError) {
+func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.FieldError) {
 	// TODO: Check if the Volume is changed.
 	if old.Image != r.Image {
 		errs = errs.Also(apis.ErrInvalidValue("Image field cannot be changed once set", "Image"))
@@ -275,7 +286,7 @@ func (r *DataDestination) validateUpdateDataDestination(old *DataDestination) (e
 	return errs
 }
 
-func (r *ResourceSpec) validateCreateResourceSpec(inference InferenceSpec) (errs *apis.FieldError) {
+func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.FieldError) {
 	var presetName string
 	if inference.Preset != nil {
 		presetName = strings.ToLower(string(inference.Preset.Name))
@@ -322,7 +333,7 @@ func (r *ResourceSpec) validateCreateResourceSpec(inference InferenceSpec) (errs
 	return errs
 }
 
-func (r *ResourceSpec) validateUpdateResourceSpec(old *ResourceSpec) (errs *apis.FieldError) {
+func (r *ResourceSpec) validateUpdate(old *ResourceSpec) (errs *apis.FieldError) {
 	// We disable changing node count for now.
 	if r.Count != nil && old.Count != nil && *r.Count != *old.Count {
 		errs = errs.Also(apis.ErrGeneric("field is immutable", "count"))
@@ -342,7 +353,7 @@ func (r *ResourceSpec) validateUpdateResourceSpec(old *ResourceSpec) (errs *apis
 	return errs
 }
 
-func (i *InferenceSpec) validateCreateInferenceSpec() (errs *apis.FieldError) {
+func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
 	// Check if both Preset and Template are not set
 	if i.Preset == nil && i.Template == nil {
 		errs = errs.Also(apis.ErrMissingField("Preset or Template must be specified"))
@@ -374,12 +385,12 @@ func (i *InferenceSpec) validateCreateInferenceSpec() (errs *apis.FieldError) {
 		errs.Also(apis.ErrGeneric("Number of Adapters exceeds the maximum limit, maximum of 10 allowed"))
 	}
 	for _, adapter := range i.Adapters {
-		errs = errs.Also(adapter.validateCreateorUpdateAdapter())
+		errs = errs.Also(adapter.validateCreateorUpdate())
 	}
 	return errs
 }
 
-func (i *InferenceSpec) validateUpdateInferenceSpec(old *InferenceSpec) (errs *apis.FieldError) {
+func (i *InferenceSpec) validateUpdate(old *InferenceSpec) (errs *apis.FieldError) {
 	if !reflect.DeepEqual(i.Preset, old.Preset) {
 		errs = errs.Also(apis.ErrGeneric("field is immutable", "preset"))
 	}
@@ -388,7 +399,7 @@ func (i *InferenceSpec) validateUpdateInferenceSpec(old *InferenceSpec) (errs *a
 		errs = errs.Also(apis.ErrGeneric("field cannot be unset/set if it was set/unset", "template"))
 	}
 	for _, adapter := range i.Adapters {
-		errs = errs.Also(adapter.validateCreateorUpdateAdapter())
+		errs = errs.Also(adapter.validateCreateorUpdate())
 	}
 
 	return errs

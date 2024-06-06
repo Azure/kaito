@@ -8,10 +8,11 @@ import GPUtil
 import psutil
 import torch
 import transformers
+import subprocess
 import uvicorn
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel, Extra, Field
+from pydantic import BaseModel, Extra, Field, validator
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
 from peft import PeftModel
@@ -23,7 +24,7 @@ class ModelConfig:
     """
     pipeline: str = field(metadata={"help": "The model pipeline for the pre-trained model"})
     pretrained_model_name_or_path: Optional[str] = field(default="/workspace/tfs/weights", metadata={"help": "Path to the pretrained model or model identifier from huggingface.co/models"})
-    adapters_name_or_path: Optional[str] = field(default="/data/mental", metadata={"help": "Paths of the adapter to load to the base model, split by comma"})
+    combination_type: Optional[str]=field(default="svd", metadata={"help": "The combination type of multi adapters"})
     state_dict: Optional[Dict[str, Any]] = field(default=None, metadata={"help": "State dictionary for the model"})
     cache_dir: Optional[str] = field(default=None, metadata={"help": "Cache directory for the model"})
     from_tf: bool = field(default=False, metadata={"help": "Load model from a TensorFlow checkpoint"})
@@ -60,7 +61,7 @@ class ModelConfig:
         # Update the ModelConfig instance with the additional args
         self.__dict__.update(addt_args_dict)
 
-    def __post_init__(self):
+    def __post_init__(self): # validate parameters 
         """
         Post-initialization to validate some ModelConfig values
         """
@@ -71,6 +72,7 @@ class ModelConfig:
         supported_pipelines = {"conversational", "text-generation"}
         if self.pipeline not in supported_pipelines:
             raise ValueError(f"Unsupported pipeline: {self.pipeline}")
+        
 
 parser = HfArgumentParser(ModelConfig)
 args, additional_args = parser.parse_args_into_dataclasses(
@@ -82,37 +84,47 @@ args.process_additional_args(additional_args)
 model_args = asdict(args)
 model_args["local_files_only"] = not model_args.pop('allow_remote_files')
 model_pipeline = model_args.pop('pipeline')
-adapters_name_or_path = model_args.pop('adapters_name_or_path')
+combination_type = model_args.pop('combination_type')
 
 app = FastAPI()
 tokenizer = AutoTokenizer.from_pretrained(**model_args)
 base_model = AutoModelForCausalLM.from_pretrained(**model_args)
 
-def parse_adapter_paths(adapter_paths_str):
-    adapter_paths_list = adapter_paths_str.split(',')
-    return adapter_paths_list
+def list_files(directory):
+    try:
+        result = subprocess.run(['ls', directory], capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip().split('\n')
+        else:
+            return [f"Command execution failed with return code: {result.returncode}"]
+    except Exception as e:
+        return [f"An error occurred: {str(e)}"]
 
-adapters_list = parse_adapter_paths(adapters_name_or_path)
-adapters_list= [adapter.strip() for adapter in adapters_list if adapter.strip()]
+output = list_files('/data')
+# [""]
+filtered_output = [s for s in output if s.strip()]
+adapters_list = [f"/data/{file}" for file in filtered_output]
+filtered_adapters_list = [path for path in adapters_list if os.path.exists(os.path.join(path, "adapter_config.json"))]
 
-if len(adapters_list) == 0:
+if len(filtered_adapters_list) == 0:
     model = base_model
 else: 
-    model = PeftModel.from_pretrained(base_model, adapters_list[0], adapter_name="adapter-0")
-    for i in range(1, len(adapters_list)):
-        model.load_adapter(adapters_list[i], "adapter-"+str(i))
-    adapters, weights= [], []
-    for i in range(0, len(adapters_list)):
-        adapters.append("adapter-"+str(i))
-        adapter_num="ADAPTER_WEIGHT_"+str(i)
-        weights.append(float(os.getenv(adapter_num)))
+    adapter_names, weights= [], []
+    for adapter_path in filtered_adapters_list:
+        adapter_name = os.base_bath(adapter_path)
+        adapter_names.append(adapter_name)
+        weights.append(float(os.getenv(adapter_name)))
+    model = PeftModel.from_pretrained(base_model, filtered_adapters_list[0], adapter_name=adapter_names[0])
+    for i in range(1, len(filtered_adapters_list)):
+        model.load_adapter(filtered_adapters_list[i], adapter_names[i])
 
     model.add_weighted_adapter(
-        adapters = adapters,
+        adapters = adapter_names,
         weights = weights,
-        adapter_name="final",
-        combination_type="svd",
+        adapter_name="combined_adapter",
+        combination_type=combination_type,
     )
+print("Model:",model)
 
 pipeline_kwargs = {
     "trust_remote_code": args.trust_remote_code,

@@ -5,6 +5,7 @@ package v1alpha1
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"reflect"
 	"sort"
@@ -308,7 +309,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			totalGPUMemoryRequirement = tc.modelTotalGPUMemory
 			perGPUMemoryRequirement = tc.modelPerGPUMemory
 
-			errs := tc.resourceSpec.validateCreateResourceSpec(spec)
+			errs := tc.resourceSpec.validateCreate(spec)
 			hasErrs := errs != nil
 			if hasErrs != tc.expectErrs {
 				t.Errorf("validateCreate() errors = %v, expectErrs %v", errs, tc.expectErrs)
@@ -387,7 +388,7 @@ func TestResourceSpecValidateUpdate(t *testing.T) {
 	// Run the tests
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			errs := tc.newResource.validateUpdateResourceSpec(tc.oldResource)
+			errs := tc.newResource.validateUpdate(tc.oldResource)
 			hasErrs := errs != nil
 			if hasErrs != tc.expectErrs {
 				t.Errorf("validateUpdate() errors = %v, expectErrs %v", errs, tc.expectErrs)
@@ -480,93 +481,26 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 		},
 		{
 			name: "Adapeters more than 10",
-			inferenceSpec: &InferenceSpec{
-				Preset: &PresetSpec{
-					PresetMeta: PresetMeta{
-						Name:       ModelName("test-validation"),
-						AccessMode: ModelImageAccessModePublic,
+			inferenceSpec: func() *InferenceSpec {
+				spec := &InferenceSpec{
+					Preset: &PresetSpec{
+						PresetMeta: PresetMeta{
+							Name:       ModelName("test-validation"),
+							AccessMode: ModelImageAccessModePublic,
+						},
 					},
-				},
-				Adapters: []AdapterSpec{
-					{
+				}
+				for i := 1; i <= 11; i++ {
+					spec.Adapters = append(spec.Adapters, AdapterSpec{
 						Source: &DataSource{
-							Name:   "Adapter-1",
+							Name:   fmt.Sprintf("Adapter-%d", i),
 							Volume: &v1.VolumeSource{},
 						},
 						Strength: &ValidStrength,
-					},
-					{
-						Source: &DataSource{
-							Name:   "Adapter-2",
-							Volume: &v1.VolumeSource{},
-						},
-						Strength: &ValidStrength,
-					},
-					{
-						Source: &DataSource{
-							Name:   "Adapter-3",
-							Volume: &v1.VolumeSource{},
-						},
-						Strength: &ValidStrength,
-					},
-					{
-						Source: &DataSource{
-							Name:   "Adapter-4",
-							Volume: &v1.VolumeSource{},
-						},
-						Strength: &ValidStrength,
-					},
-					{
-						Source: &DataSource{
-							Name:   "Adapter-5",
-							Volume: &v1.VolumeSource{},
-						},
-						Strength: &ValidStrength,
-					},
-					{
-						Source: &DataSource{
-							Name:   "Adapter-6",
-							Volume: &v1.VolumeSource{},
-						},
-						Strength: &ValidStrength,
-					},
-					{
-						Source: &DataSource{
-							Name:   "Adapter-7",
-							Volume: &v1.VolumeSource{},
-						},
-						Strength: &ValidStrength,
-					},
-					{
-						Source: &DataSource{
-							Name:   "Adapter-8",
-							Volume: &v1.VolumeSource{},
-						},
-						Strength: &ValidStrength,
-					},
-					{
-						Source: &DataSource{
-							Name:   "Adapter-9",
-							Volume: &v1.VolumeSource{},
-						},
-						Strength: &ValidStrength,
-					},
-					{
-						Source: &DataSource{
-							Name:   "Adapter-10",
-							Volume: &v1.VolumeSource{},
-						},
-						Strength: &ValidStrength,
-					},
-					{
-						Source: &DataSource{
-							Name:   "Adapter-11",
-							Volume: &v1.VolumeSource{},
-						},
-						Strength: &ValidStrength,
-					},
-				},
-			},
+					})
+				}
+				return spec
+			}(),
 			errContent: "Number of Adapters exceeds the maximum limit, maximum of 10 allowed",
 			expectErrs: false,
 		},
@@ -599,7 +533,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 					}
 				}()
 			}
-			errs := tc.inferenceSpec.validateCreateInferenceSpec()
+			errs := tc.inferenceSpec.validateCreate()
 			hasErrs := errs != nil
 			if hasErrs != tc.expectErrs {
 				t.Errorf("validateCreate() errors = %v, expectErrs %v", errs, tc.expectErrs)
@@ -644,19 +578,6 @@ func TestAdapterSpecValidateCreateorUpdate(t *testing.T) {
 			expectErrs: true,
 		},
 		{
-			name: "Missing Strength",
-			adapterSpec: &AdapterSpec{
-				Source: &DataSource{
-					Name:   "Adapter-1",
-					Volume: &v1.VolumeSource{},
-				},
-			},
-
-			errContent: "Strength value for Adapter 'Adapter-1' must be specified",
-			expectErrs: true,
-		},
-
-		{
 			name: "Invalid Strength, not a number",
 			adapterSpec: &AdapterSpec{
 				Source: &DataSource{
@@ -697,7 +618,7 @@ func TestAdapterSpecValidateCreateorUpdate(t *testing.T) {
 	// Run the tests
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			errs := tc.adapterSpec.validateCreateorUpdateAdapter()
+			errs := tc.adapterSpec.validateCreateorUpdate()
 			hasErrs := errs != nil
 			if hasErrs != tc.expectErrs {
 				t.Errorf("validateUpdate() errors = %v, expectErrs %v", errs, tc.expectErrs)
@@ -778,7 +699,7 @@ func TestInferenceSpecValidateUpdate(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			errs := tc.newInference.validateUpdateInferenceSpec(tc.oldInference)
+			errs := tc.newInference.validateUpdate(tc.oldInference)
 			hasErrs := errs != nil
 			if hasErrs != tc.expectErrs {
 				t.Errorf("validateUpdate() errors = %v, expectErrs %v", errs, tc.expectErrs)
@@ -837,7 +758,7 @@ func TestWorkspaceValidateCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.workspace.validateCreateWorkspace()
+			errs := tt.workspace.validateCreate()
 			if (errs != nil) != tt.wantErr {
 				t.Errorf("validateCreate() error = %v, wantErr %v", errs, tt.wantErr)
 			}
@@ -906,7 +827,7 @@ func TestWorkspaceValidateUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.newWorkspace.validateUpdateWorkspace(tt.oldWorkspace)
+			errs := tt.newWorkspace.validateUpdate(tt.oldWorkspace)
 			hasErrs := errs != nil
 
 			if hasErrs != tt.expectErrs {
@@ -1022,7 +943,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.tuningSpec.validateCreateTuningSpec(ctx, "WORKSPACE_NAMESPACE")
+			errs := tt.tuningSpec.validateCreate(ctx, "WORKSPACE_NAMESPACE")
 			hasErrs := errs != nil
 
 			if hasErrs != tt.wantErr {
@@ -1091,7 +1012,7 @@ func TestTuningSpecValidateUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.newTuning.validateUpdateTuningSpec(tt.oldTuning)
+			errs := tt.newTuning.validateUpdate(tt.oldTuning)
 			hasErrs := errs != nil
 
 			if hasErrs != tt.expectErrs {
@@ -1182,7 +1103,7 @@ func TestDataSourceValidateCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.dataSource.validateCreateDataSource()
+			errs := tt.dataSource.validateCreate()
 			hasErrs := errs != nil
 
 			if hasErrs != tt.wantErr {
@@ -1268,7 +1189,7 @@ func TestDataSourceValidateUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.newSource.validateUpdateDataSource(tt.oldSource, true)
+			errs := tt.newSource.validateUpdate(tt.oldSource, true)
 			hasErrs := errs != nil
 
 			if hasErrs != tt.wantErr {
@@ -1343,7 +1264,7 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.dataDestination.validateCreateDataDestination()
+			errs := tt.dataDestination.validateCreate()
 			hasErrs := errs != nil
 
 			if hasErrs != tt.wantErr {
@@ -1405,7 +1326,7 @@ func TestDataDestinationValidateUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.newDest.validateUpdateDataDestination(tt.oldDest)
+			errs := tt.newDest.validateUpdate(tt.oldDest)
 			hasErrs := errs != nil
 
 			if hasErrs != tt.wantErr {

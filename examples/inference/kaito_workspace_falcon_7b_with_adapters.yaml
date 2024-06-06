@@ -10,4 +10,10 @@ resource:
 inference:
   preset:
     name: "falcon-7b"
+  adapters:
+    - source:
+        name: "falcon-7b-mental"
+        urls:
+          - "https://huggingface.co/dfurman/Falcon-7B-Chat-v0.1/blob/main/finetune_falcon7b_oasst1_with_bnb_peft.ipynb"
+      strength: "0.2"
     
