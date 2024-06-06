@@ -101,8 +101,8 @@ def list_files(directory):
         return [f"An error occurred: {str(e)}"]
 
 output = list_files('/data')
-
-adapters_list = [f"/data/{file}" for file in output]
+filtered_output = [s for s in output if s.strip()]
+adapters_list = [f"/data/{file}" for file in filtered_output]
 
 if len(adapters_list) == 0:
     model = base_model
