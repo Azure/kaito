@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import os
+import subprocess
 from dataclasses import asdict, dataclass, field
 from typing import Annotated, Any, Dict, List, Optional
 
@@ -8,14 +9,16 @@ import GPUtil
 import psutil
 import torch
 import transformers
-import subprocess
 import uvicorn
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import Response
+from peft import PeftModel
 from pydantic import BaseModel, Extra, Field, validator
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
-from peft import PeftModel
+
+# Constant for the directory where adapters are stored
+ADAPTERS_DIR = '/data'
 
 @dataclass
 class ModelConfig:
@@ -24,7 +27,6 @@ class ModelConfig:
     """
     pipeline: str = field(metadata={"help": "The model pipeline for the pre-trained model"})
     pretrained_model_name_or_path: Optional[str] = field(default="/workspace/tfs/weights", metadata={"help": "Path to the pretrained model or model identifier from huggingface.co/models"})
-    combination_type: Optional[str]=field(default="svd", metadata={"help": "The combination type of multi adapters"})
     state_dict: Optional[Dict[str, Any]] = field(default=None, metadata={"help": "State dictionary for the model"})
     cache_dir: Optional[str] = field(default=None, metadata={"help": "Cache directory for the model"})
     from_tf: bool = field(default=False, metadata={"help": "Load model from a TensorFlow checkpoint"})
@@ -39,6 +41,7 @@ class ModelConfig:
     load_in_8bit: bool = field(default=False, metadata={"help": "Load model in 8-bit mode"})
     torch_dtype: Optional[str] = field(default=None, metadata={"help": "The torch dtype for the pre-trained model"})
     device_map: str = field(default="auto", metadata={"help": "The device map for the pre-trained model"})
+    combination_type: Optional[str] = field(default="svd", metadata={"help": "The combination type of multi adapters"})
 
     # Method to process additional arguments
     def process_additional_args(self, addt_args: List[str]):
@@ -100,27 +103,31 @@ def list_files(directory):
     except Exception as e:
         return [f"An error occurred: {str(e)}"]
 
-output = list_files('/data')
-# [""]
+output = list_files(ADAPTERS_DIR)
 filtered_output = [s for s in output if s.strip()]
-adapters_list = [f"/data/{file}" for file in filtered_output]
+adapters_list = [f"{ADAPTERS_DIR}/{file}" for file in filtered_output]
 filtered_adapters_list = [path for path in adapters_list if os.path.exists(os.path.join(path, "adapter_config.json"))]
 
-if len(filtered_adapters_list) == 0:
+if not filtered_adapters_list: 
     model = base_model
-else: 
-    adapter_names, weights= [], []
+else:
+    adapter_names, weights = [], []
     for adapter_path in filtered_adapters_list:
-        adapter_name = os.base_bath(adapter_path)
+        adapter_name = os.path.basename(adapter_path)
         adapter_names.append(adapter_name)
-        weights.append(float(os.getenv(adapter_name)))
+        weight = os.getenv(adapter_name)
+        if weight is not None:
+            weights.append(float(weight))
+        else:
+            weights.append(1.0)  # Default weight if not specified in env vars
+
     model = PeftModel.from_pretrained(base_model, filtered_adapters_list[0], adapter_name=adapter_names[0])
     for i in range(1, len(filtered_adapters_list)):
         model.load_adapter(filtered_adapters_list[i], adapter_names[i])
 
     model.add_weighted_adapter(
-        adapters = adapter_names,
-        weights = weights,
+        adapters=adapter_names,
+        weights=weights,
         adapter_name="combined_adapter",
         combination_type=combination_type,
     )
