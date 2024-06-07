@@ -21,7 +21,6 @@ CONFIG_YAML = os.environ.get('YAML_FILE_PATH', '/mnt/config/training_config.yaml
 parsed_configs = parse_configs(CONFIG_YAML)
 
 model_config = parsed_configs.get('ModelConfig')
-tk_params = parsed_configs.get('TokenizerParams')
 bnb_config = parsed_configs.get('QuantizationConfig')
 ext_lora_config = parsed_configs.get('LoraConfig')
 ta_args = parsed_configs.get('TrainingArguments')
@@ -40,9 +39,6 @@ if accelerator.distributed_type != "NO":  # Meaning we require distributed train
 bnb_config_args = asdict(bnb_config)
 bnb_config = BitsAndBytesConfig(**bnb_config_args)
 enable_qlora = bnb_config.is_quantizable()
-
-# Load Tokenizer Params
-tk_params = asdict(tk_params)
 
 # Load the Pre-Trained Tokenizer
 tokenizer_args = {key: value for key, value in model_args.items() if key != "torch_dtype"}
@@ -82,7 +78,7 @@ model = get_peft_model(model, lora_config)
 model.config.use_cache = False
 model.print_trainable_parameters()
 
-dm = DatasetManager(ds_config, tokenizer, tk_params)
+dm = DatasetManager(ds_config)
 # Load the dataset
 dm.load_data()
 if not dm.get_dataset():
@@ -93,7 +89,6 @@ if not dm.get_dataset():
 if ds_config.shuffle_dataset:
     dm.shuffle_dataset()
 
-dm.format_and_preprocess()
 train_dataset, eval_dataset = dm.split_dataset()
 
 # checkpoint_callback = CheckpointCallback()
