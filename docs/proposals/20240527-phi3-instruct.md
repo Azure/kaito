@@ -10,13 +10,13 @@ status: provisional
 ---
 
 # Title
-Add Phi-3 Models to Kaito supported model list
+Add Phi-3 Medium Models to Kaito supported model list
 
 ## Glossary
 N/A
 
 ## Summary
-- **Model description**: Phi-3 is a series of SLMs launched this year around April 2024 and is one of the most downloaded and used SLMs in HuggingFace repository. It comes with a series of sizes, Mini(3B), Small (7B), Medium (14B) & Vision (4B). All punching above its Parameter class and benchmarks shows they are better than some of the larger models like GPT3.5, Mistral 8x7B & Llama3. [https://huggingface.co/collections/microsoft/phi-3-6626e15e9585a200d2d761e3]. Comes with 4k & 128k context window for its family of models.
+- **Model description**: Phi-3 is a series of SLMs launched this year around April 2024 and is one of the most downloaded and used SLMs in HuggingFace repository. It comes with a series of sizes, Mini(3B), Small (7B), Medium (14B) & Vision (4B). All punching above its Parameter class and benchmarks shows they are better than some of the larger models like GPT3.5, Mistral 8x7B & Llama3. [https://huggingface.co/microsoft/Phi-3-medium-128k-instruct]. Comes with 4k & 128k context window for its family of models.
 - **Model usage statistics**: Phi-3 Mini 4k has about 1.12M Downloads as of 27th May 2024
 - **Model license**: MIT License
 
@@ -27,7 +27,7 @@ The following table describes the basic model characteristics and the resource r
 
 | Field | Notes|
 |----|----|
-| Family name| Phi-3|
+| Family name| Phi-3 Medium|
 | Type| conversational |
 | Download site| https://huggingface.co/microsoft/Phi-3-mini-128k-instruct |
 | Version| bbd531db4632bb631b0c44d98172894a0c594dd0 |
