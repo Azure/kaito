@@ -502,7 +502,32 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 				return spec
 			}(),
 			errContent: "Number of Adapters exceeds the maximum limit, maximum of 10 allowed",
-			expectErrs: false,
+			expectErrs: true,
+		},
+		{
+			name: "Adapeters names are duplicated",
+			inferenceSpec: func() *InferenceSpec {
+				spec := &InferenceSpec{
+					Preset: &PresetSpec{
+						PresetMeta: PresetMeta{
+							Name:       ModelName("test-validation"),
+							AccessMode: ModelImageAccessModePublic,
+						},
+					},
+				}
+				for i := 1; i <= 2; i++ {
+					spec.Adapters = append(spec.Adapters, AdapterSpec{
+						Source: &DataSource{
+							Name:  "Adapter",
+							Image: fmt.Sprintf("fake.kaito.com/kaito-image:0.0.%d", i),
+						},
+						Strength: &ValidStrength,
+					})
+				}
+				return spec
+			}(),
+			errContent: "",
+			expectErrs: true,
 		},
 		{
 			name: "Valid Preset",
@@ -514,7 +539,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 					},
 				},
 			},
-			errContent: "",
+			errContent: "Duplicate adapter source name found:",
 			expectErrs: false,
 		},
 	}

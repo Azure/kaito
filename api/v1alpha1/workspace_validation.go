@@ -28,6 +28,7 @@ const (
 
 	DefaultLoraConfigMapTemplate  = "lora-params-template"
 	DefaultQloraConfigMapTemplate = "qlora-params-template"
+	MaxAdaptersNumber             = 10
 )
 
 func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
@@ -384,12 +385,16 @@ func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
 		}
 		// Note: we don't enforce private access mode to have image secrets, in case anonymous pulling is enabled
 	}
-	if len(i.Adapters) > 10 {
-		errs.Also(apis.ErrGeneric("Number of Adapters exceeds the maximum limit, maximum of 10 allowed"))
+	if len(i.Adapters) > MaxAdaptersNumber {
+		errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Number of Adapters exceeds the maximum limit, maximum of %s allowed", strconv.Itoa(MaxAdaptersNumber))))
 	}
-	for _, adapter := range i.Adapters {
-		errs = errs.Also(adapter.validateCreateorUpdate())
+
+	// check if adapter names are duplicate
+	if len(i.Adapters) > 0 {
+		nameMap := make(map[string]string)
+		errs = errs.Also(validateDuplicateName(i.Adapters, nameMap))
 	}
+
 	return errs
 }
 
@@ -401,9 +406,32 @@ func (i *InferenceSpec) validateUpdate(old *InferenceSpec) (errs *apis.FieldErro
 	if (i.Template != nil && old.Template == nil) || (i.Template == nil && old.Template != nil) {
 		errs = errs.Also(apis.ErrGeneric("field cannot be unset/set if it was set/unset", "template"))
 	}
+	nameMap := make(map[string]string)
+	for _, adapter := range old.Adapters {
+		nameMap[adapter.Source.Name] = adapter.Source.Image
+	}
+
+	// check if adapter names are duplicate
 	for _, adapter := range i.Adapters {
 		errs = errs.Also(adapter.validateCreateorUpdate())
 	}
 
+	// check if adapter names are duplicate
+	if len(i.Adapters) > 0 {
+		errs = errs.Also(validateDuplicateName(i.Adapters, nameMap))
+	}
+	return errs
+}
+
+func validateDuplicateName(adapters []AdapterSpec, nameMap map[string]string) (errs *apis.FieldError) {
+	for _, adapter := range adapters {
+		if previousAdapterImage, ok := nameMap[adapter.Source.Name]; ok {
+			if previousAdapterImage != adapter.Source.Image {
+				errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Duplicate adapter source name found: %s", adapter.Source.Name)))
+			}
+		} else {
+			nameMap[adapter.Source.Name] = adapter.Source.Image
+		}
+	}
 	return errs
 }
