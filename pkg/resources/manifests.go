@@ -270,6 +270,32 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 	labelselector := &v1.LabelSelector{
 		MatchLabels: selector,
 	}
+	initContaiers := []corev1.Container{}
+	envs := []corev1.EnvVar{}
+
+	if len(workspaceObj.Inference.Adapters) != 0 {
+		for i, adapter := range workspaceObj.Inference.Adapters {
+			initContaier := corev1.Container{
+				Name:            fmt.Sprintf("init-container-%d", i+1),
+				Image:           adapter.Source.Image,
+				Command:         []string{"/bin/sh", "-c", fmt.Sprintf("mkdir -p /dev/shm/%s && cp -r * /dev/shm/%s", adapter.Source.Name, adapter.Source.Name)},
+				VolumeMounts:    volumeMount,
+				ImagePullPolicy: corev1.PullAlways,
+			}
+			initContaiers = append(initContaiers, initContaier)
+			env := corev1.EnvVar{
+				Name:  adapter.Source.Name,
+				Value: *adapter.Strength,
+			}
+			envs = append(envs, env)
+		}
+	}
+	specVolume := corev1.Volume{
+		Name: "dshm",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	}
 
 	return &appsv1.Deployment{
 		ObjectMeta: v1.ObjectMeta{
@@ -305,6 +331,7 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 							},
 						},
 					},
+					InitContainers: initContaiers,
 					Containers: []corev1.Container{
 						{
 							Name:           workspaceObj.Name,
@@ -315,10 +342,11 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 							ReadinessProbe: readinessProbe,
 							Ports:          containerPorts,
 							VolumeMounts:   volumeMount,
+							Env:            envs,
 						},
 					},
 					Tolerations: tolerations,
-					Volumes:     volumes,
+					Volumes:     []corev1.Volume{specVolume},
 				},
 			},
 		},

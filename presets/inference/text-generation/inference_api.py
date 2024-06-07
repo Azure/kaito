@@ -100,10 +100,10 @@ def list_files(directory):
     except Exception as e:
         return [f"An error occurred: {str(e)}"]
 
-output = list_files('/data')
+output = list_files('/dev/shm')
 # [""]
 filtered_output = [s for s in output if s.strip()]
-adapters_list = [f"/data/{file}" for file in filtered_output]
+adapters_list = [f"/dev/shm/{file}" for file in filtered_output]
 filtered_adapters_list = [path for path in adapters_list if os.path.exists(os.path.join(path, "adapter_config.json"))]
 
 if len(filtered_adapters_list) == 0:

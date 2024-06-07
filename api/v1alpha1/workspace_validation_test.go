@@ -493,8 +493,8 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 				for i := 1; i <= 11; i++ {
 					spec.Adapters = append(spec.Adapters, AdapterSpec{
 						Source: &DataSource{
-							Name:   fmt.Sprintf("Adapter-%d", i),
-							Volume: &v1.VolumeSource{},
+							Name:  fmt.Sprintf("Adapter-%d", i),
+							Image: fmt.Sprintf("fake.kaito.com/kaito-image:0.0.%d", i),
 						},
 						Strength: &ValidStrength,
 					})
@@ -570,7 +570,7 @@ func TestAdapterSpecValidateCreateorUpdate(t *testing.T) {
 			name: "Missing Source Name",
 			adapterSpec: &AdapterSpec{
 				Source: &DataSource{
-					Volume: &v1.VolumeSource{},
+					Image: "fake.kaito.com/kaito-image:0.0.1",
 				},
 				Strength: &ValidStrength,
 			},
@@ -581,8 +581,8 @@ func TestAdapterSpecValidateCreateorUpdate(t *testing.T) {
 			name: "Invalid Strength, not a number",
 			adapterSpec: &AdapterSpec{
 				Source: &DataSource{
-					Name:   "Adapter-1",
-					Volume: &v1.VolumeSource{},
+					Name:  "Adapter-1",
+					Image: "fake.kaito.com/kaito-image:0.0.1",
 				},
 				Strength: &InvalidStrength1,
 			},
@@ -593,8 +593,8 @@ func TestAdapterSpecValidateCreateorUpdate(t *testing.T) {
 			name: "Invalid Strength, larger than 1",
 			adapterSpec: &AdapterSpec{
 				Source: &DataSource{
-					Name:   "Adapter-1",
-					Volume: &v1.VolumeSource{},
+					Name:  "Adapter-1",
+					Image: "fake.kaito.com/kaito-image:0.0.1",
 				},
 				Strength: &InvalidStrength2,
 			},
@@ -605,8 +605,8 @@ func TestAdapterSpecValidateCreateorUpdate(t *testing.T) {
 			name: "Valid Adapter",
 			adapterSpec: &AdapterSpec{
 				Source: &DataSource{
-					Name:   "Adapter-1",
-					Volume: &v1.VolumeSource{},
+					Name:  "Adapter-1",
+					Image: "fake.kaito.com/kaito-image:0.0.1",
 				},
 				Strength: &ValidStrength,
 			},

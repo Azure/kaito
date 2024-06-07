@@ -108,6 +108,9 @@ func (r *AdapterSpec) validateCreateorUpdate() (errs *apis.FieldError) {
 		} else if !ValidateDNSSubdomain(r.Source.Name) {
 			errs = errs.Also(apis.ErrMissingField("Name of Adapter must be a valid DNS subdomain value"))
 		}
+		if r.Source.Image == "" {
+			errs = errs.Also(apis.ErrMissingField("Image of Adapter field must be specified"))
+		}
 		if r.Strength == nil {
 			var defaultStrength = "1.0"
 			r.Strength = &defaultStrength

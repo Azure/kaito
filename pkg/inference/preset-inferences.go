@@ -5,9 +5,10 @@ package inference
 import (
 	"context"
 	"fmt"
-	"github.com/azure/kaito/pkg/utils"
 	"os"
 	"strconv"
+
+	"github.com/azure/kaito/pkg/utils"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/model"
@@ -56,13 +57,14 @@ var (
 	tolerations = []corev1.Toleration{
 		{
 			Effect:   corev1.TaintEffectNoSchedule,
-			Operator: corev1.TolerationOpEqual,
-			Key:      resources.GPUString,
+			Operator: corev1.TolerationOpExists,
+			Key:      resources.CapacityNvidiaGPU,
 		},
 		{
-			Effect: corev1.TaintEffectNoSchedule,
-			Value:  resources.GPUString,
-			Key:    "sku",
+			Effect:   corev1.TaintEffectNoSchedule,
+			Value:    resources.GPUString,
+			Key:      "sku",
+			Operator: corev1.TolerationOpEqual,
 		},
 	}
 )
@@ -120,7 +122,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
-	shmVolume, shmVolumeMount := utils.ConfigSHMVolume(*workspaceObj.Resource.Count)
+	shmVolume, shmVolumeMount := utils.ConfigSHMVolume(*workspaceObj.Resource.Count + len(workspaceObj.Inference.Adapters))
 	if shmVolume.Name != "" {
 		volumes = append(volumes, shmVolume)
 	}
