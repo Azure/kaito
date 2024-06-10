@@ -31,7 +31,7 @@ env:
 
 permissions:
   id-token: write
-  contents: write
+  contents: read
 
 jobs:
   determine-models:
@@ -133,22 +133,6 @@ jobs:
             exit 1
           fi
 
-      - name: Check Available Disk Space
-        run: |
-          echo "Initial disk usage:"
-          df -h
-
-          # Remove unused Docker resources
-          docker system prune -a -f --volumes
-
-          # Check Docker-related disk usage
-          echo "Docker-related disk usage after cleanup:"
-          docker system df
-
-          # Check final disk usage
-          echo "Final disk usage:"
-          df -h
-
       - name: Ensure Python is Installed
         run: |
           if ! command -v python3 &> /dev/null; then
@@ -204,43 +188,6 @@ jobs:
         run: |
           docker info | grep "Docker Root Dir"
 
-      - name: Authenticate to ACR
-        run: |
-          az login --identity
-          az acr login -n ${{ secrets.PROD_1ES_ACR_USERNAME }}
-
-      - name: 'Get ACR Info'
-        id: acr_info
-        run: |
-          ACR_NAME="${{ secrets.PROD_1ES_ACR_USERNAME }}"
-          ACR_USERNAME=${{ secrets.PROD_1ES_ACR_USERNAME }}
-          ACR_PASSWORD=${{ secrets.PROD_1ES_ACR_PASSWORD }} 
-          echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
-          echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
-          echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
-
-      - name: 'Check if Image exists in staging/aks/kaito'
-        id: check_test_image
-        run: |
-            ACR_NAME=${{ steps.acr_info.outputs.ACR_USERNAME }}
-            IMAGE_NAME=staging/aks/kaito/kaito-${{ matrix.model.name }}
-            TAG=${{ matrix.model.tag }}
-
-            # Use '|| true' to prevent script from exiting with an error if the repository is not found
-            TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv || true)
-
-            if [[ -z "$TAGS" ]]; then
-                echo "Image $IMAGE_NAME:$TAG or repository not found in $ACR_NAME."
-                echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
-            else
-                if echo "$TAGS" | grep -q "^$TAG$"; then
-                    echo "IMAGE_EXISTS=true" >> $GITHUB_OUTPUT
-                else
-                    echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
-                    echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
-                fi
-            fi
-
       - name: Set Permissions for DataDrive /mnt/storage
         run : |
           sudo chown -R $(whoami) /mnt/storage
@@ -264,38 +211,23 @@ jobs:
             echo "Kind cluster already exists"
           fi
 
-      - name: Launch Python Script to Kickoff Build Jobs
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'false'
-        id: launch_script
+      - name: Authenticate to ACR
         run: |
-          PR_BRANCH=${{ env.BRANCH_NAME }} \
-          ACR_NAME=${{ steps.acr_info.outputs.ACR_NAME }} \
-          ACR_USERNAME=${{ steps.acr_info.outputs.ACR_USERNAME }} \
-          ACR_PASSWORD=${{ steps.acr_info.outputs.ACR_PASSWORD }} \
-          MODEL_NAME=${{ matrix.model.name }} \
-          MODEL_TYPE=${{matrix.model.type}} \
-          MODEL_VERSION=${{ matrix.model.version }} \
-          MODEL_RUNTIME=${{ matrix.model.runtime }} \
-          MODEL_TAG=${{ matrix.model.tag }} \
-          WEIGHTS_DIR=${{ env.WEIGHTS_DIR }} \
-          python3 .github/workflows/kind-cluster/main.py
+          az login --identity
+          az acr login -n ${{ secrets.PROD_1ES_ACR_USERNAME }}
       
-      # Check the exit status of the Python script
-      - name: Check Python Script Status
-        if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.check_test_image.outputs.IMAGE_EXISTS }}" == "true" ]]; then
-            echo "Image already exists; skipping the status step."
-          elif [[ "${{ steps.launch_script.outcome }}" != "success" ]]; then
-            echo "Python script failed to execute successfully."
-            exit 1  # Fail the job due to script failure
-          else
-            echo "Python script executed successfully."
-          fi
-      # Cleanup Resources
-      - name: Cleanup
-        if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.check_test_image.outputs.IMAGE_EXISTS }}" == "false" ]]; then
-            kubectl get job --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job-${{ matrix.model.name }}-[0-9]" | xargs -r kubectl delete job
-          fi
+      - name: Call Reusable Workflow - Build Image
+        uses: ./.github/workflows/preset-common-image-build.yml
+        with:
+          weights_dir: ${{ env.WEIGHTS_DIR }}
+          branch_name: ${{ env.BRANCH_NAME }}
+          image_name: staging/aks/kaito/kaito-${{ matrix.model.name }} # TODO: Change directly to unlisted
+          image_tag: ${{ matrix.model.tag }}
+          acr_name: ${{ secrets.PROD_1ES_ACR_USERNAME }}
+          acr_username: ${{ secrets.PROD_1ES_ACR_USERNAME }}
+          acr_password: ${{ secrets.PROD_1ES_ACR_PASSWORD }}
+          model_name: ${{ matrix.model.name }}
+          model_type: ${{ matrix.model.type }}
+          model_version: ${{ matrix.model.version }}
+          model_runtime: ${{ matrix.model.runtime }}
+          runs_on: "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu"
