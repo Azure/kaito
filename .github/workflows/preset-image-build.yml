@@ -112,7 +112,7 @@ jobs:
         with:
           weights_dir: ${{ env.WEIGHTS_DIR }}
           branch_name: ${{ env.BRANCH_NAME }}
-          image_name: ${{ matrix.model.name }} # TODO: Change directly to unlisted
+          image_name: ${{ matrix.model.name }}
           image_tag: ${{ matrix.model.tag }}
           acr_name: ${{ secrets.ACR_AMRT_USERNAME }}
           acr_username: ${{ secrets.ACR_AMRT_USERNAME }}
