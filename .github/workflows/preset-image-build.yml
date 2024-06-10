@@ -107,13 +107,14 @@ jobs:
       - name: 'Set subscription'
         run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
       
-
+      - name: Checkout
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       - name: Call Reusable Workflow - Build Image
         uses: ./.github/workflows/preset-common-image-build.yml
         with:
           weights_dir: ${{ env.WEIGHTS_DIR }}
           branch_name: ${{ env.BRANCH_NAME }}
-          image_name: ${{ matrix.model.name }}
+          image_name: ${{ matrix.model.name }} # TODO: Change directly to unlisted
           image_tag: ${{ matrix.model.tag }}
           acr_name: ${{ secrets.ACR_AMRT_USERNAME }}
           acr_username: ${{ secrets.ACR_AMRT_USERNAME }}
