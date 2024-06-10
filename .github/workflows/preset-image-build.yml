@@ -107,10 +107,8 @@ jobs:
       - name: 'Set subscription'
         run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
       
-      - name: Checkout
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       - name: Call Reusable Workflow - Build Image
-        uses: ./.github/workflows/preset-common-image-build.yml
+        uses: ./.github/actions/build-image-action
         with:
           weights_dir: ${{ env.WEIGHTS_DIR }}
           branch_name: ${{ env.BRANCH_NAME }}
