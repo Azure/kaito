@@ -64,6 +64,9 @@ jobs:
         run: |         
             # Read the additional configurations from e2e-preset-configs.json
             CONFIGS=$(cat .github/e2e-preset-configs.json | jq -c '.matrix.image')
+
+            echo "CONFIGS:"
+            echo $CONFIGS
             
             # Pseudocode for combining matrices
             # COMBINED_MATRIX = []
