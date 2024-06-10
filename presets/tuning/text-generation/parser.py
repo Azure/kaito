@@ -6,14 +6,12 @@ from collections import defaultdict
 from dataclasses import asdict, fields
 
 import yaml
-from cli import (DatasetConfig, ExtDataCollator, ExtLoraConfig, ModelConfig,
-                 QuantizationConfig, TokenizerParams)
+from cli import (DatasetConfig, ExtDataCollator, ExtLoraConfig, ModelConfig, QuantizationConfig)
 from transformers import HfArgumentParser, TrainingArguments
 
 # Mapping from config section names to data classes
 CONFIG_CLASS_MAP = {
     'ModelConfig': ModelConfig,
-    'TokenizerParams': TokenizerParams,
     'QuantizationConfig': QuantizationConfig,
     'LoraConfig': ExtLoraConfig,
     'TrainingArguments': TrainingArguments,
