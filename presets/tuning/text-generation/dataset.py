@@ -8,10 +8,8 @@ from datasets import load_dataset
 SUPPORTED_EXTENSIONS = {'csv', 'json', 'parquet', 'arrow', 'webdataset'}
 
 class DatasetManager:
-    def __init__(self, config, tokenizer, tokenizer_params):
+    def __init__(self, config):
         self.config = config
-        self.tokenizer_params = tokenizer_params
-        self.tokenizer = tokenizer
         self.dataset = None
         self.dataset_text_field = None # Set this field if dataset consists of singular text column
 
@@ -31,6 +29,9 @@ class DatasetManager:
                     self.dataset = self.dataset.rename_column(old_name, new_name)
 
     def load_data(self):
+        # OAI Compliant: https://platform.openai.com/docs/guides/fine-tuning/preparing-your-dataset
+        # https://github.com/huggingface/trl/blob/main/trl/extras/dataset_formatting.py
+        # https://huggingface.co/docs/trl/en/sft_trainer#dataset-format-support
         if self.config.dataset_path:
             dataset_path = os.path.join("/mnt", self.config.dataset_path.strip("/"))
         else:
@@ -85,73 +86,3 @@ class DatasetManager:
     def get_dataset(self):
         self.check_dataset_loaded()
         return self.dataset
-
-    def format_and_preprocess(self):
-        # OAI Compliant: https://platform.openai.com/docs/guides/fine-tuning/preparing-your-dataset
-        # https://github.com/huggingface/trl/blob/main/trl/extras/dataset_formatting.py
-        # https://huggingface.co/docs/trl/en/sft_trainer#dataset-format-support
-        if self.config.messages_column:
-            self.format_conversational()
-        elif self.config.context_column and self.config.response_column:
-            self.format_instruct()
-        elif self.config.response_column:
-            self.dataset = self.dataset.map(
-                lambda example: self.tokenizer(example[self.config.response_column], **self.tokenizer_params),
-                batched=True
-            )
-            self.format_text()
-            self.dataset_text_field = self.config.response_column
-
-    def format_text(self):
-        self.check_dataset_loaded()
-        self.check_column_exists(self.config.response_column)
-        self.select_and_rename_columns([self.config.response_column])
-
-    def format_instruct(self):
-        """Ensure dataset is formatted for instruct fine tuning"""
-        self.check_dataset_loaded()
-        required_columns = [self.config.context_column, self.config.response_column]
-        for column in required_columns:
-            self.check_column_exists(column)
-
-        # Select and rename columns
-        rename_map = {}
-        if self.config.context_column != "prompt":
-            rename_map[self.config.context_column] = "prompt"
-        if self.config.response_column != "completion":
-            rename_map[self.config.response_column] = "completion"
-        self.select_and_rename_columns(required_columns, rename_map)
-
-    def format_conversational(self):
-        """Ensure some basic formatting of dataset for conversational fine tuning"""
-        self.check_dataset_loaded()
-        # Check if the specified column exists in the dataset
-        self.check_column_exists(self.config.messages_column)
-
-         # Select and rename columns
-        rename_map = {}
-        if self.config.messages_column != "messages":
-            rename_map[self.config.messages_column] = "messages"
-        self.select_and_rename_columns([self.config.messages_column], rename_map)
-
-    # Consider supporting in future
-    # https://github.com/huggingface/trl/pull/444
-    # def format_instruction_based_fn(self, examples): 
-    #     output_text = []
-    #     for i in range(len(examples[self.config.context_column])):
-    #         instruction = examples[self.config.instruction_column][i]
-    #         context = examples[self.config.context_column][i]
-    #         response = examples[self.config.response_column][i]
-    #         text = f'''Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
-
-    #         ### Instruction:
-    #         {instruction}
-            
-    #         ### Input:
-    #         {context}
-            
-    #         ### Response:
-    #         {response}
-    #         '''
-    #         output_text.append(text)
-    #     return output_text

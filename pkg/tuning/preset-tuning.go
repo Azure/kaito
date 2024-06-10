@@ -164,9 +164,10 @@ while true; do
     cp -r "$PARENT_DIR/adapter_model.safetensors" "$TEMP_CONTEXT/adapter_model.safetensors"
 
     # Create a minimal Dockerfile
-    echo 'FROM scratch
-    ADD adapter_config.json /
-    ADD adapter_model.safetensors /' > "$TEMP_CONTEXT/Dockerfile"
+    echo 'FROM busybox:latest
+    RUN mkdir -p /data
+    ADD adapter_config.json /data/
+    ADD adapter_model.safetensors /data/' > "$TEMP_CONTEXT/Dockerfile"
 
     docker build -t %s "$TEMP_CONTEXT"
     docker push %s
