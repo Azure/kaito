@@ -83,7 +83,7 @@ jobs:
           go-version: ${{ env.GO_VERSION  }}
 
       - name: Az login
-        uses: azure/login@6b2456866fc08b011acb422a92a4aa20e2c4de32 # v2.1.0
+        uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
         with:
           client-id: ${{ secrets.E2E_CLIENT_ID }}
           tenant-id: ${{ secrets.E2E_TENANT_ID }}
@@ -151,7 +151,7 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_SUBSCRIPTION_ID }}
           GPU_PROVISIONER_VERSION: ${{ vars.GPU_PROVISIONER_VERSION }}
 
-      - uses: azure/login@6b2456866fc08b011acb422a92a4aa20e2c4de32 # v2.1.0
+      - uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
         with:
           client-id: ${{ secrets.E2E_CLIENT_ID }}
           tenant-id: ${{ secrets.E2E_TENANT_ID }}
