@@ -222,7 +222,8 @@ jobs:
             kind create cluster --config .github/workflows/kind-cluster/kind-1es.yaml
           else
             echo "Kind cluster already exists"
-          fi    
+          fi
+          kubectl config use-context kind-kind
 
       - name: Authenticate to ACR
         run: |
