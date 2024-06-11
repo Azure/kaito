@@ -5,8 +5,6 @@ package v1alpha1
 
 import (
 	"strings"
-
-	"github.com/azure/kaito/pkg/utils/plugin"
 )
 
 type GPUConfig struct {
@@ -15,10 +13,6 @@ type GPUConfig struct {
 	GPUDriver   string
 	GPUCount    int
 	GPUMem      int
-}
-
-func isValidPreset(preset string) bool {
-	return plugin.KaitoModelRegister.Has(preset)
 }
 
 func getSupportedSKUs() string {
