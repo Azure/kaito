@@ -203,13 +203,14 @@ jobs:
 
       - name: Check and Create Kind Cluster
         run: |
-          kind delete cluster
-
           # Delete leftover kindnet resources if they exist
-          kubectl delete clusterrole kindnet --ignore-not-found
-          kubectl delete clusterrolebinding kindnet --ignore-not-found
-          kubectl delete serviceaccount kindnet -n kube-system --ignore-not-found
-          kubectl delete daemonset kindnet -n kube-system --ignore-not-found      
+          kubectl delete clusterrole kindnet --ignore-not-found || true
+          kubectl delete clusterrolebinding kindnet --ignore-not-found || true
+          kubectl delete serviceaccount kindnet -n kube-system --ignore-not-found || true
+          kubectl delete daemonset kindnet -n kube-system --ignore-not-found || true
+      
+          # Always delete the existing Kind cluster (if any)
+          kind delete cluster
 
           echo "Creating directory for etcd storage"
           sudo mkdir -p /mnt/storage/etcd
