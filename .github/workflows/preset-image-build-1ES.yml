@@ -203,14 +203,17 @@ jobs:
 
       - name: Check and Create Kind Cluster
         run: |
-          if ! kind get clusters | grep -q kind; then
-            echo "Creating directory for etcd storage"
-            sudo mkdir -p /mnt/storage/etcd
-            echo "Creating Kind cluster using kind-1es.yaml"
-            kind create cluster --config .github/workflows/kind-cluster/kind-1es.yaml
-          else
-            echo "Kind cluster already exists"
+          # Check if a Kind cluster exists
+          if kind get clusters | grep -q kind; then
+            echo "Kind cluster already exists. Deleting the existing cluster."
+            kind delete cluster
           fi
+      
+          echo "Creating directory for etcd storage"
+          sudo mkdir -p /mnt/storage/etcd
+      
+          echo "Creating Kind cluster using kind-1es.yaml"
+          kind create cluster --config .github/workflows/kind-cluster/kind-1es.yaml       
 
       - name: Authenticate to ACR
         run: |
