@@ -228,7 +228,7 @@ jobs:
         run: |
           az login --identity
           az acr login -n ${{ secrets.PROD_1ES_ACR_USERNAME }}
-      
+
       - name: Call Reusable Workflow - Build Image
         uses: ./.github/actions/build-image-action
         with:
