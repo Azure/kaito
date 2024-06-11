@@ -162,7 +162,7 @@ def populate_job_template(model_name, model_type, model_runtime, model_tag, job_
 
         replacements = {
             "{{JOB_ID}}": f"{job_name}",
-            "{{IMAGE_NAME}}": f"staging/aks/kaito/kaito-{model_name}",
+            "{{IMAGE_NAME}}": f"{model_name}",
             "{{ACR_NAME}}": env_vars["ACR_NAME"],
             "{{ACR_USERNAME}}": env_vars["ACR_USERNAME"],
             "{{ACR_PASSWORD}}": env_vars["ACR_PASSWORD"],
