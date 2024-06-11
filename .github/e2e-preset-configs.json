@@ -58,6 +58,13 @@
         "OSS": true
       },
       {
+        "name": "phi-3-mini-128k-instruct",
+        "node-count": 1,
+        "node-vm-size": "Standard_NC6s_v3",
+        "node-osdisk-size": 50,
+        "OSS": true
+      },
+      {
         "name": "llama-2-7b",
         "node-count": 1,
         "node-vm-size": "Standard_NC12s_v3",
