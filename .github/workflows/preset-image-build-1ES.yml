@@ -203,12 +203,8 @@ jobs:
 
       - name: Check and Create Kind Cluster
         run: |
-          # Check if a Kind cluster exists
-          if kind get clusters | grep -q kind; then
-            echo "Kind cluster already exists. Deleting the existing cluster."
-            kind delete cluster
-          fi
-      
+          kind delete cluster
+
           echo "Creating directory for etcd storage"
           sudo mkdir -p /mnt/storage/etcd
       
