@@ -159,11 +159,6 @@ jobs:
         run: |
             NAME_SUFFIX=${{ matrix.model.name }}
             NAME_SUFFIX_WITHOUT_DASHES=${NAME_SUFFIX//-/}  # Removing all '-' symbols
-            
-            # Ensure the name does not start with a number
-            if [[ ${NAME_SUFFIX_WITHOUT_DASHES} =~ ^[0-9] ]]; then
-              NAME_SUFFIX_WITHOUT_DASHES="a${NAME_SUFFIX_WITHOUT_DASHES}"
-            fi
 
             if [ ${#NAME_SUFFIX_WITHOUT_DASHES} -gt 12 ]; then
                 TRUNCATED_NAME_SUFFIX=${NAME_SUFFIX_WITHOUT_DASHES:0:12}

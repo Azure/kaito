@@ -52,4 +52,4 @@ spec:
         key: nvidia.com/gpu
         operator: Exists
       nodeSelector:
-        pool: aphi3mini128
+        pool: phi3mini128k
