@@ -52,4 +52,4 @@ spec:
         key: nvidia.com/gpu
         operator: Exists
       nodeSelector:
-        pool: on7binstruct
+        pool: falcon7binst
