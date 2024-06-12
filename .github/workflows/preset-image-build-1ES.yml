@@ -165,9 +165,9 @@ jobs:
         run: |
           if ! command -v kind &> /dev/null; then
             if [ $(uname -m) = x86_64 ]; then
-              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
+              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
             elif [ $(uname -m) = aarch64 ]; then
-              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-arm64
+              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-arm64
             fi
             chmod +x ./kind
             sudo mv ./kind /usr/local/bin/kind
