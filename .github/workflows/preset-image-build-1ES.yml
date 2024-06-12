@@ -146,21 +146,6 @@ jobs:
             sudo mv ./kind /usr/local/bin/kind
           fi
 
-      - name: Configure Docker to Use /mnt/storage/docker
-        run: |
-          sudo systemctl stop docker
-          sudo mkdir -p /mnt/storage/docker
-          # Move existing Docker data
-          if [ -d /var/lib/docker ]; then
-            sudo rsync -aP /var/lib/docker/ /mnt/storage/docker/
-          fi
-          echo '{"data-root":"/mnt/storage/docker"}' | sudo tee /etc/docker/daemon.json
-          sudo systemctl start docker
-  
-      - name: Verify Docker Configuration
-        run: |
-          docker info | grep "Docker Root Dir"
-
       - name: Set Permissions for DataDrive /mnt/storage
         run : |
           sudo chown -R $(whoami) /mnt/storage
