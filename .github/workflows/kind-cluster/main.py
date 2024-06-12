@@ -7,12 +7,13 @@ import time
 from pathlib import Path
 
 KAITO_REPO_URL = "https://github.com/Azure/kaito.git"
+WEIGHTS_FOLDER = os.environ.get("WEIGHTS_DIR", None)
 
-def get_weights_path(model_name): 
-    return f"/datadrive/{model_name}/weights"
+def get_weights_path(model_name):
+    return f"{WEIGHTS_FOLDER}/{model_name}/weights"
 
-def get_dockerfile_path(model_runtime): 
-    return f"/kaito/docker/presets/inference/{model_runtime}/Dockerfile"
+def get_dockerfile_path(model_runtime):
+    return f"/kaito/docker/presets/models/{model_runtime}/Dockerfile"
 
 def generate_unique_id():
     """Generate a unique identifier for a job."""
@@ -31,6 +32,13 @@ def run_command(command):
     except Exception as e:
         print(f"An error occurred: {e}")
         return None
+
+def get_kubectl_path(): 
+    """Get the full path to kubectl."""
+    kubectl_path = "/usr/local/bin/kubectl"
+    if not os.path.exists(kubectl_path):
+        raise FileNotFoundError("kubectl not found at /usr/local/bin/kubectl")
+    return kubectl_path
 
 def get_model_git_info(model_version):
     """Get model Git Repo link and commit ID"""
@@ -69,6 +77,9 @@ def download_new_model(model_name, model_url):
     """Given URL download new model."""
     weights_path = get_weights_path(model_name)
     git_files_path = os.path.join(weights_path, "..", "git_files")  # Path for git_files directory
+    print("Weights Path:", weights_path)
+    print("Git Files Path:", git_files_path)
+
     start_dir = os.getcwd()
     
     if not os.path.exists(weights_path) and model_url:
@@ -106,10 +117,14 @@ def main():
     job_yaml = populate_job_template(model_name, model_type, model_runtime, model_tag, job_name, os.environ)
     write_job_file(job_yaml, job_name)
 
+    weights = run_command(f"ls {WEIGHTS_FOLDER}")
+    print("Models Present:", weights)
+    
     output = run_command(f"ls {get_weights_path(model_name)}")
     print("Model Weights:", output)
 
-    run_command(f"kubectl apply -f {job_name}-job.yaml")
+    kubectl_path = get_kubectl_path()
+    run_command(f"{kubectl_path} apply -f {job_name}-job.yaml")
     job_names.append(job_name)
     
     if not wait_for_jobs_to_complete(job_names):
@@ -147,7 +162,7 @@ def populate_job_template(model_name, model_type, model_runtime, model_tag, job_
 
         replacements = {
             "{{JOB_ID}}": f"{job_name}",
-            "{{IMAGE_NAME}}": model_name,
+            "{{IMAGE_NAME}}": f"{model_name}",
             "{{ACR_NAME}}": env_vars["ACR_NAME"],
             "{{ACR_USERNAME}}": env_vars["ACR_USERNAME"],
             "{{ACR_PASSWORD}}": env_vars["ACR_PASSWORD"],
@@ -189,7 +204,7 @@ def log_job_info(job_name):
 def check_job_status(job_name, iteration):
     """Check the status of a Kubernetes job."""
     # Every 2.5 minutes log job information
-    if iteration % 5 == 0: 
+    if iteration % 5 == 0:
         log_job_info(job_name)
     # Query for the specific fields 'succeeded' and 'failed' in the job's status
     command_succeeded = f"kubectl get job docker-build-job-{job_name} -o jsonpath='{{.status.succeeded}}'"
