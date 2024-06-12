@@ -203,27 +203,37 @@ jobs:
 
       - name: Check and Create Kind Cluster
         run: |
-          if ! kind get clusters | grep -q kind; then
-            # Always delete the existing Kind cluster (if any)
-            kind delete cluster
-
-            # Delete leftover kindnet resources if they exist
-            kubectl delete clusterrole kindnet --ignore-not-found || true
-            kubectl delete clusterrolebinding kindnet --ignore-not-found || true
-            kubectl delete serviceaccount kindnet -n kube-system --ignore-not-found || true
-            kubectl delete daemonset kindnet -n kube-system --ignore-not-found || true
+            if kind get clusters | grep -q kind; then
+              echo "Kind cluster already exists. Deleting the existing cluster."
+              kind delete cluster
+        
+              # Delete leftover kindnet resources if they exist
+              kubectl delete clusterrole kindnet --ignore-not-found || true
+              kubectl delete clusterrolebinding kindnet --ignore-not-found || true
+              kubectl delete serviceaccount kindnet -n kube-system --ignore-not-found || true
+              kubectl delete daemonset kindnet -n kube-system --ignore-not-found || true
             
-            # Ensure deletion
-            sleep 15
+              # Ensure deletion
+              sleep 15
+            fi
 
             echo "Creating directory for etcd storage"
             sudo mkdir -p /mnt/storage/etcd
             echo "Creating Kind cluster using kind-1es.yaml"
             kind create cluster --config .github/workflows/kind-cluster/kind-1es.yaml
-          else
-            echo "Kind cluster already exists"
-          fi
-          kubectl config use-context kind-kind
+
+            # Retrieve the correct IP address for the Kubernetes control plane
+            KUBERNETES_CONTROL_PLANE_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' kind-control-plane)
+            echo "Kubernetes control plane IP: $KUBERNETES_CONTROL_PLANE_IP"
+        
+            # Update the kubeconfig file with the correct IP address
+            kubectl config set-cluster kind-kind --server=https://$KUBERNETES_CONTROL_PLANE_IP:6443
+        
+            # Set the context to use the updated cluster
+            kubectl config use-context kind-kind
+
+            # Verify the Kubernetes configuration
+            kubectl cluster-info
 
       - name: Authenticate to ACR
         run: |
