@@ -79,8 +79,19 @@ runs:
         df -h
       shell: bash
 
+    - name: Install yq
+      run: |
+        sudo add-apt-repository ppa:rmescandon/yq -y
+        sudo apt update
+        sudo apt install yq -y
+      shell: bash
+
     - name: Check and Create Kind Cluster
       run: |
+        # Retrieve the kubeconfig content for the kind cluster
+        KUBECONFIG_CONTENT=$(kind get kubeconfig --name="kind" || true)
+        echo $KUBECONFIG_CONTENT
+
         if ! kind get clusters | grep -q kind; then
           # Check if kubectl can communicate with the cluster
           if kubectl cluster-info &> /dev/null; then
@@ -103,6 +114,43 @@ runs:
           }
          if ! create_kind_cluster; then
             echo "Kind cluster creation failed. Attempting to delete and retry..."
+
+            # Retrieve the kubeconfig content for the kind cluster
+            KUBECONFIG_CONTENT=$(kind get kubeconfig --name="kind")
+
+            if [ -z "$KUBECONFIG_CONTENT" ]; then
+              echo "Failed to retrieve the kubeconfig content."
+              exit 1
+            fi
+
+            # Write the kubeconfig content to a temporary file
+            echo "$KUBECONFIG_CONTENT" > /tmp/kubeconfig
+
+            # Set the correct permissions for the kubeconfig file
+            chmod 600 /tmp/kubeconfig
+
+            # Extract the server URL from the kubeconfig content using yq
+            KUBERNETES_CONTROL_PLANE_URL=$(echo "$KUBECONFIG_CONTENT" | yq eval '.clusters[0].cluster.server' -)
+
+            if [ -z "$KUBERNETES_CONTROL_PLANE_URL" ]; then
+              echo "Failed to retrieve the control plane URL."
+              exit 1
+            fi
+
+            echo "Kubernetes control plane URL: $KUBERNETES_CONTROL_PLANE_URL"
+
+            # Update the kubeconfig file with the correct URL
+            sed -i "s|server: .*|server: $KUBERNETES_CONTROL_PLANE_URL|" /tmp/kubeconfig
+
+            # Set the KUBECONFIG environment variable to the temporary kubeconfig file
+            export KUBECONFIG=/tmp/kubeconfig
+
+            # Set the context to use the updated cluster
+            kubectl config use-context kind-kind || true
+
+            # Verify the Kubernetes configuration 
+            kubectl cluster-info || true
+
             # Delete leftover kindnet resources if they exist
             kubectl delete clusterrole kindnet --ignore-not-found || true
             kubectl delete clusterrolebinding kindnet --ignore-not-found || true
@@ -118,46 +166,6 @@ runs:
               exit 1
             fi
          fi
-
-          # Retrieve the kubeconfig content for the kind cluster
-          # KUBECONFIG_CONTENT=$(kind get kubeconfig --name="kind")
-
-          # if [ -z "$KUBECONFIG_CONTENT" ]; then
-          #   echo "Failed to retrieve the kubeconfig content."
-          #   exit 1
-          # fi
-
-          # # Write the kubeconfig content to a temporary file
-          # echo "$KUBECONFIG_CONTENT" > /tmp/kubeconfig
-
-          # # Set the correct permissions for the kubeconfig file
-          # chmod 600 /tmp/kubeconfig
-
-          # # Extract the server URL from the kubeconfig content using yq
-          # KUBERNETES_CONTROL_PLANE_URL=$(echo "$KUBECONFIG_CONTENT" | yq eval '.clusters[0].cluster.server' -)
-
-          # if [ -z "$KUBERNETES_CONTROL_PLANE_URL" ]; then
-          #   echo "Failed to retrieve the control plane URL."
-          #   exit 1
-          # fi
-
-          # echo "Kubernetes control plane URL: $KUBERNETES_CONTROL_PLANE_URL"
-
-          # # Update the kubeconfig file with the correct URL
-          # sed -i "s|server: .*|server: $KUBERNETES_CONTROL_PLANE_URL|" /tmp/kubeconfig
-
-          # # Set the KUBECONFIG environment variable to the temporary kubeconfig file
-          # export KUBECONFIG=/tmp/kubeconfig
-
-          # # Set the context to use the updated cluster
-          # kubectl config use-context kind-kind
-
-          # # Verify the Kubernetes configuration
-          # kubectl cluster-info
-        else
-          echo "Kind cluster already exists"
-        fi
-        kubectl cluster-info --context kind-kind
       shell: bash
 
     - name: Check if Image exists in target ACR
