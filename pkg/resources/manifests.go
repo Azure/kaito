@@ -275,14 +275,14 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 	if len(workspaceObj.Inference.Adapters) != 0 {
 		for _, adapter := range workspaceObj.Inference.Adapters {
 			// TODO: accept Volumes and url link to pull images
-			initContaier := corev1.Container{
+			initContainer := corev1.Container{
 				Name:            adapter.Source.Name,
 				Image:           adapter.Source.Image,
 				Command:         []string{"/bin/sh", "-c", fmt.Sprintf("mkdir -p /mnt/adapter/%s && cp -r /data/* /mnt/adapter/%s", adapter.Source.Name, adapter.Source.Name)},
 				VolumeMounts:    volumeMount,
 				ImagePullPolicy: corev1.PullAlways,
 			}
-			initContainers = append(initContainers, initContaier)
+			initContainers = append(initContainers, initContainer)
 			env := corev1.EnvVar{
 				Name:  adapter.Source.Name,
 				Value: *adapter.Strength,

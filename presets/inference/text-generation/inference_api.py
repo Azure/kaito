@@ -101,18 +101,16 @@ def list_files(directory):
     except Exception as e:
         return [f"An error occurred: {str(e)}"]
 
-output = list_files(ADAPTERS_DIR)
-# [""]
+output = os.listdir(ADAPTERS_DIR)
 filtered_output = [s for s in output if s.strip()]
 adapters_list = [f"{ADAPTERS_DIR}/{file}" for file in filtered_output]
 filtered_adapters_list = [path for path in adapters_list if os.path.exists(os.path.join(path, "adapter_config.json"))]
-
 if len(filtered_adapters_list) == 0:
     model = base_model
 else: 
     adapter_names, weights= [], []
     for adapter_path in filtered_adapters_list:
-        adapter_name = os.base_bath(adapter_path)
+        adapter_name = os.path.basename(adapter_path)
         adapter_names.append(adapter_name)
         weights.append(float(os.getenv(adapter_name)))
     model = PeftModel.from_pretrained(base_model, filtered_adapters_list[0], adapter_name=adapter_names[0])

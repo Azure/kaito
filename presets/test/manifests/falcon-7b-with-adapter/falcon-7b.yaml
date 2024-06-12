@@ -16,13 +16,13 @@ spec:
       - name: adapter-volume
         emptyDir: {} 
       initContainers:
-      - name: falcon-7b-chat
+      - name: falcon-7b-adapter
         image: <YOUR_IMAGE>
         imagePullPolicy: Always
-        command: ["/bin/sh", "-c", "mkdir -p /mnt/adapters/falcon-7b-chat && cp -r /data/* /mnt/adapters/falcon-7b-chat"]
+        command: ["/bin/sh", "-c", "mkdir -p /mnt/adapter/falcon-7b-adapter && cp -r /data/* /mnt/adapter/falcon-7b-adapter"]
         volumeMounts:
         - name: adapter-volume
-          mountPath: /mnt/adapters
+          mountPath: /mnt/adapter
       containers:
       - name: falcon-container
         image: <YOUR_IMAGE>
@@ -37,9 +37,9 @@ spec:
             nvidia.com/gpu: 2  # Requesting 2 GPUs
         volumeMounts:
         - name: adapter-volume
-          mountPath: /mnt/adapters
+          mountPath: /mnt/adapter
         env:
-        - name: ADAPTER_WEIGHT_0
+        - name: falcon-7b-adapter
           value: "0.2"
       tolerations:
       - effect: NoSchedule

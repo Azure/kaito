@@ -131,8 +131,8 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	}
 
 	if len(workspaceObj.Inference.Adapters) > 0 {
-		adapterVolumn, adapterVolumeMount := utils.ConfigAdapterVolume()
-		volumes = append(volumes, adapterVolumn)
+		adapterVolume, adapterVolumeMount := utils.ConfigAdapterVolume()
+		volumes = append(volumes, adapterVolume)
 		volumeMounts = append(volumeMounts, adapterVolumeMount)
 	}
 
