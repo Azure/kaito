@@ -100,14 +100,14 @@ def list_files(directory):
             return [f"Command execution failed with return code: {result.returncode}"]
     except Exception as e:
         return [f"An error occurred: {str(e)}"]
-
-output = os.listdir(ADAPTERS_DIR)
-filtered_output = [s for s in output if s.strip()]
-adapters_list = [f"{ADAPTERS_DIR}/{file}" for file in filtered_output]
-filtered_adapters_list = [path for path in adapters_list if os.path.exists(os.path.join(path, "adapter_config.json"))]
-if len(filtered_adapters_list) == 0:
+if not os.path.exists(ADAPTERS_DIR):
     model = base_model
 else: 
+    output = os.listdir(ADAPTERS_DIR)
+    filtered_output = [s for s in output if s.strip()]
+    adapters_list = [f"{ADAPTERS_DIR}/{file}" for file in filtered_output]
+    filtered_adapters_list = [path for path in adapters_list if os.path.exists(os.path.join(path, "adapter_config.json"))]
+
     adapter_names, weights= [], []
     for adapter_path in filtered_adapters_list:
         adapter_name = os.path.basename(adapter_path)
