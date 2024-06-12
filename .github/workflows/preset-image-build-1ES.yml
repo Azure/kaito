@@ -219,45 +219,45 @@ jobs:
             sudo mkdir -p /mnt/storage/etcd
             echo "Creating Kind cluster using kind-1es.yaml"
             kind create cluster --config .github/workflows/kind-cluster/kind-1es.yaml
+
+            # Retrieve the kubeconfig content for the kind cluster
+            KUBECONFIG_CONTENT=$(kind get kubeconfig --name="kind")
+
+            if [ -z "$KUBECONFIG_CONTENT" ]; then
+              echo "Failed to retrieve the kubeconfig content."
+              exit 1
+            fi
+
+            # Write the kubeconfig content to a temporary file
+            echo "$KUBECONFIG_CONTENT" > /tmp/kubeconfig
+
+            # Set the correct permissions for the kubeconfig file
+            chmod 600 /tmp/kubeconfig
+
+            # Extract the server URL from the kubeconfig content using yq
+            KUBERNETES_CONTROL_PLANE_URL=$(echo "$KUBECONFIG_CONTENT" | yq eval '.clusters[0].cluster.server' -)
+
+            if [ -z "$KUBERNETES_CONTROL_PLANE_URL" ]; then
+              echo "Failed to retrieve the control plane URL."
+              exit 1
+            fi
+
+            echo "Kubernetes control plane URL: $KUBERNETES_CONTROL_PLANE_URL"
+
+            # Update the kubeconfig file with the correct URL
+            sed -i "s|server: .*|server: $KUBERNETES_CONTROL_PLANE_URL|" /tmp/kubeconfig
+
+            # Set the KUBECONFIG environment variable to the temporary kubeconfig file
+            export KUBECONFIG=/tmp/kubeconfig
+
+            # Set the context to use the updated cluster
+            kubectl config use-context kind-kind
+            
+            # Verify the Kubernetes configuration
+            kubectl cluster-info
           else
             echo "Kind cluster already exists"
           fi
-
-          # Retrieve the kubeconfig content for the kind cluster
-          KUBECONFIG_CONTENT=$(kind get kubeconfig --name="kind")
-
-          if [ -z "$KUBECONFIG_CONTENT" ]; then
-            echo "Failed to retrieve the kubeconfig content."
-            exit 1
-          fi
-
-          # Write the kubeconfig content to a temporary file
-          echo "$KUBECONFIG_CONTENT" > /tmp/kubeconfig
-
-          # Set the correct permissions for the kubeconfig file
-          chmod 600 /tmp/kubeconfig
-
-          # Extract the server URL from the kubeconfig content using yq
-          KUBERNETES_CONTROL_PLANE_URL=$(echo "$KUBECONFIG_CONTENT" | yq eval '.clusters[0].cluster.server' -)
-
-          if [ -z "$KUBERNETES_CONTROL_PLANE_URL" ]; then
-            echo "Failed to retrieve the control plane URL."
-            exit 1
-          fi
-
-          echo "Kubernetes control plane URL: $KUBERNETES_CONTROL_PLANE_URL"
-
-          # Update the kubeconfig file with the correct URL
-          sed -i "s|server: .*|server: $KUBERNETES_CONTROL_PLANE_URL|" /tmp/kubeconfig
-
-          # Set the KUBECONFIG environment variable to the temporary kubeconfig file
-          export KUBECONFIG=/tmp/kubeconfig
-
-          # Set the context to use the updated cluster
-          kubectl config use-context kind-kind
-
-          # Verify the Kubernetes configuration
-          kubectl cluster-info
 
       - name: Check and Create Kind Cluster
         run: |
