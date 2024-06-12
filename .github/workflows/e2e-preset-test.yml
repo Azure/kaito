@@ -122,7 +122,7 @@ jobs:
       - name: 'Set ACR Subscription'
         run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
 
-      - name: 'Check if Image exists in ACR'
+      - name: Check if Image exists in ACR
         id: check_image
         run: |
             ACR_NAME=${{ secrets.ACR_AMRT_USERNAME }}
@@ -144,7 +144,7 @@ jobs:
                 fi
             fi
     
-      - name: Check if Image exists in ACR
+      - name: Exit if Image for testing does not exist
         if: steps.check_image.outputs.IMAGE_EXISTS == 'false'
         run: |
             echo "Image doesn't exist in ACR, remember to build image for testing first (preset-image-build)"
@@ -166,7 +166,7 @@ jobs:
             fi
 
             if [ ${#NAME_SUFFIX_WITHOUT_DASHES} -gt 12 ]; then
-                TRUNCATED_NAME_SUFFIX=${NAME_SUFFIX_WITHOUT_DASHES: -12}
+                TRUNCATED_NAME_SUFFIX=${NAME_SUFFIX_WITHOUT_DASHES:0:12}
             else
                 TRUNCATED_NAME_SUFFIX=$NAME_SUFFIX_WITHOUT_DASHES
             fi

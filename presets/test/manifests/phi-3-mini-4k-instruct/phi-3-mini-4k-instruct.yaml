@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: phi-3-mini-4k
+  name: phi-3-mini-4k-instruct
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: phi-3-mini-4k
+      app: phi-3-mini-4k-instruct
   template:
     metadata:
       labels:
-        app: phi-3-mini-4k
+        app: phi-3-mini-4k-instruct
     spec:
       containers:
-      - name: phi-3-mini-4k-container
-        image: REPO_HERE.azurecr.io/phi-3-mini-4k:TAG_HERE
+      - name: phi-3-mini-4k-instruct-container
+        image: REPO_HERE.azurecr.io/phi-3-mini-4k-instruct:TAG_HERE
         command:
           - /bin/sh
           - -c
@@ -52,4 +52,4 @@ spec:
         key: nvidia.com/gpu
         operator: Exists
       nodeSelector:
-        pool: phi-3-mini-4k
+        pool: aphi3mini4ki
