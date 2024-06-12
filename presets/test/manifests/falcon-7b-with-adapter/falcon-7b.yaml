@@ -17,7 +17,7 @@ spec:
         emptyDir: {} 
       initContainers:
       - name: falcon-7b-chat
-        image: aimodelsregistrytest.azurecr.io/falcon-7b-chat:0.0.1
+        image: <YOUR_IMAGE>
         imagePullPolicy: Always
         command: ["/bin/sh", "-c", "mkdir -p /mnt/adapters/falcon-7b-chat && cp -r /data/* /mnt/adapters/falcon-7b-chat"]
         volumeMounts:
@@ -25,7 +25,7 @@ spec:
           mountPath: /mnt/adapters
       containers:
       - name: falcon-container
-        image: aimodelsregistrytest.azurecr.io/falcon-7b:0.0.4
+        image: <YOUR_IMAGE>
         command:
           - /bin/sh
           - -c
