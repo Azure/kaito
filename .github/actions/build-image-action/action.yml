@@ -86,6 +86,18 @@ runs:
         sudo apt install yq -y
       shell: bash
 
+    - name: Configure Docker to Use /mnt/storage/docker
+      run: |
+        sudo systemctl stop docker
+        sudo mkdir -p /mnt/storage/docker
+        # Move existing Docker data
+        if [ -d /var/lib/docker ]; then
+          sudo rsync -aP /var/lib/docker/ /mnt/storage/docker/
+        fi
+        echo '{"data-root":"/mnt/storage/docker"}' | sudo tee /etc/docker/daemon.json
+        sudo systemctl start docker
+      shell: bash
+      
     - name: Check and Create Kind Cluster
       run: |
         # export KUBECONFIG=~/.kube/config
@@ -107,6 +119,7 @@ runs:
         if ! kind get clusters | grep -q kind; then
           # clean_kindnet_resources
           # kind delete cluster
+          
           echo "Creating directory for etcd storage"
           sudo mkdir -p /mnt/storage/etcd
           echo "Creating Kind cluster using kind-1es.yaml"
@@ -124,6 +137,7 @@ runs:
           echo "Kind cluster already exists."
           kubectl cluster-info
         fi
+        kubectl cluster-info --context kind-kind
       shell: bash
 
     - name: Check if Image exists in target ACR
