@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/azure/kaito/pkg/utils"
@@ -27,6 +28,7 @@ const (
 
 	DefaultLoraConfigMapTemplate  = "lora-params-template"
 	DefaultQloraConfigMapTemplate = "qlora-params-template"
+	MaxAdaptersNumber             = 10
 )
 
 func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
@@ -58,7 +60,6 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 			w.Resource.validateUpdate(&old.Resource).ViaField("resource"),
 		)
 		if w.Inference != nil {
-			// TODO: Add Adapter Spec Validation - Including DataSource Validation for Adapter
 			errs = errs.Also(w.Inference.validateUpdate(old.Inference).ViaField("inference"))
 		}
 		if w.Tuning != nil {
@@ -85,6 +86,44 @@ func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
 
 	if (old.Tuning == nil && w.Tuning != nil) || (old.Tuning != nil && w.Tuning == nil) {
 		errs = errs.Also(apis.ErrGeneric("Tuning field cannot be toggled once set", "tuning"))
+	}
+	return errs
+}
+
+func ValidateDNSSubdomain(name string) bool {
+	var dnsSubDomainRegexp = regexp.MustCompile(`^(?i:[a-z0-9]([-a-z0-9]*[a-z0-9])?)$`)
+	if len(name) < 1 || len(name) > 253 {
+		return false
+	}
+	return dnsSubDomainRegexp.MatchString(name)
+}
+
+func (r *AdapterSpec) validateCreateorUpdate() (errs *apis.FieldError) {
+	if r.Source == nil {
+		errs = errs.Also(apis.ErrMissingField("Source"))
+	} else {
+		errs = errs.Also(r.Source.validateCreate().ViaField("Adapters"))
+
+		if r.Source.Name == "" {
+			errs = errs.Also(apis.ErrMissingField("Name of Adapter field must be specified"))
+		} else if !ValidateDNSSubdomain(r.Source.Name) {
+			errs = errs.Also(apis.ErrMissingField("Name of Adapter must be a valid DNS subdomain value"))
+		}
+		if r.Source.Image == "" {
+			errs = errs.Also(apis.ErrMissingField("Image of Adapter field must be specified"))
+		}
+		if r.Strength == nil {
+			var defaultStrength = "1.0"
+			r.Strength = &defaultStrength
+		}
+		strength, err := strconv.ParseFloat(*r.Strength, 64)
+		if err != nil {
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Invalid strength value for Adapter '%s': %v", r.Source.Name, err), "adapter"))
+		}
+		if strength < 0 || strength > 1.0 {
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Strength value for Adapter '%s' must be between 0 and 1", r.Source.Name), "adapter"))
+		}
+
 	}
 	return errs
 }
@@ -346,6 +385,16 @@ func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
 		}
 		// Note: we don't enforce private access mode to have image secrets, in case anonymous pulling is enabled
 	}
+	if len(i.Adapters) > MaxAdaptersNumber {
+		errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Number of Adapters exceeds the maximum limit, maximum of %s allowed", strconv.Itoa(MaxAdaptersNumber))))
+	}
+
+	// check if adapter names are duplicate
+	if len(i.Adapters) > 0 {
+		nameMap := make(map[string]bool)
+		errs = errs.Also(validateDuplicateName(i.Adapters, nameMap))
+	}
+
 	return errs
 }
 
@@ -358,5 +407,27 @@ func (i *InferenceSpec) validateUpdate(old *InferenceSpec) (errs *apis.FieldErro
 		errs = errs.Also(apis.ErrGeneric("field cannot be unset/set if it was set/unset", "template"))
 	}
 
+	// check if adapter names are duplicate
+	for _, adapter := range i.Adapters {
+		errs = errs.Also(adapter.validateCreateorUpdate())
+	}
+
+	// check if adapter names are duplicate
+
+	if len(i.Adapters) > 0 {
+		nameMap := make(map[string]bool)
+		errs = errs.Also(validateDuplicateName(i.Adapters, nameMap))
+	}
+	return errs
+}
+
+func validateDuplicateName(adapters []AdapterSpec, nameMap map[string]bool) (errs *apis.FieldError) {
+	for _, adapter := range adapters {
+		if _, ok := nameMap[adapter.Source.Name]; ok {
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Duplicate adapter source name found: %s", adapter.Source.Name)))
+		} else {
+			nameMap[adapter.Source.Name] = true
+		}
+	}
 	return errs
 }

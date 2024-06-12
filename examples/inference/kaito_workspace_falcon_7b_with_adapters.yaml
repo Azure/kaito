@@ -10,4 +10,9 @@ resource:
 inference:
   preset:
     name: "falcon-7b"
+  adapters:
+    - source:
+        name: "falcon-7b-adapter"
+        image:  "<YOUR_IMAGE>"
+      strength: "0.2"
     

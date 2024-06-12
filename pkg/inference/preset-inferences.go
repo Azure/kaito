@@ -5,9 +5,10 @@ package inference
 import (
 	"context"
 	"fmt"
-	"github.com/azure/kaito/pkg/utils"
 	"os"
 	"strconv"
+
+	"github.com/azure/kaito/pkg/utils"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/model"
@@ -56,13 +57,14 @@ var (
 	tolerations = []corev1.Toleration{
 		{
 			Effect:   corev1.TaintEffectNoSchedule,
-			Operator: corev1.TolerationOpEqual,
-			Key:      resources.GPUString,
+			Operator: corev1.TolerationOpExists,
+			Key:      resources.CapacityNvidiaGPU,
 		},
 		{
-			Effect: corev1.TaintEffectNoSchedule,
-			Value:  resources.GPUString,
-			Key:    "sku",
+			Effect:   corev1.TaintEffectNoSchedule,
+			Value:    resources.GPUString,
+			Key:      "sku",
+			Operator: corev1.TolerationOpEqual,
 		},
 	}
 )
@@ -127,6 +129,13 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	if shmVolumeMount.Name != "" {
 		volumeMounts = append(volumeMounts, shmVolumeMount)
 	}
+
+	if len(workspaceObj.Inference.Adapters) > 0 {
+		adapterVolume, adapterVolumeMount := utils.ConfigAdapterVolume()
+		volumes = append(volumes, adapterVolume)
+		volumeMounts = append(volumeMounts, adapterVolumeMount)
+	}
+
 	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj)
 	image, imagePullSecrets := GetInferenceImageInfo(ctx, workspaceObj, inferenceObj)
 

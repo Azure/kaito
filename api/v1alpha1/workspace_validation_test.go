@@ -5,6 +5,7 @@ package v1alpha1
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"reflect"
 	"sort"
@@ -23,6 +24,10 @@ import (
 )
 
 const DefaultReleaseNamespace = "kaito-workspace"
+
+var ValidStrength string = "0.5"
+var InvalidStrength1 string = "invalid"
+var InvalidStrength2 string = "1.5"
 
 var gpuCountRequirement string
 var totalGPUMemoryRequirement string
@@ -475,6 +480,56 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			expectErrs: true,
 		},
 		{
+			name: "Adapeters more than 10",
+			inferenceSpec: func() *InferenceSpec {
+				spec := &InferenceSpec{
+					Preset: &PresetSpec{
+						PresetMeta: PresetMeta{
+							Name:       ModelName("test-validation"),
+							AccessMode: ModelImageAccessModePublic,
+						},
+					},
+				}
+				for i := 1; i <= 11; i++ {
+					spec.Adapters = append(spec.Adapters, AdapterSpec{
+						Source: &DataSource{
+							Name:  fmt.Sprintf("Adapter-%d", i),
+							Image: fmt.Sprintf("fake.kaito.com/kaito-image:0.0.%d", i),
+						},
+						Strength: &ValidStrength,
+					})
+				}
+				return spec
+			}(),
+			errContent: "Number of Adapters exceeds the maximum limit, maximum of 10 allowed",
+			expectErrs: true,
+		},
+		{
+			name: "Adapeters names are duplicated",
+			inferenceSpec: func() *InferenceSpec {
+				spec := &InferenceSpec{
+					Preset: &PresetSpec{
+						PresetMeta: PresetMeta{
+							Name:       ModelName("test-validation"),
+							AccessMode: ModelImageAccessModePublic,
+						},
+					},
+				}
+				for i := 1; i <= 2; i++ {
+					spec.Adapters = append(spec.Adapters, AdapterSpec{
+						Source: &DataSource{
+							Name:  "Adapter",
+							Image: fmt.Sprintf("fake.kaito.com/kaito-image:0.0.%d", i),
+						},
+						Strength: &ValidStrength,
+					})
+				}
+				return spec
+			}(),
+			errContent: "",
+			expectErrs: true,
+		},
+		{
 			name: "Valid Preset",
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
@@ -484,7 +539,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 					},
 				},
 			},
-			errContent: "",
+			errContent: "Duplicate adapter source name found:",
 			expectErrs: false,
 		},
 	}
@@ -514,6 +569,91 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 				errMsg := errs.Error()
 				if !strings.Contains(errMsg, tc.errContent) {
 					t.Errorf("validateCreate() error message = %v, expected to contain = %v", errMsg, tc.errContent)
+				}
+			}
+		})
+	}
+}
+
+func TestAdapterSpecValidateCreateorUpdate(t *testing.T) {
+	RegisterValidationTestModels()
+	tests := []struct {
+		name        string
+		adapterSpec *AdapterSpec
+		errContent  string // Content expected error to include, if any
+		expectErrs  bool
+	}{
+		{
+			name: "Missing Source",
+			adapterSpec: &AdapterSpec{
+				Strength: &ValidStrength,
+			},
+			errContent: "Source",
+			expectErrs: true,
+		},
+		{
+			name: "Missing Source Name",
+			adapterSpec: &AdapterSpec{
+				Source: &DataSource{
+					Image: "fake.kaito.com/kaito-image:0.0.1",
+				},
+				Strength: &ValidStrength,
+			},
+			errContent: "Name of Adapter field must be specified",
+			expectErrs: true,
+		},
+		{
+			name: "Invalid Strength, not a number",
+			adapterSpec: &AdapterSpec{
+				Source: &DataSource{
+					Name:  "Adapter-1",
+					Image: "fake.kaito.com/kaito-image:0.0.1",
+				},
+				Strength: &InvalidStrength1,
+			},
+			errContent: "Invalid strength value for Adapter 'Adapter-1'",
+			expectErrs: true,
+		},
+		{
+			name: "Invalid Strength, larger than 1",
+			adapterSpec: &AdapterSpec{
+				Source: &DataSource{
+					Name:  "Adapter-1",
+					Image: "fake.kaito.com/kaito-image:0.0.1",
+				},
+				Strength: &InvalidStrength2,
+			},
+			errContent: "Strength value for Adapter 'Adapter-1' must be between 0 and 1",
+			expectErrs: true,
+		},
+		{
+			name: "Valid Adapter",
+			adapterSpec: &AdapterSpec{
+				Source: &DataSource{
+					Name:  "Adapter-1",
+					Image: "fake.kaito.com/kaito-image:0.0.1",
+				},
+				Strength: &ValidStrength,
+			},
+			errContent: "",
+			expectErrs: false,
+		},
+	}
+
+	// Run the tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			errs := tc.adapterSpec.validateCreateorUpdate()
+			hasErrs := errs != nil
+			if hasErrs != tc.expectErrs {
+				t.Errorf("validateUpdate() errors = %v, expectErrs %v", errs, tc.expectErrs)
+			}
+
+			// If there is an error and errContent is not empty, check that the error contains the expected content.
+			if hasErrs && tc.errContent != "" {
+				errMsg := errs.Error()
+				if !strings.Contains(errMsg, tc.errContent) {
+					t.Errorf("validateUpdate() error message = %v, expected to contain = %v", errMsg, tc.errContent)
 				}
 			}
 		})
