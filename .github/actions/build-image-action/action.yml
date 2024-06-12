@@ -62,6 +62,11 @@ runs:
         fi
       shell: bash
 
+    - name: Restart Docker
+      run: |
+        sudo systemctl restart docker
+      shell: bash
+
     - name: Check Available Disk Space
       run: |
         echo "Initial disk usage:"
@@ -78,47 +83,11 @@ runs:
         echo "Final disk usage:"
         df -h
       shell: bash
-
-    - name: Ensure Docker is Installed
-      run: |
-        # Add Docker's official GPG key:
-        sudo apt-get update
-        sudo apt-get install ca-certificates curl -y
-        sudo install -m 0755 -d /etc/apt/keyrings
-        sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-        sudo chmod a+r /etc/apt/keyrings/docker.asc
-        
-        # Add the repository to Apt sources:
-        echo \
-          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-          $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-          sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-        sudo apt-get update
-
-        sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
-        
-        # User Permissions
-        sudo usermod -aG docker $(whoami)
-        sudo systemctl restart docker
-        sudo chmod 666 /var/run/docker.sock
-      shell: bash
     
     - name: Test Docker Access
       run: |
         ls -l /var/run/docker.sock
         docker run hello-world
-      shell: bash
-
-    - name: Configure Docker to Use /mnt/storage/docker
-      run: |
-        sudo systemctl stop docker
-        sudo mkdir -p /mnt/storage/docker
-        # Move existing Docker data
-        if [ -d /var/lib/docker ]; then
-          sudo rsync -aP /var/lib/docker/ /mnt/storage/docker/
-        fi
-        echo '{"data-root":"/mnt/storage/docker"}' | sudo tee /etc/docker/daemon.json
-        sudo systemctl start docker
       shell: bash
   
     - name: Verify Docker Configuration
