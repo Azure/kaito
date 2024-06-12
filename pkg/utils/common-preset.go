@@ -60,7 +60,7 @@ func ConfigSHMVolume(instanceCount int) (corev1.Volume, corev1.VolumeMount) {
 	if instanceCount > 1 {
 		// Append share memory volume to any existing volumes
 		volume = corev1.Volume{
-			Name: "data",
+			Name: "dshm",
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{
 					Medium: "Memory",
