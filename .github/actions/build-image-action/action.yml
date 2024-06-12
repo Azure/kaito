@@ -98,8 +98,6 @@ runs:
           echo "Creating Kind cluster using kind-1es.yaml"
           kind create cluster --config .github/workflows/kind-cluster/kind-1es.yaml
 
-          kubectl cluster-info --context kind-kind
-
           # Retrieve the kubeconfig content for the kind cluster
           # KUBECONFIG_CONTENT=$(kind get kubeconfig --name="kind")
 
@@ -138,6 +136,7 @@ runs:
         else
           echo "Kind cluster already exists"
         fi
+        kubectl cluster-info --context kind-kind
       shell: bash
 
     - name: Check if Image exists in target ACR
