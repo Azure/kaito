@@ -36,9 +36,6 @@ inputs:
   model_runtime:
     description: "Model runtime"
     required: true
-  image_already_built:
-    description: "Indicate if the image is already built"
-    required: true
   runs_on:
     description: "The runner to use"
     required: true
@@ -85,7 +82,10 @@ runs:
           echo "Creating directory for etcd storage"
           sudo mkdir -p /mnt/storage/etcd
           echo "Creating Kind cluster using kind-1es.yaml"
-          kind create cluster --config .github/workflows/kind-cluster/kind-1es.yaml
+          if ! kind create cluster --config .github/workflows/kind-cluster/kind-1es.yaml; then
+            echo "Failed to create the Kind cluster."
+            exit 1
+          fi
         else
           echo "Kind cluster already exists."
         fi
@@ -135,7 +135,7 @@ runs:
     - name: Check Python Script Status
       if: ${{ always() }}
       run: |
-        if [[ "${{ inputs.image_already_built }}" == "true" ]]; then
+        if [[ "${{ steps.check_test_image.outputs.IMAGE_EXISTS }}" == "true" ]]; then
           echo "Image already exists; skipping the status step."
         elif [[ "${{ steps.launch_script.outcome }}" != "success" ]]; then
           echo "Python script failed to execute successfully."
