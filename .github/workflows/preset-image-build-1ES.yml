@@ -223,22 +223,6 @@ jobs:
             echo "Kind cluster already exists"
           fi
 
-          # Wait for the control plane to be ready
-          echo "Waiting for the control plane to be ready..."
-          TIMEOUT=300
-          INTERVAL=10
-          ELAPSED=0
-
-          while ! kubectl get nodes &> /dev/null; do
-            if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
-              echo "Timed out waiting for the control plane to be ready."
-              exit 1
-            fi
-            echo "Control plane not ready yet, retrying in $INTERVAL seconds..."
-            sleep "$INTERVAL"
-            ELAPSED=$((ELAPSED + INTERVAL))
-          done
-
           # Retrieve the kubeconfig content for the kind cluster
           KUBECONFIG_CONTENT=$(kind get kubeconfig --name="kind")
 
