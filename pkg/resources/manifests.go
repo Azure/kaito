@@ -270,32 +270,25 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 	labelselector := &v1.LabelSelector{
 		MatchLabels: selector,
 	}
-	initContaiers := []corev1.Container{}
+	initContainers := []corev1.Container{}
 	envs := []corev1.EnvVar{}
-
 	if len(workspaceObj.Inference.Adapters) != 0 {
 		for _, adapter := range workspaceObj.Inference.Adapters {
 			// TODO: accept Volumes and url link to pull images
 			initContaier := corev1.Container{
 				Name:            adapter.Source.Name,
 				Image:           adapter.Source.Image,
-				Command:         []string{"/bin/sh", "-c", fmt.Sprintf("mkdir -p /data/%s && cp -r * /data/%s", adapter.Source.Name, adapter.Source.Name)},
+				Command:         []string{"/bin/sh", "-c", fmt.Sprintf("mkdir -p /mnt/adapter/%s && cp -r /data/* /mnt/adapter/%s", adapter.Source.Name, adapter.Source.Name)},
 				VolumeMounts:    volumeMount,
 				ImagePullPolicy: corev1.PullAlways,
 			}
-			initContaiers = append(initContaiers, initContaier)
+			initContainers = append(initContainers, initContaier)
 			env := corev1.EnvVar{
 				Name:  adapter.Source.Name,
 				Value: *adapter.Strength,
 			}
 			envs = append(envs, env)
 		}
-	}
-	specVolume := corev1.Volume{
-		Name: "data",
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
 	}
 
 	return &appsv1.Deployment{
@@ -332,7 +325,7 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 							},
 						},
 					},
-					InitContainers: initContaiers,
+					InitContainers: initContainers,
 					Containers: []corev1.Container{
 						{
 							Name:           workspaceObj.Name,
@@ -347,7 +340,7 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 						},
 					},
 					Tolerations: tolerations,
-					Volumes:     []corev1.Volume{specVolume},
+					Volumes:     volumes,
 				},
 			},
 		},

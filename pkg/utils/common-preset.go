@@ -7,9 +7,10 @@ import (
 )
 
 const (
-	DefaultVolumeMountPath    = "/data"
+	DefaultVolumeMountPath    = "/dev/shm"
 	DefaultConfigMapMountPath = "/mnt/config"
 	DefaultDataVolumePath     = "/mnt/data"
+	DefaultAdapterVolumePath  = "/mnt/adapter"
 )
 
 func ConfigResultsVolume(outputPath string) (corev1.Volume, corev1.VolumeMount) {
@@ -118,6 +119,26 @@ func ConfigDataVolume(hostPath *string) (corev1.Volume, corev1.VolumeMount) {
 	volumeMount = corev1.VolumeMount{
 		Name:      "data-volume",
 		MountPath: DefaultDataVolumePath,
+	}
+	return volume, volumeMount
+}
+
+func ConfigAdapterVolume() (corev1.Volume, corev1.VolumeMount) {
+	var volume corev1.Volume
+	var volumeMount corev1.VolumeMount
+
+	volumeSource := corev1.VolumeSource{
+		EmptyDir: &corev1.EmptyDirVolumeSource{},
+	}
+
+	volume = corev1.Volume{
+		Name:         "adapter-volume",
+		VolumeSource: volumeSource,
+	}
+
+	volumeMount = corev1.VolumeMount{
+		Name:      "adapter-volume",
+		MountPath: DefaultAdapterVolumePath,
 	}
 	return volume, volumeMount
 }

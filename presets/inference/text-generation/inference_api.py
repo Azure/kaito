@@ -17,7 +17,7 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
 from peft import PeftModel
 
-ADAPTERS_DIR = '/data'
+ADAPTERS_DIR = '/mnt/adapter'
 @dataclass
 class ModelConfig:
     """

@@ -391,7 +391,7 @@ func (i *InferenceSpec) validateCreate() (errs *apis.FieldError) {
 
 	// check if adapter names are duplicate
 	if len(i.Adapters) > 0 {
-		nameMap := make(map[string]string)
+		nameMap := make(map[string]bool)
 		errs = errs.Also(validateDuplicateName(i.Adapters, nameMap))
 	}
 
@@ -406,10 +406,6 @@ func (i *InferenceSpec) validateUpdate(old *InferenceSpec) (errs *apis.FieldErro
 	if (i.Template != nil && old.Template == nil) || (i.Template == nil && old.Template != nil) {
 		errs = errs.Also(apis.ErrGeneric("field cannot be unset/set if it was set/unset", "template"))
 	}
-	nameMap := make(map[string]string)
-	for _, adapter := range old.Adapters {
-		nameMap[adapter.Source.Name] = adapter.Source.Image
-	}
 
 	// check if adapter names are duplicate
 	for _, adapter := range i.Adapters {
@@ -417,20 +413,20 @@ func (i *InferenceSpec) validateUpdate(old *InferenceSpec) (errs *apis.FieldErro
 	}
 
 	// check if adapter names are duplicate
+
 	if len(i.Adapters) > 0 {
+		nameMap := make(map[string]bool)
 		errs = errs.Also(validateDuplicateName(i.Adapters, nameMap))
 	}
 	return errs
 }
 
-func validateDuplicateName(adapters []AdapterSpec, nameMap map[string]string) (errs *apis.FieldError) {
+func validateDuplicateName(adapters []AdapterSpec, nameMap map[string]bool) (errs *apis.FieldError) {
 	for _, adapter := range adapters {
-		if previousAdapterImage, ok := nameMap[adapter.Source.Name]; ok {
-			if previousAdapterImage != adapter.Source.Image {
-				errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Duplicate adapter source name found: %s", adapter.Source.Name)))
-			}
+		if _, ok := nameMap[adapter.Source.Name]; ok {
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Duplicate adapter source name found: %s", adapter.Source.Name)))
 		} else {
-			nameMap[adapter.Source.Name] = adapter.Source.Image
+			nameMap[adapter.Source.Name] = true
 		}
 	}
 	return errs
