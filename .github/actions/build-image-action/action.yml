@@ -62,11 +62,6 @@ runs:
         fi
       shell: bash
 
-    - name: Restart Docker
-      run: |
-        sudo systemctl restart docker
-      shell: bash
-
     - name: Check Available Disk Space
       run: |
         echo "Initial disk usage:"
@@ -83,31 +78,46 @@ runs:
         echo "Final disk usage:"
         df -h
       shell: bash
-    
-    - name: Test Docker Access
-      run: |
-        ls -l /var/run/docker.sock
-        docker run hello-world
-      shell: bash
-  
-    - name: Verify Docker Configuration
-      run: |
-        docker info | grep "Docker Root Dir"
-      shell: bash
 
     - name: Check and Create Kind Cluster
       run: |
         if ! kind get clusters | grep -q kind; then
-          # Always delete the existing Kind cluster (if any)
-          # kind delete cluster
-
-          # Ensure deletion
-          # sleep 15
+          # Check if kubectl can communicate with the cluster
+          if kubectl cluster-info &> /dev/null; then
+            kubectl cluster-info --context kind-kind
+            # Delete leftover kindnet resources if they exist
+            kubectl delete clusterrole kindnet --ignore-not-found || true
+            kubectl delete clusterrolebinding kindnet --ignore-not-found || true
+            kubectl delete serviceaccount kindnet -n kube-system --ignore-not-found || true
+            kubectl delete daemonset kindnet -n kube-system --ignore-not-found || true
+            kind delete cluster
+          fi
 
           echo "Creating directory for etcd storage"
           sudo mkdir -p /mnt/storage/etcd
-          echo "Creating Kind cluster using kind-1es.yaml"
-          kind create cluster --config .github/workflows/kind-cluster/kind-1es.yaml
+
+          create_kind_cluster() {
+            echo "Creating Kind cluster using kind-1es.yaml"
+            kind create cluster --config .github/workflows/kind-cluster/kind-1es.yaml
+            kubectl cluster-info --context kind-kind
+          }
+         if ! create_kind_cluster; then
+            echo "Kind cluster creation failed. Attempting to delete and retry..."
+            # Delete leftover kindnet resources if they exist
+            kubectl delete clusterrole kindnet --ignore-not-found || true
+            kubectl delete clusterrolebinding kindnet --ignore-not-found || true
+            kubectl delete serviceaccount kindnet -n kube-system --ignore-not-found || true
+            kubectl delete daemonset kindnet -n kube-system --ignore-not-found || true
+            kind delete cluster
+            
+            # Ensure deletion
+            sleep 15
+
+            if ! create_kind_cluster; then
+              echo "Kind cluster creation failed again. Exiting."
+              exit 1
+            fi
+         fi
 
           # Retrieve the kubeconfig content for the kind cluster
           # KUBECONFIG_CONTENT=$(kind get kubeconfig --name="kind")
