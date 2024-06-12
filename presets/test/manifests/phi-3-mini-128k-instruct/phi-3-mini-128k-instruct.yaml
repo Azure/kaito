@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: phi-3-mini-128k-instruct-container
-        image: REPO_HERE.azurecr.io/phi-3-mini-128k:TAG_HERE
+        image: REPO_HERE.azurecr.io/phi-3-mini-128k-instruct:TAG_HERE
         command:
           - /bin/sh
           - -c
