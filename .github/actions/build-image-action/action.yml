@@ -86,18 +86,18 @@ runs:
         sudo apt install yq -y
       shell: bash
 
-    - name: Configure Docker to Use /mnt/storage/docker
-      run: |
-        sudo systemctl stop docker
-        sudo mkdir -p /mnt/storage/docker
-        # Move existing Docker data
-        if [ -d /var/lib/docker ]; then
-          sudo rsync -aP /var/lib/docker/ /mnt/storage/docker/
-        fi
-        echo '{"data-root":"/mnt/storage/docker"}' | sudo tee /etc/docker/daemon.json
-        sudo systemctl start docker
-      shell: bash
-      
+    # - name: Configure Docker to Use /mnt/storage/docker
+    #   run: |
+    #     sudo systemctl stop docker
+    #     sudo mkdir -p /mnt/storage/docker
+    #     # Move existing Docker data
+    #     if [ -d /var/lib/docker ]; then
+    #       sudo rsync -aP /var/lib/docker/ /mnt/storage/docker/
+    #     fi
+    #     echo '{"data-root":"/mnt/storage/docker"}' | sudo tee /etc/docker/daemon.json
+    #     sudo systemctl start docker
+    #   shell: bash
+
     - name: Check and Create Kind Cluster
       run: |
         # export KUBECONFIG=~/.kube/config
@@ -135,7 +135,6 @@ runs:
           fi
         else
           echo "Kind cluster already exists."
-          kubectl cluster-info
         fi
         kubectl cluster-info --context kind-kind
       shell: bash
@@ -196,6 +195,14 @@ runs:
     - name: Cleanup
       if: ${{ always() }}
       run: |
+        echo "Cleaning up kindnet resources..."
+        kubectl delete clusterrole kindnet --ignore-not-found || true
+        kubectl delete clusterrolebinding kindnet --ignore-not-found || true
+        kubectl delete serviceaccount kindnet -n kube-system --ignore-not-found || true
+        kubectl delete daemonset kindnet -n kube-system --ignore-not-found || true
+
+        kind delete cluster
+
         if [[ "${{ inputs.image_already_built }}" == "false" ]]; then
           kubectl get job --no-headers -o custom-columns=":metadata.name" | grep "^docker-build-job-${{ inputs.model_name }}-[0-9]" | xargs -r kubectl delete job
         fi
