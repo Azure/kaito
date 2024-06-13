@@ -122,7 +122,7 @@ else:
 
         model.set_adapter("combined_adapter")
 
-        # To avoid future operations that use incorrect adapters
+        # To avoid any potential future operations that use non-combined adapters
         for adapter in adapter_names:
             model.delete_adapter(adapter)
     else:
