@@ -7,5 +7,6 @@ import (
 	_ "github.com/azure/kaito/presets/models/llama2"
 	_ "github.com/azure/kaito/presets/models/llama2chat"
 	_ "github.com/azure/kaito/presets/models/mistral"
-	_ "github.com/azure/kaito/presets/models/phi"
+	_ "github.com/azure/kaito/presets/models/phi-2"
+	_ "github.com/azure/kaito/presets/models/phi-3"
 )

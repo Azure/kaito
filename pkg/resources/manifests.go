@@ -272,7 +272,7 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 	}
 	initContainers := []corev1.Container{}
 	envs := []corev1.EnvVar{}
-	if len(workspaceObj.Inference.Adapters) != 0 {
+	if len(workspaceObj.Inference.Adapters) > 0 {
 		for _, adapter := range workspaceObj.Inference.Adapters {
 			// TODO: accept Volumes and url link to pull images
 			initContainer := corev1.Container{

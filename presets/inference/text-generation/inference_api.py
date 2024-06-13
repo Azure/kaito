@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import os
+import subprocess
 from dataclasses import asdict, dataclass, field
 from typing import Annotated, Any, Dict, List, Optional
 
@@ -8,14 +9,13 @@ import GPUtil
 import psutil
 import torch
 import transformers
-import subprocess
 import uvicorn
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import Response
+from peft import PeftModel
 from pydantic import BaseModel, Extra, Field, validator
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
-from peft import PeftModel
 
 ADAPTERS_DIR = '/mnt/adapter'
 @dataclass
@@ -66,9 +66,12 @@ class ModelConfig:
         """
         Post-initialization to validate some ModelConfig values
         """
-        if self.torch_dtype and not hasattr(torch, self.torch_dtype):
+        if self.torch_dtype == "auto":
+            pass
+        elif self.torch_dtype and self.torch_dtype != "auto" and not hasattr(torch, self.torch_dtype):
             raise ValueError(f"Invalid torch dtype: {self.torch_dtype}")
-        self.torch_dtype = getattr(torch, self.torch_dtype) if self.torch_dtype else None
+        else:
+            self.torch_dtype = getattr(torch, self.torch_dtype) if self.torch_dtype else None
 
         supported_pipelines = {"conversational", "text-generation"}
         if self.pipeline not in supported_pipelines:
@@ -91,39 +94,42 @@ app = FastAPI()
 tokenizer = AutoTokenizer.from_pretrained(**model_args)
 base_model = AutoModelForCausalLM.from_pretrained(**model_args)
 
-def list_files(directory):
-    try:
-        result = subprocess.run(['ls', directory], capture_output=True, text=True)
-        if result.returncode == 0:
-            return result.stdout.strip().split('\n')
-        else:
-            return [f"Command execution failed with return code: {result.returncode}"]
-    except Exception as e:
-        return [f"An error occurred: {str(e)}"]
 if not os.path.exists(ADAPTERS_DIR):
     model = base_model
-else: 
-    output = os.listdir(ADAPTERS_DIR)
-    filtered_output = [s for s in output if s.strip()]
-    adapters_list = [f"{ADAPTERS_DIR}/{file}" for file in filtered_output]
-    filtered_adapters_list = [path for path in adapters_list if os.path.exists(os.path.join(path, "adapter_config.json"))]
+else:
+    valid_adapters_list = [
+        os.path.join(ADAPTERS_DIR, adapter) for adapter in os.listdir(ADAPTERS_DIR)
+        if os.path.isfile(os.path.join(ADAPTERS_DIR, adapter, "adapter_config.json"))
+    ]
 
-    adapter_names, weights= [], []
-    for adapter_path in filtered_adapters_list:
-        adapter_name = os.path.basename(adapter_path)
-        adapter_names.append(adapter_name)
-        weights.append(float(os.getenv(adapter_name)))
-    model = PeftModel.from_pretrained(base_model, filtered_adapters_list[0], adapter_name=adapter_names[0])
-    for i in range(1, len(filtered_adapters_list)):
-        model.load_adapter(filtered_adapters_list[i], adapter_names[i])
+    if valid_adapters_list:
+        adapter_names, weights = [], []
+        for adapter_path in valid_adapters_list:
+            adapter_name = os.path.basename(adapter_path)
+            adapter_names.append(adapter_name)
+            weights.append(float(os.getenv(adapter_name, '1.0')))
 
-    model.add_weighted_adapter(
-        adapters = adapter_names,
-        weights = weights,
-        adapter_name="combined_adapter",
-        combination_type=combination_type,
-    )
-print("Model:",model)
+        model = PeftModel.from_pretrained(base_model, valid_adapters_list[0], adapter_name=adapter_names[0])
+        for i in range(1, len(valid_adapters_list)):
+            model.load_adapter(valid_adapters_list[i], adapter_name=adapter_names[i])
+
+        model.add_weighted_adapter(
+            adapters=adapter_names,
+            weights=weights,
+            adapter_name="combined_adapter",
+            combination_type=combination_type,
+        )
+
+        model.set_adapter("combined_adapter")
+
+        # To avoid any potential future operations that use non-combined adapters
+        for adapter in adapter_names:
+            model.delete_adapter(adapter)
+    else:
+        print("Warning: Did not find any valid adapters mounted, using base model")
+        model = base_model
+
+print("Model:", model)
 
 pipeline_kwargs = {
     "trust_remote_code": args.trust_remote_code,
