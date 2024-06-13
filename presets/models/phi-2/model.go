@@ -27,7 +27,7 @@ var (
 
 	baseCommandPresetPhi = "accelerate launch"
 	phiRunParams         = map[string]string{
-		"torch_dtype": "auto",
+		"torch_dtype": "float16",
 		"pipeline":    "text-generation",
 	}
 )
