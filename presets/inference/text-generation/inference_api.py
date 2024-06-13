@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import os
+import subprocess
 from dataclasses import asdict, dataclass, field
 from typing import Annotated, Any, Dict, List, Optional
 
@@ -8,14 +9,13 @@ import GPUtil
 import psutil
 import torch
 import transformers
-import subprocess
 import uvicorn
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import Response
+from peft import PeftModel
 from pydantic import BaseModel, Extra, Field, validator
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
-from peft import PeftModel
 
 ADAPTERS_DIR = '/mnt/adapter'
 @dataclass
@@ -66,9 +66,12 @@ class ModelConfig:
         """
         Post-initialization to validate some ModelConfig values
         """
-        if self.torch_dtype and not hasattr(torch, self.torch_dtype):
+        if self.torch_dtype == "auto":
+            pass
+        elif self.torch_dtype and self.torch_dtype != "auto" and not hasattr(torch, self.torch_dtype):
             raise ValueError(f"Invalid torch dtype: {self.torch_dtype}")
-        self.torch_dtype = getattr(torch, self.torch_dtype) if self.torch_dtype else None
+        else:
+            self.torch_dtype = getattr(torch, self.torch_dtype) if self.torch_dtype else None
 
         supported_pipelines = {"conversational", "text-generation"}
         if self.pipeline not in supported_pipelines:
@@ -100,6 +103,7 @@ def list_files(directory):
             return [f"Command execution failed with return code: {result.returncode}"]
     except Exception as e:
         return [f"An error occurred: {str(e)}"]
+
 if not os.path.exists(ADAPTERS_DIR):
     model = base_model
 else: 

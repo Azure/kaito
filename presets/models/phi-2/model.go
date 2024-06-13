@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
-package phi
+package phi_2
 
 import (
 	"time"
@@ -27,7 +27,7 @@ var (
 
 	baseCommandPresetPhi = "accelerate launch"
 	phiRunParams         = map[string]string{
-		"torch_dtype": "float16",
+		"torch_dtype": "auto",
 		"pipeline":    "text-generation",
 	}
 )
