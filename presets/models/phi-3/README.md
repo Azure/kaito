@@ -10,12 +10,42 @@
 
 ## Usage
 
+Phi-3 Mini models are best suited for prompts using the chat format as follows. You can provide the prompt as a question with a generic template as follow:
+
+```
+<|user|>\nQuestion<|end|>\n<|assistant|>
+```
+
+For example:
+```
+<|user|>
+How to explain Internet for a medieval knight?<|end|>
+<|assistant|>
+
+```
+
+Or in the case of few shots prompt:
+```
+<|user|>
+I am going to Paris, what should I see?<|end|>
+<|assistant|>
+Paris, the capital of France, is known for its stunning architecture, art museums, historical landmarks, and romantic atmosphere. Here are some of the top attractions to see in Paris:\n\n1. The Eiffel Tower: The iconic Eiffel Tower is one of the most recognizable landmarks in the world and offers breathtaking views of the city.\n2. The Louvre Museum: The Louvre is one of the world's largest and most famous museums, housing an impressive collection of art and artifacts, including the Mona Lisa.\n3. Notre-Dame Cathedral: This beautiful cathedral is one of the most famous landmarks in Paris and is known for its Gothic architecture and stunning stained glass windows.\n\nThese are just a few of the many attractions that Paris has to offer. With so much to see and do, it's no wonder that Paris is one of the most popular tourist destinations in the world."<|end|>
+<|user|>
+What is so great about #1?<|end|>
+<|assistant|>
+```
+
 The inference service endpoint is `/chat`.
+
 
 ### Basic example
 ```
 curl -X POST "http://<SERVICE>:80/chat" -H "accept: application/json" -H "Content-Type: application/json" -d '{"prompt":"YOUR_PROMPT_HERE"}'
 ```
+```
+curl -X POST "http://<SERVICE>:80/chat" -H "accept: application/json" -H "Content-Type: application/json" -d '{"prompt":"<|user|> How to explain Internet for a medieval knight?<|end|><|assistant|>"}'
+```
+
 
 ### Example with full configurable parameters
 ```
