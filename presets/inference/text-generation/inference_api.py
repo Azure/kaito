@@ -119,6 +119,12 @@ else:
             adapter_name="combined_adapter",
             combination_type=combination_type,
         )
+
+        model.set_adapter("combined_adapter")
+
+        # To avoid future operations that use incorrect adapters
+        for adapter in adapter_names:
+            model.delete_adapter(adapter)
     else:
         print("Warning: Did not find any valid adapters mounted, using base model")
         model = base_model
