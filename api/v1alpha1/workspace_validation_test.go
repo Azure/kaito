@@ -33,6 +33,14 @@ var gpuCountRequirement string
 var totalGPUMemoryRequirement string
 var perGPUMemoryRequirement string
 
+var invalidSourceName string
+
+func init() {
+	for i := 0; i < 32; i++ {
+		invalidSourceName += "Adapter1"
+	}
+}
+
 type testModel struct{}
 
 func (*testModel) GetInferenceParameters() *model.PresetParam {
@@ -627,13 +635,24 @@ func TestAdapterSpecValidateCreateorUpdate(t *testing.T) {
 			expectErrs: true,
 		},
 		{
+			name: "Invalid Source Name, longer than 253",
+			adapterSpec: &AdapterSpec{
+				Source: &DataSource{
+					Name:  invalidSourceName,
+					Image: "fake.kaito.com/kaito-image:0.0.1",
+				},
+				Strength: &ValidStrength,
+			},
+			errContent: "Name of Adapter must be a valid DNS subdomain value",
+			expectErrs: true,
+		},
+		{
 			name: "Valid Adapter",
 			adapterSpec: &AdapterSpec{
 				Source: &DataSource{
 					Name:  "Adapter-1",
 					Image: "fake.kaito.com/kaito-image:0.0.1",
 				},
-				Strength: &ValidStrength,
 			},
 			errContent: "",
 			expectErrs: false,
@@ -702,6 +721,31 @@ func TestInferenceSpecValidateUpdate(t *testing.T) {
 			name: "Template Set",
 			newInference: &InferenceSpec{
 				Template: &v1.PodTemplateSpec{},
+			},
+			oldInference: &InferenceSpec{
+				Template: nil,
+			},
+			errContent: "field cannot be unset/set if it was set/unset",
+			expectErrs: true,
+		},
+		{
+			name: "Template Set",
+			newInference: &InferenceSpec{
+				Template: &v1.PodTemplateSpec{},
+				Adapters: []AdapterSpec{
+					{
+						Source: &DataSource{
+							Name:  "Adapter-1",
+							Image: "fake.kaito.com/kaito-image:0.0.1",
+						},
+					},
+					{
+						Source: &DataSource{
+							Name:  "Adapter-1",
+							Image: "fake.kaito.com/kaito-image:0.0.6",
+						},
+					},
+				},
 			},
 			oldInference: &InferenceSpec{
 				Template: nil,
