@@ -133,7 +133,7 @@ func (r *TuningSpec) validateCreate(ctx context.Context, workspaceNamespace stri
 	if methodLowerCase != string(TuningMethodLora) && methodLowerCase != string(TuningMethodQLora) {
 		errs = errs.Also(apis.ErrInvalidValue(r.Method, "Method"))
 	}
-	if r.ConfigTemplate == "" {
+	if r.Config == "" {
 		klog.InfoS("Tuning config not specified. Using default based on method.")
 		releaseNamespace, err := utils.GetReleaseNamespace()
 		if err != nil {
@@ -149,7 +149,7 @@ func (r *TuningSpec) validateCreate(ctx context.Context, workspaceNamespace stri
 			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to evaluate validateConfigMap: %v", err), "Config"))
 		}
 	} else {
-		if err := r.validateConfigMap(ctx, workspaceNamespace, methodLowerCase, r.ConfigTemplate); err != nil {
+		if err := r.validateConfigMap(ctx, workspaceNamespace, methodLowerCase, r.Config); err != nil {
 			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to evaluate validateConfigMap: %v", err), "Config"))
 		}
 	}
