@@ -1,0 +1,19 @@
+apiVersion: kaito.sh/v1alpha1
+kind: Workspace
+metadata:
+  name: workspace-tuning-phi-3
+resource:
+  instanceType: "Standard_NC6s_v3"
+  labelSelector:
+    matchLabels:
+      app: tuning-phi-3
+tuning:
+  preset:
+    name: phi-3-mini-128k-instruct
+  method: qlora
+  input:
+    urls:
+      - "https://huggingface.co/datasets/iamtarun/python_code_instructions_18k_alpaca/resolve/main/data/train-00000-of-00001-8b6e212f3e1ece96.parquet?download=true"
+  output:
+    image: "ACR_REPO_HERE.azurecr.io/ADAPTER_HERE:0.0.1" # Tuning Output ACR Path
+    imagePushSecret: ACR_REGISTRY_SECRET_HERE

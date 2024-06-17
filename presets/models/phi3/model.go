@@ -23,8 +23,8 @@ func init() {
 }
 
 var (
-	PresetPhi3Mini4kModel   = "phi3mini4kinst"
-	PresetPhi3Mini128kModel = "phi3mini128kinst"
+	PresetPhi3Mini4kModel   = "phi-3-mini-4k-instruct"
+	PresetPhi3Mini128kModel = "phi-3-mini-128k-instruct"
 
 	PresetPhiTagMap = map[string]string{
 		"Phi3Mini4kInstruct":   "0.0.1",
