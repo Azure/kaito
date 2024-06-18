@@ -1,7 +1,7 @@
 import importlib
-import sys
+import sys, os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -284,3 +284,41 @@ def test_generation_with_min_length(configured_app):
 
     assert min_new_tokens <= new_tokens <= max_new_tokens, "Response should generate at least min_new_tokens and at most max_new_tokens new tokens"
     assert len(total_tokens) <= max_length, "Total # of tokens has to be less than or equal to max_length"
+
+def test_model_with_adapters(configred_app):
+    # Mock the adapters directory
+    adapters_dir = 'mnt/adapter'
+    os.makedirs(adapters_dir, exist_ok=True)
+    valid_adapter_path = os.path.join(adapters_dir, "adapter1")
+    os.makedirs(valid_adapter_path, exist_ok=True)
+    adapter_config_file = os.path.join(valid_adapter_path, "adapter_config.json")
+
+    with open(adapter_config_file, 'w') as f:
+        f.write('{}')
+
+    client = TestClient(configred_app)
+
+    request_data = {
+        "prompt": "Test prompt with adapters",
+        "return_full_test": True,
+        "clean_up_tokenization_spaces": False,
+        "generate_kwargs": {"max_length":50, "min_length": 10}
+    }
+ 
+    with patch('inference_api.PeftModel') as mock_peft_model:
+        mock_peft_model_instance = MagicMock()
+        mock_peft_model.from_pretrained.return_value = mock_peft_model_instance
+        mock_peft_model_instance.add_weighted_adapter.return_value = None
+        mock_peft_model_instance.set_adapter.return_value = None
+        mock_peft_model_instance.delete_adapter.return_value = None
+
+        response = client.post("/chat", json=request_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert "Result" in data
+        assert len(data["Result"]) > 0 # result text is not empty
+
+        mock_peft_model.from_pretrained.assert_called_once()
+        assert mock_peft_model_instance.add_weighted_adapter.called
+        assert mock_peft_model_instance.set_adapter.called
+        assert mock_peft_model_instance.delete_adapter.called

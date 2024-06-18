@@ -36,6 +36,7 @@ var perGPUMemoryRequirement string
 var invalidSourceName string
 
 func init() {
+	// Define a invalid source name longer than 128
 	for i := 0; i < 32; i++ {
 		invalidSourceName += "Adapter1"
 	}
