@@ -121,6 +121,20 @@ func createCustomWorkspaceWithPresetCustomMode(imageName string, numOfNode int) 
 	return workspaceObj
 }
 
+func createPhi3WorkspaceWithPresetPrivateMode(registry, registrySecret, imageVersion string, numOfNode int) *kaitov1alpha1.Workspace {
+	workspaceObj := &kaitov1alpha1.Workspace{}
+	By("Creating a workspace CR with Phi-3-mini-128k-instruct preset private mode", func() {
+		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
+		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetPhi3Mini128kModel, imageVersion),
+			numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
+				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-phi-3-mini-128k-instruct"},
+			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
+
+		createAndValidateWorkspace(workspaceObj)
+	})
+	return workspaceObj
+}
+
 func createFalcon7BTuningWorkspaceWithPresetPrivateMode(registry, registrySecret, imageVersion string, numOfNode int) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	e2eOutputImageTag := utils.GenerateRandomString(6)
@@ -503,6 +517,29 @@ var _ = Describe("Workspace Preset", func() {
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
+
+		validateInferenceResource(workspaceObj, int32(numOfNode), false)
+
+		validateWorkspaceReadiness(workspaceObj)
+	})
+
+	It("should create a Phi-3-mini-128k-instruct workspace with preset private mode successfully", func() {
+		numOfNode := 1
+		//modelVersion, ok := modelInfo[PresetFalcon7BModel]
+		//if !ok {
+		//	Fail(fmt.Sprintf("Model version for %s not found", PresetFalcon7BModel))
+		//}
+		workspaceObj := createPhi3WorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, "0.0.1", numOfNode)
+
+		defer cleanupResources(workspaceObj)
+		time.Sleep(30 * time.Second)
+
+		validateMachineCreation(workspaceObj, numOfNode)
+		validateResourceStatus(workspaceObj)
+
+		time.Sleep(30 * time.Second)
+
+		validateAssociatedService(workspaceObj)
 
 		validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
