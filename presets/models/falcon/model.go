@@ -75,7 +75,7 @@ func (*falcon7b) GetTuningParameters() *model.PresetParam {
 		ModelFamilyName:           "Falcon",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
-		GPUCountRequirement:       "2",
+		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
 		PerGPUMemoryRequirement:   "16Gi",
 		TorchRunParams:            tuning.DefaultAccelerateParams,
