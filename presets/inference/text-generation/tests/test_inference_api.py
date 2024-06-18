@@ -285,8 +285,8 @@ def test_generation_with_min_length(configured_app):
     assert min_new_tokens <= new_tokens <= max_new_tokens, "Response should generate at least min_new_tokens and at most max_new_tokens new tokens"
     assert len(total_tokens) <= max_length, "Total # of tokens has to be less than or equal to max_length"
 
-@pytest.mark.usefixtures("configred_app")
-def test_model_with_adapters(configred_app):
+def test_model_with_adapters(configured_app):
+    
     # Mock the adapters directory
     adapters_dir = 'mnt/adapter'
     os.makedirs(adapters_dir, exist_ok=True)
@@ -296,10 +296,9 @@ def test_model_with_adapters(configred_app):
 
     with open(adapter_config_file, 'w') as f:
         f.write('{}')
-
+        
+    client = TestClient(configured_app)
     prompt = "This prompt requests a response of a certain minimum length to test the functionality."
-
-    client = TestClient(configred_app)
 
     request_data = {
         "prompt": prompt,
