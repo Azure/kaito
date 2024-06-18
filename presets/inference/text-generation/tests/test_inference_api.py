@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy
 import pytest
 from fastapi.testclient import TestClient
 from transformers import AutoTokenizer
@@ -13,8 +14,8 @@ parent_dir = str(Path(__file__).resolve().parent.parent)
 sys.path.append(parent_dir)
 
 @pytest.fixture(params=[
-    {"pipeline": "text-generation", "model_path": "stanford-crfm/alias-gpt2-small-x21"},
-    {"pipeline": "conversational", "model_path": "stanford-crfm/alias-gpt2-small-x21"},
+    {"pipeline": "text-generation", "model_path": "stanford-crfm/alias-gpt2-small-x21", "device": "cpu"},
+    {"pipeline": "conversational", "model_path": "stanford-crfm/alias-gpt2-small-x21", "device": "cpu"},
 ])
 def configured_app(request):
     original_argv = sys.argv.copy()
@@ -23,6 +24,7 @@ def configured_app(request):
         'program_name',
         '--pipeline', request.param['pipeline'],
         '--pretrained_model_name_or_path', request.param['model_path'],
+        '--device_map', request.param['device'],
         '--allow_remote_files', 'True'
     ]
     sys.argv = test_args

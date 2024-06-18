@@ -299,12 +299,11 @@ spec:
             type: object
           tuning:
             properties:
-              configTemplate:
+              config:
                 description: |-
-                  ConfigTemplate specifies the name of the configmap that contains the basic tuning arguments.
-                  A separate configmap will be generated based on the ConfigTemplate and the preset model name, and used by
-                  the tuning Job. If specified, the congfigmap needs to be in the same namespace of the workspace custom resource.
-                  If not specified, a default ConfigTemplate is used based on the specified tuning method.
+                  Config specifies the name of a custom ConfigMap that contains tuning arguments.
+                  If specified, the ConfigMap must be in the same namespace as the Workspace custom resource.
+                  If not specified, a default Config is used based on the specified tuning method.
                 type: string
               input:
                 description: Input describes the input used by the tuning method.
