@@ -12,7 +12,7 @@ def inference(prompt):
         "return_full_text": False,
         "clean_up_tokenization_spaces": True,
         "generate_kwargs": {
-            "max_length": 1024,
+            "max_length": 256,
             "min_length": 0,
             "do_sample": True,
             "top_k": 10,
