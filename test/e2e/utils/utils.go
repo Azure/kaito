@@ -6,6 +6,7 @@ package utils
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"time"
 
@@ -17,7 +18,8 @@ import (
 )
 
 const (
-	InferenceModeCustomTemplate kaitov1alpha1.ModelImageAccessMode = "customTemplate"
+	CustomTemplateAccessMode kaitov1alpha1.ModelImageAccessMode = "customTemplate"
+	ExampleDatasetURL                                           = "https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/resolve/main/data/train-00000-of-00001-54e3756291ca09c6.parquet?download=true"
 )
 
 var (
@@ -34,6 +36,15 @@ func GetEnv(envVar string) string {
 		return ""
 	}
 	return env
+}
+
+func GenerateRandomString(n int) string {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
 }
 
 func GetModelConfigInfo(configFilePath string) (map[string]interface{}, error) {
@@ -81,9 +92,9 @@ func ExtractModelVersion(configs map[string]interface{}) (map[string]string, err
 	return modelsInfo, nil
 }
 
-func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount int, instanceType string,
+func GenerateInferenceWorkspaceManifest(name, namespace, imageName string, resourceCount int, instanceType string,
 	labelSelector *metav1.LabelSelector, preferredNodes []string, presetName kaitov1alpha1.ModelName,
-	inferenceMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string,
+	accessMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string,
 	podTemplate *corev1.PodTemplateSpec) *kaitov1alpha1.Workspace {
 
 	workspace := &kaitov1alpha1.Workspace{
@@ -100,12 +111,12 @@ func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount 
 	}
 
 	var workspaceInference kaitov1alpha1.InferenceSpec
-	if inferenceMode == kaitov1alpha1.ModelImageAccessModePublic ||
-		inferenceMode == kaitov1alpha1.ModelImageAccessModePrivate {
+	if accessMode == kaitov1alpha1.ModelImageAccessModePublic ||
+		accessMode == kaitov1alpha1.ModelImageAccessModePrivate {
 		workspaceInference.Preset = &kaitov1alpha1.PresetSpec{
 			PresetMeta: kaitov1alpha1.PresetMeta{
 				Name:       presetName,
-				AccessMode: inferenceMode,
+				AccessMode: accessMode,
 			},
 			PresetOptions: kaitov1alpha1.PresetOptions{
 				Image:            imageName,
@@ -113,11 +124,55 @@ func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount 
 			},
 		}
 	}
-	if inferenceMode == InferenceModeCustomTemplate {
+	if accessMode == CustomTemplateAccessMode {
 		workspaceInference.Template = podTemplate
 	}
 
 	workspace.Inference = &workspaceInference
+
+	return workspace
+}
+
+func GenerateTuningWorkspaceManifest(name, namespace, registry, imageName, e2eOutputImageTag string, resourceCount int, instanceType string,
+	labelSelector *metav1.LabelSelector, preferredNodes []string, presetName kaitov1alpha1.ModelName,
+	accessMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string) *kaitov1alpha1.Workspace {
+	workspace := &kaitov1alpha1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Resource: kaitov1alpha1.ResourceSpec{
+			Count:          lo.ToPtr(resourceCount),
+			InstanceType:   instanceType,
+			LabelSelector:  labelSelector,
+			PreferredNodes: preferredNodes,
+		},
+	}
+
+	var workspaceTuning kaitov1alpha1.TuningSpec
+	if accessMode == kaitov1alpha1.ModelImageAccessModePublic ||
+		accessMode == kaitov1alpha1.ModelImageAccessModePrivate {
+		workspaceTuning.Preset = &kaitov1alpha1.PresetSpec{
+			PresetMeta: kaitov1alpha1.PresetMeta{
+				Name:       presetName,
+				AccessMode: accessMode,
+			},
+			PresetOptions: kaitov1alpha1.PresetOptions{
+				Image:            imageName,
+				ImagePullSecrets: imagePullSecret,
+			},
+		}
+	}
+
+	workspace.Tuning = &workspaceTuning
+	workspace.Tuning.Method = kaitov1alpha1.TuningMethodQLora
+	workspace.Tuning.Input = &kaitov1alpha1.DataSource{
+		URLs: []string{ExampleDatasetURL},
+	}
+	workspace.Tuning.Output = &kaitov1alpha1.DataDestination{
+		Image:           fmt.Sprintf("%s/adapter-falcon-7b-e2e-test:%s", registry, e2eOutputImageTag),
+		ImagePushSecret: imagePullSecret[0],
+	}
 
 	return workspace
 }

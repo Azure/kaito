@@ -33,13 +33,15 @@ const (
 	PresetMistral7BModel         = "mistral-7b"
 	PresetMistral7BInstructModel = "mistral-7b-instruct"
 	PresetPhi2Model              = "phi-2"
+	PresetPhi3Mini4kModel        = "phi-3-mini-4k-instruct"
+	PresetPhi3Mini128kModel      = "phi-3-mini-128k-instruct"
 )
 
 func createFalconWorkspaceWithPresetPublicMode(numOfNode int) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Falcon 7B preset public mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC12s_v3",
+		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC12s_v3",
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-falcon"},
 			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
@@ -53,7 +55,7 @@ func createMistralWorkspaceWithPresetPublicMode(numOfNode int) *kaitov1alpha1.Wo
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Mistral 7B preset public mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC12s_v3",
+		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC12s_v3",
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-mistral"},
 			}, nil, PresetMistral7BInstructModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
@@ -67,7 +69,7 @@ func createPhi2WorkspaceWithPresetPublicMode(numOfNode int) *kaitov1alpha1.Works
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Phi 2 preset public mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC6s_v3",
+		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC6s_v3",
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-phi-2"},
 			}, nil, PresetPhi2Model, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
@@ -81,7 +83,7 @@ func createLlama7BWorkspaceWithPresetPrivateMode(registry, registrySecret, image
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Llama 7B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetLlama2AChat, imageVersion),
+		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetLlama2AChat, imageVersion),
 			numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test-llama-2-7b"},
 			}, nil, PresetLlama2AChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
@@ -95,7 +97,7 @@ func createLlama13BWorkspaceWithPresetPrivateMode(registry, registrySecret, imag
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Llama 13B Chat preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetLlama2BChat, imageVersion),
+		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetLlama2BChat, imageVersion),
 			numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test-llama-2-13b"},
 			}, nil, PresetLlama2BChat, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
@@ -109,10 +111,25 @@ func createCustomWorkspaceWithPresetCustomMode(imageName string, numOfNode int) 
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with custom workspace mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateWorkspaceManifest(uniqueID, namespaceName, "",
+		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, "",
 			numOfNode, "Standard_D4s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "private-preset-e2e-test-custom"},
-			}, nil, "", utils.InferenceModeCustomTemplate, nil, utils.GeneratePodTemplate(uniqueID, namespaceName, imageName, nil))
+			}, nil, "", utils.CustomTemplateAccessMode, nil, utils.GeneratePodTemplate(uniqueID, namespaceName, imageName, nil))
+
+		createAndValidateWorkspace(workspaceObj)
+	})
+	return workspaceObj
+}
+
+func createFalcon7BTuningWorkspaceWithPresetPrivateMode(registry, registrySecret, imageVersion string, numOfNode int) *kaitov1alpha1.Workspace {
+	workspaceObj := &kaitov1alpha1.Workspace{}
+	e2eOutputImageTag := utils.GenerateRandomString(6)
+	By("Creating a workspace Tuning CR with Falcon-7B preset private mode", func() {
+		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
+		workspaceObj = utils.GenerateTuningWorkspaceManifest(uniqueID, namespaceName, registry, fmt.Sprintf("%s/%s:%s", registry, PresetFalcon7BModel, imageVersion),
+			e2eOutputImageTag, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
+				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-tuning-falcon"},
+			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret})
 
 		createAndValidateWorkspace(workspaceObj)
 	})
@@ -486,6 +503,29 @@ var _ = Describe("Workspace Preset", func() {
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
+
+		validateInferenceResource(workspaceObj, int32(numOfNode), false)
+
+		validateWorkspaceReadiness(workspaceObj)
+	})
+
+	It("should create a workspace for tuning successfully", func() {
+		numOfNode := 1
+		//modelVersion, ok := modelInfo[PresetFalcon7BModel]
+		//if !ok {
+		//	Fail(fmt.Sprintf("Model version for %s not found", PresetFalcon7BModel))
+		//}
+		workspaceObj := createFalcon7BTuningWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, "0.0.4", numOfNode)
+
+		defer cleanupResources(workspaceObj)
+		time.Sleep(30 * time.Second)
+
+		validateMachineCreation(workspaceObj, numOfNode)
+		validateResourceStatus(workspaceObj)
+
+		time.Sleep(30 * time.Second)
+
+		validateAssociatedService(workspaceObj)
 
 		validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
