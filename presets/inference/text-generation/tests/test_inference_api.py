@@ -286,7 +286,6 @@ def test_generation_with_min_length(configured_app):
     assert len(total_tokens) <= max_length, "Total # of tokens has to be less than or equal to max_length"
 
 def test_model_with_adapters(configured_app):
-    
     # Mock the adapters directory
     adapters_dir = 'mnt/adapter'
     os.makedirs(adapters_dir, exist_ok=True)
@@ -296,16 +295,26 @@ def test_model_with_adapters(configured_app):
 
     with open(adapter_config_file, 'w') as f:
         f.write('{}')
-        
+
     client = TestClient(configured_app)
     prompt = "This prompt requests a response of a certain minimum length to test the functionality."
-
-    request_data = {
-        "prompt": prompt,
-        "return_full_test": True,
-        "clean_up_tokenization_spaces": False,
-        "generate_kwargs": {"max_length":50, "min_length": 10}
-    }
+    messages = [
+        {"role": "user", "content": "What is your favourite condiment?"},
+        {"role": "assistant", "content": "Well, im quite partial to a good squeeze of fresh lemon juice. It adds just the right amount of zesty flavour to whatever im cooking up in the kitchen!"},
+        {"role": "user", "content": "Do you have mayonnaise recipes?"}
+    ]
+    if configured_app.test_config['pipeline'] == 'text-generation':
+        request_data = {
+            "prompt": prompt,
+            "return_full_test": True,
+            "clean_up_tokenization_spaces": False,
+            "generate_kwargs": {"max_length":50, "min_length": 10}
+        }
+    else:
+        request_data = {
+            "messages": messages,
+            "generate_kwargs": {"max_new_tokens": 20, "do_sample": True}
+        }
  
     with patch('inference_api.PeftModel') as mock_peft_model:
         mock_peft_model_instance = MagicMock()
