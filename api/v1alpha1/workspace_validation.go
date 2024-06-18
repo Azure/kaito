@@ -200,6 +200,7 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 		sourcesSpecified++
 	}
 	if r.Volume != nil {
+		errs = errs.Also(apis.ErrInvalidValue("Volume support is not implemented yet", "Volume"))
 		sourcesSpecified++
 	}
 	// Regex checks for a / and a colon followed by a tag
@@ -222,6 +223,9 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 func (r *DataSource) validateUpdate(old *DataSource, isTuning bool) (errs *apis.FieldError) {
 	if isTuning && !reflect.DeepEqual(old.Name, r.Name) {
 		errs = errs.Also(apis.ErrInvalidValue("During tuning Name field cannot be changed once set", "Name"))
+	}
+	if r.Volume != nil {
+		errs = errs.Also(apis.ErrInvalidValue("Volume support is not implemented yet", "Volume"))
 	}
 	oldURLs := make([]string, len(old.URLs))
 	copy(oldURLs, old.URLs)
@@ -255,7 +259,9 @@ func (r *DataSource) validateUpdate(old *DataSource, isTuning bool) (errs *apis.
 
 func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 	destinationsSpecified := 0
+	// TODO: Implement Volumes
 	if r.Volume != nil {
+		errs = errs.Also(apis.ErrInvalidValue("Volume support is not implemented yet", "Volume"))
 		destinationsSpecified++
 	}
 	if r.Image != "" {
@@ -279,7 +285,10 @@ func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 }
 
 func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.FieldError) {
-	// TODO: Check if the Volume is changed.
+	// TODO: Implement Volumes
+	if r.Volume != nil {
+		errs = errs.Also(apis.ErrInvalidValue("Volume support is not implemented yet", "Volume"))
+	}
 	if old.Image != r.Image {
 		errs = errs.Also(apis.ErrInvalidValue("Image field cannot be changed once set", "Image"))
 	}
