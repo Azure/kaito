@@ -36,7 +36,7 @@ var perGPUMemoryRequirement string
 var invalidSourceName string
 
 func init() {
-	// Define a invalid source name longer than 128
+	// Define a invalid source name longer than 253
 	for i := 0; i < 32; i++ {
 		invalidSourceName += "Adapter1"
 	}
@@ -1162,8 +1162,8 @@ func TestDataSourceValidateCreate(t *testing.T) {
 		{
 			name: "All fields specified",
 			dataSource: &DataSource{
-				URLs:   []string{"http://example.com/data"},
-				Image:  "aimodels.azurecr.io/data-image:latest",
+				URLs:  []string{"http://example.com/data"},
+				Image: "aimodels.azurecr.io/data-image:latest",
 			},
 			wantErr:  true,
 			errField: "Exactly one of URLs, Volume, or Image must be specified",
@@ -1197,13 +1197,13 @@ func TestDataSourceValidateUpdate(t *testing.T) {
 		{
 			name: "No changes",
 			oldSource: &DataSource{
-				URLs:             []string{"http://example.com/data1", "http://example.com/data2"},
+				URLs: []string{"http://example.com/data1", "http://example.com/data2"},
 				// Volume:           &v1.VolumeSource{},
 				Image:            "data-image:latest",
 				ImagePullSecrets: []string{"secret1", "secret2"},
 			},
 			newSource: &DataSource{
-				URLs:             []string{"http://example.com/data2", "http://example.com/data1"}, // Note the different order, should not matter
+				URLs: []string{"http://example.com/data2", "http://example.com/data1"}, // Note the different order, should not matter
 				// Volume:           &v1.VolumeSource{},
 				Image:            "data-image:latest",
 				ImagePullSecrets: []string{"secret2", "secret1"}, // Note the different order, should not matter
