@@ -1,5 +1,6 @@
 import importlib
 import sys, os
+import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -18,6 +19,8 @@ sys.path.append(parent_dir)
 ])
 def configured_app(request):
     original_argv = sys.argv.copy()
+    temp_dir = tempfile.TemporaryDirectory()
+    adapter_dir = temp_dir.name
     # Use request.param to set correct test arguments for each configuration
     test_args = [
         'program_name',
@@ -26,16 +29,21 @@ def configured_app(request):
         '--allow_remote_files', 'True'
     ]
     sys.argv = test_args
+    os.environ['ADAPTERS_DIR'] = adapter_dir
 
-    import inference_api
-    importlib.reload(inference_api) # Reload to prevent module caching
-    from inference_api import app
+    with patch('inference_api.ADAPTERS_DIR', adapter_dir):
 
-    # Attach the request params to the app instance for access in tests
-    app.test_config = request.param
-    yield app
+        import inference_api
+        importlib.reload(inference_api) # Reload to prevent module caching
+        from inference_api import app
+        
+        # Attach the request params to the app instance for access in tests
+        app.test_config = request.param
+        app.adapter_dir = adapter_dir
+        yield app
 
     sys.argv = original_argv
+    temp_dir.cleanup()
 
 def test_conversational(configured_app):
     if configured_app.test_config['pipeline'] != 'conversational':
@@ -287,7 +295,8 @@ def test_generation_with_min_length(configured_app):
 
 def test_model_with_adapters(configured_app):
     # Mock the adapters directory
-    adapters_dir = 'mnt/adapter'
+    adapters_dir = configured_app.adapter_dir
+
     os.makedirs(adapters_dir, exist_ok=True)
     valid_adapter_path = os.path.join(adapters_dir, "adapter1")
     os.makedirs(valid_adapter_path, exist_ok=True)
@@ -295,7 +304,7 @@ def test_model_with_adapters(configured_app):
 
     with open(adapter_config_file, 'w') as f:
         f.write('{}')
-
+    
     client = TestClient(configured_app)
     prompt = "This prompt requests a response of a certain minimum length to test the functionality."
     messages = [
@@ -316,7 +325,9 @@ def test_model_with_adapters(configured_app):
             "generate_kwargs": {"max_new_tokens": 20, "do_sample": True}
         }
  
-    with patch('inference_api.PeftModel') as mock_peft_model:
+    with patch('os.path.exists', side_effect=lambda path: path == adapters_dir or os.path.exists(path)), \
+        patch('os.listdir', return_value=["adapter1"]), \
+        patch('inference_api.PeftModel') as mock_peft_model:
         mock_peft_model_instance = MagicMock()
         mock_peft_model.from_pretrained.return_value = mock_peft_model_instance
         mock_peft_model_instance.add_weighted_adapter.return_value = None

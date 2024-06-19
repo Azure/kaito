@@ -17,7 +17,7 @@ from pydantic import BaseModel, Extra, Field, validator
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
 
-ADAPTERS_DIR = '/mnt/adapter'
+ADAPTERS_DIR = os.getenv('ADAPTERS_DIR', '/mnt/adapter')
 @dataclass
 class ModelConfig:
     """
