@@ -125,7 +125,7 @@ func createPhi3WorkspaceWithPresetPrivateMode(registry, registrySecret, imageVer
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Phi-3-mini-128k-instruct preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetPhi3Mini128kModel, imageVersion),
+		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/kaito-%s:%s", registry, PresetPhi3Mini128kModel, imageVersion),
 			numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-phi-3-mini-128k-instruct"},
 			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
@@ -564,6 +564,9 @@ var _ = Describe("Workspace Preset", func() {
 
 		validateAssociatedService(workspaceObj)
 
+		// TODO: Need to fix to check tuning job completed and that tuning job
+		// runs for just a couple steps. Also checks if tuning job uploaded to ACR
+		// correct image.
 		validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
 		validateWorkspaceReadiness(workspaceObj)
