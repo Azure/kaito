@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
-package phi_2
+package phi2
 
 import (
 	"time"
