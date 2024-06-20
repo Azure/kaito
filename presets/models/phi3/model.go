@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
-package phi_3
+package phi3
 
 import (
 	"time"
@@ -23,8 +23,8 @@ func init() {
 }
 
 var (
-	PresetPhi3Mini4kModel   = "phi3Mini4KInst"
-	PresetPhi3Mini128kModel = "phi3Mini128KInst"
+	PresetPhi3Mini4kModel   = "phi-3-mini-4k-instruct"
+	PresetPhi3Mini128kModel = "phi-3-mini-128k-instruct"
 
 	PresetPhiTagMap = map[string]string{
 		"Phi3Mini4kInstruct":   "0.0.1",
@@ -45,8 +45,8 @@ type phi3Mini4KInst struct{}
 
 func (*phi3Mini4KInst) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
-		ModelFamilyName:           "Phi",
-		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
+		ModelFamilyName:           "Phi3",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "9Gi",
@@ -60,8 +60,8 @@ func (*phi3Mini4KInst) GetInferenceParameters() *model.PresetParam {
 }
 func (*phi3Mini4KInst) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
-		ModelFamilyName:           "Phi",
-		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
+		ModelFamilyName:           "Phi3",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
@@ -84,8 +84,8 @@ type phi3Mini128KInst struct{}
 
 func (*phi3Mini128KInst) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
-		ModelFamilyName:           "Phi",
-		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
+		ModelFamilyName:           "Phi3",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "9Gi",
@@ -99,8 +99,8 @@ func (*phi3Mini128KInst) GetInferenceParameters() *model.PresetParam {
 }
 func (*phi3Mini128KInst) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
-		ModelFamilyName:           "Phi",
-		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
+		ModelFamilyName:           "Phi3",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",

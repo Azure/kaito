@@ -196,7 +196,7 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 			},
 			workspaceObj: &kaitov1alpha1.Workspace{
 				Tuning: &kaitov1alpha1.TuningSpec{
-					ConfigTemplate: "config-template",
+					Config: "config-template",
 				},
 			},
 			expectedError: "",
@@ -207,7 +207,7 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 			},
 			workspaceObj: &kaitov1alpha1.Workspace{
 				Tuning: &kaitov1alpha1.TuningSpec{
-					ConfigTemplate: "config-template",
+					Config: "config-template",
 				},
 			},
 			expectedError: "failed to get release namespace: failed to determine release namespace from file /var/run/secrets/kubernetes.io/serviceaccount/namespace and env var RELEASE_NAMESPACE",
@@ -221,7 +221,7 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 			},
 			workspaceObj: &kaitov1alpha1.Workspace{
 				Tuning: &kaitov1alpha1.TuningSpec{
-					ConfigTemplate: "config-template",
+					Config: "config-template",
 				},
 			},
 			expectedError: "failed to get ConfigMap from template namespace:  \"config-template\" not found",

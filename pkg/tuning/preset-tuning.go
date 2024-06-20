@@ -3,12 +3,13 @@ package tuning
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/pointer"
-	"knative.dev/pkg/apis"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
+	"knative.dev/pkg/apis"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -96,7 +97,7 @@ func GetDataSrcImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace) (st
 //   - If not, check the release namespace and copy it to the target namespace if found.
 func EnsureTuningConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	kubeClient client.Client) (*corev1.ConfigMap, error) {
-	tuningConfigMapName := workspaceObj.Tuning.ConfigTemplate
+	tuningConfigMapName := workspaceObj.Tuning.Config
 	if tuningConfigMapName == "" {
 		if workspaceObj.Tuning.Method == kaitov1alpha1.TuningMethodLora {
 			tuningConfigMapName = kaitov1alpha1.DefaultLoraConfigMapTemplate

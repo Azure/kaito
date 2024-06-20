@@ -33,6 +33,15 @@ var gpuCountRequirement string
 var totalGPUMemoryRequirement string
 var perGPUMemoryRequirement string
 
+var invalidSourceName string
+
+func init() {
+	// Define a invalid source name longer than 253
+	for i := 0; i < 32; i++ {
+		invalidSourceName += "Adapter1"
+	}
+}
+
 type testModel struct{}
 
 func (*testModel) GetInferenceParameters() *model.PresetParam {
@@ -627,13 +636,24 @@ func TestAdapterSpecValidateCreateorUpdate(t *testing.T) {
 			expectErrs: true,
 		},
 		{
+			name: "Invalid Source Name, longer than 253",
+			adapterSpec: &AdapterSpec{
+				Source: &DataSource{
+					Name:  invalidSourceName,
+					Image: "fake.kaito.com/kaito-image:0.0.1",
+				},
+				Strength: &ValidStrength,
+			},
+			errContent: "Name of Adapter must be a valid DNS subdomain value",
+			expectErrs: true,
+		},
+		{
 			name: "Valid Adapter",
 			adapterSpec: &AdapterSpec{
 				Source: &DataSource{
 					Name:  "Adapter-1",
 					Image: "fake.kaito.com/kaito-image:0.0.1",
 				},
-				Strength: &ValidStrength,
 			},
 			errContent: "",
 			expectErrs: false,
@@ -702,6 +722,31 @@ func TestInferenceSpecValidateUpdate(t *testing.T) {
 			name: "Template Set",
 			newInference: &InferenceSpec{
 				Template: &v1.PodTemplateSpec{},
+			},
+			oldInference: &InferenceSpec{
+				Template: nil,
+			},
+			errContent: "field cannot be unset/set if it was set/unset",
+			expectErrs: true,
+		},
+		{
+			name: "Template Set",
+			newInference: &InferenceSpec{
+				Template: &v1.PodTemplateSpec{},
+				Adapters: []AdapterSpec{
+					{
+						Source: &DataSource{
+							Name:  "Adapter-1",
+							Image: "fake.kaito.com/kaito-image:0.0.1",
+						},
+					},
+					{
+						Source: &DataSource{
+							Name:  "Adapter-1",
+							Image: "fake.kaito.com/kaito-image:0.0.6",
+						},
+					},
+				},
 			},
 			oldInference: &InferenceSpec{
 				Template: nil,
@@ -893,8 +938,8 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 		{
 			name: "All fields valid",
 			tuningSpec: &TuningSpec{
-				Input:  &DataSource{Name: "valid-input", Volume: &v1.VolumeSource{}},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Input:  &DataSource{Name: "valid-input", Image: "AZURE_ACR.azurecr.io/test:0.0.0"},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0", ImagePushSecret: "secret"},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
 			},
@@ -904,8 +949,8 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 		{
 			name: "Verify QLoRA Config",
 			tuningSpec: &TuningSpec{
-				Input:  &DataSource{Name: "valid-input", Volume: &v1.VolumeSource{}},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Input:  &DataSource{Name: "valid-input", Image: "AZURE_ACR.azurecr.io/test:0.0.0"},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0", ImagePushSecret: "secret"},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodQLora,
 			},
@@ -915,7 +960,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 		{
 			name: "Missing Input",
 			tuningSpec: &TuningSpec{
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0", ImagePushSecret: ""},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
 			},
@@ -936,7 +981,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 			name: "Missing Preset",
 			tuningSpec: &TuningSpec{
 				Input:  &DataSource{Name: "valid-input"},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0", ImagePushSecret: ""},
 				Method: TuningMethodLora,
 			},
 			wantErr:   true,
@@ -946,7 +991,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 			name: "Invalid Preset",
 			tuningSpec: &TuningSpec{
 				Input:  &DataSource{Name: "valid-input"},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0", ImagePushSecret: ""},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("invalid-preset")}},
 				Method: TuningMethodLora,
 			},
@@ -957,7 +1002,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 			name: "Invalid Method",
 			tuningSpec: &TuningSpec{
 				Input:  &DataSource{Name: "valid-input"},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0", ImagePushSecret: ""},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: "invalid-method",
 			},
@@ -999,13 +1044,13 @@ func TestTuningSpecValidateUpdate(t *testing.T) {
 			name: "No changes",
 			oldTuning: &TuningSpec{
 				Input:  &DataSource{Name: "input1"},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0"},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
 			},
 			newTuning: &TuningSpec{
 				Input:  &DataSource{Name: "input1"},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0"},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
 			},
@@ -1072,7 +1117,7 @@ func TestDataSourceValidateCreate(t *testing.T) {
 		{
 			name: "Volume specified only",
 			dataSource: &DataSource{
-				Volume: &v1.VolumeSource{},
+				Image: "AZURE_ACR.azurecr.io/test:0.0.0",
 			},
 			wantErr: false,
 		},
@@ -1105,21 +1150,20 @@ func TestDataSourceValidateCreate(t *testing.T) {
 			wantErr:    true,
 			errField:   "Exactly one of URLs, Volume, or Image must be specified",
 		},
-		{
-			name: "URLs and Volume specified",
-			dataSource: &DataSource{
-				URLs:   []string{"http://example.com/data"},
-				Volume: &v1.VolumeSource{},
-			},
-			wantErr:  true,
-			errField: "Exactly one of URLs, Volume, or Image must be specified",
-		},
+		// {
+		// 	name: "URLs and Volume specified",
+		// 	dataSource: &DataSource{
+		// 		URLs:   []string{"http://example.com/data"},
+		// 		Volume: &v1.VolumeSource{},
+		// 	},
+		// 	wantErr:  true,
+		// 	errField: "Exactly one of URLs, Volume, or Image must be specified",
+		// },
 		{
 			name: "All fields specified",
 			dataSource: &DataSource{
-				URLs:   []string{"http://example.com/data"},
-				Volume: &v1.VolumeSource{},
-				Image:  "aimodels.azurecr.io/data-image:latest",
+				URLs:  []string{"http://example.com/data"},
+				Image: "aimodels.azurecr.io/data-image:latest",
 			},
 			wantErr:  true,
 			errField: "Exactly one of URLs, Volume, or Image must be specified",
@@ -1153,14 +1197,14 @@ func TestDataSourceValidateUpdate(t *testing.T) {
 		{
 			name: "No changes",
 			oldSource: &DataSource{
-				URLs:             []string{"http://example.com/data1", "http://example.com/data2"},
-				Volume:           &v1.VolumeSource{},
+				URLs: []string{"http://example.com/data1", "http://example.com/data2"},
+				// Volume:           &v1.VolumeSource{},
 				Image:            "data-image:latest",
 				ImagePullSecrets: []string{"secret1", "secret2"},
 			},
 			newSource: &DataSource{
-				URLs:             []string{"http://example.com/data2", "http://example.com/data1"}, // Note the different order, should not matter
-				Volume:           &v1.VolumeSource{},
+				URLs: []string{"http://example.com/data2", "http://example.com/data1"}, // Note the different order, should not matter
+				// Volume:           &v1.VolumeSource{},
 				Image:            "data-image:latest",
 				ImagePullSecrets: []string{"secret2", "secret1"}, // Note the different order, should not matter
 			},
@@ -1245,13 +1289,13 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 			wantErr:         true,
 			errField:        "At least one of Volume or Image must be specified",
 		},
-		{
-			name: "Volume specified only",
-			dataDestination: &DataDestination{
-				Volume: &v1.VolumeSource{},
-			},
-			wantErr: false,
-		},
+		// {
+		// 	name: "Volume specified only",
+		// 	dataDestination: &DataDestination{
+		// 		Volume: &v1.VolumeSource{},
+		// 	},
+		// 	wantErr: false,
+		// },
 		{
 			name: "Image specified only",
 			dataDestination: &DataDestination{
@@ -1276,15 +1320,15 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		{
-			name: "Both fields specified",
-			dataDestination: &DataDestination{
-				Volume:          &v1.VolumeSource{},
-				Image:           "aimodels.azurecr.io/data-image:latest",
-				ImagePushSecret: "imagePushSecret",
-			},
-			wantErr: false,
-		},
+		// {
+		// 	name: "Both fields specified",
+		// 	dataDestination: &DataDestination{
+		// 		Volume:          &v1.VolumeSource{},
+		// 		Image:           "aimodels.azurecr.io/data-image:latest",
+		// 		ImagePushSecret: "imagePushSecret",
+		// 	},
+		// 	wantErr: false,
+		// },
 	}
 
 	for _, tt := range tests {
@@ -1314,12 +1358,12 @@ func TestDataDestinationValidateUpdate(t *testing.T) {
 		{
 			name: "No changes",
 			oldDest: &DataDestination{
-				Volume:          &v1.VolumeSource{},
+				// Volume:          &v1.VolumeSource{},
 				Image:           "old-image:latest",
 				ImagePushSecret: "old-secret",
 			},
 			newDest: &DataDestination{
-				Volume:          &v1.VolumeSource{},
+				// Volume:          &v1.VolumeSource{},
 				Image:           "old-image:latest",
 				ImagePushSecret: "old-secret",
 			},

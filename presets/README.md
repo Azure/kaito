@@ -7,7 +7,7 @@ The current supported model families with preset configurations are listed below
 | [llama2](./models/llama2)         | v0.0.1+|
 | [llama2chat](./models/llama2chat) | v0.0.1+|
 | [mistral](./models/mistral)       | v0.2.0+|
-| [phi2](./models/phi-2)            | v0.2.0+|
+| [phi2](./models/phi2)             | v0.2.0+|
 
 ## Validation
 Each preset model has its own hardware requirements in terms of GPU count and GPU memory defined in the respective `model.go` file. Kaito controller performs a validation check of whether the specified SKU and node count are sufficient to run the model or not. In case the provided SKU is not in the known list, the controller bypasses the validation check which means users need to ensure the model can run with the provided SKU. 
