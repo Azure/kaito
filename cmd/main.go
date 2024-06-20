@@ -74,6 +74,7 @@ func main() {
 	flag.BoolVar(&enableWebhook, "webhook", true,
 		"Enable webhook for controller manager. Default is true.")
 	flag.StringVar(&featureGates, "feature-gates", "Karpenter=false", "Enable Kaito feature gates. Default,	Karpenter=false.")
+
 	opts := zap.Options{
 		Development: true,
 	}
