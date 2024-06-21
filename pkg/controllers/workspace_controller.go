@@ -471,6 +471,17 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kaito
 	}
 }
 
+// getPresetName returns the preset name from wObj if available
+func getPresetName(wObj *kaitov1alpha1.Workspace) *string {
+	if wObj.Inference != nil && wObj.Inference.Preset != nil {
+		return (*string)(&wObj.Inference.Preset.Name)
+	}
+	if wObj.Tuning != nil && wObj.Tuning.Preset != nil {
+		return (*string)(&wObj.Tuning.Preset.Name)
+	}
+	return nil
+}
+
 func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
 	serviceType := corev1.ServiceTypeClusterIP
 	wAnnotation := wObj.GetAnnotations()
@@ -492,18 +503,20 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 		return nil
 	}
 
-	if (wObj.Inference != nil && wObj.Inference.Preset != nil) || (wObj.Tuning != nil && wObj.Tuning.Preset != nil) {
-		presetName := string(wObj.Inference.Preset.Name)
+	var presetName string
+	if preset := getPresetName(wObj); preset != nil {
+		presetName = *preset
+	}
+
+	if presetName != "" {
 		model := plugin.KaitoModelRegister.MustGet(presetName)
 		serviceObj := resources.GenerateServiceManifest(ctx, wObj, serviceType, model.SupportDistributedInference())
-		err = resources.CreateResource(ctx, serviceObj, c.Client)
-		if err != nil {
+		if err := resources.CreateResource(ctx, serviceObj, c.Client); err != nil {
 			return err
 		}
 		if model.SupportDistributedInference() {
 			headlessService := resources.GenerateHeadlessServiceManifest(ctx, wObj)
-			err = resources.CreateResource(ctx, headlessService, c.Client)
-			if err != nil {
+			if err := resources.CreateResource(ctx, headlessService, c.Client); err != nil {
 				return err
 			}
 		}
