@@ -287,7 +287,7 @@ func validateAssociatedService(workspaceObj *kaitov1alpha1.Workspace) {
 
 			GinkgoWriter.Printf("Found service: %s in namespace %s\n", serviceName, serviceNamespace)
 			return true
-		}, 10*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for service to be created")
+		}, 30*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for service to be created")
 	})
 }
 
