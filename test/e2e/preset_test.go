@@ -5,9 +5,14 @@ package e2e
 
 import (
 	"fmt"
+	batchv1 "k8s.io/api/batch/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"log"
 	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -125,7 +130,7 @@ func createPhi3WorkspaceWithPresetPrivateMode(registry, registrySecret, imageVer
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace CR with Phi-3-mini-128k-instruct preset private mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/kaito-%s:%s", registry, PresetPhi3Mini128kModel, imageVersion),
+		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetPhi3Mini128kModel, imageVersion),
 			numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-phi-3-mini-128k-instruct"},
 			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
@@ -135,19 +140,47 @@ func createPhi3WorkspaceWithPresetPrivateMode(registry, registrySecret, imageVer
 	return workspaceObj
 }
 
-func createFalcon7BTuningWorkspaceWithPresetPrivateMode(registry, registrySecret, imageVersion string, numOfNode int) *kaitov1alpha1.Workspace {
+func createCustomTuningConfigMapForE2E() *v1.ConfigMap {
+	configMap := utils.GenerateE2ETuningConfigMapManifest()
+
+	By("Creating a workspace Tuning CR with Falcon-7B preset private mode", func() {
+		createAndValidateConfigMap(configMap)
+	})
+
+	return configMap
+}
+
+func createAndValidateConfigMap(configMap *v1.ConfigMap) {
+	By("Creating ConfigMap", func() {
+		Eventually(func() error {
+			return TestingCluster.KubeClient.Create(ctx, configMap, &client.CreateOptions{})
+		}, utils.PollTimeout, utils.PollInterval).
+			Should(Succeed(), "Failed to create ConfigMap %s", configMap.Name)
+
+		By("Validating ConfigMap creation", func() {
+			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: configMap.Namespace,
+				Name:      configMap.Name,
+			}, configMap, &client.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+}
+
+func createFalcon7BTuningWorkspaceWithPresetPrivateMode(registry, registrySecret, imageVersion, configMapName string, numOfNode int) (*kaitov1alpha1.Workspace, string) {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	e2eOutputImageTag := utils.GenerateRandomString(6)
+	var uniqueID string
 	By("Creating a workspace Tuning CR with Falcon-7B preset private mode", func() {
-		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
+		uniqueID = fmt.Sprint("preset-", rand.Intn(1000))
 		workspaceObj = utils.GenerateTuningWorkspaceManifest(uniqueID, namespaceName, registry, fmt.Sprintf("%s/%s:%s", registry, PresetFalcon7BModel, imageVersion),
 			e2eOutputImageTag, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-tuning-falcon"},
-			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret})
+			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, configMapName)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
-	return workspaceObj
+	return workspaceObj, uniqueID
 }
 
 func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
@@ -305,6 +338,79 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, expectedRe
 			return false
 		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for inference resource to be ready")
 	})
+}
+
+// Logic to validate tuning deployment
+func validateTuningResource(workspaceObj *kaitov1alpha1.Workspace) {
+	By("Checking the tuning resource", func() {
+		Eventually(func() bool {
+			var err error
+			var jobFailed, jobSucceeded int32
+
+			job := &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      workspaceObj.Name,
+					Namespace: workspaceObj.Namespace,
+				},
+			}
+			err = TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: workspaceObj.Namespace,
+				Name:      workspaceObj.Name,
+			}, job)
+
+			if err != nil {
+				GinkgoWriter.Printf("Error fetching resource: %v\n", err)
+				return false
+			}
+
+			jobFailed = job.Status.Failed
+			jobSucceeded = job.Status.Succeeded
+
+			if jobFailed > 0 {
+				GinkgoWriter.Printf("Job '%s' is in a failed state.\n", workspaceObj.Name)
+				return false
+			}
+
+			if jobSucceeded > 0 {
+				return true
+			}
+
+			return false
+		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for Tuning resource to be ready")
+	})
+}
+
+func validateACRTuningResultsUploaded(workspaceObj *kaitov1alpha1.Workspace, jobName string) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		log.Fatalf("Failed to get in-cluster config: %v", err)
+	}
+
+	coreClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Fatalf("Failed to create core client: %v", err)
+	}
+	namespace := workspaceObj.Namespace
+	podName, err := utils.GetPodNameForJob(coreClient, namespace, jobName)
+	if err != nil {
+		log.Fatalf("Failed to get pod name for job %s: %v", jobName, err)
+	}
+
+	for {
+		logs, err := utils.GetPodLogs(coreClient, namespace, podName, "docker-sidecar")
+		if err != nil {
+			log.Printf("Failed to get logs from pod %s: %v", podName, err)
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		if strings.Contains(logs, "Upload complete") {
+			fmt.Println("Upload complete")
+			break
+		}
+
+		time.Sleep(10 * time.Second) // Poll every 10 seconds
+	}
 }
 
 // Logic to validate workspace readiness
@@ -548,11 +654,13 @@ var _ = Describe("Workspace Preset", func() {
 
 	It("should create a workspace for tuning successfully", func() {
 		numOfNode := 1
+		imageVersion := "0.0.4"
 		//modelVersion, ok := modelInfo[PresetFalcon7BModel]
 		//if !ok {
 		//	Fail(fmt.Sprintf("Model version for %s not found", PresetFalcon7BModel))
 		//}
-		workspaceObj := createFalcon7BTuningWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, "0.0.4", numOfNode)
+		configMap := createCustomTuningConfigMapForE2E()
+		workspaceObj, jobName := createFalcon7BTuningWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, imageVersion, configMap.Name, numOfNode)
 
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
@@ -564,10 +672,10 @@ var _ = Describe("Workspace Preset", func() {
 
 		validateAssociatedService(workspaceObj)
 
-		// TODO: Need to fix to check tuning job completed and that tuning job
-		// runs for just a couple steps. Also checks if tuning job uploaded to ACR
-		// correct image.
-		validateInferenceResource(workspaceObj, int32(numOfNode), false)
+		// TODO: Need to check if tuning job uploaded to ACR
+		validateTuningResource(workspaceObj)
+
+		validateACRTuningResultsUploaded(workspaceObj, jobName)
 
 		validateWorkspaceReadiness(workspaceObj)
 	})

@@ -4,17 +4,21 @@
 package utils
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
-	"math/rand"
-	"os"
-	"time"
-
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v2"
+	"io"
+	"io/ioutil"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"math/rand"
+	"os"
+	"strings"
+	"time"
 )
 
 const (
@@ -61,6 +65,38 @@ func GetModelConfigInfo(configFilePath string) (map[string]interface{}, error) {
 	}
 
 	return data, nil
+}
+
+func GetPodNameForJob(coreClient *kubernetes.Clientset, namespace, jobName string) (string, error) {
+	podList, err := coreClient.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("job-name=%s", jobName),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if len(podList.Items) == 0 {
+		return "", fmt.Errorf("no pods found for job %s", jobName)
+	}
+
+	return podList.Items[0].Name, nil
+}
+
+func GetPodLogs(coreClient *kubernetes.Clientset, namespace, podName, containerName string) (string, error) {
+	req := coreClient.CoreV1().Pods(namespace).GetLogs(podName, &v1.PodLogOptions{Container: containerName})
+	logs, err := req.Stream(context.Background())
+	if err != nil {
+		return "", err
+	}
+	defer logs.Close()
+
+	buf := new(strings.Builder)
+	_, err = io.Copy(buf, logs)
+	if err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }
 
 func ExtractModelVersion(configs map[string]interface{}) (map[string]string, error) {
@@ -135,7 +171,7 @@ func GenerateInferenceWorkspaceManifest(name, namespace, imageName string, resou
 
 func GenerateTuningWorkspaceManifest(name, namespace, registry, imageName, e2eOutputImageTag string, resourceCount int, instanceType string,
 	labelSelector *metav1.LabelSelector, preferredNodes []string, presetName kaitov1alpha1.ModelName,
-	accessMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string) *kaitov1alpha1.Workspace {
+	accessMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string, customConfigMapName string) *kaitov1alpha1.Workspace {
 	workspace := &kaitov1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -174,7 +210,55 @@ func GenerateTuningWorkspaceManifest(name, namespace, registry, imageName, e2eOu
 		ImagePushSecret: imagePullSecret[0],
 	}
 
+	workspace.Tuning.Config = customConfigMapName
+
 	return workspace
+}
+
+// GenerateE2ETuningConfigMapManifest generates a ConfigMap manifest for E2E tuning.
+func GenerateE2ETuningConfigMapManifest() *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "e2e-qlora-params-template",
+			Namespace: "default", // Adjust the namespace as needed.
+		},
+		Data: map[string]string{
+			"training_config.yaml": `training_config:
+  ModelConfig:
+    torch_dtype: "bfloat16"
+    local_files_only: true
+    device_map: "auto"
+  
+  QuantizationConfig:
+    load_in_4bit: true
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_compute_dtype: "bfloat16"
+    bnb_4bit_use_double_quant: true
+  
+  LoraConfig:
+    r: 8
+    lora_alpha: 8
+    lora_dropout: 0.0
+  
+  TrainingArguments:
+    output_dir: "/mnt/results"
+    ddp_find_unused_parameters: false
+    save_strategy: "epoch"
+    per_device_train_batch_size: 1
+    max_steps: 5  # Adding this line to limit training to 5 steps
+  
+  DataCollator:
+    mlm: true
+  
+  DatasetConfig:
+    shuffle_dataset: true
+    train_test_split: 1`,
+		},
+	}
 }
 
 func GeneratePodTemplate(name, namespace, image string, labels map[string]string) *corev1.PodTemplateSpec {
