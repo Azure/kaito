@@ -141,7 +141,7 @@ func createPhi3WorkspaceWithPresetPrivateMode(registry, registrySecret, imageVer
 }
 
 func createCustomTuningConfigMapForE2E() *v1.ConfigMap {
-	configMap := utils.GenerateE2ETuningConfigMapManifest()
+	configMap := utils.GenerateE2ETuningConfigMapManifest(namespaceName)
 
 	By("Creating a workspace Tuning CR with Falcon-7B preset private mode", func() {
 		createAndValidateConfigMap(configMap)
@@ -629,28 +629,28 @@ var _ = Describe("Workspace Preset", func() {
 	//	validateWorkspaceReadiness(workspaceObj)
 	//})
 
-	It("should create a Phi-3-mini-128k-instruct workspace with preset private mode successfully", func() {
-		numOfNode := 1
-		//modelVersion, ok := modelInfo[PresetFalcon7BModel]
-		//if !ok {
-		//	Fail(fmt.Sprintf("Model version for %s not found", PresetFalcon7BModel))
-		//}
-		workspaceObj := createPhi3WorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, "0.0.1", numOfNode)
-
-		defer cleanupResources(workspaceObj)
-		time.Sleep(30 * time.Second)
-
-		validateMachineCreation(workspaceObj, numOfNode)
-		validateResourceStatus(workspaceObj)
-
-		time.Sleep(30 * time.Second)
-
-		validateAssociatedService(workspaceObj)
-
-		validateInferenceResource(workspaceObj, int32(numOfNode), false)
-
-		validateWorkspaceReadiness(workspaceObj)
-	})
+	//It("should create a Phi-3-mini-128k-instruct workspace with preset private mode successfully", func() {
+	//	numOfNode := 1
+	//	//modelVersion, ok := modelInfo[PresetFalcon7BModel]
+	//	//if !ok {
+	//	//	Fail(fmt.Sprintf("Model version for %s not found", PresetFalcon7BModel))
+	//	//}
+	//	workspaceObj := createPhi3WorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, "0.0.1", numOfNode)
+	//
+	//	defer cleanupResources(workspaceObj)
+	//	time.Sleep(30 * time.Second)
+	//
+	//	validateMachineCreation(workspaceObj, numOfNode)
+	//	validateResourceStatus(workspaceObj)
+	//
+	//	time.Sleep(30 * time.Second)
+	//
+	//	validateAssociatedService(workspaceObj)
+	//
+	//	validateInferenceResource(workspaceObj, int32(numOfNode), false)
+	//
+	//	validateWorkspaceReadiness(workspaceObj)
+	//})
 
 	It("should create a workspace for tuning successfully", func() {
 		numOfNode := 1

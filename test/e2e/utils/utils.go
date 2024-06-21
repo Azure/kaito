@@ -216,7 +216,7 @@ func GenerateTuningWorkspaceManifest(name, namespace, registry, imageName, e2eOu
 }
 
 // GenerateE2ETuningConfigMapManifest generates a ConfigMap manifest for E2E tuning.
-func GenerateE2ETuningConfigMapManifest() *corev1.ConfigMap {
+func GenerateE2ETuningConfigMapManifest(namespace string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -224,7 +224,7 @@ func GenerateE2ETuningConfigMapManifest() *corev1.ConfigMap {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "e2e-qlora-params-template",
-			Namespace: "default", // Adjust the namespace as needed.
+			Namespace: namespace, // Same as workspace namespace
 		},
 		Data: map[string]string{
 			"training_config.yaml": `training_config:
