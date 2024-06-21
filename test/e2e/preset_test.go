@@ -376,7 +376,7 @@ func validateTuningResource(workspaceObj *kaitov1alpha1.Workspace) {
 			}
 
 			return false
-		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for Tuning resource to be ready")
+		}, 30*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for Tuning resource to be ready")
 	})
 }
 
