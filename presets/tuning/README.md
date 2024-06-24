@@ -62,8 +62,7 @@ using ConfigMaps. Below are examples for LoRA and QLoRA methods.
 You can specify your own custom ConfigMap and include it in the `Config` 
 field of the `TuningSpec`
 
-For more information on configurable parameters, please refer to the respective 
-documentation links provided in the default ConfigMap examples.
+For more information on configurable parameters, please refer to the respective documentation links provided in the default ConfigMap examples.
 
 ## Key Parameters in Kaito ConfigMap Structure
 The following sections highlight important parameters for each configuration area in the Kaito ConfigMap. For a complete list of parameters, please refer to the provided Hugging Face documentation links.
@@ -111,5 +110,4 @@ The dataset should follow a specific format. For example:
 }
 ```
 For a practical example, refer to [Hugging Face's Dolly 15k OAI-style dataset](https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/tree/main).
-
 
