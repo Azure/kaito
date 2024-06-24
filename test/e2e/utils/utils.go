@@ -181,8 +181,8 @@ func GenerateInferenceWorkspaceManifest(name, namespace, imageName string, resou
 	return workspace
 }
 
-func GenerateTuningWorkspaceManifest(name, namespace, registry, imageName, e2eOutputImageTag string, resourceCount int, instanceType string,
-	labelSelector *metav1.LabelSelector, preferredNodes []string, presetName kaitov1alpha1.ModelName,
+func GenerateTuningWorkspaceManifest(name, namespace, registry, imageName, e2eOutputImageName, e2eOutputImageTag string,
+	resourceCount int, instanceType string, labelSelector *metav1.LabelSelector, preferredNodes []string, presetName kaitov1alpha1.ModelName,
 	accessMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string, customConfigMapName string) *kaitov1alpha1.Workspace {
 	workspace := &kaitov1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -218,7 +218,7 @@ func GenerateTuningWorkspaceManifest(name, namespace, registry, imageName, e2eOu
 		URLs: []string{ExampleDatasetURL},
 	}
 	workspace.Tuning.Output = &kaitov1alpha1.DataDestination{
-		Image:           fmt.Sprintf("%s/adapter-falcon-7b-e2e-test:%s", registry, e2eOutputImageTag),
+		Image:           fmt.Sprintf("%s/%s:%s", registry, e2eOutputImageName, e2eOutputImageTag),
 		ImagePushSecret: imagePullSecret[0],
 	}
 
