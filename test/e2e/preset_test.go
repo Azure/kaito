@@ -173,6 +173,8 @@ func createFalcon7BTuningWorkspaceWithPresetPrivateMode(registry, registrySecret
 	var uniqueID string
 	By("Creating a workspace Tuning CR with Falcon-7B preset private mode", func() {
 		uniqueID = fmt.Sprint("preset-", rand.Intn(1000))
+		fmt.Println("REGISTRY NAME", registry)
+		fmt.Println(fmt.Sprintf("%s/%s:%s", registry, PresetFalcon7BModel, imageVersion))
 		workspaceObj = utils.GenerateTuningWorkspaceManifest(uniqueID, namespaceName, registry, fmt.Sprintf("%s/%s:%s", registry, PresetFalcon7BModel, imageVersion),
 			e2eOutputImageTag, numOfNode, "Standard_NC12s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-tuning-falcon"},
