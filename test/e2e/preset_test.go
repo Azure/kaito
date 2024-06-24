@@ -680,7 +680,7 @@ var _ = Describe("Workspace Preset", func() {
 
 	It("should create a workspace for tuning successfully", func() {
 		numOfNode := 1
-		imageVersion := "0.0.4"
+		imageVersion := "0.0.1"
 		//modelVersion, ok := modelInfo[PresetFalcon7BModel]
 		//if !ok {
 		//	Fail(fmt.Sprintf("Model version for %s not found", PresetFalcon7BModel))
