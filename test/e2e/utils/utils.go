@@ -206,7 +206,8 @@ func GenerateTuningWorkspaceManifest(name, namespace, registry, imageName, e2eOu
 		URLs: []string{ExampleDatasetURL},
 	}
 	workspace.Tuning.Output = &kaitov1alpha1.DataDestination{
-		Image: fmt.Sprintf("%s/adapter-falcon-7b-e2e-test:%s", registry, e2eOutputImageTag),
+		Image:           fmt.Sprintf("%s/adapter-falcon-7b-e2e-test:%s", registry, e2eOutputImageTag),
+		ImagePushSecret: imagePullSecret[0],
 	}
 
 	workspace.Tuning.Config = customConfigMapName
