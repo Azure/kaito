@@ -99,6 +99,18 @@ func GetPodLogs(coreClient *kubernetes.Clientset, namespace, podName, containerN
 	return buf.String(), nil
 }
 
+func CopySecret(original *corev1.Secret, targetNamespace string) *corev1.Secret {
+	newSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      original.Name,
+			Namespace: targetNamespace,
+		},
+		Data: original.Data,
+		Type: original.Type,
+	}
+	return newSecret
+}
+
 func ExtractModelVersion(configs map[string]interface{}) (map[string]string, error) {
 	modelsInfo := make(map[string]string)
 	models, ok := configs["models"].([]interface{})

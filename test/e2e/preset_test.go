@@ -200,6 +200,31 @@ func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
 	})
 }
 
+func copySecretToNamespace(secretName, targetNamespace string) error {
+	originalNamespace := "default"
+	originalSecret := &v1.Secret{}
+
+	// Fetch the original secret from the default namespace
+	err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+		Namespace: originalNamespace,
+		Name:      secretName,
+	}, originalSecret)
+	if err != nil {
+		return fmt.Errorf("failed to get secret %s in namespace %s: %v", secretName, originalNamespace, err)
+	}
+
+	// Create a copy of the secret for the target namespace
+	newSecret := utils.CopySecret(originalSecret, targetNamespace)
+
+	// Create the new secret in the target namespace
+	err = TestingCluster.KubeClient.Create(ctx, newSecret)
+	if err != nil {
+		return fmt.Errorf("failed to create secret %s in namespace %s: %v", secretName, targetNamespace, err)
+	}
+
+	return nil
+}
+
 func getAllValidMachines(workspaceObj *kaitov1alpha1.Workspace) (*v1alpha5.MachineList, error) {
 	machineList := &v1alpha5.MachineList{}
 	ls := labels.Set{
@@ -659,6 +684,10 @@ var _ = Describe("Workspace Preset", func() {
 		//if !ok {
 		//	Fail(fmt.Sprintf("Model version for %s not found", PresetFalcon7BModel))
 		//}
+		err := copySecretToNamespace(aiModelsRegistrySecret, namespaceName)
+		if err != nil {
+			log.Fatalf("Error copying secret: %v", err)
+		}
 		configMap := createCustomTuningConfigMapForE2E()
 		workspaceObj, jobName := createFalcon7BTuningWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, imageVersion, configMap.Name, numOfNode)
 
