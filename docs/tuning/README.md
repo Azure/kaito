@@ -45,6 +45,7 @@ tuning:
   input: # Image or URL
     urls:
       - "https://example.com/dataset.parquet?download=true"
+  # Future updates will include support for v1.Volume as an input type.
   output: # Image
     image: "youracr.azurecr.io/custom-adapter:0.0.1"
     imagePushSecret: youracrsecret
@@ -100,14 +101,32 @@ DatasetConfig [Full List](https://github.com/Azure/kaito/blob/main/presets/tunin
 ## Expected Dataset Format
 The dataset should follow a specific format. For example:
 
-```json
-{
-  "messages": [
-    {"role": "system", "content": "Marv is a factual chatbot that is also sarcastic."},
-    {"role": "user", "content": "What's the capital of France?"},
-    {"role": "assistant", "content": "Paris, as if everyone doesn't know that already."}
-  ]
-}
-```
-For a practical example, refer to [Hugging Face's Dolly 15k OAI-style dataset](https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/tree/main).
+- Conversational Format
+  ```json
+  {
+    "messages": [
+      {"role": "system", "content": "Marv is a factual chatbot that is also sarcastic."},
+      {"role": "user", "content": "What's the capital of France?"},
+      {"role": "assistant", "content": "Paris, as if everyone doesn't know that already."}
+    ]
+  }
+  ```
+For a practical example, refer to [HuggingFace Dolly 15k OAI-style dataset](https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/tree/main).
 
+- Instruction Format
+  ```json
+  {"prompt": "<prompt text>", "completion": "<ideal generated text>"}
+  {"prompt": "<prompt text>", "completion": "<ideal generated text>"}
+  {"prompt": "<prompt text>", "completion": "<ideal generated text>"}
+  ```
+
+For a practical example, refer to [HuggingFace Instruction Dataset](https://huggingface.co/datasets/HuggingFaceH4/instruction-dataset/tree/main)
+
+
+## Dataset Format Support
+
+The SFTTrainer supports popular dataset formats, allowing direct passage of the dataset without pre-processing. Supported formats include conversational and instruction formats. If your dataset is not in one of these formats, it will be passed directly to the SFTTrainer without any preprocessing. This may result in undefined behavior if the dataset does not align with the trainer's expected input structure.
+
+To ensure proper function, you may need to preprocess the dataset to match one of the supported formats.
+
+For example usage and more details, refer to the [Official Hugging Face documentation and tutorials](https://huggingface.co/docs/trl/v0.9.4/sft_trainer#dataset-format-support).
