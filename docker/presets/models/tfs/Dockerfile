@@ -10,19 +10,25 @@ WORKDIR /workspace/tfs
 # Write the version to a file
 RUN echo $VERSION > /workspace/tfs/version.txt
 
-# First, copy just the preset files and install dependencies
-# This is done before copying the code to utilize Docker's layer caching and
-# avoid reinstalling dependencies unless the requirements file changes.
-# Inference
-COPY kaito/presets/inference/${MODEL_TYPE}/requirements.txt /workspace/tfs/inference-requirements.txt
-RUN pip install --no-cache-dir -r inference-requirements.txt
+# Install virtualenv
+RUN pip install --no-cache-dir virtualenv
 
+# First, create virtual environments for inference and tuning
+RUN virtualenv /workspace/tfs/envs/inference
+RUN virtualenv /workspace/tfs/envs/tuning
+
+# Copy the requirements files
+COPY kaito/presets/inference/${MODEL_TYPE}/requirements.txt /workspace/tfs/inference-requirements.txt
+COPY kaito/presets/tuning/${MODEL_TYPE}/requirements.txt /workspace/tfs/tuning-requirements.txt
+
+# Copy in inference file
 COPY kaito/presets/inference/${MODEL_TYPE}/inference_api.py /workspace/tfs/inference_api.py
 
-# Fine Tuning
-COPY kaito/presets/tuning/${MODEL_TYPE}/requirements.txt /workspace/tfs/tuning-requirements.txt
-RUN pip install --no-cache-dir -r tuning-requirements.txt
+# Install dependencies in their respective virtual environments
+RUN /workspace/tfs/envs/inference/bin/pip install --no-cache-dir -r /workspace/tfs/inference-requirements.txt
+RUN /workspace/tfs/envs/tuning/bin/pip install --no-cache-dir -r /workspace/tfs/tuning-requirements.txt
 
+# Copy in tuning files
 COPY kaito/presets/tuning/${MODEL_TYPE}/cli.py /workspace/tfs/cli.py
 COPY kaito/presets/tuning/${MODEL_TYPE}/fine_tuning.py /workspace/tfs/fine_tuning.py
 COPY kaito/presets/tuning/${MODEL_TYPE}/parser.py /workspace/tfs/parser.py
