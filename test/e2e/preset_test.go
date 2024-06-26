@@ -169,15 +169,17 @@ func createAndValidateConfigMap(configMap *v1.ConfigMap) {
 	})
 }
 
-func createPhi3TuningWorkspaceWithPresetPrivateMode(registry, registrySecret, imageVersion, configMapName string, numOfNode int) (*kaitov1alpha1.Workspace, string) {
+func createPhi3TuningWorkspaceWithPresetPrivateMode(presetRegistry, registrySecret, imageVersion, configMapName string, numOfNode int) (*kaitov1alpha1.Workspace, string) {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	e2eOutputImageName := fmt.Sprintf("adapter-%s-e2e-test", PresetPhi3Mini128kModel)
 	e2eOutputImageTag := utils.GenerateRandomString(6)
 	var uniqueID string
-	By("Creating a workspace Tuning CR with Falcon-7B preset private mode", func() {
+	By("Creating a workspace Tuning CR with Phi-3 preset private mode", func() {
 		uniqueID = fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateTuningWorkspaceManifest(uniqueID, namespaceName, registry, fmt.Sprintf("%s/%s:%s", registry, PresetPhi3Mini128kModel, imageVersion),
-			e2eOutputImageName, e2eOutputImageTag, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
+		presetRegistryUrl := fmt.Sprintf("%s/%s:%s", presetRegistry, PresetPhi3Mini128kModel, imageVersion)
+		outputRegistryUrl := fmt.Sprintf("%s.azurecr.io/%s:%s", azureClusterName, e2eOutputImageName, e2eOutputImageTag)
+		workspaceObj = utils.GenerateTuningWorkspaceManifest(uniqueID, namespaceName, presetRegistryUrl,
+			outputRegistryUrl, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-tuning-falcon"},
 			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, configMapName)
 
@@ -516,6 +518,7 @@ var aiModelsRegistry string
 var aiModelsRegistrySecret string
 var supportedModelsYamlPath string
 var modelInfo map[string]string
+var azureClusterName string
 
 var _ = Describe("Workspace Preset", func() {
 	BeforeEach(func() {
@@ -530,6 +533,7 @@ var _ = Describe("Workspace Preset", func() {
 		aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
 		aiModelsRegistrySecret = utils.GetEnv("AI_MODELS_REGISTRY_SECRET")
 		supportedModelsYamlPath = utils.GetEnv("SUPPORTED_MODELS_YAML_PATH")
+		azureClusterName = utils.GetEnv("AZURE_CLUSTER_NAME")
 
 		// Load stable model versions
 		configs, err := utils.GetModelConfigInfo(supportedModelsYamlPath)
@@ -694,17 +698,16 @@ var _ = Describe("Workspace Preset", func() {
 
 	It("should create a workspace for tuning successfully", func() {
 		numOfNode := 1
-		imageVersion := "0.0.1"
-		//modelVersion, ok := modelInfo[PresetFalcon7BModel]
-		//if !ok {
-		//	Fail(fmt.Sprintf("Model version for %s not found", PresetFalcon7BModel))
-		//}
+		modelVersion, ok := modelInfo[PresetPhi3Mini128kModel]
+		if !ok {
+			Fail(fmt.Sprintf("Model version for %s not found", PresetPhi3Mini128kModel))
+		}
 		err := copySecretToNamespace(aiModelsRegistrySecret, namespaceName)
 		if err != nil {
 			log.Fatalf("Error copying secret: %v", err)
 		}
 		configMap := createCustomTuningConfigMapForE2E()
-		workspaceObj, jobName := createPhi3TuningWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, imageVersion, configMap.Name, numOfNode)
+		workspaceObj, jobName := createPhi3TuningWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, modelVersion, configMap.Name, numOfNode)
 
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
