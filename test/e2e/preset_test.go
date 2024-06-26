@@ -317,7 +317,7 @@ func validateAssociatedService(workspaceObj *kaitov1alpha1.Workspace) {
 
 			GinkgoWriter.Printf("Found service: %s in namespace %s\n", serviceName, serviceNamespace)
 			return true
-		}, 30*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for service to be created")
+		}, 10*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for service to be created")
 	})
 }
 
@@ -675,11 +675,11 @@ var _ = Describe("Workspace Preset", func() {
 
 	It("should create a Phi-3-mini-128k-instruct workspace with preset private mode successfully", func() {
 		numOfNode := 1
-		//modelVersion, ok := modelInfo[PresetFalcon7BModel]
-		//if !ok {
-		//	Fail(fmt.Sprintf("Model version for %s not found", PresetFalcon7BModel))
-		//}
-		workspaceObj := createPhi3WorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, "0.0.1", numOfNode)
+		modelVersion, ok := modelInfo[PresetPhi3Mini128kModel]
+		if !ok {
+			Fail(fmt.Sprintf("Model version for %s not found", PresetPhi3Mini128kModel))
+		}
+		workspaceObj := createPhi3WorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, modelVersion, numOfNode)
 
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
