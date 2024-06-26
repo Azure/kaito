@@ -96,7 +96,8 @@ func updateTorchParamsForDistributedInference(ctx context.Context, kubeClient cl
 
 func GetInferenceImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, presetObj *model.PresetParam) (string, []corev1.LocalObjectReference) {
 	imagePullSecretRefs := []corev1.LocalObjectReference{}
-	if presetObj.ImageAccessMode == string(kaitov1alpha1.ModelImageAccessModePrivate) {
+	if presetObj.ImageAccessMode == string(kaitov1alpha1.ModelImageAccessModePrivate) ||
+		string(workspaceObj.Inference.Preset.AccessMode) == string(kaitov1alpha1.ModelImageAccessModePrivate) {
 		imageName := workspaceObj.Inference.Preset.PresetOptions.Image
 		for _, secretName := range workspaceObj.Inference.Preset.PresetOptions.ImagePullSecrets {
 			imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
