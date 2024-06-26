@@ -84,7 +84,7 @@ func ExtractModelVersion(configs map[string]interface{}) (map[string]string, err
 func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount int, instanceType string,
 	labelSelector *metav1.LabelSelector, preferredNodes []string, presetName kaitov1alpha1.ModelName,
 	inferenceMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string,
-	podTemplate *corev1.PodTemplateSpec) *kaitov1alpha1.Workspace {
+	podTemplate *corev1.PodTemplateSpec, adapters []kaitov1alpha1.AdapterSpec) *kaitov1alpha1.Workspace {
 
 	workspace := &kaitov1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -113,6 +113,11 @@ func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount 
 			},
 		}
 	}
+
+	if len(adapters) > 0 {
+		workspaceInference.Adapters = adapters
+	}
+
 	if inferenceMode == InferenceModeCustomTemplate {
 		workspaceInference.Template = podTemplate
 	}

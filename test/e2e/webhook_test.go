@@ -21,7 +21,7 @@ var _ = Describe("Workspace Validation Webhook", func() {
 		workspaceObj := utils.GenerateWorkspaceManifest(fmt.Sprint("webhook-", rand.Intn(1000)), namespaceName, "", 1, "Standard_Bad",
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "webhook-e2e-test"},
-			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
+			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil, emptyAdapters)
 
 		By("Creating a workspace with invalid instancetype", func() {
 			// Create workspace
@@ -36,7 +36,7 @@ var _ = Describe("Workspace Validation Webhook", func() {
 		workspaceObj := utils.GenerateWorkspaceManifest(fmt.Sprint("webhook-", rand.Intn(1000)), namespaceName, "", 1, "Standard_NC6",
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "webhook-e2e-test"},
-			}, nil, "invalid-name", kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
+			}, nil, "invalid-name", kaitov1alpha1.ModelImageAccessModePublic, nil, nil, emptyAdapters)
 
 		By("Creating a workspace with invalid preset name", func() {
 			// Create workspace
@@ -54,7 +54,7 @@ var _ = Describe("Workspace Validation Webhook", func() {
 		workspaceObj := utils.GenerateWorkspaceManifest(fmt.Sprint("webhook-", rand.Intn(1000)), namespaceName, "", 1, "Standard_NC12s_v3",
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "webhook-e2e-test"},
-			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
+			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil, emptyAdapters)
 
 		By("Creating a valid workspace", func() {
 			// Create workspace
@@ -97,7 +97,7 @@ var _ = Describe("Workspace Validation Webhook", func() {
 		workspaceObj := utils.GenerateWorkspaceManifest(fmt.Sprint("webhook-", rand.Intn(1000)), namespaceName, "", 1, "Standard_NC12s_v3",
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "webhook-e2e-test"},
-			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil)
+			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil, emptyAdapters)
 
 		By("Creating a valid workspace", func() {
 			// Create workspace
