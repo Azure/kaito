@@ -255,7 +255,7 @@ func GenerateE2ETuningConfigMapManifest(namespace string) *corev1.ConfigMap {
     r: 8
     lora_alpha: 8
     lora_dropout: 0.0
-    target_modules: "all-linear"
+    target_modules: ['k_proj', 'q_proj', 'v_proj', 'o_proj', "gate_proj", "down_proj", "up_proj"]
   
   TrainingArguments:
     output_dir: "/mnt/results"
