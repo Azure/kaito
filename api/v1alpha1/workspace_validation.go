@@ -45,7 +45,7 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		errs = errs.Also(w.validateCreate().ViaField("spec"))
 		if w.Inference != nil {
 			// TODO: Add Adapter Spec Validation - Including DataSource Validation for Adapter
-			errs = errs.Also(w.Resource.validateCreate(*w.Inference).ViaField("resource"),
+			errs = errs.Also(w.Resource.validateCreate(*w.Inference, *w.Tuning).ViaField("resource"),
 				w.Inference.validateCreate().ViaField("inference"))
 		}
 		if w.Tuning != nil {
@@ -299,10 +299,13 @@ func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.Field
 	return errs
 }
 
-func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.FieldError) {
+func (r *ResourceSpec) validateCreate(inference InferenceSpec, tuning TuningSpec) (errs *apis.FieldError) {
 	var presetName string
 	if inference.Preset != nil {
 		presetName = strings.ToLower(string(inference.Preset.Name))
+	}
+	if tuning.Preset != nil && *r.Count > 1 {
+		errs = errs.Also(apis.ErrInvalidValue("Tuning does not currently support multinode configurations. Please set the node count to 1. Future support with DeepSpeed will allow this.", "count"))
 	}
 	instanceType := string(r.InstanceType)
 
