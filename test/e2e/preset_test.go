@@ -8,9 +8,11 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"log"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -407,9 +409,21 @@ func validateTuningResource(workspaceObj *kaitov1alpha1.Workspace) {
 }
 
 func validateACRTuningResultsUploaded(workspaceObj *kaitov1alpha1.Workspace, jobName string) {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		log.Fatalf("Failed to get in-cluster config: %v", err)
+	var config *rest.Config
+	var err error
+
+	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" && os.Getenv("KUBERNETES_SERVICE_PORT") != "" {
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			log.Fatalf("Failed to get in-cluster config: %v", err)
+		}
+	} else {
+		// Use kubeconfig file for local development
+		kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			log.Fatalf("Failed to load kubeconfig: %v", err)
+		}
 	}
 
 	coreClient, err := kubernetes.NewForConfig(config)
