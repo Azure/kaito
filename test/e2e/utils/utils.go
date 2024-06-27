@@ -4,17 +4,22 @@
 package utils
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 const (
@@ -60,6 +65,50 @@ func GetModelConfigInfo(configFilePath string) (map[string]interface{}, error) {
 	return data, nil
 }
 
+func GetPodNameForJob(coreClient *kubernetes.Clientset, namespace, jobName string) (string, error) {
+	podList, err := coreClient.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("job-name=%s", jobName),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if len(podList.Items) == 0 {
+		return "", fmt.Errorf("no pods found for job %s", jobName)
+	}
+
+	return podList.Items[0].Name, nil
+}
+
+func GetPodLogs(coreClient *kubernetes.Clientset, namespace, podName, containerName string) (string, error) {
+	req := coreClient.CoreV1().Pods(namespace).GetLogs(podName, &v1.PodLogOptions{Container: containerName})
+	logs, err := req.Stream(context.Background())
+	if err != nil {
+		return "", err
+	}
+	defer logs.Close()
+
+	buf := new(strings.Builder)
+	_, err = io.Copy(buf, logs)
+	if err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
+}
+
+func CopySecret(original *corev1.Secret, targetNamespace string) *corev1.Secret {
+	newSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      original.Name,
+			Namespace: targetNamespace,
+		},
+		Data: original.Data,
+		Type: original.Type,
+	}
+	return newSecret
+}
+
 func ExtractModelVersion(configs map[string]interface{}) (map[string]string, error) {
 	modelsInfo := make(map[string]string)
 	models, ok := configs["models"].([]interface{})
@@ -91,7 +140,7 @@ func ExtractModelVersion(configs map[string]interface{}) (map[string]string, err
 
 func GenerateInferenceWorkspaceManifest(name, namespace, imageName string, resourceCount int, instanceType string,
 	labelSelector *metav1.LabelSelector, preferredNodes []string, presetName kaitov1alpha1.ModelName,
-	inferenceMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string,
+	accessMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string,
 	podTemplate *corev1.PodTemplateSpec) *kaitov1alpha1.Workspace {
 
 	workspace := &kaitov1alpha1.Workspace{
@@ -108,12 +157,12 @@ func GenerateInferenceWorkspaceManifest(name, namespace, imageName string, resou
 	}
 
 	var workspaceInference kaitov1alpha1.InferenceSpec
-	if inferenceMode == kaitov1alpha1.ModelImageAccessModePublic ||
-		inferenceMode == kaitov1alpha1.ModelImageAccessModePrivate {
+	if accessMode == kaitov1alpha1.ModelImageAccessModePublic ||
+		accessMode == kaitov1alpha1.ModelImageAccessModePrivate {
 		workspaceInference.Preset = &kaitov1alpha1.PresetSpec{
 			PresetMeta: kaitov1alpha1.PresetMeta{
 				Name:       presetName,
-				AccessMode: inferenceMode,
+				AccessMode: accessMode,
 			},
 			PresetOptions: kaitov1alpha1.PresetOptions{
 				Image:            imageName,
@@ -121,7 +170,7 @@ func GenerateInferenceWorkspaceManifest(name, namespace, imageName string, resou
 			},
 		}
 	}
-	if inferenceMode == InferenceModeCustomTemplate {
+	if accessMode == InferenceModeCustomTemplate {
 		workspaceInference.Template = podTemplate
 	}
 
