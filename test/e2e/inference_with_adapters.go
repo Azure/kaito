@@ -22,7 +22,7 @@ import (
 var emptyAdapters = make([]kaitov1alpha1.AdapterSpec, 0)
 var DefaultStrength = "1.0"
 
-var fullImageName = os.Getenv("REGISTRY") + "/e2e-adapter:0.0.1"
+var fullImageName = utils.GetEnv("REGISTRY") + "/e2e-adapter:0.0.1"
 
 var validAdapters = []kaitov1alpha1.AdapterSpec{
 	{
@@ -116,6 +116,7 @@ var _ = Describe("Workspace Preset", func() {
 		time.Sleep(30 * time.Second)
 
 		validateAssociatedService(workspaceObj)
+		GinkgoWriter.Printf("fullImageName : %s\n", fullImageName)
 
 		validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
