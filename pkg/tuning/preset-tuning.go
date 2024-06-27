@@ -402,7 +402,11 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 		Command: []string{"sh", "-c", `
 			for url in $DATA_URLS; do
 				filename=$(basename "$url" | sed 's/[?=&]/_/g')
+				echo "Downloading $url to $DATA_VOLUME_PATH/$filename"
 				curl -sSL $url -o $DATA_VOLUME_PATH/$filename
+				if [ $? -ne 0 ]; then
+           			echo "Failed to download $url"
+ 				fi
 			done
 		`},
 		VolumeMounts: []corev1.VolumeMount{
