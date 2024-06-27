@@ -309,14 +309,14 @@ func (r *ResourceSpec) validateCreateWithTuning(tuning *TuningSpec) (errs *apis.
 
 func (r *ResourceSpec) validateCreateWithInference(inference *InferenceSpec) (errs *apis.FieldError) {
 	var presetName string
-	if inference != nil {
+	if inference != nil && inference.Preset != nil {
 		presetName = strings.ToLower(string(inference.Preset.Name))
 	}
 	instanceType := string(r.InstanceType)
 
 	// Check if instancetype exists in our SKUs map
 	if skuConfig, exists := SupportedGPUConfigs[instanceType]; exists {
-		if inference != nil {
+		if presetName != "" {
 			model := plugin.KaitoModelRegister.MustGet(presetName) // InferenceSpec has been validated so the name is valid.
 			// Validate GPU count for given SKU
 			machineCount := *r.Count
