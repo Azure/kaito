@@ -81,7 +81,7 @@ func ExtractModelVersion(configs map[string]interface{}) (map[string]string, err
 	return modelsInfo, nil
 }
 
-func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount int, instanceType string,
+func GenerateInferenceWorkspaceManifest(name, namespace, imageName string, resourceCount int, instanceType string,
 	labelSelector *metav1.LabelSelector, preferredNodes []string, presetName kaitov1alpha1.ModelName,
 	inferenceMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string,
 	podTemplate *corev1.PodTemplateSpec) *kaitov1alpha1.Workspace {
