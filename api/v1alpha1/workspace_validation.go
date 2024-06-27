@@ -308,7 +308,7 @@ func (r *ResourceSpec) validateCreateWithTuning(tuning *TuningSpec) (errs *apis.
 
 func (r *ResourceSpec) validateCreateWithInference(inference *InferenceSpec) (errs *apis.FieldError) {
 	var presetName string
-	if inference != nil {
+	if inference.Preset != nil {
 		presetName = strings.ToLower(string(inference.Preset.Name))
 	}
 	instanceType := string(r.InstanceType)
