@@ -201,6 +201,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		preset              bool
 		errContent          string // Content expect error to include, if any
 		expectErrs          bool
+		validateTuning      bool // To indicate if we are testing tuning validation
 	}{
 		{
 			name: "Valid resource",
@@ -214,6 +215,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			preset:              true,
 			errContent:          "",
 			expectErrs:          false,
+			validateTuning:      false,
 		},
 		{
 			name: "Insufficient total GPU memory",
@@ -227,6 +229,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			preset:              true,
 			errContent:          "Insufficient total GPU memory",
 			expectErrs:          true,
+			validateTuning:      false,
 		},
 
 		{
@@ -241,6 +244,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			preset:              true,
 			errContent:          "Insufficient number of GPUs",
 			expectErrs:          true,
+			validateTuning:      false,
 		},
 		{
 			name: "Insufficient per GPU memory",
@@ -254,6 +258,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			preset:              true,
 			errContent:          "Insufficient per GPU memory",
 			expectErrs:          true,
+			validateTuning:      false,
 		},
 
 		{
@@ -262,8 +267,9 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				InstanceType: "Standard_invalid_sku",
 				Count:        pointerToInt(1),
 			},
-			errContent: "Unsupported instance",
-			expectErrs: true,
+			errContent:     "Unsupported instance",
+			expectErrs:     true,
+			validateTuning: false,
 		},
 		{
 			name: "Only Template set",
@@ -271,9 +277,10 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				InstanceType: "Standard_NV12s_v3",
 				Count:        pointerToInt(1),
 			},
-			preset:     false,
-			errContent: "",
-			expectErrs: false,
+			preset:         false,
+			errContent:     "",
+			expectErrs:     false,
+			validateTuning: false,
 		},
 		{
 			name: "N-Prefix SKU",
@@ -281,8 +288,9 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				InstanceType: "Standard_Nsku",
 				Count:        pointerToInt(1),
 			},
-			errContent: "",
-			expectErrs: false,
+			errContent:     "",
+			expectErrs:     false,
+			validateTuning: false,
 		},
 
 		{
@@ -291,44 +299,81 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				InstanceType: "Standard_Dsku",
 				Count:        pointerToInt(1),
 			},
-			errContent: "",
-			expectErrs: false,
+			errContent:     "",
+			expectErrs:     false,
+			validateTuning: false,
+		},
+		{
+			name: "Tuning validation with single node",
+			resourceSpec: &ResourceSpec{
+				InstanceType: "Standard_NC6",
+				Count:        pointerToInt(1),
+			},
+			errContent:     "",
+			expectErrs:     false,
+			validateTuning: true,
+		},
+		{
+			name: "Tuning validation with multinode",
+			resourceSpec: &ResourceSpec{
+				InstanceType: "Standard_NC6",
+				Count:        pointerToInt(2),
+			},
+			errContent:     "Tuning does not currently support multinode configurations",
+			expectErrs:     true,
+			validateTuning: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var spec InferenceSpec
+			if tc.validateTuning {
+				tuningSpec := &TuningSpec{}
+				errs := tc.resourceSpec.validateCreateWithTuning(tuningSpec)
+				hasErrs := errs != nil
+				if hasErrs != tc.expectErrs {
+					t.Errorf("validateCreateWithTuning() errors = %v, expectErrs %v", errs, tc.expectErrs)
+				}
 
-			if tc.preset {
-				spec = InferenceSpec{
-					Preset: &PresetSpec{
-						PresetMeta: PresetMeta{
-							Name: ModelName("test-validation"),
-						},
-					},
+				if hasErrs && tc.errContent != "" {
+					errMsg := errs.Error()
+					if !strings.Contains(errMsg, tc.errContent) {
+						t.Errorf("validateCreateWithTuning() error message = %v, expected to contain = %v", errMsg, tc.errContent)
+					}
 				}
 			} else {
-				spec = InferenceSpec{
-					Template: &v1.PodTemplateSpec{}, // Assuming a non-nil TemplateSpec implies it's set
+				var spec InferenceSpec
+
+				if tc.preset {
+					spec = InferenceSpec{
+						Preset: &PresetSpec{
+							PresetMeta: PresetMeta{
+								Name: ModelName("test-validation"),
+							},
+						},
+					}
+				} else {
+					spec = InferenceSpec{
+						Template: &v1.PodTemplateSpec{}, // Assuming a non-nil TemplateSpec implies it's set
+					}
 				}
-			}
 
-			gpuCountRequirement = tc.modelGPUCount
-			totalGPUMemoryRequirement = tc.modelTotalGPUMemory
-			perGPUMemoryRequirement = tc.modelPerGPUMemory
+				gpuCountRequirement = tc.modelGPUCount
+				totalGPUMemoryRequirement = tc.modelTotalGPUMemory
+				perGPUMemoryRequirement = tc.modelPerGPUMemory
 
-			errs := tc.resourceSpec.validateCreateWithInference(&spec)
-			hasErrs := errs != nil
-			if hasErrs != tc.expectErrs {
-				t.Errorf("validateCreate() errors = %v, expectErrs %v", errs, tc.expectErrs)
-			}
+				errs := tc.resourceSpec.validateCreateWithInference(&spec)
+				hasErrs := errs != nil
+				if hasErrs != tc.expectErrs {
+					t.Errorf("validateCreate() errors = %v, expectErrs %v", errs, tc.expectErrs)
+				}
 
-			// If there is an error and errContent is not empty, check that the error contains the expected content.
-			if hasErrs && tc.errContent != "" {
-				errMsg := errs.Error()
-				if !strings.Contains(errMsg, tc.errContent) {
-					t.Errorf("validateCreate() error message = %v, expected to contain = %v", errMsg, tc.errContent)
+				// If there is an error and errContent is not empty, check that the error contains the expected content.
+				if hasErrs && tc.errContent != "" {
+					errMsg := errs.Error()
+					if !strings.Contains(errMsg, tc.errContent) {
+						t.Errorf("validateCreate() error message = %v, expected to contain = %v", errMsg, tc.errContent)
+					}
 				}
 			}
 		})
