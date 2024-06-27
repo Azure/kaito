@@ -301,7 +301,7 @@ func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.Field
 }
 
 func (r *ResourceSpec) validateCreateWithTuning(tuning *TuningSpec) (errs *apis.FieldError) {
-	if tuning != nil && *r.Count > 1 {
+	if *r.Count > 1 {
 		errs = errs.Also(apis.ErrInvalidValue("Tuning does not currently support multinode configurations. Please set the node count to 1. Future support with DeepSpeed will allow this.", "count"))
 	}
 	return errs
@@ -309,7 +309,7 @@ func (r *ResourceSpec) validateCreateWithTuning(tuning *TuningSpec) (errs *apis.
 
 func (r *ResourceSpec) validateCreateWithInference(inference *InferenceSpec) (errs *apis.FieldError) {
 	var presetName string
-	if inference != nil && inference.Preset != nil {
+	if inference.Preset != nil {
 		presetName = strings.ToLower(string(inference.Preset.Name))
 	}
 	instanceType := string(r.InstanceType)
