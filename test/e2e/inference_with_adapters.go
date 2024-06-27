@@ -4,9 +4,6 @@
 package e2e
 
 import (
-	"fmt"
-	"os"
-	"strconv"
 	"time"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -19,14 +16,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var emptyAdapters = make([]kaitov1alpha1.AdapterSpec, 0)
 var DefaultStrength = "1.0"
+
+var imageName = "e2e-adapter"
+var fullImageName = utils.GetEnv("REGISTRY") + "/" + imageName + ":0.0.1"
 
 var validAdapters = []kaitov1alpha1.AdapterSpec{
 	{
 		Source: &kaitov1alpha1.DataSource{
-			Name:  "falcon-7b-adapter",
-			Image: "aimodelsregistrytest.azurecr.io/adapter-falcon-7b-dolly-oai-busybox:0.0.2",
+			Name:  imageName,
+			Image: fullImageName,
 		},
 		Strength: &DefaultStrength,
 	},
@@ -34,8 +33,8 @@ var validAdapters = []kaitov1alpha1.AdapterSpec{
 
 var expectedInitContainers = []corev1.Container{
 	{
-		Name:  "falcon-7b-adapter",
-		Image: "aimodelsregistrytest.azurecr.io/adapter-falcon-7b-dolly-oai-busybox:0.0.2",
+		Name:  imageName,
+		Image: fullImageName,
 	},
 }
 
@@ -75,30 +74,9 @@ func validateAdapters(workspaceObj *kaitov1alpha1.Workspace, expectedInitContain
 
 var _ = Describe("Workspace Preset", func() {
 	BeforeEach(func() {
-		var err error
-		runLlama13B, err = strconv.ParseBool(os.Getenv("RUN_LLAMA_13B"))
-		if err != nil {
-			// Handle error or set a default value
-			fmt.Print("Error: RUN_LLAMA_13B ENV Variable not set")
-			runLlama13B = false
-		}
+		loadTestEnvVars()
 
-		aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
-		aiModelsRegistrySecret = utils.GetEnv("AI_MODELS_REGISTRY_SECRET")
-		supportedModelsYamlPath = utils.GetEnv("SUPPORTED_MODELS_YAML_PATH")
-
-		// Load stable model versions
-		configs, err := utils.GetModelConfigInfo(supportedModelsYamlPath)
-		if err != nil {
-			fmt.Printf("Failed to load model configs: %v\n", err)
-			os.Exit(1)
-		}
-
-		modelInfo, err = utils.ExtractModelVersion(configs)
-		if err != nil {
-			fmt.Printf("Failed to extract stable model versions: %v\n", err)
-			os.Exit(1)
-		}
+		loadModelVersions()
 	})
 
 	It("should create a falcon workspace with adapter", func() {

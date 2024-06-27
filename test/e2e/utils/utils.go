@@ -171,7 +171,7 @@ func GenerateInferenceWorkspaceManifest(name, namespace, imageName string, resou
 		}
 	}
 
-	if len(adapters) > 0 {
+	if adapters != nil {
 		workspaceInference.Adapters = adapters
 	}
 
