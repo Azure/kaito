@@ -190,6 +190,15 @@ docker-build-kaito: docker-buildx
 		--pull \
 		--tag $(REGISTRY)/$(IMG_NAME):$(IMG_TAG) .
 
+.PHONY: docker-build-adapter
+docker-build-adapter: docker-buildx
+	docker buildx build \
+		--file ./docker/adapter/Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform="linux/$(ARCH)" \
+		--pull \
+		--tag $(REGISTRY)/e2e-adapter:0.0.1 .
+
 ##@ Deployment
 
 ifndef ignore-not-found

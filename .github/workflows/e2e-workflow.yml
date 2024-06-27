@@ -127,6 +127,14 @@ jobs:
         env:
           REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
+      
+      - name: build adapter image
+        if: ${{ !inputs.isRelease }}
+        shell: bash
+        run: |
+          make docker-build-adapter
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
 
       - name: create cluster
         shell: bash
@@ -200,6 +208,7 @@ jobs:
         env:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           RUN_LLAMA_13B: ${{ env.RUN_LLAMA_13B }}
+          REGISTRY: ${{ env.REGISTRY }}
           AI_MODELS_REGISTRY: ${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io
           AI_MODELS_REGISTRY_SECRET: ${{ secrets.E2E_AMRT_SECRET_NAME }}
 
