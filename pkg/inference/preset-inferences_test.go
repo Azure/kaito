@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/utils/test"
 
 	"github.com/azure/kaito/pkg/model"
@@ -19,14 +20,18 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var ValidStrength string = "0.5"
+
 func TestCreatePresetInference(t *testing.T) {
 	test.RegisterTestModel()
 	testcases := map[string]struct {
-		nodeCount   int
-		modelName   string
-		callMocks   func(c *test.MockClient)
-		workload    string
-		expectedCmd string
+		nodeCount      int
+		modelName      string
+		callMocks      func(c *test.MockClient)
+		workload       string
+		expectedCmd    string
+		hasAdapters    bool
+		expectedVolume string
 	}{
 
 		"test-model": {
@@ -39,6 +44,7 @@ func TestCreatePresetInference(t *testing.T) {
 			// No BaseCommand, TorchRunParams, TorchRunRdzvParams, or ModelRunParams
 			// So expected cmd consists of shell command and inference file
 			expectedCmd: "/bin/sh -c  inference_api.py",
+			hasAdapters: false,
 		},
 
 		"test-distributed-model": {
@@ -50,6 +56,19 @@ func TestCreatePresetInference(t *testing.T) {
 			},
 			workload:    "StatefulSet",
 			expectedCmd: "/bin/sh -c  inference_api.py",
+			hasAdapters: false,
+		},
+
+		"test-model-with-adapters": {
+			nodeCount: 1,
+			modelName: "test-model",
+			callMocks: func(c *test.MockClient) {
+				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
+			},
+			workload:       "Deployment",
+			expectedCmd:    "/bin/sh -c  inference_api.py",
+			hasAdapters:    true,
+			expectedVolume: "adapter-volume",
 		},
 	}
 
@@ -60,6 +79,18 @@ func TestCreatePresetInference(t *testing.T) {
 
 			workspace := test.MockWorkspaceWithPreset
 			workspace.Resource.Count = &tc.nodeCount
+
+			if tc.hasAdapters {
+				workspace.Inference.Adapters = []v1alpha1.AdapterSpec{
+					{
+						Source: &v1alpha1.DataSource{
+							Name:  "Adapter-1",
+							Image: "fake.kaito.com/kaito-image:0.0.1",
+						},
+						Strength: &ValidStrength,
+					},
+				}
+			}
 
 			useHeadlessSvc := false
 
@@ -112,6 +143,20 @@ func TestCreatePresetInference(t *testing.T) {
 
 			if !reflect.DeepEqual(params, expectedParams) {
 				t.Errorf("%s parameters are not expected, got %s, expect %s ", k, params, expectedParams)
+			}
+
+			// Check for adapter volume
+			if tc.hasAdapters {
+				found := false
+				for _, volume := range createdObject.(*appsv1.Deployment).Spec.Template.Spec.Volumes {
+					if volume.Name == tc.expectedVolume {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("%s: expected adapter volume %s not found", k, tc.expectedVolume)
+				}
 			}
 		})
 	}

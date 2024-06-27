@@ -18,7 +18,6 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
 )
 
@@ -301,7 +300,7 @@ func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.Field
 }
 
 func (r *ResourceSpec) validateCreateWithTuning(tuning *TuningSpec) (errs *apis.FieldError) {
-	if tuning != nil && *r.Count > 1 {
+	if *r.Count > 1 {
 		errs = errs.Also(apis.ErrInvalidValue("Tuning does not currently support multinode configurations. Please set the node count to 1. Future support with DeepSpeed will allow this.", "count"))
 	}
 	return errs
@@ -316,7 +315,7 @@ func (r *ResourceSpec) validateCreateWithInference(inference *InferenceSpec) (er
 
 	// Check if instancetype exists in our SKUs map
 	if skuConfig, exists := SupportedGPUConfigs[instanceType]; exists {
-		if inference != nil {
+		if presetName != "" {
 			model := plugin.KaitoModelRegister.MustGet(presetName) // InferenceSpec has been validated so the name is valid.
 			// Validate GPU count for given SKU
 			machineCount := *r.Count
