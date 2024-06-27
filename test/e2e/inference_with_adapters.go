@@ -22,12 +22,13 @@ import (
 var emptyAdapters = make([]kaitov1alpha1.AdapterSpec, 0)
 var DefaultStrength = "1.0"
 
-var fullImageName = utils.GetEnv("REGISTRY") + "/e2e-adapter:0.0.1"
+var imageName = "e2e-adapter"
+var fullImageName = utils.GetEnv("REGISTRY") + "/" + imageName + ":0.0.1"
 
 var validAdapters = []kaitov1alpha1.AdapterSpec{
 	{
 		Source: &kaitov1alpha1.DataSource{
-			Name:  "falcon-7b-adapter",
+			Name:  imageName,
 			Image: fullImageName,
 		},
 		Strength: &DefaultStrength,
@@ -36,7 +37,7 @@ var validAdapters = []kaitov1alpha1.AdapterSpec{
 
 var expectedInitContainers = []corev1.Container{
 	{
-		Name:  "falcon-7b-adapter",
+		Name:  imageName,
 		Image: fullImageName,
 	},
 }
