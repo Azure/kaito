@@ -6,6 +6,7 @@ package utils
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"time"
 
@@ -34,6 +35,13 @@ func GetEnv(envVar string) string {
 		return ""
 	}
 	return env
+}
+
+// GenerateRandomString generates a random number between 0 and 1000 and returns it as a string.
+func GenerateRandomString() string {
+	rand.Seed(time.Now().UnixNano()) // Seed the random number generator
+	randomNumber := rand.Intn(1001)  // Generate a random number between 0 and 1000
+	return fmt.Sprintf("%d", randomNumber)
 }
 
 func GetModelConfigInfo(configFilePath string) (map[string]interface{}, error) {
