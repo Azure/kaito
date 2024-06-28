@@ -122,6 +122,32 @@ func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount 
 	return workspace
 }
 
+func GenerateTuningWorkspaceManifest(name, namespace, imageName string, resourceCount int, instanceType string,
+	labelSelector *metav1.LabelSelector, preferredNodes []string, input *kaitov1alpha1.DataSource,
+	output *kaitov1alpha1.DataDestination, preset *kaitov1alpha1.PresetSpec, method kaitov1alpha1.TuningMethod) *kaitov1alpha1.Workspace {
+
+	workspace := &kaitov1alpha1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Resource: kaitov1alpha1.ResourceSpec{
+			Count:          lo.ToPtr(resourceCount),
+			InstanceType:   instanceType,
+			LabelSelector:  labelSelector,
+			PreferredNodes: preferredNodes,
+		},
+		Tuning: &kaitov1alpha1.TuningSpec{
+			Method: method,
+			Input:  input,
+			Output: output,
+			Preset: preset,
+		},
+	}
+
+	return workspace
+}
+
 func GeneratePodTemplate(name, namespace, image string, labels map[string]string) *corev1.PodTemplateSpec {
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
