@@ -63,7 +63,8 @@ func getInstanceGPUCount(sku string) int {
 
 func GetTuningImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, presetObj *model.PresetParam) (string, []corev1.LocalObjectReference) {
 	imagePullSecretRefs := []corev1.LocalObjectReference{}
-	if presetObj.ImageAccessMode == string(kaitov1alpha1.ModelImageAccessModePrivate) {
+	// Check if the workspace preset's access mode is private
+	if string(workspaceObj.Tuning.Preset.AccessMode) == string(kaitov1alpha1.ModelImageAccessModePrivate) {
 		imageName := workspaceObj.Tuning.Preset.PresetOptions.Image
 		for _, secretName := range workspaceObj.Tuning.Preset.PresetOptions.ImagePullSecrets {
 			imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
@@ -401,7 +402,11 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 		Command: []string{"sh", "-c", `
 			for url in $DATA_URLS; do
 				filename=$(basename "$url" | sed 's/[?=&]/_/g')
+				echo "Downloading $url to $DATA_VOLUME_PATH/$filename"
 				curl -sSL $url -o $DATA_VOLUME_PATH/$filename
+				if [ $? -ne 0 ]; then
+           			echo "Failed to download $url"
+ 				fi
 			done
 		`},
 		VolumeMounts: []corev1.VolumeMount{
