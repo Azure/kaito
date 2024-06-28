@@ -125,6 +125,10 @@ else:
         # To avoid any potential future operations that use non-combined adapters
         for adapter in adapter_names:
             model.delete_adapter(adapter)
+
+        active_adapters = model.active_adapters
+        if len(active_adapters) != 1 or active_adapters[0] != "combined_adapter":
+            raise ValueError(f"Adapters were not merged correctly")
     else:
         print("Warning: Did not find any valid adapters mounted, using base model")
         model = base_model
