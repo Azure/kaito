@@ -11,7 +11,9 @@ from peft import LoraConfig
 from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
                           PreTrainedTokenizer)
 
-DEFAULT_TARGET_MODULES = os.environ.get('DEFAULT_TARGET_MODULES', None)
+target_modules_env = os.environ.get('DEFAULT_TARGET_MODULES', None) 
+DEFAULT_TARGET_MODULES = [module.strip() for module in target_modules_env.split(",")] if target_modules_env else None
+
 # Consider Future Support for other trainers
 # class TrainerTypes(Enum):
     # TRAINER = "Trainer"
