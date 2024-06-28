@@ -17,7 +17,6 @@ import (
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/resources"
 	"github.com/azure/kaito/pkg/utils"
-	"github.com/azure/kaito/presets/models/phi3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/klog/v2"
@@ -316,8 +315,9 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	}
 
 	var envVars []corev1.EnvVar
+	presetName := strings.ToLower(string(workspaceObj.Tuning.Preset.Name))
 	// Append environment variable for default target modules if using Phi3 model
-	if string(workspaceObj.Tuning.Preset.Name) == phi3.PresetPhi3Mini128kModel {
+	if strings.HasPrefix(presetName, "phi-3") {
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  "DEFAULT_TARGET_MODULES",
 			Value: "k_proj,q_proj,v_proj,o_proj,gate_proj,down_proj,up_proj",
