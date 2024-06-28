@@ -17,6 +17,7 @@ import (
 	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/resources"
 	"github.com/azure/kaito/pkg/utils"
+	"github.com/azure/kaito/presets/models/phi3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/klog/v2"
@@ -314,8 +315,16 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		imagePullSecrets = append(imagePullSecrets, tuningImagePullSecrets...)
 	}
 
+	var envVars []corev1.EnvVar
+	// Append environment variable for default target modules if using Phi3 model
+	if string(workspaceObj.Tuning.Preset.Name) == phi3.PresetPhi3Mini128kModel {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "DEFAULT_TARGET_MODULES",
+			Value: "k_proj,q_proj,v_proj,o_proj,gate_proj,down_proj,up_proj",
+		})
+	}
 	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, tuningImage, imagePullSecrets, *workspaceObj.Resource.Count, commands,
-		containerPorts, nil, nil, resourceReq, tolerations, initContainers, sidecarContainers, volumes, volumeMounts)
+		containerPorts, nil, nil, resourceReq, tolerations, initContainers, sidecarContainers, volumes, volumeMounts, envVars)
 
 	err = resources.CreateResource(ctx, jobObj, kubeClient)
 	if client.IgnoreAlreadyExists(err) != nil {
