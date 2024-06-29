@@ -1,0 +1,29 @@
+{
+  "alpha_pattern": {},
+  "auto_mapping": {
+    "base_model_class": "FalconForCausalLM",
+    "parent_library": "transformers.models.falcon.modeling_falcon"
+  },
+  "base_model_name_or_path": "/workspace/tfs/weights",
+  "bias": "none",
+  "fan_in_fan_out": false,
+  "inference_mode": true,
+  "init_lora_weights": true,
+  "layers_pattern": null,
+  "layers_to_transform": null,
+  "loftq_config": {},
+  "lora_alpha": 8,
+  "lora_dropout": 0.0,
+  "megatron_config": null,
+  "megatron_core": "megatron.core",
+  "modules_to_save": null,
+  "peft_type": "LORA",
+  "r": 8,
+  "rank_pattern": {},
+  "revision": null,
+  "target_modules": [
+    "query_key_value"
+  ],
+  "task_type": null,
+  "use_rslora": false
+}
