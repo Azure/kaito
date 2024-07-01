@@ -83,7 +83,7 @@ runs:
           sudo mkdir -p /mnt/storage/etcd
           echo "Creating Kind cluster"
           
-          if [[ "${{ inputs.weights_dir }}" == "hostname:model-server" ]]; then
+          if [[ "${{ inputs.runs_on }}" == "hostname:model-server" ]]; then
             config_file=".github/workflows/kind-cluster/kind.yaml"
           else
             config_file=".github/workflows/kind-cluster/kind-1es.yaml"
