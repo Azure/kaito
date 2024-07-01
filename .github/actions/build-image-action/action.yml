@@ -92,7 +92,7 @@ runs:
             rm -rf /mnt/storage/etcd/*
             config_file=".github/workflows/kind-cluster/kind-1es.yaml"
           fi
-          
+
           if ! kind create cluster --config $config_file; then
             echo "Failed to create the Kind cluster."
             exit 1
