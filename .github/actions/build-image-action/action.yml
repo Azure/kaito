@@ -81,8 +81,15 @@ runs:
         if ! kind get clusters | grep -q kind; then
           echo "Creating directory for etcd storage"
           sudo mkdir -p /mnt/storage/etcd
-          echo "Creating Kind cluster using kind-1es.yaml"
-          if ! kind create cluster --config .github/workflows/kind-cluster/kind-1es.yaml; then
+          echo "Creating Kind cluster"
+          
+          if [[ "${{ inputs.weights_dir }}" == "hostname:model-server" ]]; then
+            config_file=".github/workflows/kind-cluster/kind.yaml"
+          else
+            config_file=".github/workflows/kind-cluster/kind-1es.yaml"
+          fi
+          
+          if ! kind create cluster --config $config_file; then
             echo "Failed to create the Kind cluster."
             exit 1
           fi
