@@ -109,21 +109,20 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 		return reconcile.Result{}, err
 	}
 
-	if err := c.ensureService(ctx, wObj); err != nil {
-		if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
-			"workspaceFailed", err.Error()); updateErr != nil {
-			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
-			return reconcile.Result{}, updateErr
-		}
-		return reconcile.Result{}, err
-	}
-
 	if wObj.Tuning != nil {
 		if err = c.applyTuning(ctx, wObj); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
 	if wObj.Inference != nil {
+		if err := c.ensureService(ctx, wObj); err != nil {
+			if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
+				"workspaceFailed", err.Error()); updateErr != nil {
+				klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+				return reconcile.Result{}, updateErr
+			}
+			return reconcile.Result{}, err
+		}
 		if err = c.applyInference(ctx, wObj); err != nil {
 			if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeReady, metav1.ConditionFalse,
 				"workspaceFailed", err.Error()); updateErr != nil {
