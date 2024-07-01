@@ -84,8 +84,12 @@ runs:
           echo "Creating Kind cluster"
           
           if [[ "${{ inputs.runs_on }}" == "hostname:model-server" ]]; then
+            # Ensure clean etcd directory for mounting
+            rm -rf /datadrive/etcd/*
             config_file=".github/workflows/kind-cluster/kind.yaml"
           else
+            # Ensure clean etcd directory for mounting
+            rm -rf /mnt/storage/etcd/*
             config_file=".github/workflows/kind-cluster/kind-1es.yaml"
           fi
           
