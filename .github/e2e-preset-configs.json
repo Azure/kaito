@@ -65,6 +65,34 @@
         "OSS": true
       },
       {
+        "name": "phi-3-small-8k-instruct",
+        "node-count": 1,
+        "node-vm-size": "Standard_NC12s_v3",
+        "node-osdisk-size": 100,
+        "OSS": true
+      },
+      {
+        "name": "phi-3-small-128k-instruct",
+        "node-count": 1,
+        "node-vm-size": "Standard_NC12s_v3",
+        "node-osdisk-size": 100,
+        "OSS": true
+      },
+      {
+        "name": "phi-3-medium-4k-instruct",
+        "node-count": 1,
+        "node-vm-size": "Standard_NC12s_v3",
+        "node-osdisk-size": 100,
+        "OSS": true
+      },
+      {
+        "name": "phi-3-medium-128k-instruct",
+        "node-count": 1,
+        "node-vm-size": "Standard_NC12s_v3",
+        "node-osdisk-size": 100,
+        "OSS": true
+      },
+      {
         "name": "llama-2-7b",
         "node-count": 1,
         "node-vm-size": "Standard_NC12s_v3",
