@@ -210,7 +210,7 @@ jobs:
         with:
           weights_dir: ${{ env.WEIGHTS_DIR }}
           branch_name: ${{ env.BRANCH_NAME }}
-          image_name: staging/aks/kaito/kaito-${{ matrix.model.name }} # TODO: Change directly to unlisted
+          image_name: unlisted/aks/kaito/kaito-${{ matrix.model.name }}
           image_tag: ${{ matrix.model.tag }}
           acr_name: ${{ secrets.PROD_1ES_ACR_USERNAME }}
           acr_username: ${{ secrets.PROD_1ES_ACR_USERNAME }}
