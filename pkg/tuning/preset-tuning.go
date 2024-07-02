@@ -63,8 +63,8 @@ func getInstanceGPUCount(sku string) int {
 
 func GetTuningImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, presetObj *model.PresetParam) (string, []corev1.LocalObjectReference) {
 	imagePullSecretRefs := []corev1.LocalObjectReference{}
-	if presetObj.ImageAccessMode == string(kaitov1alpha1.ModelImageAccessModePrivate) ||
-		string(workspaceObj.Tuning.Preset.AccessMode) == string(kaitov1alpha1.ModelImageAccessModePrivate) {
+	// Check if the workspace preset's access mode is private
+	if string(workspaceObj.Tuning.Preset.AccessMode) == string(kaitov1alpha1.ModelImageAccessModePrivate) {
 		imageName := workspaceObj.Tuning.Preset.PresetOptions.Image
 		for _, secretName := range workspaceObj.Tuning.Preset.PresetOptions.ImagePullSecrets {
 			imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
@@ -315,8 +315,17 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		imagePullSecrets = append(imagePullSecrets, tuningImagePullSecrets...)
 	}
 
+	var envVars []corev1.EnvVar
+	presetName := strings.ToLower(string(workspaceObj.Tuning.Preset.Name))
+	// Append environment variable for default target modules if using Phi3 model
+	if strings.HasPrefix(presetName, "phi-3") {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "DEFAULT_TARGET_MODULES",
+			Value: "k_proj,q_proj,v_proj,o_proj,gate_proj,down_proj,up_proj",
+		})
+	}
 	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, tuningImage, imagePullSecrets, *workspaceObj.Resource.Count, commands,
-		containerPorts, nil, nil, resourceReq, tolerations, initContainers, sidecarContainers, volumes, volumeMounts)
+		containerPorts, nil, nil, resourceReq, tolerations, initContainers, sidecarContainers, volumes, volumeMounts, envVars)
 
 	err = resources.CreateResource(ctx, jobObj, kubeClient)
 	if client.IgnoreAlreadyExists(err) != nil {
@@ -405,8 +414,8 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 				echo "Downloading $url to $DATA_VOLUME_PATH/$filename"
 				curl -sSL $url -o $DATA_VOLUME_PATH/$filename
 				if [ $? -ne 0 ]; then
-          			echo "Failed to download $url"
-				fi
+           			echo "Failed to download $url"
+ 				fi
 			done
 		`},
 		VolumeMounts: []corev1.VolumeMount{

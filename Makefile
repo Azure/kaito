@@ -1,9 +1,8 @@
 
 # Image URL to use all building/pushing image targets
-REGISTRY ?= YOUR_REGISTRY
-IMG_NAME ?= workspace
-VERSION ?= v0.2.2
-GPU_PROVISIONER_VERSION ?= 0.2.0
+REGISTRY ?= aimodelsregistrytest.azurecr.io
+IMG_NAME ?= kaito
+VERSION ?= v2.0.2
 IMG_TAG ?= $(subst v,,$(VERSION))
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -26,16 +25,16 @@ GINKGO := $(TOOLS_BIN_DIR)/$(GINKGO_BIN)-$(GINKGO_VER)
 AZURE_SUBSCRIPTION_ID ?= $(AZURE_SUBSCRIPTION_ID)
 AZURE_LOCATION ?= eastus
 AKS_K8S_VERSION ?= 1.29.2
-AZURE_RESOURCE_GROUP ?= demo
-AZURE_CLUSTER_NAME ?= kaito-demo
+AZURE_RESOURCE_GROUP ?= llm-test
+AZURE_CLUSTER_NAME ?= GitRunner
 AZURE_RESOURCE_GROUP_MC=MC_$(AZURE_RESOURCE_GROUP)_$(AZURE_CLUSTER_NAME)_$(AZURE_LOCATION)
 GPU_NAMESPACE ?= gpu-provisioner
 KAITO_NAMESPACE ?= kaito-workspace
 GPU_PROVISIONER_MSI_NAME ?= gpuIdentity
 
 RUN_LLAMA_13B ?= false
-AI_MODELS_REGISTRY ?= modelregistry.azurecr.io
-AI_MODELS_REGISTRY_SECRET ?= modelregistry
+AI_MODELS_REGISTRY ?= aimodelsregistrytest.azurecr.io
+AI_MODELS_REGISTRY_SECRET ?= aimodelsregistry
 SUPPORTED_MODELS_YAML_PATH ?= /home/runner/work/kaito/kaito/presets/models/supported_models.yaml
 
 # Scripts
@@ -152,7 +151,7 @@ prepare-kaito-addon-identity:
 az-patch-install-helm: ## Update Azure client env vars and settings in helm values.yml
 	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
 
-	yq -i '(.image.repository)                                              = "$(REGISTRY)/workspace"'                    ./charts/kaito/workspace/values.yaml
+	yq -i '(.image.repository)                                              = "$(REGISTRY)/kaito"'                    ./charts/kaito/workspace/values.yaml
 	yq -i '(.image.tag)                                                     = "$(IMG_TAG)"'                               ./charts/kaito/workspace/values.yaml
 
 	helm install kaito-workspace ./charts/kaito/workspace --namespace $(KAITO_NAMESPACE) --create-namespace
@@ -189,6 +188,15 @@ docker-build-kaito: docker-buildx
 		--platform="linux/$(ARCH)" \
 		--pull \
 		--tag $(REGISTRY)/$(IMG_NAME):$(IMG_TAG) .
+
+.PHONY: docker-build-adapter
+docker-build-adapter: docker-buildx
+	docker buildx build \
+		--file ./docker/adapter/Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform="linux/$(ARCH)" \
+		--pull \
+		--tag $(REGISTRY)/e2e-adapter:0.0.1 .
 
 ##@ Deployment
 

@@ -106,3 +106,19 @@ models:
     tag: 0.0.1
     # Tag history:
     # 0.0.1 - Initial Release
+
+  - name: phi-3-medium-4k-instruct
+    type: text-generation
+    version: https://huggingface.co/microsoft/Phi-3-medium-4k-instruct/commit/d194e4e74ffad5a5e193e26af25bcfc80c7f1ffc
+    runtime: tfs
+    tag: 0.0.1
+    # Tag history:
+    # 0.0.1 - Initial Release
+
+  - name: phi-3-medium-128k-instruct
+    type: text-generation
+    version: https://huggingface.co/microsoft/Phi-3-medium-128k-instruct/commit/cae1d42b5577398fd1be9f0746052562ae552886
+    runtime: tfs
+    tag: 0.0.1
+    # Tag history:
+    # 0.0.1 - Initial Release
