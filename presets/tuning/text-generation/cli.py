@@ -11,6 +11,9 @@ from peft import LoraConfig
 from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
                           PreTrainedTokenizer)
 
+target_modules_env = os.environ.get('DEFAULT_TARGET_MODULES', None) 
+DEFAULT_TARGET_MODULES = [module.strip() for module in target_modules_env.split(",")] if target_modules_env else None
+
 # Consider Future Support for other trainers
 # class TrainerTypes(Enum):
     # TRAINER = "Trainer"
@@ -35,7 +38,7 @@ class ExtLoraConfig(LoraConfig):
     Lora Config
     """
     init_lora_weights: bool = field(default=True, metadata={"help": "Enable initialization of LoRA weights"})
-    target_modules: Optional[List[str]] = field(default=None, metadata={"help": ("List of module names to replace with LoRA.")})
+    target_modules: Optional[List[str]] = field(default_factory=lambda: DEFAULT_TARGET_MODULES if DEFAULT_TARGET_MODULES else None, metadata={"help": "List of module names to replace with LoRA."})
     layers_to_transform: Optional[List[int]] = field(default=None, metadata={"help": "Layer indices to apply LoRA"})
     layers_pattern: Optional[List[str]] = field(default=None, metadata={"help": "Pattern to match layers for LoRA"})
     loftq_config: Dict[str, any] = field(default_factory=dict, metadata={"help": "LoftQ configuration for quantization"})
