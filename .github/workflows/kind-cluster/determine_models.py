@@ -118,10 +118,13 @@ def check_modified_models(pr_branch):
 def main():
     pr_branch = os.environ.get("PR_BRANCH", "main") # If not specified default to 'main'
     force_run_all = os.environ.get("FORCE_RUN_ALL", "false") # If not specified default to False
+    force_run_all_phi = os.environ.get("FORCE_RUN_ALL_PHI", "false") # If not specified default to False
 
     affected_models = []
     if force_run_all != "false":
         affected_models = [model['name'] for model in YAML_PR['models']]
+    elif force_run_all_phi != "false": 
+        affected_models = [model['name'] for model in YAML_PR['models'] if 'phi-3' in model['name']]
     else:
         # Logic to determine affected models
         # Example: affected_models = ['model1', 'model2', 'model3']
