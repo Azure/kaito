@@ -140,9 +140,9 @@ func ExtractModelVersion(configs map[string]interface{}) (map[string]string, err
 	return modelsInfo, nil
 }
 
-func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount int, instanceType string,
+func GenerateInferenceWorkspaceManifest(name, namespace, imageName string, resourceCount int, instanceType string,
 	labelSelector *metav1.LabelSelector, preferredNodes []string, presetName kaitov1alpha1.ModelName,
-	inferenceMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string,
+	accessMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string,
 	podTemplate *corev1.PodTemplateSpec, adapters []kaitov1alpha1.AdapterSpec) *kaitov1alpha1.Workspace {
 
 	workspace := &kaitov1alpha1.Workspace{
@@ -159,12 +159,12 @@ func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount 
 	}
 
 	var workspaceInference kaitov1alpha1.InferenceSpec
-	if inferenceMode == kaitov1alpha1.ModelImageAccessModePublic ||
-		inferenceMode == kaitov1alpha1.ModelImageAccessModePrivate {
+	if accessMode == kaitov1alpha1.ModelImageAccessModePublic ||
+		accessMode == kaitov1alpha1.ModelImageAccessModePrivate {
 		workspaceInference.Preset = &kaitov1alpha1.PresetSpec{
 			PresetMeta: kaitov1alpha1.PresetMeta{
 				Name:       presetName,
-				AccessMode: inferenceMode,
+				AccessMode: accessMode,
 			},
 			PresetOptions: kaitov1alpha1.PresetOptions{
 				Image:            imageName,
@@ -177,7 +177,7 @@ func GenerateWorkspaceManifest(name, namespace, imageName string, resourceCount 
 		workspaceInference.Adapters = adapters
 	}
 
-	if inferenceMode == InferenceModeCustomTemplate {
+	if accessMode == InferenceModeCustomTemplate {
 		workspaceInference.Template = podTemplate
 	}
 
