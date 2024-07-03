@@ -5,8 +5,10 @@ package nodeclaim
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 
+	"github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/mock"
@@ -165,9 +167,9 @@ func TestWaitForPendingNodeClaims(t *testing.T) {
 }
 
 func TestGenerateNodeClaimManifest(t *testing.T) {
-	t.Run("Should generate a nodeClaim object from the given workspace", func(t *testing.T) {
+	t.Run("Should generate a nodeClaim object from the given workspace when cloud provider set to azure", func(t *testing.T) {
 		mockWorkspace := test.MockWorkspaceWithPreset
-
+		os.Setenv("CLOUD_PROVIDER", "azure")
 		nodeClaim := GenerateNodeClaimManifest(context.Background(), "0", mockWorkspace)
 
 		assert.Check(t, nodeClaim != nil, "NodeClaim must not be nil")
@@ -175,7 +177,27 @@ func TestGenerateNodeClaimManifest(t *testing.T) {
 		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceName], mockWorkspace.Name, "label must have same workspace name as workspace")
 		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceNamespace], mockWorkspace.Namespace, "label must have same workspace namespace as workspace")
 		assert.Equal(t, nodeClaim.Labels[LabelNodePool], KaitoNodePoolName, "label must have same labels as workspace label selector")
-		assert.Equal(t, nodeClaim.Labels[v1beta1.DoNotDisruptAnnotationKey], "true", "label must have do not disrupt annotation")
-		assert.Equal(t, nodeClaim.Spec.Requirements[0].Values[0], mockWorkspace.Resource.InstanceType, "NodeClaim must have same instance type as workspace")
+		assert.Equal(t, nodeClaim.Annotations[v1beta1.DoNotDisruptAnnotationKey], "true", "label must have do not disrupt annotation")
+		assert.Equal(t, len(nodeClaim.Spec.Requirements), 3, " NodeClaim must have 3 NodeSelector Requirements")
+		assert.Equal(t, nodeClaim.Spec.Requirements[2].NodeSelectorRequirement.Key, v1alpha2.LabelSKUName, "NodeClaim must have same instance type as workspace")
+		assert.Equal(t, nodeClaim.Spec.Requirements[2].NodeSelectorRequirement.Values[0], mockWorkspace.Resource.InstanceType, "NodeClaim must have same instance type as workspace")
+		assert.Check(t, nodeClaim.Spec.NodeClassRef != nil, "NodeClaim must have NodeClassRef")
+		assert.Equal(t, nodeClaim.Spec.NodeClassRef.Kind, "AKSNodeClass", "NodeClaim must have 'AKSNodeClass' kind")
+	})
+
+	t.Run("Should generate a nodeClaim object from the given workspace when cloud provider set to aws", func(t *testing.T) {
+		mockWorkspace := test.MockWorkspaceWithPreset
+		os.Setenv("CLOUD_PROVIDER", "aws")
+		nodeClaim := GenerateNodeClaimManifest(context.Background(), "0", mockWorkspace)
+
+		assert.Check(t, nodeClaim != nil, "NodeClaim must not be nil")
+		assert.Equal(t, nodeClaim.Namespace, mockWorkspace.Namespace, "NodeClaim must have same namespace as workspace")
+		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceName], mockWorkspace.Name, "label must have same workspace name as workspace")
+		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceNamespace], mockWorkspace.Namespace, "label must have same workspace namespace as workspace")
+		assert.Equal(t, nodeClaim.Labels[LabelNodePool], KaitoNodePoolName, "label must have same labels as workspace label selector")
+		assert.Equal(t, nodeClaim.Annotations[v1beta1.DoNotDisruptAnnotationKey], "true", "label must have do not disrupt annotation")
+		assert.Equal(t, len(nodeClaim.Spec.Requirements), 2, " NodeClaim must have 2 NodeSelector Requirements")
+		assert.Check(t, nodeClaim.Spec.NodeClassRef != nil, "NodeClaim must have NodeClassRef")
+		assert.Equal(t, nodeClaim.Spec.NodeClassRef.Kind, "EC2NodeClass", "NodeClaim must have 'EC2NodeClass' kind")
 	})
 }

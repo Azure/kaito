@@ -45,6 +45,8 @@ spec:
                   fieldPath: metadata.namespace
             - name: PRESET_REGISTRY_NAME
               value: {{ .Values.presetRegistryName }}
+            - name: CLOUD_PROVIDER
+              value: {{ .Values.cloudProviderName }}
           ports:
             - name: http-metrics
               containerPort: 8080
