@@ -24,6 +24,7 @@ import (
 
 const (
 	InferenceModeCustomTemplate kaitov1alpha1.ModelImageAccessMode = "customTemplate"
+	ExampleDatasetURL                                           = "https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/resolve/main/data/train-00000-of-00001-54e3756291ca09c6.parquet?download=true"
 )
 
 var (
@@ -205,6 +206,55 @@ func GenerateTuningWorkspaceManifest(name, namespace, imageName string, resource
 			Output: output,
 			Preset: preset,
 		},
+	}
+
+	return workspace
+}
+
+func GenerateE2ETuningWorkspaceManifest(name, namespace, imageName, outputRegistry string,
+	resourceCount int, instanceType string, labelSelector *metav1.LabelSelector,
+	preferredNodes []string, presetName kaitov1alpha1.ModelName, accessMode kaitov1alpha1.ModelImageAccessMode,
+	imagePullSecret []string, customConfigMapName string) *kaitov1alpha1.Workspace {
+	workspace := &kaitov1alpha1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Resource: kaitov1alpha1.ResourceSpec{
+			Count:          lo.ToPtr(resourceCount),
+			InstanceType:   instanceType,
+			LabelSelector:  labelSelector,
+			PreferredNodes: preferredNodes,
+		},
+	}
+
+	var workspaceTuning kaitov1alpha1.TuningSpec
+ 	if accessMode == kaitov1alpha1.ModelImageAccessModePublic ||
+ 		accessMode == kaitov1alpha1.ModelImageAccessModePrivate {
+ 		workspaceTuning.Preset = &kaitov1alpha1.PresetSpec{
+ 			PresetMeta: kaitov1alpha1.PresetMeta{
+ 				Name:       presetName,
+ 				AccessMode: accessMode,
+ 			},
+ 			PresetOptions: kaitov1alpha1.PresetOptions{
+ 				Image:            imageName,
+ 				ImagePullSecrets: imagePullSecret,
+ 			},
+ 		}
+ 	}
+
+ 	workspace.Tuning = &workspaceTuning
+ 	workspace.Tuning.Method = kaitov1alpha1.TuningMethodQLora
+ 	workspace.Tuning.Input = &kaitov1alpha1.DataSource{
+ 		URLs: []string{ExampleDatasetURL},
+ 	}
+ 	workspace.Tuning.Output = &kaitov1alpha1.DataDestination{
+ 		Image:           outputRegistry,
+ 		ImagePushSecret: imagePullSecret[0],
+ 	}
+
+	if customConfigMapName != "" {
+ 		workspace.Tuning.Config = customConfigMapName
 	}
 
 	return workspace

@@ -171,14 +171,14 @@ func createCustomWorkspaceWithPresetCustomMode(imageName string, numOfNode int) 
 	return workspaceObj
 }
 
-func createPhi3WorkspaceWithPresetPrivateMode(registry, registrySecret, imageVersion string, numOfNode int) *kaitov1alpha1.Workspace {
+func createPhi3WorkspaceWithPresetPublicMode(registry, registrySecret, imageVersion string, numOfNode int) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
-	By("Creating a workspace CR with Phi-3-mini-128k-instruct preset private mode", func() {
+	By("Creating a workspace CR with Phi-3-mini-128k-instruct preset public mode", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
-		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, fmt.Sprintf("%s/%s:%s", registry, PresetPhi3Mini128kModel, imageVersion),
+		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, "",
 			numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-phi-3-mini-128k-instruct"},
-			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil)
+			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, nil, nil)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
@@ -212,19 +212,18 @@ func createAndValidateConfigMap(configMap *v1.ConfigMap) {
 	})
 }
 
-func createPhi3TuningWorkspaceWithPresetPrivateMode(presetRegistry, registrySecret, imageVersion, configMapName string, numOfNode int) (*kaitov1alpha1.Workspace, string) {
+func createPhi3TuningWorkspaceWithPresetPublicMode(presetRegistry, registrySecret, imageVersion, configMapName string, numOfNode int) (*kaitov1alpha1.Workspace, string) {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	e2eOutputImageName := fmt.Sprintf("adapter-%s-e2e-test", PresetPhi3Mini128kModel)
-	e2eOutputImageTag := utils.GenerateRandomString(6)
+	e2eOutputImageTag := utils.GenerateRandomString()
 	var uniqueID string
 	By("Creating a workspace Tuning CR with Phi-3 preset private mode", func() {
 		uniqueID = fmt.Sprint("preset-", rand.Intn(1000))
-		presetRegistryUrl := fmt.Sprintf("%s/%s:%s", presetRegistry, PresetPhi3Mini128kModel, imageVersion)
 		outputRegistryUrl := fmt.Sprintf("%s.azurecr.io/%s:%s", azureClusterName, e2eOutputImageName, e2eOutputImageTag)
-		workspaceObj = utils.GenerateTuningWorkspaceManifest(uniqueID, namespaceName, presetRegistryUrl,
+		workspaceObj = utils.GenerateE2ETuningWorkspaceManifest(uniqueID, namespaceName, "",
 			outputRegistryUrl, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-tuning-falcon"},
-			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePrivate, []string{registrySecret}, configMapName)
+			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePublic, nil, configMapName)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
@@ -728,7 +727,7 @@ var _ = Describe("Workspace Preset", func() {
 			log.Fatalf("Error copying secret: %v", err)
 		}
 		configMap := createCustomTuningConfigMapForE2E()
-		workspaceObj, jobName := createPhi3TuningWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, modelVersion, configMap.Name, numOfNode)
+		workspaceObj, jobName := createPhi3TuningWorkspaceWithPresetPublicMode(aiModelsRegistry, aiModelsRegistrySecret, modelVersion, configMap.Name, numOfNode)
 
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
