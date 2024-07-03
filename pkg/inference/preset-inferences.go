@@ -62,8 +62,8 @@ var (
 		},
 		{
 			Effect:   corev1.TaintEffectNoSchedule,
-			Value:    resources.GPUString,
-			Key:      "sku",
+			Value:    utils.GPUString,
+			Key:      utils.SKUString,
 			Operator: corev1.TolerationOpEqual,
 		},
 	}
