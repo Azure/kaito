@@ -107,8 +107,6 @@ func CopySecret(original *corev1.Secret, targetNamespace string) *corev1.Secret 
 		Type: original.Type,
 	}
 	return newSecret
-
-
 }
 
 func ExtractModelVersion(configs map[string]interface{}) (map[string]string, error) {
