@@ -699,7 +699,7 @@ var _ = Describe("Workspace Preset", func() {
 		if !ok {
 			Fail(fmt.Sprintf("Model version for %s not found", PresetPhi3Mini128kModel))
 		}
-		workspaceObj := createPhi3WorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, modelVersion, numOfNode)
+		workspaceObj := createPhi3WorkspaceWithPresetPublicMode(aiModelsRegistry, aiModelsRegistrySecret, modelVersion, numOfNode)
 
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
