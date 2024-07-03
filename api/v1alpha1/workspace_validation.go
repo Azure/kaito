@@ -45,12 +45,13 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		errs = errs.Also(w.validateCreate().ViaField("spec"))
 		if w.Inference != nil {
 			// TODO: Add Adapter Spec Validation - Including DataSource Validation for Adapter
-			errs = errs.Also(w.Resource.validateCreate(*w.Inference).ViaField("resource"),
+			errs = errs.Also(w.Resource.validateCreateWithInference(w.Inference).ViaField("resource"),
 				w.Inference.validateCreate().ViaField("inference"))
 		}
 		if w.Tuning != nil {
 			// TODO: Add validate resource based on Tuning Spec
-			errs = errs.Also(w.Tuning.validateCreate(ctx, w.Namespace).ViaField("tuning"))
+			errs = errs.Also(w.Resource.validateCreateWithTuning(w.Tuning).ViaField("resource"),
+				w.Tuning.validateCreate(ctx, w.Namespace).ViaField("tuning"))
 		}
 	} else {
 		klog.InfoS("Validate update", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
@@ -299,7 +300,14 @@ func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.Field
 	return errs
 }
 
-func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.FieldError) {
+func (r *ResourceSpec) validateCreateWithTuning(tuning *TuningSpec) (errs *apis.FieldError) {
+	if *r.Count > 1 {
+		errs = errs.Also(apis.ErrInvalidValue("Tuning does not currently support multinode configurations. Please set the node count to 1. Future support with DeepSpeed will allow this.", "count"))
+	}
+	return errs
+}
+
+func (r *ResourceSpec) validateCreateWithInference(inference *InferenceSpec) (errs *apis.FieldError) {
 	var presetName string
 	if inference.Preset != nil {
 		presetName = strings.ToLower(string(inference.Preset.Name))
@@ -308,7 +316,7 @@ func (r *ResourceSpec) validateCreate(inference InferenceSpec) (errs *apis.Field
 
 	// Check if instancetype exists in our SKUs map
 	if skuConfig, exists := SupportedGPUConfigs[instanceType]; exists {
-		if inference.Preset != nil {
+		if presetName != "" {
 			model := plugin.KaitoModelRegister.MustGet(presetName) // InferenceSpec has been validated so the name is valid.
 			// Validate GPU count for given SKU
 			machineCount := *r.Count

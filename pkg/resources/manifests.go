@@ -189,7 +189,8 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspace, imageName string,
 	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements, tolerations []corev1.Toleration,
-	initContainers []corev1.Container, sidecarContainers []corev1.Container, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) *batchv1.Job {
+	initContainers []corev1.Container, sidecarContainers []corev1.Container, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount, 
+	envVars []corev1.EnvVar) *batchv1.Job {
 	labels := map[string]string{
 		kaitov1alpha1.LabelWorkspaceName: wObj.Name,
 	}
@@ -210,6 +211,7 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 			ReadinessProbe: readinessProbe,
 			Ports:          containerPorts,
 			VolumeMounts:   volumeMounts,
+			Env:            envVars,
 		},
 	}, sidecarContainers...)
 

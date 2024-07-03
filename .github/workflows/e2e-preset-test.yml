@@ -11,11 +11,16 @@ on:
                 type: boolean
                 default: false
                 description: "Test all models for E2E"
+            force-run-all-phi-models:
+                type: boolean
+                default: false
+                description: "Test all Phi models for E2E"
 
 env:
     GO_VERSION: "1.22"
     BRANCH_NAME: ${{ github.head_ref || github.ref_name}} 
     FORCE_RUN_ALL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force-run-all == 'true' }}
+    FORCE_RUN_ALL_PHI:  ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force-run-all-phi-models== 'true' }}
 
 permissions:
     id-token: write
@@ -43,6 +48,7 @@ jobs:
         run: |
             PR_BRANCH=${{ env.BRANCH_NAME }} \
             FORCE_RUN_ALL=${{ env.FORCE_RUN_ALL }} \
+            FORCE_RUN_ALL_PHI=${{ env.FORCE_RUN_ALL_PHI }} \
             python3 .github/workflows/kind-cluster/determine_models.py
 
       - name: Print Determined Models
