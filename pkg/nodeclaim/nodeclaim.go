@@ -57,10 +57,7 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 	nodeClaimAnnotations := map[string]string{
 		v1beta1.DoNotDisruptAnnotationKey: "true", // To prevent Karpenter from scaling down.
 	}
-	if workspaceObj.Annotations != nil &&
-		len(workspaceObj.Annotations) != 0 {
-		nodeClaimAnnotations = lo.Assign(nodeClaimAnnotations, workspaceObj.Annotations)
-	}
+
 	cloudName := os.Getenv("CLOUD_PROVIDER")
 
 	var nodeClassRefKind string
