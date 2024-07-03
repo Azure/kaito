@@ -129,7 +129,7 @@ create-acr:  ## Create test ACR
 create-aks-cluster: ## Create test AKS cluster (with msi, oidc, and workload identity enabled)
 	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --location $(AZURE_LOCATION) \
 	--attach-acr $(AZURE_ACR_NAME) 	--kubernetes-version $(AKS_K8S_VERSION) --node-count 1 --generate-ssh-keys  \
-	--enable-managed-identity --enable-workload-identity --enable-oidc-issuer -o none
+	--enable-managed-identity --enable-workload-identity --enable-oidc-issuer --node-vm-size Standard_D2s_v3 -o none
 
 .PHONY: create-aks-cluster-with-kaito
 create-aks-cluster-with-kaito: ## Create test AKS cluster (with msi, oidc and kaito enabled)
@@ -189,6 +189,15 @@ docker-build-kaito: docker-buildx
 		--platform="linux/$(ARCH)" \
 		--pull \
 		--tag $(REGISTRY)/$(IMG_NAME):$(IMG_TAG) .
+
+.PHONY: docker-build-adapter
+docker-build-adapter: docker-buildx
+	docker buildx build \
+		--file ./docker/adapter/Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform="linux/$(ARCH)" \
+		--pull \
+		--tag $(REGISTRY)/e2e-adapter:0.0.1 .
 
 ##@ Deployment
 
