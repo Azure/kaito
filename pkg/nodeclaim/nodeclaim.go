@@ -8,9 +8,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/utils"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -37,50 +40,54 @@ var (
 
 // GenerateNodeClaimManifest generates a nodeClaim object from the given workspace.
 func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, workspaceObj *kaitov1alpha1.Workspace) *v1beta1.NodeClaim {
-	digest := sha256.Sum256([]byte(workspaceObj.Namespace + workspaceObj.Name + time.Now().
-		Format("2006-01-02 15:04:05.000000000"))) // We make sure the nodeClaim name is not fixed to the workspace
-	nodeClaimName := "ws" + hex.EncodeToString(digest[0:])[0:9]
+	klog.InfoS("GenerateNodeClaimManifest", "workspace", klog.KObj(workspaceObj))
+
+	nodeClaimName := GenerateNodeClaimName(workspaceObj)
 
 	nodeClaimLabels := map[string]string{
 		LabelNodePool:                         KaitoNodePoolName, // Fake nodepool name to prevent Karpenter from scaling up.
 		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
 		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
-		v1beta1.DoNotDisruptAnnotationKey:     "true", // To prevent Karpenter from scaling down.
 	}
 	if workspaceObj.Resource.LabelSelector != nil &&
 		len(workspaceObj.Resource.LabelSelector.MatchLabels) != 0 {
 		nodeClaimLabels = lo.Assign(nodeClaimLabels, workspaceObj.Resource.LabelSelector.MatchLabels)
 	}
 
-	return &v1beta1.NodeClaim{
+	nodeClaimAnnotations := map[string]string{
+		v1beta1.DoNotDisruptAnnotationKey: "true", // To prevent Karpenter from scaling down.
+	}
+	if workspaceObj.Annotations != nil &&
+		len(workspaceObj.Annotations) != 0 {
+		nodeClaimAnnotations = lo.Assign(nodeClaimAnnotations, workspaceObj.Annotations)
+	}
+	cloudName := os.Getenv("CLOUD_PROVIDER")
+
+	var nodeClassRefKind string
+	if cloudName == "azure" {
+		nodeClassRefKind = "AKSNodeClass"
+	} else { //aws
+		nodeClassRefKind = "EC2NodeClass"
+	}
+
+	nodeClaimObj := &v1beta1.NodeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      nodeClaimName,
-			Namespace: workspaceObj.Namespace,
-			Labels:    nodeClaimLabels,
+			Name:        nodeClaimName,
+			Namespace:   workspaceObj.Namespace,
+			Labels:      nodeClaimLabels,
+			Annotations: nodeClaimAnnotations,
 		},
 		Spec: v1beta1.NodeClaimSpec{
+			NodeClassRef: &v1beta1.NodeClassReference{
+				Name: "default",
+				Kind: nodeClassRefKind,
+			},
 			Requirements: []v1beta1.NodeSelectorRequirementWithMinValues{
-				{
-					NodeSelectorRequirement: v1.NodeSelectorRequirement{
-						Key:      v1.LabelInstanceTypeStable,
-						Operator: v1.NodeSelectorOpIn,
-						Values:   []string{workspaceObj.Resource.InstanceType},
-					},
-					MinValues: lo.ToPtr(1),
-				},
 				{
 					NodeSelectorRequirement: v1.NodeSelectorRequirement{
 						Key:      LabelNodePool,
 						Operator: v1.NodeSelectorOpIn,
 						Values:   []string{KaitoNodePoolName},
-					},
-					MinValues: lo.ToPtr(1),
-				},
-				{
-					NodeSelectorRequirement: v1.NodeSelectorRequirement{
-						Key:      v1.LabelArchStable,
-						Operator: v1.NodeSelectorOpIn,
-						Values:   []string{"amd64"},
 					},
 					MinValues: lo.ToPtr(1),
 				},
@@ -95,8 +102,8 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 			},
 			Taints: []v1.Taint{
 				{
-					Key:    "sku",
-					Value:  "gpu",
+					Key:    utils.SKUString,
+					Value:  utils.GPUString,
 					Effect: v1.TaintEffectNoSchedule,
 				},
 			},
@@ -107,6 +114,26 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 			},
 		},
 	}
+
+	if cloudName == "azure" {
+		nodeSelector := v1beta1.NodeSelectorRequirementWithMinValues{
+			NodeSelectorRequirement: v1.NodeSelectorRequirement{
+				Key:      v1alpha2.LabelSKUName,
+				Operator: v1.NodeSelectorOpIn,
+				Values:   []string{workspaceObj.Resource.InstanceType},
+			},
+			MinValues: lo.ToPtr(1),
+		}
+		nodeClaimObj.Spec.Requirements = append(nodeClaimObj.Spec.Requirements, nodeSelector)
+	}
+	return nodeClaimObj
+}
+
+func GenerateNodeClaimName(workspaceObj *kaitov1alpha1.Workspace) string {
+	digest := sha256.Sum256([]byte(workspaceObj.Namespace + workspaceObj.Name + time.Now().
+		Format("2006-01-02 15:04:05.000000000"))) // We make sure the nodeClaim name is not fixed to the workspace
+	nodeClaimName := "ws" + hex.EncodeToString(digest[0:])[0:9]
+	return nodeClaimName
 }
 
 // CreateNodeClaim creates a nodeClaim object.

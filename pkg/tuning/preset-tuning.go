@@ -43,12 +43,12 @@ var (
 		{
 			Effect:   corev1.TaintEffectNoSchedule,
 			Operator: corev1.TolerationOpEqual,
-			Key:      resources.GPUString,
+			Key:      utils.GPUString,
 		},
 		{
 			Effect: corev1.TaintEffectNoSchedule,
-			Value:  resources.GPUString,
-			Key:    "sku",
+			Value:  utils.GPUString,
+			Key:    utils.SKUString,
 		},
 	}
 )
