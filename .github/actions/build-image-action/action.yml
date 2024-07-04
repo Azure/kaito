@@ -134,6 +134,7 @@ runs:
         ACR_NAME=${{ inputs.acr_name }} \
         ACR_USERNAME=${{ inputs.acr_username }} \
         ACR_PASSWORD=${{ inputs.acr_password }} \
+        IMAGE_NAME=${{ inputs.image_name }} \
         MODEL_NAME=${{ inputs.model_name }} \
         MODEL_TYPE=${{ inputs.model_type }} \
         MODEL_VERSION=${{ inputs.model_version }} \
