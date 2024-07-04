@@ -24,7 +24,7 @@ import (
 
 const (
 	InferenceModeCustomTemplate kaitov1alpha1.ModelImageAccessMode = "customTemplate"
-	ExampleDatasetURL                                           = "https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/resolve/main/data/train-00000-of-00001-54e3756291ca09c6.parquet?download=true"
+	ExampleDatasetURL                                              = "https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/resolve/main/data/train-00000-of-00001-54e3756291ca09c6.parquet?download=true"
 )
 
 var (
@@ -229,32 +229,32 @@ func GenerateE2ETuningWorkspaceManifest(name, namespace, imageName, outputRegist
 	}
 
 	var workspaceTuning kaitov1alpha1.TuningSpec
- 	if accessMode == kaitov1alpha1.ModelImageAccessModePublic ||
- 		accessMode == kaitov1alpha1.ModelImageAccessModePrivate {
- 		workspaceTuning.Preset = &kaitov1alpha1.PresetSpec{
- 			PresetMeta: kaitov1alpha1.PresetMeta{
- 				Name:       presetName,
- 				AccessMode: accessMode,
- 			},
- 			PresetOptions: kaitov1alpha1.PresetOptions{
- 				Image:            imageName,
- 				ImagePullSecrets: imagePullSecret,
- 			},
- 		}
- 	}
+	if accessMode == kaitov1alpha1.ModelImageAccessModePublic ||
+		accessMode == kaitov1alpha1.ModelImageAccessModePrivate {
+		workspaceTuning.Preset = &kaitov1alpha1.PresetSpec{
+			PresetMeta: kaitov1alpha1.PresetMeta{
+				Name:       presetName,
+				AccessMode: accessMode,
+			},
+			PresetOptions: kaitov1alpha1.PresetOptions{
+				Image:            imageName,
+				ImagePullSecrets: imagePullSecret,
+			},
+		}
+	}
 
- 	workspace.Tuning = &workspaceTuning
- 	workspace.Tuning.Method = kaitov1alpha1.TuningMethodQLora
- 	workspace.Tuning.Input = &kaitov1alpha1.DataSource{
- 		URLs: []string{ExampleDatasetURL},
- 	}
- 	workspace.Tuning.Output = &kaitov1alpha1.DataDestination{
- 		Image:           outputRegistry,
- 		ImagePushSecret: imagePullSecret[0],
- 	}
+	workspace.Tuning = &workspaceTuning
+	workspace.Tuning.Method = kaitov1alpha1.TuningMethodQLora
+	workspace.Tuning.Input = &kaitov1alpha1.DataSource{
+		URLs: []string{ExampleDatasetURL},
+	}
+	workspace.Tuning.Output = &kaitov1alpha1.DataDestination{
+		Image:           outputRegistry,
+		ImagePushSecret: imagePullSecret[0],
+	}
 
 	if customConfigMapName != "" {
- 		workspace.Tuning.Config = customConfigMapName
+		workspace.Tuning.Config = customConfigMapName
 	}
 
 	return workspace
@@ -274,35 +274,35 @@ func GenerateE2ETuningConfigMapManifest(namespace string) *corev1.ConfigMap {
 		Data: map[string]string{
 			"training_config.yaml": `training_config:
   ModelConfig:
-	torch_dtype: "bfloat16"
-	local_files_only: true
-	device_map: "auto"
+    torch_dtype: "bfloat16"
+    local_files_only: true
+    device_map: "auto"
   
-  QuantizationConfig:
-	load_in_4bit: true
-	bnb_4bit_quant_type: "nf4"
-	bnb_4bit_compute_dtype: "bfloat16"
-	bnb_4bit_use_double_quant: true
+  QuantizationConfgig:
+    load_in_4bit: true
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_compute_dtype: "bfloat16"
+    bnb_4bit_use_double_quant: true
   
   LoraConfig:
-	r: 8
-	lora_alpha: 8
-	lora_dropout: 0.0
-	target_modules: ['k_proj', 'q_proj', 'v_proj', 'o_proj', "gate_proj", "down_proj", "up_proj"]
+    r: 8
+    lora_alpha: 8
+    lora_dropout: 0.0
+    target_modules: ['k_proj', 'q_proj', 'v_proj', 'o_proj', "gate_proj", "down_proj", "up_proj"]
   
   TrainingArguments:
-	output_dir: "/mnt/results"
-	ddp_find_unused_parameters: false
-	save_strategy: "epoch"
-	per_device_train_batch_size: 1
-	max_steps: 5  # Adding this line to limit training to 5 steps
+    output_dir: "/mnt/results"
+    ddp_find_unused_parameters: false
+    save_strategy: "epoch"
+    per_device_train_batch_size: 1
+    max_steps: 5  # Adding this line to limit training to 5 steps
   
   DataCollator:
-	mlm: true
+    mlm: true
   
   DatasetConfig:
-	shuffle_dataset: true
-	train_test_split: 1`,
+    shuffle_dataset: true
+    train_test_split: 1`,
 		},
 	}
 }
