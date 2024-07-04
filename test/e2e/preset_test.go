@@ -223,7 +223,7 @@ func createPhi3TuningWorkspaceWithPresetPublicMode(configMapName string, numOfNo
 		workspaceObj = utils.GenerateE2ETuningWorkspaceManifest(uniqueID, namespaceName, "",
 			outputRegistryUrl, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-tuning-falcon"},
-			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePublic, nil, configMapName)
+			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePublic, []string{aiModelsRegistrySecret}, configMapName)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
