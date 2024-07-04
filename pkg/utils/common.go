@@ -5,12 +5,18 @@ package utils
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
-	"k8s.io/apimachinery/pkg/runtime"
 	"os"
 
+	"gopkg.in/yaml.v2"
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"github.com/azure/kaito/pkg/utils/consts"
+)
+
+const (
+	SKUString = "sku"
+	GPUString = "gpu"
 )
 
 func Contains(s []string, e string) bool {
