@@ -278,7 +278,7 @@ func GenerateE2ETuningConfigMapManifest(namespace string) *corev1.ConfigMap {
     local_files_only: true
     device_map: "auto"
   
-  QuantizationConfgig:
+  QuantizationConfig:
     load_in_4bit: true
     bnb_4bit_quant_type: "nf4"
     bnb_4bit_compute_dtype: "bfloat16"
