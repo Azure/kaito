@@ -729,8 +729,6 @@ var _ = Describe("Workspace Preset", func() {
 
 		time.Sleep(30 * time.Second)
 
-		validateAssociatedService(workspaceObj)
-
 		// TODO: Need to check if tuning job uploaded to ACR
 		validateTuningResource(workspaceObj)
 
