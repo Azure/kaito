@@ -295,7 +295,7 @@ func GenerateE2ETuningConfigMapManifest(namespace string) *corev1.ConfigMap {
     ddp_find_unused_parameters: false
     save_strategy: "epoch"
     per_device_train_batch_size: 1
-    max_steps: 5  # Adding this line to limit training to 5 steps
+    max_steps: 2  # Adding this line to limit training to 2 steps
   
   DataCollator:
     mlm: true
