@@ -18,14 +18,14 @@
       {
         "name": "falcon-40b",
         "node-count": 1,
-        "node-vm-size": "Standard_NC96ads_A100_v4",
+        "node-vm-size": "Standard_NC24s_v3",
         "node-osdisk-size": 400,
         "OSS": true
       },
       {
         "name": "falcon-40b-instruct",
         "node-count": 1,
-        "node-vm-size": "Standard_NC96ads_A100_v4",
+        "node-vm-size": "Standard_NC24s_v3",
         "node-osdisk-size": 400,
         "OSS": true
       },
