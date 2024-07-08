@@ -188,7 +188,7 @@ func createPhi3WorkspaceWithPresetPublicMode(numOfNode int) *kaitov1alpha1.Works
 func createCustomTuningConfigMapForE2E() *v1.ConfigMap {
 	configMap := utils.GenerateE2ETuningConfigMapManifest(namespaceName)
 
-	By("Creating a workspace Tuning CR with Falcon-7B preset private mode", func() {
+	By("Creating a custom workspace tuning configmap for E2E", func() {
 		createAndValidateConfigMap(configMap)
 	})
 
@@ -217,7 +217,7 @@ func createPhi3TuningWorkspaceWithPresetPublicMode(configMapName string, numOfNo
 	e2eOutputImageName := fmt.Sprintf("adapter-%s-e2e-test", PresetPhi3Mini128kModel)
 	e2eOutputImageTag := utils.GenerateRandomString()
 	var uniqueID string
-	By("Creating a workspace Tuning CR with Phi-3 preset private mode", func() {
+	By("Creating a workspace Tuning CR with Phi-3 preset public mode", func() {
 		uniqueID = fmt.Sprint("preset-", rand.Intn(1000))
 		outputRegistryUrl := fmt.Sprintf("%s.azurecr.io/%s:%s", azureClusterName, e2eOutputImageName, e2eOutputImageTag)
 		workspaceObj = utils.GenerateE2ETuningWorkspaceManifest(uniqueID, namespaceName, "",
