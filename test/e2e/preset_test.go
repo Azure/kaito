@@ -573,7 +573,7 @@ var _ = Describe("Workspace Preset", func() {
 	})
 
 	AfterEach(func() {
-		if CurrentGinkgoTestDescription().Failed {
+		if CurrentSpecReport().Failed() {
 			printPodLogsOnFailure(namespaceName, "")     // The Preset Pod
 			printPodLogsOnFailure("kaito-workspace", "") // The Kaito Workspace Pod
 			printPodLogsOnFailure("gpu-provisioner", "") // The gpu-provisioner Pod
