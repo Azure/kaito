@@ -27,8 +27,8 @@ var (
 	PresetMistral7BInstructModel = PresetMistral7BModel + "-instruct"
 
 	PresetMistralTagMap = map[string]string{
-		"Mistral7B":         "0.0.4",
-		"Mistral7BInstruct": "0.0.4",
+		"Mistral7B":         "0.0.5",
+		"Mistral7BInstruct": "0.0.5",
 	}
 
 	baseCommandPresetMistral = "accelerate launch"
