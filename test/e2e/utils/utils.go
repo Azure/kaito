@@ -8,8 +8,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"log"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -81,8 +85,38 @@ func GetPodNameForJob(coreClient *kubernetes.Clientset, namespace, jobName strin
 	return podList.Items[0].Name, nil
 }
 
+func GetK8sConfig() (*kubernetes.Clientset, error) {
+	var config *rest.Config
+	var err error
+
+	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" && os.Getenv("KUBERNETES_SERVICE_PORT") != "" {
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			log.Fatalf("Failed to get in-cluster config: %v", err)
+		}
+	} else {
+		// Use kubeconfig file for local development
+		kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			log.Fatalf("Failed to load kubeconfig: %v", err)
+		}
+	}
+
+	coreClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Fatalf("Failed to create core client: %v", err)
+	}
+	return coreClient, err
+}
+
 func GetPodLogs(coreClient *kubernetes.Clientset, namespace, podName, containerName string) (string, error) {
-	req := coreClient.CoreV1().Pods(namespace).GetLogs(podName, &v1.PodLogOptions{Container: containerName})
+	options := &v1.PodLogOptions{}
+	if containerName != "" {
+		options.Container = containerName
+	}
+
+	req := coreClient.CoreV1().Pods(namespace).GetLogs(podName, options)
 	logs, err := req.Stream(context.Background())
 	if err != nil {
 		return "", err
