@@ -577,6 +577,7 @@ var _ = Describe("Workspace Preset", func() {
 			printPodLogsOnFailure(namespaceName, "")     // The Preset Pod
 			printPodLogsOnFailure("kaito-workspace", "") // The Kaito Workspace Pod
 			printPodLogsOnFailure("gpu-provisioner", "") // The gpu-provisioner Pod
+			Fail("Fail threshold reached")
 		}
 	})
 
