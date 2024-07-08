@@ -24,6 +24,7 @@ import (
 
 const (
 	InferenceModeCustomTemplate kaitov1alpha1.ModelImageAccessMode = "customTemplate"
+	ExampleDatasetURL                                              = "https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/resolve/main/data/train-00000-of-00001-54e3756291ca09c6.parquet?download=true"
 )
 
 var (
@@ -208,6 +209,102 @@ func GenerateTuningWorkspaceManifest(name, namespace, imageName string, resource
 	}
 
 	return workspace
+}
+
+func GenerateE2ETuningWorkspaceManifest(name, namespace, imageName, outputRegistry string,
+	resourceCount int, instanceType string, labelSelector *metav1.LabelSelector,
+	preferredNodes []string, presetName kaitov1alpha1.ModelName, accessMode kaitov1alpha1.ModelImageAccessMode,
+	imagePullSecret []string, customConfigMapName string) *kaitov1alpha1.Workspace {
+	workspace := &kaitov1alpha1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Resource: kaitov1alpha1.ResourceSpec{
+			Count:          lo.ToPtr(resourceCount),
+			InstanceType:   instanceType,
+			LabelSelector:  labelSelector,
+			PreferredNodes: preferredNodes,
+		},
+	}
+
+	var workspaceTuning kaitov1alpha1.TuningSpec
+	if accessMode == kaitov1alpha1.ModelImageAccessModePublic ||
+		accessMode == kaitov1alpha1.ModelImageAccessModePrivate {
+		workspaceTuning.Preset = &kaitov1alpha1.PresetSpec{
+			PresetMeta: kaitov1alpha1.PresetMeta{
+				Name:       presetName,
+				AccessMode: accessMode,
+			},
+			PresetOptions: kaitov1alpha1.PresetOptions{
+				Image:            imageName,
+				ImagePullSecrets: imagePullSecret,
+			},
+		}
+	}
+
+	workspace.Tuning = &workspaceTuning
+	workspace.Tuning.Method = kaitov1alpha1.TuningMethodQLora
+	workspace.Tuning.Input = &kaitov1alpha1.DataSource{
+		URLs: []string{ExampleDatasetURL},
+	}
+	workspace.Tuning.Output = &kaitov1alpha1.DataDestination{
+		Image:           outputRegistry,
+		ImagePushSecret: imagePullSecret[0],
+	}
+
+	if customConfigMapName != "" {
+		workspace.Tuning.Config = customConfigMapName
+	}
+
+	return workspace
+}
+
+// GenerateE2ETuningConfigMapManifest generates a ConfigMap manifest for E2E tuning.
+func GenerateE2ETuningConfigMapManifest(namespace string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "e2e-qlora-params-template",
+			Namespace: namespace, // Same as workspace namespace
+		},
+		Data: map[string]string{
+			"training_config.yaml": `training_config:
+  ModelConfig:
+    torch_dtype: "bfloat16"
+    local_files_only: true
+    device_map: "auto"
+  
+  QuantizationConfig:
+    load_in_4bit: true
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_compute_dtype: "bfloat16"
+    bnb_4bit_use_double_quant: true
+  
+  LoraConfig:
+    r: 8
+    lora_alpha: 8
+    lora_dropout: 0.0
+    target_modules: ['k_proj', 'q_proj', 'v_proj', 'o_proj', "gate_proj", "down_proj", "up_proj"]
+  
+  TrainingArguments:
+    output_dir: "/mnt/results"
+    ddp_find_unused_parameters: false
+    save_strategy: "epoch"
+    per_device_train_batch_size: 1
+    max_steps: 2  # Adding this line to limit training to 2 steps
+  
+  DataCollator:
+    mlm: true
+  
+  DatasetConfig:
+    shuffle_dataset: true
+    train_test_split: 1`,
+		},
+	}
 }
 
 func GeneratePodTemplate(name, namespace, image string, labels map[string]string) *corev1.PodTemplateSpec {
