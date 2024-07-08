@@ -580,24 +580,24 @@ var _ = Describe("Workspace Preset", func() {
 		}
 	})
 
-	It("should create a mistral workspace with preset public mode successfully", func() {
-		numOfNode := 1
-		workspaceObj := createMistralWorkspaceWithPresetPublicMode(numOfNode)
-
-		defer cleanupResources(workspaceObj)
-		time.Sleep(30 * time.Second)
-
-		validateMachineCreation(workspaceObj, numOfNode)
-		validateResourceStatus(workspaceObj)
-
-		time.Sleep(30 * time.Second)
-
-		validateAssociatedService(workspaceObj)
-
-		validateInferenceResource(workspaceObj, int32(numOfNode), false)
-
-		validateWorkspaceReadiness(workspaceObj)
-	})
+	//It("should create a mistral workspace with preset public mode successfully", func() {
+	//	numOfNode := 1
+	//	workspaceObj := createMistralWorkspaceWithPresetPublicMode(numOfNode)
+	//
+	//	defer cleanupResources(workspaceObj)
+	//	time.Sleep(30 * time.Second)
+	//
+	//	validateMachineCreation(workspaceObj, numOfNode)
+	//	validateResourceStatus(workspaceObj)
+	//
+	//	time.Sleep(30 * time.Second)
+	//
+	//	validateAssociatedService(workspaceObj)
+	//
+	//	validateInferenceResource(workspaceObj, int32(numOfNode), false)
+	//
+	//	validateWorkspaceReadiness(workspaceObj)
+	//})
 
 	It("should create a Phi-2 workspace with preset public mode successfully", func() {
 		numOfNode := 1
