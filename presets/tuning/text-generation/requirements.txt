@@ -10,6 +10,7 @@ uvicorn[standard]>=0.29.0,<0.30.0  # Allow patch updates
 datasets==2.19.1
 peft==0.11.1
 bitsandbytes==0.42.0
+sentencepiece==0.2.0
 
 # Less critical, can be latest
 loralib
