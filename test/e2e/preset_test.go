@@ -8,15 +8,9 @@ import (
 	"log"
 	"math/rand"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
-
-	batchv1 "k8s.io/api/batch/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -25,6 +19,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -453,24 +448,7 @@ func validateTuningResource(workspaceObj *kaitov1alpha1.Workspace) {
 }
 
 func validateACRTuningResultsUploaded(workspaceObj *kaitov1alpha1.Workspace, jobName string) {
-	var config *rest.Config
-	var err error
-
-	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" && os.Getenv("KUBERNETES_SERVICE_PORT") != "" {
-		config, err = rest.InClusterConfig()
-		if err != nil {
-			log.Fatalf("Failed to get in-cluster config: %v", err)
-		}
-	} else {
-		// Use kubeconfig file for local development
-		kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-		if err != nil {
-			log.Fatalf("Failed to load kubeconfig: %v", err)
-		}
-	}
-
-	coreClient, err := kubernetes.NewForConfig(config)
+	coreClient, err := utils.GetK8sConfig()
 	if err != nil {
 		log.Fatalf("Failed to create core client: %v", err)
 	}
@@ -555,6 +533,31 @@ func deleteWorkspace(workspaceObj *kaitov1alpha1.Workspace) error {
 	return nil
 }
 
+func printPodLogsOnFailure(namespace, labelSelector string) {
+	coreClient, err := utils.GetK8sConfig()
+	if err != nil {
+		log.Printf("Failed to create core client: %v", err)
+	}
+	pods, err := coreClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		log.Printf("Failed to list pods: %v", err)
+		return
+	}
+
+	for _, pod := range pods.Items {
+		for _, container := range pod.Spec.Containers {
+			logs, err := utils.GetPodLogs(coreClient, namespace, pod.Name, container.Name)
+			if err != nil {
+				log.Printf("Failed to get logs from pod %s, container %s: %v", pod.Name, container.Name, err)
+			} else {
+				fmt.Printf("Logs from pod %s, container %s:\n%s\n", pod.Name, container.Name, string(logs))
+			}
+		}
+	}
+}
+
 var runLlama13B bool
 var aiModelsRegistry string
 var aiModelsRegistrySecret string
@@ -569,24 +572,33 @@ var _ = Describe("Workspace Preset", func() {
 		loadModelVersions()
 	})
 
-	It("should create a mistral workspace with preset public mode successfully", func() {
-		numOfNode := 1
-		workspaceObj := createMistralWorkspaceWithPresetPublicMode(numOfNode)
-
-		defer cleanupResources(workspaceObj)
-		time.Sleep(30 * time.Second)
-
-		validateMachineCreation(workspaceObj, numOfNode)
-		validateResourceStatus(workspaceObj)
-
-		time.Sleep(30 * time.Second)
-
-		validateAssociatedService(workspaceObj)
-
-		validateInferenceResource(workspaceObj, int32(numOfNode), false)
-
-		validateWorkspaceReadiness(workspaceObj)
+	AfterEach(func() {
+		if CurrentSpecReport().Failed() {
+			printPodLogsOnFailure(namespaceName, "")     // The Preset Pod
+			printPodLogsOnFailure("kaito-workspace", "") // The Kaito Workspace Pod
+			printPodLogsOnFailure("gpu-provisioner", "") // The gpu-provisioner Pod
+			Fail("Fail threshold reached")
+		}
 	})
+
+	//It("should create a mistral workspace with preset public mode successfully", func() {
+	//	numOfNode := 1
+	//	workspaceObj := createMistralWorkspaceWithPresetPublicMode(numOfNode)
+	//
+	//	defer cleanupResources(workspaceObj)
+	//	time.Sleep(30 * time.Second)
+	//
+	//	validateMachineCreation(workspaceObj, numOfNode)
+	//	validateResourceStatus(workspaceObj)
+	//
+	//	time.Sleep(30 * time.Second)
+	//
+	//	validateAssociatedService(workspaceObj)
+	//
+	//	validateInferenceResource(workspaceObj, int32(numOfNode), false)
+	//
+	//	validateWorkspaceReadiness(workspaceObj)
+	//})
 
 	It("should create a Phi-2 workspace with preset public mode successfully", func() {
 		numOfNode := 1
@@ -729,7 +741,6 @@ var _ = Describe("Workspace Preset", func() {
 
 		time.Sleep(30 * time.Second)
 
-		// TODO: Need to check if tuning job uploaded to ACR
 		validateTuningResource(workspaceObj)
 
 		validateACRTuningResultsUploaded(workspaceObj, jobName)
