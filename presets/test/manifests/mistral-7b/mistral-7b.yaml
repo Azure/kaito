@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: phi-3-medium-128k-instruct
+  name: mistral-7b
 spec:
   replicas: 1
   selector:
@@ -14,29 +14,28 @@ spec:
     spec:
       containers:
       - name: mistral-container
-        image: mcr.microsoft.com/aks/kaito/kaito-phi-3-medium-128k-instruct:0.0.1
+        image: REPO_HERE.azurecr.io/mistral-7b:TAG_HERE
         command:
           - /bin/sh
           - -c
-          - sleep infinity
-#          - accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference_api.py --pipeline text-generation --torch_dtype bfloat16
+          - accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all inference_api.py --pipeline text-generation --torch_dtype bfloat16
         resources:
           requests:
-            nvidia.com/gpu: 1
+            nvidia.com/gpu: 2
           limits:
-            nvidia.com/gpu: 1  # Requesting 2 GPUs
-#        livenessProbe:
-#          httpGet:
-#            path: /healthz
-#            port: 5000
-#          initialDelaySeconds: 600 # 10 Min
-#          periodSeconds: 10
-#        readinessProbe:
-#          httpGet:
-#            path: /healthz
-#            port: 5000
-#          initialDelaySeconds: 30
-#          periodSeconds: 10
+            nvidia.com/gpu: 2  # Requesting 2 GPUs
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 5000
+          initialDelaySeconds: 600 # 10 Min
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
         volumeMounts:
         - name: dshm
           mountPath: /dev/shm
@@ -52,6 +51,5 @@ spec:
       - effect: NoSchedule
         key: nvidia.com/gpu
         operator: Exists
-#      nodeSelector:
-#        pool: mistral7b
-
+      nodeSelector:
+        pool: mistral7b
