@@ -69,6 +69,7 @@ def update_model(model_name, model_commit):
         # run_command(f"rm -rf {os.path.join(git_files_path, 'lfs')}")
     except Exception as e:
         print(f"An error occurred: {e}")
+        exit(1)
     finally:
         # Change back to the original directory
         os.chdir(start_dir)
@@ -93,6 +94,7 @@ def download_new_model(model_name, model_url):
             shutil.move(os.path.join(weights_path, ".git"), git_files_path)
         except Exception as e:
             print(f"An error occurred: {e}")
+            exit(1)
         finally:
             os.chdir(start_dir)
 
