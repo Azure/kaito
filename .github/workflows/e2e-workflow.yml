@@ -134,7 +134,7 @@ jobs:
         run: |
           make docker-build-adapter
         env:
-          REGISTRY: ${{ env.REGISTRY }}
+          REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
 
       - name: create cluster
         shell: bash
@@ -211,6 +211,7 @@ jobs:
           REGISTRY: ${{ env.REGISTRY }}
           AI_MODELS_REGISTRY: ${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io
           AI_MODELS_REGISTRY_SECRET: ${{ secrets.E2E_AMRT_SECRET_NAME }}
+          ADAPTER_REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
 
       - name: Cleanup e2e resources
         if: ${{ always() }}
