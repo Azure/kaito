@@ -122,4 +122,6 @@ jobs:
           model_type: ${{ matrix.model.type }}
           model_version: ${{ matrix.model.version }}
           model_runtime: ${{ matrix.model.runtime }}
+          hf_username: ${{ secrets.HF_USERNAME }}
+          hf_token: ${{ secrets.HF_TOKEN }}
           runs_on: "hostname:model-server"

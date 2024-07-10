@@ -67,15 +67,16 @@ models:
   # Mistral
   - name: mistral-7b
     type: text-generation 
-    version: https://huggingface.co/mistralai/Mistral-7B-v0.1/commit/26bca36bde8333b5d7f72e9ed20ccda6a618af24
+    version: https://huggingface.co/mistralai/Mistral-7B-v0.3/commit/c882233d224d27b727b3d9299b12a9aab9dda6f7
     runtime: tfs
-    tag: 0.0.5
+    tag: 0.0.6
   - name: mistral-7b-instruct
     type: text-generation
-    version: https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2/commit/b70aa86578567ba3301b21c8a27bea4e8f6d6d61
+    version: https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3/commit/0417f4babd26db0b5ed07c1d0bc85658ab526ea3
     runtime: tfs
-    tag: 0.0.5
+    tag: 0.0.6
     # Tag history:
+    # 0.0.6 - Update model version and Address missing weights files fix
     # 0.0.5 - Tuning and Adapters
     # 0.0.4 - Adjust default model params (#310)
     # 0.0.3 - Update Default Params (#294)

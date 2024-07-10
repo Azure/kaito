@@ -40,9 +40,12 @@ def get_kubectl_path():
         raise FileNotFoundError("kubectl not found at /usr/local/bin/kubectl")
     return kubectl_path
 
-def get_model_git_info(model_version):
+def get_model_git_info(model_version, hf_username, hf_token):
     """Get model Git Repo link and commit ID"""
     url_parts = model_version.split('/')
+    # Add Auth to URL
+    if hf_username and hf_token:
+        url_parts[2] = f'{hf_username}:{hf_token}@{url_parts[2]}'
     model_url = '/'.join(url_parts[:-2])
     commit_id = url_parts[-1]
     return model_url, commit_id
@@ -106,9 +109,11 @@ def main():
     model_runtime = os.environ.get("MODEL_RUNTIME", None)
     model_type = os.environ.get("MODEL_TYPE", None)
     model_tag = os.environ.get("MODEL_TAG", None)
+    hf_username = os.environ.get("HF_USERNAME", None)
+    hf_token = os.environ.get("HF_TOKEN", None)
 
     if model_version: 
-        model_url, model_commit = get_model_git_info(model_version)
+        model_url, model_commit = get_model_git_info(model_version, hf_username, hf_token)
         download_new_model(model_name, model_url)
         update_model(model_name, model_commit)
     clone_and_checkout_pr_branch(pr_branch)
