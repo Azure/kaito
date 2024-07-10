@@ -2,7 +2,7 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
-VERSION ?= v0.2.2
+VERSION ?= v0.3.0
 GPU_PROVISIONER_VERSION ?= 0.2.0
 IMG_TAG ?= $(subst v,,$(VERSION))
 
