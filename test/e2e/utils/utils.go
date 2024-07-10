@@ -33,7 +33,7 @@ const (
 
 var (
 	// PollInterval defines the interval time for a poll operation.
-	PollInterval = 250 * time.Millisecond
+	PollInterval = 2 * time.Second
 	// PollTimeout defines the time after which the poll operation times out.
 	PollTimeout = 60 * time.Second
 )
