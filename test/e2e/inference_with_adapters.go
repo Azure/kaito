@@ -68,7 +68,7 @@ func validateAdapters(workspaceObj *kaitov1alpha1.Workspace, expectedInitContain
 
 			// GinkgoWriter.Printf("Resource '%s' not ready. Ready replicas: %d\n", workspaceObj.Name, readyReplicas)
 			return initContainer.Image == expectedInitContainer.Image && initContainer.Name == expectedInitContainer.Name
-		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for adapter resource to be ready")
+		}, "20m", utils.PollInterval).Should(BeTrue(), "Failed to wait for adapter resource to be ready")
 	})
 }
 

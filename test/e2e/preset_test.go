@@ -304,7 +304,7 @@ func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace, expectedCoun
 				}
 			}
 			return true
-		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for machine to be ready")
+		}, "20m", utils.PollInterval).Should(BeTrue(), "Failed to wait for machine to be ready")
 	})
 }
 
@@ -326,7 +326,7 @@ func validateResourceStatus(workspaceObj *kaitov1alpha1.Workspace) {
 					condition.Status == metav1.ConditionTrue
 			})
 			return conditionFound
-		}, 10*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for resource status to be ready")
+		}, "10m", utils.PollInterval).Should(BeTrue(), "Failed to wait for resource status to be ready")
 	})
 }
 
@@ -354,7 +354,7 @@ func validateAssociatedService(workspaceObj *kaitov1alpha1.Workspace) {
 
 			GinkgoWriter.Printf("Found service: %s in namespace %s\n", serviceName, serviceNamespace)
 			return true
-		}, 10*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for service to be created")
+		}, "10m", utils.PollInterval).Should(BeTrue(), "Failed to wait for service to be created")
 	})
 }
 
@@ -403,7 +403,7 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, expectedRe
 
 			// GinkgoWriter.Printf("Resource '%s' not ready. Ready replicas: %d\n", workspaceObj.Name, readyReplicas)
 			return false
-		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for inference resource to be ready")
+		}, "20m", utils.PollInterval).Should(BeTrue(), "Failed to wait for inference resource to be ready")
 	})
 }
 
@@ -443,7 +443,7 @@ func validateTuningResource(workspaceObj *kaitov1alpha1.Workspace) {
 			}
 
 			return false
-		}, 30*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for Tuning resource to be ready")
+		}, "30m", utils.PollInterval).Should(BeTrue(), "Failed to wait for Tuning resource to be ready")
 	})
 }
 
@@ -493,7 +493,7 @@ func validateWorkspaceReadiness(workspaceObj *kaitov1alpha1.Workspace) {
 					condition.Status == metav1.ConditionTrue
 			})
 			return conditionFound
-		}, 10*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for workspace to be ready")
+		}, "10m", utils.PollInterval).Should(BeTrue(), "Failed to wait for workspace to be ready")
 	})
 }
 
