@@ -412,10 +412,21 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 			for url in $DATA_URLS; do
 				filename=$(basename "$url" | sed 's/[?=&]/_/g')
 				echo "Downloading $url to $DATA_VOLUME_PATH/$filename"
-				curl -sSL $url -o $DATA_VOLUME_PATH/$filename
-				if [ $? -ne 0 ]; then
-           			echo "Failed to download $url"
- 				fi
+				retry_count=0
+				while [ $retry_count -lt 3 ]; do
+					curl -sSL $url -o $DATA_VOLUME_PATH/$filename
+					if [ $? -eq 0 ] && [ -s $DATA_VOLUME_PATH/$filename ]; then
+						echo "Successfully downloaded $url"
+						break
+					else
+						echo "Failed to download $url, retrying..."
+						retry_count=$((retry_count + 1))
+						sleep 2
+					fi
+				done
+				if [ $retry_count -eq 3 ]; then
+					echo "Failed to download $url after 3 attempts"
+				fi
 			done
 		`},
 		VolumeMounts: []corev1.VolumeMount{
