@@ -38,7 +38,7 @@ var _ = Describe("Workspace Validation Webhook", func() {
 			// Create workspace
 			Eventually(func() error {
 				return TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
-			}, "20m", utils.PollInterval).
+			}, TwentyMinTimeout, utils.PollInterval).
 				Should(HaveOccurred(), "Failed to create workspace %s", workspaceObj.Name)
 		})
 	})
@@ -68,7 +68,7 @@ var _ = Describe("Workspace Validation Webhook", func() {
 			// Create workspace
 			Eventually(func() error {
 				return TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
-			}, "20m", utils.PollInterval).
+			}, TwentyMinTimeout, utils.PollInterval).
 				Should(HaveOccurred(), "Failed to create workspace %s", workspaceObj.Name)
 		})
 	})
@@ -83,7 +83,7 @@ var _ = Describe("Workspace Validation Webhook", func() {
 			// Create workspace
 			Eventually(func() error {
 				return TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
-			}, "20m", utils.PollInterval).
+			}, TwentyMinTimeout, utils.PollInterval).
 				Should(HaveOccurred(), "Failed to create workspace %s", workspaceObj.Name)
 		})
 	})
@@ -98,7 +98,7 @@ var _ = Describe("Workspace Validation Webhook", func() {
 			// Create workspace
 			Eventually(func() error {
 				return TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
-			}, "20m", utils.PollInterval).
+			}, TwentyMinTimeout, utils.PollInterval).
 				Should(HaveOccurred(), "Failed to create workspace %s", workspaceObj.Name)
 		})
 	})
@@ -116,7 +116,7 @@ var _ = Describe("Workspace Validation Webhook", func() {
 			// Create workspace
 			Eventually(func() error {
 				return TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
-			}, "20m", utils.PollInterval).
+			}, TwentyMinTimeout, utils.PollInterval).
 				Should(Succeed(), "Failed to create workspace %s", workspaceObj.Name)
 		})
 
@@ -159,7 +159,7 @@ var _ = Describe("Workspace Validation Webhook", func() {
 			// Create workspace
 			Eventually(func() error {
 				return TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
-			}, "20m", utils.PollInterval).
+			}, TwentyMinTimeout, utils.PollInterval).
 				Should(Succeed(), "Failed to create workspace %s", workspaceObj.Name)
 		})
 
@@ -200,7 +200,7 @@ var _ = Describe("Workspace Validation Webhook", func() {
 			// Create workspace
 			Eventually(func() error {
 				return TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
-			}, "20m", utils.PollInterval).
+			}, TwentyMinTimeout, utils.PollInterval).
 				Should(Succeed(), "Failed to create workspace %s", workspaceObj.Name)
 		})
 
