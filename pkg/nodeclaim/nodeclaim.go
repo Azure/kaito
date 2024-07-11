@@ -11,9 +11,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
+	azurev1alpha2 "github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
+	awsv1beta1 "github.com/aws/karpenter-provider-aws/pkg/apis/v1beta1"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/utils"
+	"github.com/azure/kaito/pkg/utils/consts"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -79,24 +82,6 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 				Name: "default",
 				Kind: nodeClassRefKind,
 			},
-			Requirements: []v1beta1.NodeSelectorRequirementWithMinValues{
-				{
-					NodeSelectorRequirement: v1.NodeSelectorRequirement{
-						Key:      LabelNodePool,
-						Operator: v1.NodeSelectorOpIn,
-						Values:   []string{KaitoNodePoolName},
-					},
-					MinValues: lo.ToPtr(1),
-				},
-				{
-					NodeSelectorRequirement: v1.NodeSelectorRequirement{
-						Key:      v1.LabelOSStable,
-						Operator: v1.NodeSelectorOpIn,
-						Values:   []string{"linux"},
-					},
-					MinValues: lo.ToPtr(1),
-				},
-			},
 			Taints: []v1.Taint{
 				{
 					Key:    utils.SKUString,
@@ -104,9 +89,32 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 					Effect: v1.TaintEffectNoSchedule,
 				},
 			},
+			Requirements: []v1beta1.NodeSelectorRequirementWithMinValues{
+				{
+					NodeSelectorRequirement: v1.NodeSelectorRequirement{
+						Key:      LabelNodePool,
+						Operator: v1.NodeSelectorOpIn,
+						Values:   []string{KaitoNodePoolName},
+					},
+				},
+				{
+					NodeSelectorRequirement: v1.NodeSelectorRequirement{
+						Key:      v1.LabelInstanceTypeStable,
+						Operator: v1.NodeSelectorOpIn,
+						Values:   []string{workspaceObj.Resource.InstanceType},
+					},
+				},
+				{
+					NodeSelectorRequirement: v1.NodeSelectorRequirement{
+						Key:      v1.LabelOSStable,
+						Operator: v1.NodeSelectorOpIn,
+						Values:   []string{"linux"},
+					},
+				},
+			},
 			Resources: v1beta1.ResourceRequirements{
 				Requests: v1.ResourceList{
-					v1.ResourceStorage: resource.MustParse(storageRequirement),
+					v1.ResourceEphemeralStorage: resource.MustParse(storageRequirement),
 				},
 			},
 		},
@@ -115,11 +123,10 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 	if cloudName == "azure" {
 		nodeSelector := v1beta1.NodeSelectorRequirementWithMinValues{
 			NodeSelectorRequirement: v1.NodeSelectorRequirement{
-				Key:      v1alpha2.LabelSKUName,
+				Key:      azurev1alpha2.LabelSKUName,
 				Operator: v1.NodeSelectorOpIn,
 				Values:   []string{workspaceObj.Resource.InstanceType},
 			},
-			MinValues: lo.ToPtr(1),
 		}
 		nodeClaimObj.Spec.Requirements = append(nodeClaimObj.Spec.Requirements, nodeSelector)
 	}
@@ -133,12 +140,62 @@ func GenerateNodeClaimName(workspaceObj *kaitov1alpha1.Workspace) string {
 	return nodeClaimName
 }
 
+func GenerateAKSNodeClassManifest(ctx context.Context) *azurev1alpha2.AKSNodeClass {
+	return &azurev1alpha2.AKSNodeClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "default",
+			Annotations: map[string]string{
+				"kubernetes.io/description": "General purpose AKSNodeClass for running Ubuntu 22.04 nodes",
+			},
+		},
+		Spec: azurev1alpha2.AKSNodeClassSpec{
+			ImageFamily: lo.ToPtr("Ubuntu2204"),
+		},
+	}
+}
+
+func GenerateEC2NodeClassManifest(ctx context.Context) *awsv1beta1.EC2NodeClass {
+	clusterName := os.Getenv("CLUSTER_NAME")
+	return &awsv1beta1.EC2NodeClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				"kubernetes.io/description": "General purpose EC2NodeClass for running Amazon Linux 2 nodes",
+			},
+			Name: "default",
+		},
+		Spec: awsv1beta1.EC2NodeClassSpec{
+			AMIFamily: lo.ToPtr(awsv1beta1.AMIFamilyAL2), // Amazon Linux 2
+			Role:      fmt.Sprintf("KarpenterNodeRole-%s", clusterName),
+			SubnetSelectorTerms: []awsv1beta1.SubnetSelectorTerm{
+				{
+					Tags: map[string]string{
+						"karpenter.sh/discovery": clusterName, // replace with your cluster name
+					},
+				},
+			},
+			SecurityGroupSelectorTerms: []awsv1beta1.SecurityGroupSelectorTerm{
+				{
+					Tags: map[string]string{
+						"karpenter.sh/discovery": clusterName, // replace with your cluster name
+					},
+				},
+			},
+		},
+	}
+}
+
 // CreateNodeClaim creates a nodeClaim object.
 func CreateNodeClaim(ctx context.Context, nodeClaimObj *v1beta1.NodeClaim, kubeClient client.Client) error {
 	klog.InfoS("CreateNodeClaim", "nodeClaim", klog.KObj(nodeClaimObj))
 	return retry.OnError(retry.DefaultBackoff, func(err error) bool {
 		return err.Error() != ErrorInstanceTypesUnavailable
 	}, func() error {
+		if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+			err := CreateKarpenterNodeClass(ctx, kubeClient)
+			if err != nil {
+				return err
+			}
+		}
 		err := kubeClient.Create(ctx, nodeClaimObj, &client.CreateOptions{})
 		if err != nil {
 			return err
@@ -159,6 +216,18 @@ func CreateNodeClaim(ctx context.Context, nodeClaimObj *v1beta1.NodeClaim, kubeC
 		}
 		return err
 	})
+}
+
+// CreateKarpenterNodeClass creates a nodeClass object for Karpenter.
+func CreateKarpenterNodeClass(ctx context.Context, kubeClient client.Client) error {
+	cloudName := os.Getenv("CLOUD_PROVIDER")
+	if cloudName == "azure" {
+		nodeClassObj := GenerateAKSNodeClassManifest(ctx)
+		return kubeClient.Create(ctx, nodeClassObj, &client.CreateOptions{})
+	} else { //aws
+		nodeClassObj := GenerateEC2NodeClassManifest(ctx)
+		return kubeClient.Create(ctx, nodeClassObj, &client.CreateOptions{})
+	}
 }
 
 // WaitForPendingNodeClaims checks if the there are any nodeClaims in provisioning condition. If so, wait until they are ready.
