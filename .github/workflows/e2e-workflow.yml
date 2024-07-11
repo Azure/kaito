@@ -129,7 +129,6 @@ jobs:
           VERSION: ${{ env.VERSION }}
       
       - name: build adapter image
-        if: ${{ !inputs.isRelease }}
         shell: bash
         run: |
           make docker-build-adapter
