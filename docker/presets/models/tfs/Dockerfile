@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/cbl-mariner/base/python:3.9
+FROM mcr.microsoft.com/cbl-mariner/distroless/python:3.9
 
 ARG WEIGHTS_PATH
 ARG MODEL_TYPE

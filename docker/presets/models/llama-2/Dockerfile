@@ -4,7 +4,7 @@
 #              --build-arg VERSION={{VERSION}} \
 #              --build-arg MODEL_TYPE={{MODEL_TYPE}} \
 
-FROM mcr.microsoft.com/cbl-mariner/base/python:3.9
+FROM mcr.microsoft.com/cbl-mariner/distroless/python:3.9
 WORKDIR /workspace
 
 # Install git
