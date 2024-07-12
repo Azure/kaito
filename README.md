@@ -86,7 +86,7 @@ The detailed usage for Kaito supported models can be found in [**HERE**](presets
 
 The number of the supported models in Kaito is growing! Please check [this](./docs/How-to-add-new-models.md) document to see how to add a new supported model.
 
-In version v0.3.0, Kaito starts to support model fine-tuning and using fine-tuned adapters in inference service. Please check this [document](./docs/tuning/README.md).
+Starting with version v0.3.0, Kaito supports model fine-tuning and using fine-tuned adapters in the inference service. Refer to the [tuning document](./docs/tuning/README.md) and [inference document](./docs/inference/README.md) for more information.
 
 ## FAQ
 
