@@ -132,6 +132,31 @@ func GetPodLogs(coreClient *kubernetes.Clientset, namespace, podName, containerN
 	return buf.String(), nil
 }
 
+func PrintPodLogsOnFailure(namespace, labelSelector string) {
+	coreClient, err := GetK8sConfig()
+	if err != nil {
+		log.Printf("Failed to create core client: %v", err)
+	}
+	pods, err := coreClient.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		log.Printf("Failed to list pods: %v", err)
+		return
+	}
+
+	for _, pod := range pods.Items {
+		for _, container := range pod.Spec.Containers {
+			logs, err := GetPodLogs(coreClient, namespace, pod.Name, container.Name)
+			if err != nil {
+				log.Printf("Failed to get logs from pod %s, container %s: %v", pod.Name, container.Name, err)
+			} else {
+				fmt.Printf("Logs from pod %s, container %s:\n%s\n", pod.Name, container.Name, string(logs))
+			}
+		}
+	}
+}
+
 func CopySecret(original *corev1.Secret, targetNamespace string) *corev1.Secret {
 	newSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
