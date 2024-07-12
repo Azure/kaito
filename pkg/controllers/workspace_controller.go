@@ -84,6 +84,18 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		}
 	}
 
+	// check if Karpenter NodeClass is available. If not, the controller will create it automatically.
+	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+		if !nodeclaim.IsNodeClassAvailable(ctx, c.Client) {
+			klog.Infof("NodeClass is not available, creating NodeClass")
+			if err := nodeclaim.CreateKarpenterNodeClass(ctx, c.Client); err != nil {
+				if client.IgnoreAlreadyExists(err) != nil {
+					return ctrl.Result{}, err
+				}
+			}
+		}
+	}
+
 	if workspaceObj.Inference != nil && workspaceObj.Inference.Preset != nil {
 		if !plugin.KaitoModelRegister.Has(string(workspaceObj.Inference.Preset.Name)) {
 			return reconcile.Result{}, fmt.Errorf("the preset model name %s is not registered for workspace %s/%s",

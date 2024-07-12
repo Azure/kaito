@@ -4,6 +4,7 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -102,6 +103,10 @@ func GetReleaseNamespace() (string, error) {
 		return namespace, nil
 	}
 	return "", fmt.Errorf("failed to determine release namespace from file %s and env var %s", namespaceFilePath, consts.DefaultReleaseNamespaceEnvVar)
+}
+
+func GetCloudProviderName(ctx context.Context) string {
+	return os.Getenv("CLOUD_PROVIDER")
 }
 
 func GetSKUHandler() (sku.CloudSKUHandler, error) {

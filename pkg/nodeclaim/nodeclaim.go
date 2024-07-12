@@ -34,6 +34,7 @@ const (
 	KaitoNodePoolName             = "kaito"
 	LabelNodePool                 = "karpenter.sh/nodepool"
 	ErrorInstanceTypesUnavailable = "all requested instance types were unavailable during launch"
+	NodeClassName                 = "default"
 )
 
 var (
@@ -61,15 +62,15 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 		v1beta1.DoNotDisruptAnnotationKey: "true", // To prevent Karpenter from scaling down.
 	}
 
-	cloudName := os.Getenv("CLOUD_PROVIDER")
+	cloudName := utils.GetCloudProviderName(ctx)
 
 	var nodeClassRefKind string
-	if cloudName == "azure" {
+
+	if cloudName == consts.AzureCloudName {
 		nodeClassRefKind = "AKSNodeClass"
-	} else { //aws
+	} else if cloudName == consts.AWSCloudName { //aws
 		nodeClassRefKind = "EC2NodeClass"
 	}
-
 	nodeClaimObj := &v1beta1.NodeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        nodeClaimName,
@@ -79,7 +80,7 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 		},
 		Spec: v1beta1.NodeClaimSpec{
 			NodeClassRef: &v1beta1.NodeClassReference{
-				Name: "default",
+				Name: NodeClassName,
 				Kind: nodeClassRefKind,
 			},
 			Taints: []v1.Taint{
@@ -120,7 +121,7 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 		},
 	}
 
-	if cloudName == "azure" {
+	if cloudName == consts.AzureCloudName {
 		nodeSelector := v1beta1.NodeSelectorRequirementWithMinValues{
 			NodeSelectorRequirement: v1.NodeSelectorRequirement{
 				Key:      azurev1alpha2.LabelSKUName,
@@ -143,7 +144,7 @@ func GenerateNodeClaimName(workspaceObj *kaitov1alpha1.Workspace) string {
 func GenerateAKSNodeClassManifest(ctx context.Context) *azurev1alpha2.AKSNodeClass {
 	return &azurev1alpha2.AKSNodeClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "default",
+			Name: NodeClassName,
 			Annotations: map[string]string{
 				"kubernetes.io/description": "General purpose AKSNodeClass for running Ubuntu 22.04 nodes",
 			},
@@ -161,7 +162,7 @@ func GenerateEC2NodeClassManifest(ctx context.Context) *awsv1beta1.EC2NodeClass 
 			Annotations: map[string]string{
 				"kubernetes.io/description": "General purpose EC2NodeClass for running Amazon Linux 2 nodes",
 			},
-			Name: "default",
+			Name: NodeClassName,
 		},
 		Spec: awsv1beta1.EC2NodeClassSpec{
 			AMIFamily: lo.ToPtr(awsv1beta1.AMIFamilyAL2), // Amazon Linux 2
@@ -220,8 +221,8 @@ func CreateNodeClaim(ctx context.Context, nodeClaimObj *v1beta1.NodeClaim, kubeC
 
 // CreateKarpenterNodeClass creates a nodeClass object for Karpenter.
 func CreateKarpenterNodeClass(ctx context.Context, kubeClient client.Client) error {
-	cloudName := os.Getenv("CLOUD_PROVIDER")
-	if cloudName == "azure" {
+	cloudName := utils.GetCloudProviderName(ctx)
+	if cloudName == consts.AzureCloudName {
 		nodeClassObj := GenerateAKSNodeClassManifest(ctx)
 		return kubeClient.Create(ctx, nodeClassObj, &client.CreateOptions{})
 	} else { //aws
@@ -318,4 +319,19 @@ func CheckNodeClaimStatus(ctx context.Context, nodeClaimObj *v1beta1.NodeClaim, 
 			return nil
 		}
 	}
+}
+
+func IsNodeClassAvailable(ctx context.Context, kubeClient client.Client) bool {
+	cloudName := utils.GetCloudProviderName(ctx)
+	if cloudName == consts.AzureCloudName {
+		err := kubeClient.Get(ctx, client.ObjectKey{Name: NodeClassName},
+			&azurev1alpha2.AKSNodeClass{}, &client.GetOptions{})
+		return err == nil
+	} else if cloudName == consts.AWSCloudName {
+		err := kubeClient.Get(ctx, client.ObjectKey{Name: NodeClassName},
+			&awsv1beta1.EC2NodeClass{}, &client.GetOptions{})
+		return err == nil
+	}
+	klog.Error("unsupported cloud provider ", cloudName)
+	return false
 }

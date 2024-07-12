@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/utils/consts"
 	"github.com/azure/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/mock"
 	"gotest.tools/assert"
@@ -168,7 +169,7 @@ func TestWaitForPendingNodeClaims(t *testing.T) {
 func TestGenerateNodeClaimManifest(t *testing.T) {
 	t.Run("Should generate a nodeClaim object from the given workspace when cloud provider set to azure", func(t *testing.T) {
 		mockWorkspace := test.MockWorkspaceWithPreset
-		os.Setenv("CLOUD_PROVIDER", "azure")
+		os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
 		nodeClaim := GenerateNodeClaimManifest(context.Background(), "0", mockWorkspace)
 
 		assert.Check(t, nodeClaim != nil, "NodeClaim must not be nil")

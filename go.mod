@@ -8,7 +8,6 @@ require (
 	github.com/Azure/karpenter-provider-azure v0.5.0
 	github.com/aws/karpenter-core v0.29.2
 	github.com/aws/karpenter-provider-aws v0.36.2
-	github.com/awslabs/operatorpkg v0.0.0-20240701195752-116cbcffbcb4
 	github.com/go-logr/logr v1.4.2
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
