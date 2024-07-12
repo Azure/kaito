@@ -68,7 +68,6 @@ jobs:
 
   create-release:
     runs-on: ubuntu-latest
-    environment: publish-mcr
     needs: [ run-e2e-mcr ]
     steps:
       - name: 'Dispatch release tag'
