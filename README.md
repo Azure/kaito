@@ -7,7 +7,7 @@
 
 | ![notification](docs/img/bell.svg) What is NEW! |
 |-------------------------------------------------|
-| Latest Release: March 28th, 2024. Kaito v0.2.2. |
+| Latest Release: July 12th, 2024. Kaito v0.3.0.  |
 | First Release: Nov 15th, 2023. Kaito v0.1.0.    |
 
 Kaito is an operator that automates the AI/ML inference model deployment in a Kubernetes cluster.
@@ -85,6 +85,8 @@ $ kubectl run -it --rm --restart=Never curl --image=curlimages/curl -- curl -X P
 The detailed usage for Kaito supported models can be found in [**HERE**](presets/README.md). In case users want to deploy their own containerized models, they can provide the pod template in the `inference` field of the workspace custom resource (please see [API definitions](api/v1alpha1/workspace_types.go) for details). The controller will create a deployment workload using all provisioned GPU nodes. Note that currently the controller does **NOT** handle automatic model upgrade. It only creates inference workloads based on the preset configurations if the workloads do not exist.
 
 The number of the supported models in Kaito is growing! Please check [this](./docs/How-to-add-new-models.md) document to see how to add a new supported model.
+
+In version v0.3.0, Kaito starts to support model fine-tuning and using fine-tuned adapters in inference service. Please check this [document](./docs/tuning/README.md).
 
 ## FAQ
 
