@@ -8,7 +8,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/mock"
@@ -179,8 +178,8 @@ func TestGenerateNodeClaimManifest(t *testing.T) {
 		assert.Equal(t, nodeClaim.Labels[LabelNodePool], KaitoNodePoolName, "label must have same labels as workspace label selector")
 		assert.Equal(t, nodeClaim.Annotations[v1beta1.DoNotDisruptAnnotationKey], "true", "label must have do not disrupt annotation")
 		assert.Equal(t, len(nodeClaim.Spec.Requirements), 4, " NodeClaim must have 4 NodeSelector Requirements")
-		assert.Equal(t, nodeClaim.Spec.Requirements[2].NodeSelectorRequirement.Key, v1alpha2.LabelSKUName, "NodeClaim must have same instance type as workspace")
-		assert.Equal(t, nodeClaim.Spec.Requirements[2].NodeSelectorRequirement.Values[0], mockWorkspace.Resource.InstanceType, "NodeClaim must have same instance type as workspace")
+		assert.Equal(t, nodeClaim.Spec.Requirements[1].NodeSelectorRequirement.Values[0], mockWorkspace.Resource.InstanceType, "NodeClaim must have same instance type as workspace")
+		assert.Equal(t, nodeClaim.Spec.Requirements[2].NodeSelectorRequirement.Key, corev1.LabelOSStable, "NodeClaim must have OS label")
 		assert.Check(t, nodeClaim.Spec.NodeClassRef != nil, "NodeClaim must have NodeClassRef")
 		assert.Equal(t, nodeClaim.Spec.NodeClassRef.Kind, "AKSNodeClass", "NodeClaim must have 'AKSNodeClass' kind")
 	})
@@ -196,7 +195,7 @@ func TestGenerateNodeClaimManifest(t *testing.T) {
 		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceNamespace], mockWorkspace.Namespace, "label must have same workspace namespace as workspace")
 		assert.Equal(t, nodeClaim.Labels[LabelNodePool], KaitoNodePoolName, "label must have same labels as workspace label selector")
 		assert.Equal(t, nodeClaim.Annotations[v1beta1.DoNotDisruptAnnotationKey], "true", "label must have do not disrupt annotation")
-		assert.Equal(t, len(nodeClaim.Spec.Requirements), 2, " NodeClaim must have 2 NodeSelector Requirements")
+		assert.Equal(t, len(nodeClaim.Spec.Requirements), 3, " NodeClaim must have 3 NodeSelector Requirements")
 		assert.Check(t, nodeClaim.Spec.NodeClassRef != nil, "NodeClaim must have NodeClassRef")
 		assert.Equal(t, nodeClaim.Spec.NodeClassRef.Kind, "EC2NodeClass", "NodeClaim must have 'EC2NodeClass' kind")
 	})
