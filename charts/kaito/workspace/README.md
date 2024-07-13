@@ -3,7 +3,7 @@
 ## Install
 
 ```bash
-export REGISTRY=<your_docker_registry>
+export REGISTRY=mcr.microsoft.com/aks/kaito
 export IMG_NAME=workspace
 export IMG_TAG=0.3.0
 helm install workspace ./charts/kaito/workspace  \
@@ -13,24 +13,24 @@ helm install workspace ./charts/kaito/workspace  \
 
 ## Values
 
-| Key                                      | Type   | Default                           | Description                                                   |
-|------------------------------------------|--------|-----------------------------------|---------------------------------------------------------------|
-| affinity                                 | object | `{}`                              |                                                               |
-| image.pullPolicy                         | string | `"IfNotPresent"`                  |                                                               |
-| image.repository                         | string | `"ghcr.io/azure/kaito/workspace"` |                                                               |
-| image.tag                                | string | `"0.2.0"`                         |                                                               |
-| imagePullSecrets                         | list   | `[]`                              |                                                               |
-| nodeSelector                             | object | `{}`                              |                                                               |
-| podAnnotations                           | object | `{}`                              |                                                               |
-| podSecurityContext.runAsNonRoot          | bool   | `true`                            |                                                               |
-| presetRegistryName                       | string | `"mcr.microsoft.com/aks/kaito"`   |                                                               |
-| replicaCount                             | int    | `1`                               |                                                               |
-| resources.limits.cpu                     | string | `"500m"`                          |                                                               |
-| resources.limits.memory                  | string | `"128Mi"`                         |                                                               |
-| resources.requests.cpu                   | string | `"10m"`                           |                                                               |
-| resources.requests.memory                | string | `"64Mi"`                          |                                                               |
-| securityContext.allowPrivilegeEscalation | bool   | `false`                           |                                                               |
-| securityContext.capabilities.drop[0]     | string | `"ALL"`                           |                                                               |
-| tolerations                              | list   | `[]`                              |                                                               |
-| webhook.port                             | int    | `9443`                            |                                                               |
-| cloudProviderName                        | string | `"azure"`                         | Karpenter cloud provider name. Values can be "azure" or "aws" |
+| Key                                      | Type   | Default                                 | Description                                                   |
+|------------------------------------------|--------|-----------------------------------------|---------------------------------------------------------------|
+| affinity                                 | object | `{}`                                    |                                                               |
+| image.pullPolicy                         | string | `"IfNotPresent"`                        |                                                               |
+| image.repository                         | string | `mcr.microsoft.com/aks/kaito/workspace` |                                                               |
+| image.tag                                | string | `"0.3.0"`                               |                                                               |
+| imagePullSecrets                         | list   | `[]`                                    |                                                               |
+| nodeSelector                             | object | `{}`                                    |                                                               |
+| podAnnotations                           | object | `{}`                                    |                                                               |
+| podSecurityContext.runAsNonRoot          | bool   | `true`                                  |                                                               |
+| presetRegistryName                       | string | `"mcr.microsoft.com/aks/kaito"`         |                                                               |
+| replicaCount                             | int    | `1`                                     |                                                               |
+| resources.limits.cpu                     | string | `"500m"`                                |                                                               |
+| resources.limits.memory                  | string | `"128Mi"`                               |                                                               |
+| resources.requests.cpu                   | string | `"10m"`                                 |                                                               |
+| resources.requests.memory                | string | `"64Mi"`                                |                                                               |
+| securityContext.allowPrivilegeEscalation | bool   | `false`                                 |                                                               |
+| securityContext.capabilities.drop[0]     | string | `"ALL"`                                 |                                                               |
+| tolerations                              | list   | `[]`                                    |                                                               |
+| webhook.port                             | int    | `9443`                                  |                                                               |
+| cloudProviderName                        | string | `"azure"`                               | Karpenter cloud provider name. Values can be "azure" or "aws" |
