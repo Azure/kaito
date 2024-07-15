@@ -10,3 +10,4 @@ resource:
 inference:
   preset:
     name: "falcon-7b"
+    

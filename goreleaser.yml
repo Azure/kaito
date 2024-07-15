@@ -1,4 +1,5 @@
 # refer to https://goreleaser.com for more options
+version: 2
 before:
   hooks:
     - go mod tidy
@@ -29,13 +30,12 @@ builds:
     env:
       - CGO_ENABLED=0
       - GO111MODULE=on
-
 release:
   prerelease: auto
   header: |
     ## {{.Tag}} - {{ time "2006-01-02" }}
+  make_latest: true
 changelog:
-  skip: false
   groups:
     - title: Features 🌈
       regexp: ^.*feat[(\\w)]*:+.*$

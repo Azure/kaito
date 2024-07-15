@@ -149,12 +149,11 @@ type TuningSpec struct {
 	// Method specifies the Parameter-Efficient Fine-Tuning(PEFT) method, such as lora, qlora, used for the tuning.
 	// +optional
 	Method TuningMethod `json:"method,omitempty"`
-	// ConfigTemplate specifies the name of the configmap that contains the basic tuning arguments.
-	// A separate configmap will be generated based on the ConfigTemplate and the preset model name, and used by
-	// the tuning Job. If specified, the congfigmap needs to be in the same namespace of the workspace custom resource.
-	// If not specified, a default ConfigTemplate is used based on the specified tuning method.
+	// Config specifies the name of a custom ConfigMap that contains tuning arguments.
+	// If specified, the ConfigMap must be in the same namespace as the Workspace custom resource.
+	// If not specified, a default Config is used based on the specified tuning method.
 	// +optional
-	ConfigTemplate string `json:"configTemplate,omitempty"`
+	Config string `json:"config,omitempty"`
 	// Input describes the input used by the tuning method.
 	Input *DataSource `json:"input"`
 	// Output specified where to store the tuning output.

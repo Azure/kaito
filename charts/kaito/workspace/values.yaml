@@ -5,7 +5,7 @@ replicaCount: 1
 image:
   repository: mcr.microsoft.com/aks/kaito/workspace
   pullPolicy: IfNotPresent
-  tag: 0.2.2
+  tag: 0.3.0
 imagePullSecrets: []
 podAnnotations: {}
 podSecurityContext:
@@ -30,3 +30,5 @@ resources:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+# Values can be "azure" or "aws"
+cloudProviderName: "azure"

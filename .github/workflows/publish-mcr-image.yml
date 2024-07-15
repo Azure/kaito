@@ -18,7 +18,7 @@ jobs:
     environment: publish-mcr
     steps:
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.0.2
         with:
           go-version: ${{ env.GO_VERSION  }}
 
@@ -27,7 +27,7 @@ jobs:
           ver=${{ github.event.client_payload.tag }}
           echo "IMG_TAG=${ver#"v"}" >> $GITHUB_ENV
 
-      - uses: actions/checkout@v4.1.6
+      - uses: actions/checkout@v4.1.7
         with:
           fetch-depth: 0
           submodules: true
@@ -68,7 +68,6 @@ jobs:
 
   create-release:
     runs-on: ubuntu-latest
-    environment: publish-mcr
     needs: [ run-e2e-mcr ]
     steps:
       - name: 'Dispatch release tag'

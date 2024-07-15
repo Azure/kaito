@@ -1,5 +1,5 @@
 # Core Dependencies
-transformers==4.40.2
+transformers==4.41.2
 torch==2.2.0
 accelerate==0.30.1
 fastapi>=0.111.0,<0.112.0  # Allow patch updates
@@ -8,11 +8,11 @@ uvicorn[standard]>=0.29.0,<0.30.0  # Allow patch updates
 
 # Utility libraries
 datasets==2.19.1
-peft==0.8.2
+peft==0.11.1
 bitsandbytes==0.42.0
+sentencepiece==0.2.0
 
 # Less critical, can be latest
-deepspeed
 loralib
 einops
 xformers

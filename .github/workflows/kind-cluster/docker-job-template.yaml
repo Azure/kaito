@@ -29,6 +29,10 @@ spec:
             apk add --no-cache git
             git clone -b $PR_BRANCH https://github.com/Azure/kaito.git
 
+            # Print Project Files
+            echo 'Print Project Files'
+            ls -R kaito/presets
+
             # Ensure the repo is fully cloned before proceeding
             if [ ! -d "kaito" ]; then
               echo "Git repository not cloned. Exiting."

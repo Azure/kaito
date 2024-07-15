@@ -1,0 +1,18 @@
+apiVersion: kaito.sh/v1alpha1
+kind: Workspace
+metadata:
+  name: workspace-falcon-7b
+resource:
+  instanceType: "Standard_NC12s_v3"
+  labelSelector:
+    matchLabels:
+      apps: falcon-7b
+inference:
+  preset:
+    name: "falcon-7b"
+  adapters:
+    - source:
+        name: "falcon-7b-adapter"
+        image:  "<YOUR_IMAGE>"
+      strength: "0.2"
+    

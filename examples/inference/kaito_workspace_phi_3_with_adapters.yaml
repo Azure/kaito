@@ -1,0 +1,17 @@
+apiVersion: kaito.sh/v1alpha1
+kind: Workspace
+metadata:
+  name: workspace-phi-3-mini-adapter
+resource:
+  instanceType: "Standard_NC6s_v3"
+  labelSelector:
+    matchLabels:
+      apps: phi-3-adapter
+inference:
+  preset:
+    name: phi-3-mini-128k-instruct
+  adapters:
+    - source:
+        name: "phi-3-adapter"
+        image: "ACR_REPO_HERE.azurecr.io/ADAPTER_HERE:0.0.1"
+      strength: "1.0"

@@ -5,9 +5,10 @@ package inference
 import (
 	"context"
 	"fmt"
-	"github.com/azure/kaito/pkg/utils"
 	"os"
 	"strconv"
+
+	"github.com/azure/kaito/pkg/utils"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/model"
@@ -56,13 +57,14 @@ var (
 	tolerations = []corev1.Toleration{
 		{
 			Effect:   corev1.TaintEffectNoSchedule,
-			Operator: corev1.TolerationOpEqual,
-			Key:      resources.GPUString,
+			Operator: corev1.TolerationOpExists,
+			Key:      resources.CapacityNvidiaGPU,
 		},
 		{
-			Effect: corev1.TaintEffectNoSchedule,
-			Value:  resources.GPUString,
-			Key:    "sku",
+			Effect:   corev1.TaintEffectNoSchedule,
+			Value:    utils.GPUString,
+			Key:      utils.SKUString,
+			Operator: corev1.TolerationOpEqual,
 		},
 	}
 )
@@ -94,7 +96,8 @@ func updateTorchParamsForDistributedInference(ctx context.Context, kubeClient cl
 
 func GetInferenceImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, presetObj *model.PresetParam) (string, []corev1.LocalObjectReference) {
 	imagePullSecretRefs := []corev1.LocalObjectReference{}
-	if presetObj.ImageAccessMode == string(kaitov1alpha1.ModelImageAccessModePrivate) {
+	// Check if the workspace preset's access mode is private
+	if string(workspaceObj.Inference.Preset.AccessMode) == string(kaitov1alpha1.ModelImageAccessModePrivate) {
 		imageName := workspaceObj.Inference.Preset.PresetOptions.Image
 		for _, secretName := range workspaceObj.Inference.Preset.PresetOptions.ImagePullSecrets {
 			imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
@@ -127,6 +130,13 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	if shmVolumeMount.Name != "" {
 		volumeMounts = append(volumeMounts, shmVolumeMount)
 	}
+
+	if len(workspaceObj.Inference.Adapters) > 0 {
+		adapterVolume, adapterVolumeMount := utils.ConfigAdapterVolume()
+		volumes = append(volumes, adapterVolume)
+		volumeMounts = append(volumeMounts, adapterVolumeMount)
+	}
+
 	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj)
 	image, imagePullSecrets := GetInferenceImageInfo(ctx, workspaceObj, inferenceObj)
 

@@ -1,0 +1,231 @@
+name: Build and Push Preset Models 1ES
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'presets/inference/**'
+      - 'presets/models/supported_models.yaml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'presets/inference/**'
+      - 'presets/models/supported_models.yaml'
+  workflow_dispatch:
+    inputs:
+      force-run-all:
+        type: boolean
+        default: false
+        description: "Run all models for build"
+      force-run-all-phi: 
+        type: boolean
+        default: false
+        description: "Run all Phi models for build"
+
+env:
+    GO_VERSION: "1.22"
+    BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+    WEIGHTS_DIR: "/mnt/storage"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  determine-models:
+    runs-on: ubuntu-latest
+    environment: preset-env
+    outputs:
+      matrix: ${{ steps.affected_models.outputs.matrix }}
+      is_matrix_empty: ${{ steps.check_matrix_empty.outputs.is_empty }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: true
+          fetch-depth: 0
+      
+      - name: Set FORCE_RUN_ALL Flag
+        id: set_force_run_all
+        run: |
+          echo "FORCE_RUN_ALL=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force-run-all == 'true' }}" >> $GITHUB_OUTPUT
+          echo "FORCE_RUN_ALL_PHI=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force-run-all-phi == 'true' }}" >> $GITHUB_OUTPUT
+
+      # This script should output a JSON array of model names
+      - name: Determine Affected Models
+        id: affected_models
+        run: |
+          PR_BRANCH=${{ env.BRANCH_NAME }} \
+          FORCE_RUN_ALL=${{ steps.set_force_run_all.outputs.FORCE_RUN_ALL }} \
+          FORCE_RUN_ALL_PHI=${{ steps.set_force_run_all.outputs.FORCE_RUN_ALL_PHI }} \
+          python3 .github/workflows/kind-cluster/determine_models.py
+
+      - name: Print Determined Models
+        run: |
+          echo "Output from affected_models: ${{ steps.affected_models.outputs.matrix }}"
+      
+      - name: Check if Matrix is Empty
+        id: check_matrix_empty
+        run: |
+          if [ "${{ steps.affected_models.outputs.matrix }}" == "[]" ] || [ -z "${{ steps.affected_models.outputs.matrix }}" ]; then
+            echo "is_empty=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_empty=false" >> $GITHUB_OUTPUT
+          fi
+  
+  build-models:
+    needs: determine-models
+    if: needs.determine-models.outputs.is_matrix_empty == 'false'
+    runs-on: [ "self-hosted", "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu" ]
+    environment: preset-env
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ${{fromJson(needs.determine-models.outputs.matrix)}}
+      max-parallel: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Install Azure CLI latest
+        run: |
+          if ! which az > /dev/null; then
+              echo "Azure CLI not found. Installing..."
+              curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          else
+              echo "Azure CLI already installed."
+          fi
+  
+      - name: Ensure Docker is Installed
+        run: |
+          # Add Docker's official GPG key:
+          sudo apt-get update
+          sudo apt-get install ca-certificates curl -y
+          sudo install -m 0755 -d /etc/apt/keyrings
+          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+          sudo chmod a+r /etc/apt/keyrings/docker.asc
+          
+          # Add the repository to Apt sources:
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
+          
+          # User Permissions
+          sudo usermod -aG docker $(whoami)
+          sudo systemctl restart docker
+          sudo chmod 666 /var/run/docker.sock
+    
+      - name: Test Docker Access
+        run: |
+          ls -l /var/run/docker.sock
+          docker run hello-world
+      
+      - name: List All Disks
+        run: |
+          lsblk
+          if ! mountpoint -q /mnt/storage; then
+            echo "Failed to find required storage partition /mnt/storage"
+            exit 1
+          fi
+
+      - name: Ensure Python is Installed
+        run: |
+          if ! command -v python3 &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y python3
+          fi
+
+      - name: Ensure git and git LFS is Installed
+        run: |
+          if ! command -v git &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y git
+          fi
+          if ! git lfs --version &> /dev/null; then
+            sudo apt-get update
+            curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+            sudo apt-get install -y git-lfs
+            git lfs install
+          fi
+
+      - name: Ensure kubectl is Installed
+        run: |
+          if ! command -v kubectl &> /dev/null; then
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            kubectl version --client --output=yaml
+          fi
+
+      - name: Ensure Kind is Installed
+        run: |
+          if ! command -v kind &> /dev/null; then
+            if [ $(uname -m) = x86_64 ]; then
+              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+            elif [ $(uname -m) = aarch64 ]; then
+              curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-arm64
+            fi
+            chmod +x ./kind
+            sudo mv ./kind /usr/local/bin/kind
+          fi
+
+      - name: Configure Docker to Use /mnt/storage/docker
+        run: |
+          sudo systemctl stop docker
+          sudo mkdir -p /mnt/storage/docker
+          # Move existing Docker data
+          if [ -d /var/lib/docker ]; then
+            sudo rsync -aP /var/lib/docker/ /mnt/storage/docker/
+          fi
+          echo '{"data-root":"/mnt/storage/docker"}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl start docker
+  
+      - name: Verify Docker Configuration
+        run: |
+          docker info | grep "Docker Root Dir"
+
+      - name: Set Permissions for DataDrive /mnt/storage
+        run : |
+          sudo chown -R $(whoami) /mnt/storage
+          sudo chmod -R 775 /mnt/storage
+          
+          sudo apt-get update
+          sudo apt-get install acl -y
+
+          sudo setfacl -dm u::rwx /mnt/storage  # Default user permissions
+          sudo setfacl -dm g::rwx /mnt/storage  # Default group permissions
+          sudo setfacl -dm o::rx /mnt/storage   # Default others permissions
+
+      - name: Authenticate to ACR
+        run: |
+          az login --identity
+          az acr login -n ${{ secrets.PROD_1ES_ACR_USERNAME }}
+
+      - name: Call Reusable Workflow - Build Image
+        uses: ./.github/actions/build-image-action
+        with:
+          weights_dir: ${{ env.WEIGHTS_DIR }}
+          branch_name: ${{ env.BRANCH_NAME }}
+          image_name: unlisted/aks/kaito/kaito-${{ matrix.model.name }}
+          image_tag: ${{ matrix.model.tag }}
+          acr_name: ${{ secrets.PROD_1ES_ACR_USERNAME }}
+          acr_username: ${{ secrets.PROD_1ES_ACR_USERNAME }}
+          acr_password: ${{ secrets.PROD_1ES_ACR_PASSWORD }}
+          model_name: ${{ matrix.model.name }}
+          model_type: ${{ matrix.model.type }}
+          model_version: ${{ matrix.model.version }}
+          model_runtime: ${{ matrix.model.runtime }}
+          hf_username: ${{ secrets.HF_USERNAME }}
+          hf_token: ${{ secrets.HF_TOKEN }}
+          runs_on: "1ES.Pool=1es-aks-kaito-image-build-agent-pool-ubuntu"

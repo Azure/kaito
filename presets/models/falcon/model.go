@@ -38,10 +38,10 @@ var (
 	PresetFalcon40BInstructModel = PresetFalcon40BModel + "-instruct"
 
 	PresetFalconTagMap = map[string]string{
-		"Falcon7B":          "0.0.4",
-		"Falcon7BInstruct":  "0.0.4",
-		"Falcon40B":         "0.0.5",
-		"Falcon40BInstruct": "0.0.5",
+		"Falcon7B":          "0.0.5",
+		"Falcon7BInstruct":  "0.0.5",
+		"Falcon40B":         "0.0.6",
+		"Falcon40BInstruct": "0.0.6",
 	}
 
 	baseCommandPresetFalcon = "accelerate launch"
@@ -75,7 +75,7 @@ func (*falcon7b) GetTuningParameters() *model.PresetParam {
 		ModelFamilyName:           "Falcon",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
-		GPUCountRequirement:       "2",
+		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
 		PerGPUMemoryRequirement:   "16Gi",
 		TorchRunParams:            tuning.DefaultAccelerateParams,
