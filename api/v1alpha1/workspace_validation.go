@@ -150,7 +150,7 @@ func (r *TuningSpec) validateCreate(ctx context.Context, workspaceNamespace stri
 			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to evaluate validateConfigMap: %v", err), "Config"))
 		}
 	} else {
-		if err := r.validateConfigMap(ctx, workspaceNamespace, methodLowerCase, sku, r.ConfigTemplate); err != nil {
+		if err := r.validateConfigMap(ctx, workspaceNamespace, methodLowerCase, sku, r.Config); err != nil {
 			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to evaluate validateConfigMap: %v", err), "Config"))
 		}
 	}
