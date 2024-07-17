@@ -8,4 +8,6 @@ const (
 	WorkspaceFinalizer            = "workspace.finalizer.kaito.sh"
 	DefaultReleaseNamespaceEnvVar = "RELEASE_NAMESPACE"
 	FeatureFlagKarpenter          = "Karpenter"
+	AzureCloudName                = "azure"
+	AWSCloudName                  = "aws"
 )
