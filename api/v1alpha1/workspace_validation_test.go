@@ -1058,7 +1058,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.tuningSpec.validateCreate(ctx, "WORKSPACE_NAMESPACE")
+			errs := tt.tuningSpec.validateCreate(ctx, "WORKSPACE_NAMESPACE", "Standard_NC6s_v3")
 			hasErrs := errs != nil
 
 			if hasErrs != tt.wantErr {
