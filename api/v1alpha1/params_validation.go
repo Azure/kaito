@@ -148,7 +148,12 @@ func validateTrainingArgsViaConfigMap(cm *corev1.ConfigMap, modelName, methodLow
 }
 
 func validateTuningParameters(modelName, methodLowerCase, sku string) *apis.FieldError {
-	skuConfig, skuExists := SupportedGPUConfigs[sku]
+	skuHandler, err := utils.GetSKUHandler()
+	if err != nil {
+		return apis.ErrInvalidValue(fmt.Sprintf("Failed to get SKU handler: %v", err), "sku")
+	}
+	
+	skuConfig, skuExists := skuHandler.GetGPUConfigs()[sku]
 	if !skuExists {
 		return apis.ErrInvalidValue(fmt.Sprintf("Unsupported SKU: '%s'", sku), "sku")
 	}
