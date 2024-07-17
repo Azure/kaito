@@ -533,31 +533,6 @@ func deleteWorkspace(workspaceObj *kaitov1alpha1.Workspace) error {
 	return nil
 }
 
-func printPodLogsOnFailure(namespace, labelSelector string) {
-	coreClient, err := utils.GetK8sConfig()
-	if err != nil {
-		log.Printf("Failed to create core client: %v", err)
-	}
-	pods, err := coreClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: labelSelector,
-	})
-	if err != nil {
-		log.Printf("Failed to list pods: %v", err)
-		return
-	}
-
-	for _, pod := range pods.Items {
-		for _, container := range pod.Spec.Containers {
-			logs, err := utils.GetPodLogs(coreClient, namespace, pod.Name, container.Name)
-			if err != nil {
-				log.Printf("Failed to get logs from pod %s, container %s: %v", pod.Name, container.Name, err)
-			} else {
-				fmt.Printf("Logs from pod %s, container %s:\n%s\n", pod.Name, container.Name, string(logs))
-			}
-		}
-	}
-}
-
 var runLlama13B bool
 var aiModelsRegistry string
 var aiModelsRegistrySecret string
@@ -574,9 +549,9 @@ var _ = Describe("Workspace Preset", func() {
 
 	AfterEach(func() {
 		if CurrentSpecReport().Failed() {
-			printPodLogsOnFailure(namespaceName, "")     // The Preset Pod
-			printPodLogsOnFailure("kaito-workspace", "") // The Kaito Workspace Pod
-			printPodLogsOnFailure("gpu-provisioner", "") // The gpu-provisioner Pod
+			utils.PrintPodLogsOnFailure(namespaceName, "")     // The Preset Pod
+			utils.PrintPodLogsOnFailure("kaito-workspace", "") // The Kaito Workspace Pod
+			utils.PrintPodLogsOnFailure("gpu-provisioner", "") // The gpu-provisioner Pod
 			Fail("Fail threshold reached")
 		}
 	})
