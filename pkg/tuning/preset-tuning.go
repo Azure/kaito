@@ -3,12 +3,13 @@ package tuning
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/pointer"
-	"knative.dev/pkg/apis"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
+	"knative.dev/pkg/apis"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -42,12 +43,12 @@ var (
 		{
 			Effect:   corev1.TaintEffectNoSchedule,
 			Operator: corev1.TolerationOpEqual,
-			Key:      resources.GPUString,
+			Key:      utils.GPUString,
 		},
 		{
 			Effect: corev1.TaintEffectNoSchedule,
-			Value:  resources.GPUString,
-			Key:    "sku",
+			Value:  utils.GPUString,
+			Key:    utils.SKUString,
 		},
 	}
 )
@@ -62,7 +63,8 @@ func getInstanceGPUCount(sku string) int {
 
 func GetTuningImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, presetObj *model.PresetParam) (string, []corev1.LocalObjectReference) {
 	imagePullSecretRefs := []corev1.LocalObjectReference{}
-	if presetObj.ImageAccessMode == string(kaitov1alpha1.ModelImageAccessModePrivate) {
+	// Check if the workspace preset's access mode is private
+	if string(workspaceObj.Tuning.Preset.AccessMode) == string(kaitov1alpha1.ModelImageAccessModePrivate) {
 		imageName := workspaceObj.Tuning.Preset.PresetOptions.Image
 		for _, secretName := range workspaceObj.Tuning.Preset.PresetOptions.ImagePullSecrets {
 			imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
@@ -96,7 +98,7 @@ func GetDataSrcImageInfo(ctx context.Context, wObj *kaitov1alpha1.Workspace) (st
 //   - If not, check the release namespace and copy it to the target namespace if found.
 func EnsureTuningConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
 	kubeClient client.Client) (*corev1.ConfigMap, error) {
-	tuningConfigMapName := workspaceObj.Tuning.ConfigTemplate
+	tuningConfigMapName := workspaceObj.Tuning.Config
 	if tuningConfigMapName == "" {
 		if workspaceObj.Tuning.Method == kaitov1alpha1.TuningMethodLora {
 			tuningConfigMapName = kaitov1alpha1.DefaultLoraConfigMapTemplate
@@ -164,9 +166,10 @@ while true; do
     cp -r "$PARENT_DIR/adapter_model.safetensors" "$TEMP_CONTEXT/adapter_model.safetensors"
 
     # Create a minimal Dockerfile
-    echo 'FROM scratch
-    ADD adapter_config.json /
-    ADD adapter_model.safetensors /' > "$TEMP_CONTEXT/Dockerfile"
+    echo 'FROM busybox:latest
+    RUN mkdir -p /data
+    ADD adapter_config.json /data/
+    ADD adapter_model.safetensors /data/' > "$TEMP_CONTEXT/Dockerfile"
 
     docker build -t %s "$TEMP_CONTEXT"
     docker push %s
@@ -188,8 +191,11 @@ func PrepareOutputDir(outputDir string) (string, error) {
 	if outputDir == "" {
 		return DefaultOutputVolumePath, nil
 	}
-
-	cleanPath := filepath.Clean(filepath.Join(DefaultBaseDir, outputDir))
+	cleanPath := outputDir
+	if !strings.HasPrefix(cleanPath, DefaultBaseDir) {
+		cleanPath = filepath.Join(DefaultBaseDir, outputDir)
+	}
+	cleanPath = filepath.Clean(cleanPath)
 	if cleanPath == DefaultBaseDir || !strings.HasPrefix(cleanPath, DefaultBaseDir) {
 		klog.InfoS("Invalid output_dir specified: '%s', must be a directory. Using default output_dir: %s", outputDir, DefaultOutputVolumePath)
 		return DefaultOutputVolumePath, fmt.Errorf("invalid output_dir specified: '%s', must be a directory", outputDir)
@@ -309,8 +315,17 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		imagePullSecrets = append(imagePullSecrets, tuningImagePullSecrets...)
 	}
 
+	var envVars []corev1.EnvVar
+	presetName := strings.ToLower(string(workspaceObj.Tuning.Preset.Name))
+	// Append environment variable for default target modules if using Phi3 model
+	if strings.HasPrefix(presetName, "phi-3") {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "DEFAULT_TARGET_MODULES",
+			Value: "k_proj,q_proj,v_proj,o_proj,gate_proj,down_proj,up_proj",
+		})
+	}
 	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, tuningImage, imagePullSecrets, *workspaceObj.Resource.Count, commands,
-		containerPorts, nil, nil, resourceReq, tolerations, initContainers, sidecarContainers, volumes, volumeMounts)
+		containerPorts, nil, nil, resourceReq, tolerations, initContainers, sidecarContainers, volumes, volumeMounts, envVars)
 
 	err = resources.CreateResource(ctx, jobObj, kubeClient)
 	if client.IgnoreAlreadyExists(err) != nil {
@@ -396,7 +411,22 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 		Command: []string{"sh", "-c", `
 			for url in $DATA_URLS; do
 				filename=$(basename "$url" | sed 's/[?=&]/_/g')
-				curl -sSL $url -o $DATA_VOLUME_PATH/$filename
+				echo "Downloading $url to $DATA_VOLUME_PATH/$filename"
+				retry_count=0
+				while [ $retry_count -lt 3 ]; do
+					curl -sSL $url -o $DATA_VOLUME_PATH/$filename
+					if [ $? -eq 0 ] && [ -s $DATA_VOLUME_PATH/$filename ]; then
+						echo "Successfully downloaded $url"
+						break
+					else
+						echo "Failed to download $url, retrying..."
+						retry_count=$((retry_count + 1))
+						sleep 2
+					fi
+				done
+				if [ $retry_count -eq 3 ]; then
+					echo "Failed to download $url after 3 attempts"
+				fi
 			done
 		`},
 		VolumeMounts: []corev1.VolumeMount{

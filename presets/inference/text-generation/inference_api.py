@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import os
+import subprocess
 from dataclasses import asdict, dataclass, field
 from typing import Annotated, Any, Dict, List, Optional
 
@@ -11,11 +12,12 @@ import transformers
 import uvicorn
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel, Extra, Field
+from peft import PeftModel
+from pydantic import BaseModel, Extra, Field, validator
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
 
-
+ADAPTERS_DIR = '/mnt/adapter'
 @dataclass
 class ModelConfig:
     """
@@ -23,6 +25,7 @@ class ModelConfig:
     """
     pipeline: str = field(metadata={"help": "The model pipeline for the pre-trained model"})
     pretrained_model_name_or_path: Optional[str] = field(default="/workspace/tfs/weights", metadata={"help": "Path to the pretrained model or model identifier from huggingface.co/models"})
+    combination_type: Optional[str]=field(default="svd", metadata={"help": "The combination type of multi adapters"})
     state_dict: Optional[Dict[str, Any]] = field(default=None, metadata={"help": "State dictionary for the model"})
     cache_dir: Optional[str] = field(default=None, metadata={"help": "Cache directory for the model"})
     from_tf: bool = field(default=False, metadata={"help": "Load model from a TensorFlow checkpoint"})
@@ -59,17 +62,21 @@ class ModelConfig:
         # Update the ModelConfig instance with the additional args
         self.__dict__.update(addt_args_dict)
 
-    def __post_init__(self):
+    def __post_init__(self): # validate parameters 
         """
         Post-initialization to validate some ModelConfig values
         """
-        if self.torch_dtype and not hasattr(torch, self.torch_dtype):
+        if self.torch_dtype == "auto":
+            pass
+        elif self.torch_dtype and self.torch_dtype != "auto" and not hasattr(torch, self.torch_dtype):
             raise ValueError(f"Invalid torch dtype: {self.torch_dtype}")
-        self.torch_dtype = getattr(torch, self.torch_dtype) if self.torch_dtype else None
+        else:
+            self.torch_dtype = getattr(torch, self.torch_dtype) if self.torch_dtype else None
 
         supported_pipelines = {"conversational", "text-generation"}
         if self.pipeline not in supported_pipelines:
             raise ValueError(f"Unsupported pipeline: {self.pipeline}")
+        
 
 parser = HfArgumentParser(ModelConfig)
 args, additional_args = parser.parse_args_into_dataclasses(
@@ -81,10 +88,52 @@ args.process_additional_args(additional_args)
 model_args = asdict(args)
 model_args["local_files_only"] = not model_args.pop('allow_remote_files')
 model_pipeline = model_args.pop('pipeline')
+combination_type = model_args.pop('combination_type')
 
 app = FastAPI()
 tokenizer = AutoTokenizer.from_pretrained(**model_args)
-model = AutoModelForCausalLM.from_pretrained(**model_args)
+base_model = AutoModelForCausalLM.from_pretrained(**model_args)
+
+if not os.path.exists(ADAPTERS_DIR):
+    model = base_model
+else:
+    valid_adapters_list = [
+        os.path.join(ADAPTERS_DIR, adapter) for adapter in os.listdir(ADAPTERS_DIR)
+        if os.path.isfile(os.path.join(ADAPTERS_DIR, adapter, "adapter_config.json"))
+    ]
+
+    if valid_adapters_list:
+        adapter_names, weights = [], []
+        for adapter_path in valid_adapters_list:
+            adapter_name = os.path.basename(adapter_path)
+            adapter_names.append(adapter_name)
+            weights.append(float(os.getenv(adapter_name, '1.0')))
+
+        model = PeftModel.from_pretrained(base_model, valid_adapters_list[0], adapter_name=adapter_names[0])
+        for i in range(1, len(valid_adapters_list)):
+            model.load_adapter(valid_adapters_list[i], adapter_name=adapter_names[i])
+
+        model.add_weighted_adapter(
+            adapters=adapter_names,
+            weights=weights,
+            adapter_name="combined_adapter",
+            combination_type=combination_type,
+        )
+
+        model.set_adapter("combined_adapter")
+
+        # To avoid any potential future operations that use non-combined adapters
+        for adapter in adapter_names:
+            model.delete_adapter(adapter)
+        
+        active_adapters = model.active_adapters
+        if len(active_adapters) != 1 or active_adapters[0] != "combined_adapter":
+            raise ValueError(f"Adpaters is input but not merged correctlly")
+    else:
+        print("Warning: Did not find any valid adapters mounted, using base model")
+        model = base_model
+
+print("Model:", model)
 
 pipeline_kwargs = {
     "trust_remote_code": args.trust_remote_code,

@@ -2,7 +2,7 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
-VERSION ?= v0.2.2
+VERSION ?= v0.3.0
 GPU_PROVISIONER_VERSION ?= 0.2.0
 IMG_TAG ?= $(subst v,,$(VERSION))
 
@@ -74,6 +74,7 @@ SHELL = /usr/bin/env bash -o pipefail
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	cp config/crd/bases/kaito.sh_workspaces.yaml charts/kaito/workspace/crds/
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -105,7 +106,7 @@ GINKGO_FOCUS ?=
 GINKGO_SKIP ?=
 GINKGO_NODES ?= 1
 GINKGO_NO_COLOR ?= false
-GINKGO_TIMEOUT ?= 60m
+GINKGO_TIMEOUT ?= 120m
 GINKGO_ARGS ?= -focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" -nodes=$(GINKGO_NODES) -no-color=$(GINKGO_NO_COLOR) -timeout=$(GINKGO_TIMEOUT)
 
 .PHONY: kaito-workspace-e2e-test
@@ -128,7 +129,7 @@ create-acr:  ## Create test ACR
 create-aks-cluster: ## Create test AKS cluster (with msi, oidc, and workload identity enabled)
 	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --location $(AZURE_LOCATION) \
 	--attach-acr $(AZURE_ACR_NAME) 	--kubernetes-version $(AKS_K8S_VERSION) --node-count 1 --generate-ssh-keys  \
-	--enable-managed-identity --enable-workload-identity --enable-oidc-issuer -o none
+	--enable-managed-identity --enable-workload-identity --enable-oidc-issuer --node-vm-size Standard_D2s_v3 -o none
 
 .PHONY: create-aks-cluster-with-kaito
 create-aks-cluster-with-kaito: ## Create test AKS cluster (with msi, oidc and kaito enabled)
@@ -169,13 +170,13 @@ run: manifests generate fmt vet ## Run a controller from your host.
 ##@ Docker
 BUILDX_BUILDER_NAME ?= img-builder
 OUTPUT_TYPE ?= type=registry
-QEMU_VERSION ?= 5.2.0-2
+QEMU_VERSION ?= 7.2.0-1
 ARCH ?= amd64,arm64
 
 .PHONY: docker-buildx
 docker-buildx: ## Build and push docker image for the manager for cross-platform support
 	@if ! docker buildx ls | grep $(BUILDX_BUILDER_NAME); then \
-		docker run --rm --privileged multiarch/qemu-user-static:$(QEMU_VERSION) --reset -p yes; \
+		docker run --rm --privileged mcr.microsoft.com/mirror/docker/multiarch/qemu-user-static:$(QEMU_VERSION) --reset -p yes; \
 		docker buildx create --name $(BUILDX_BUILDER_NAME) --use; \
 		docker buildx inspect $(BUILDX_BUILDER_NAME) --bootstrap; \
 	fi
@@ -188,6 +189,15 @@ docker-build-kaito: docker-buildx
 		--platform="linux/$(ARCH)" \
 		--pull \
 		--tag $(REGISTRY)/$(IMG_NAME):$(IMG_TAG) .
+
+.PHONY: docker-build-adapter
+docker-build-adapter: docker-buildx
+	docker buildx build \
+		--file ./docker/adapter/Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform="linux/$(ARCH)" \
+		--pull \
+		--tag $(REGISTRY)/e2e-adapter:0.0.1 .
 
 ##@ Deployment
 
@@ -236,7 +246,6 @@ controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessar
 $(CONTROLLER_GEN): $(LOCALBIN)
 	test -s $(LOCALBIN)/controller-gen && $(LOCALBIN)/controller-gen --version | grep -q $(CONTROLLER_TOOLS_VERSION) || \
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
-	cp config/crd/bases/kaito.sh_workspaces.yaml charts/kaito/workspace/crds/
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.

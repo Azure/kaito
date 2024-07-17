@@ -196,7 +196,7 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 			},
 			workspaceObj: &kaitov1alpha1.Workspace{
 				Tuning: &kaitov1alpha1.TuningSpec{
-					ConfigTemplate: "config-template",
+					Config: "config-template",
 				},
 			},
 			expectedError: "",
@@ -207,7 +207,7 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 			},
 			workspaceObj: &kaitov1alpha1.Workspace{
 				Tuning: &kaitov1alpha1.TuningSpec{
-					ConfigTemplate: "config-template",
+					Config: "config-template",
 				},
 			},
 			expectedError: "failed to get release namespace: failed to determine release namespace from file /var/run/secrets/kubernetes.io/serviceaccount/namespace and env var RELEASE_NAMESPACE",
@@ -221,7 +221,7 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 			},
 			workspaceObj: &kaitov1alpha1.Workspace{
 				Tuning: &kaitov1alpha1.TuningSpec{
-					ConfigTemplate: "config-template",
+					Config: "config-template",
 				},
 			},
 			expectedError: "failed to get ConfigMap from template namespace:  \"config-template\" not found",
@@ -278,6 +278,18 @@ training_config:
 				},
 			},
 			expectedOutputDir: "/mnt/custom/path",
+		},
+		"Output Dir already includes /mnt": {
+			configMap: &corev1.ConfigMap{
+				Data: map[string]string{
+					"training_config.yaml": `
+training_config:
+  TrainingArguments:
+    output_dir: "/mnt/output"
+`,
+				},
+			},
+			expectedOutputDir: DefaultOutputVolumePath,
 		},
 		"Invalid Output Dir": {
 			configMap: &corev1.ConfigMap{
@@ -370,7 +382,7 @@ func TestHandleURLDataSource(t *testing.T) {
 			},
 			expectedInitContainerName: "data-downloader",
 			expectedImage:             "curlimages/curl",
-			expectedCommands:          "filename=$(basename \"$url\" | sed 's/[?=&]/_/g')\ncurl -sSL $url -o $DATA_VOLUME_PATH/$filename",
+			expectedCommands:          "curl -sSL $url -o $DATA_VOLUME_PATH/$filename",
 			expectedVolumeName:        "data-volume",
 			expectedVolumeMountPath:   utils.DefaultDataVolumePath,
 		},

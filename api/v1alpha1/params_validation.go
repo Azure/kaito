@@ -6,6 +6,10 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"reflect"
+	"strings"
+
 	"github.com/azure/kaito/pkg/k8sclient"
 	"github.com/azure/kaito/pkg/utils"
 	"gopkg.in/yaml.v2"
@@ -14,10 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
-	"path/filepath"
-	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 type Config struct {
@@ -26,7 +27,6 @@ type Config struct {
 
 type TrainingConfig struct {
 	ModelConfig        map[string]runtime.RawExtension `yaml:"ModelConfig"`
-	TokenizerParams    map[string]runtime.RawExtension `yaml:"TokenizerParams"`
 	QuantizationConfig map[string]runtime.RawExtension `yaml:"QuantizationConfig"`
 	LoraConfig         map[string]runtime.RawExtension `yaml:"LoraConfig"`
 	TrainingArguments  map[string]runtime.RawExtension `yaml:"TrainingArguments"`
@@ -77,7 +77,6 @@ func (t *TrainingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		target *map[string]runtime.RawExtension
 	}{
 		{"ModelConfig", &t.ModelConfig},
-		{"TokenizerParams", &t.TokenizerParams},
 		{"QuantizationConfig", &t.QuantizationConfig},
 		{"LoraConfig", &t.LoraConfig},
 		{"TrainingArguments", &t.TrainingArguments},
@@ -289,9 +288,9 @@ func (r *TuningSpec) validateConfigMap(ctx context.Context, namespace, methodLow
 	err := k8sclient.Client.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: namespace}, &cm)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' specified in 'config' not found in namespace '%s'", r.ConfigTemplate, namespace), "config"))
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("ConfigMap '%s' specified in 'config' not found in namespace '%s'", r.Config, namespace), "config"))
 		} else {
-			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to get ConfigMap '%s' in namespace '%s': %v", r.ConfigTemplate, namespace, err), "config"))
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to get ConfigMap '%s' in namespace '%s': %v", r.Config, namespace, err), "config"))
 		}
 	} else {
 		if err := validateConfigMapSchema(&cm); err != nil {

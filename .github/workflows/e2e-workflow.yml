@@ -49,12 +49,12 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           ref: ${{ inputs.git_sha }}
 
@@ -78,12 +78,12 @@ jobs:
               echo "VERSION=$(echo ${{ inputs.tag }} | tr -d v)" >> $GITHUB_ENV
 
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.0.2
         with:
           go-version: ${{ env.GO_VERSION  }}
 
       - name: Az login
-        uses: azure/login@6b2456866fc08b011acb422a92a4aa20e2c4de32 # v2.1.0
+        uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
         with:
           client-id: ${{ secrets.E2E_CLIENT_ID }}
           tenant-id: ${{ secrets.E2E_TENANT_ID }}
@@ -127,6 +127,13 @@ jobs:
         env:
           REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
+      
+      - name: build adapter image
+        shell: bash
+        run: |
+          make docker-build-adapter
+        env:
+          REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
 
       - name: create cluster
         shell: bash
@@ -151,7 +158,7 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_SUBSCRIPTION_ID }}
           GPU_PROVISIONER_VERSION: ${{ vars.GPU_PROVISIONER_VERSION }}
 
-      - uses: azure/login@6b2456866fc08b011acb422a92a4aa20e2c4de32 # v2.1.0
+      - uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
         with:
           client-id: ${{ secrets.E2E_CLIENT_ID }}
           tenant-id: ${{ secrets.E2E_TENANT_ID }}
@@ -200,8 +207,10 @@ jobs:
         env:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           RUN_LLAMA_13B: ${{ env.RUN_LLAMA_13B }}
+          REGISTRY: ${{ env.REGISTRY }}
           AI_MODELS_REGISTRY: ${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io
           AI_MODELS_REGISTRY_SECRET: ${{ secrets.E2E_AMRT_SECRET_NAME }}
+          ADAPTER_REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
 
       - name: Cleanup e2e resources
         if: ${{ always() }}

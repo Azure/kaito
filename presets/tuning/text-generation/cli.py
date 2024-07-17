@@ -11,6 +11,9 @@ from peft import LoraConfig
 from transformers import (BitsAndBytesConfig, DataCollatorForLanguageModeling,
                           PreTrainedTokenizer)
 
+target_modules_env = os.environ.get('DEFAULT_TARGET_MODULES', None) 
+DEFAULT_TARGET_MODULES = [module.strip() for module in target_modules_env.split(",")] if target_modules_env else None
+
 # Consider Future Support for other trainers
 # class TrainerTypes(Enum):
     # TRAINER = "Trainer"
@@ -35,7 +38,7 @@ class ExtLoraConfig(LoraConfig):
     Lora Config
     """
     init_lora_weights: bool = field(default=True, metadata={"help": "Enable initialization of LoRA weights"})
-    target_modules: Optional[List[str]] = field(default=None, metadata={"help": ("List of module names to replace with LoRA.")})
+    target_modules: Optional[List[str]] = field(default_factory=lambda: DEFAULT_TARGET_MODULES if DEFAULT_TARGET_MODULES else None, metadata={"help": "List of module names to replace with LoRA."})
     layers_to_transform: Optional[List[int]] = field(default=None, metadata={"help": "Layer indices to apply LoRA"})
     layers_pattern: Optional[List[str]] = field(default=None, metadata={"help": "Pattern to match layers for LoRA"})
     loftq_config: Dict[str, any] = field(default_factory=dict, metadata={"help": "LoftQ configuration for quantization"})
@@ -54,27 +57,6 @@ class DatasetConfig:
     response_column: str = field(default="text", metadata={"help": "Main text column for standalone entries or the response part in prompt-response setups."})
     messages_column: Optional[str] = field(default=None, metadata={"help": "Column containing structured conversational data in JSON format with roles and content, used for chatbot training."})
     train_test_split: float = field(default=0.8, metadata={"help": "Split between test and training data (e.g. 0.8 means 80/20% train/test split)"})
-
-@dataclass
-class TokenizerParams:
-    """
-    Tokenizer params
-    """
-    add_special_tokens: bool = field(default=True, metadata={"help": ""})
-    padding: bool = field(default=False, metadata={"help": ""})
-    truncation: bool = field(default=None, metadata={"help": ""})
-    max_length: Optional[int] = field(default=None, metadata={"help": ""})
-    stride: int = field(default=0, metadata={"help": ""})
-    is_split_into_words: bool = field(default=False, metadata={"help": ""})
-    pad_to_multiple_of: Optional[int] = field(default=None, metadata={"help": ""})
-    return_tensors: Optional[str] = field(default=None, metadata={"help": ""})
-    return_token_type_ids: Optional[bool] = field(default=None, metadata={"help": ""})
-    return_attention_mask: Optional[bool] = field(default=None, metadata={"help": ""})
-    return_overflowing_tokens: bool = field(default=False, metadata={"help": ""})
-    return_special_tokens_mask: bool = field(default=False, metadata={"help": ""})
-    return_offsets_mapping: bool = field(default=False, metadata={"help": ""})
-    return_length: bool = field(default=False, metadata={"help": ""})
-    verbose: bool = field(default=True, metadata={"help": ""})
 
 @dataclass
 class ModelConfig:

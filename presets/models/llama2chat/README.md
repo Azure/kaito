@@ -19,21 +19,28 @@ The sample docker files and the source code of the inference API server are in t
 #### 2. Download models
 
 This step must be done manually. Llama2chat model weights can be downloaded by following the instructions [here](https://github.com/facebookresearch/llama#download).
+
+#### 3. Build locally
+
+Set the following environment variables to specify the model name and the path to the downloaded model weights.
 ```
 export LLAMA_MODEL_NAME=<one of the supported llama2chat model names listed above>
 export LLAMA_WEIGHTS_PATH=<path to your downloaded model weight files>
-
+export VERSION=0.0.1
 ```
 
-#### 3. Build locally
+> [!IMPORTANT]
+> The inference API server expects all the model weight files to be in the same directory. So, make sure to consolidate all downloaded files in the same directory and use that path in the `LLAMA_WEIGHTS_PATH` variable.
+
+
 Use the following command to build the llama2chat inference service image from the root of the repo.
 ```
 docker build \
   --file docker/presets/inference/llama-2/Dockerfile \
-  --build-arg WEIGHTS_PATH=$LLAMA_WEIGHTS_PATH \
+  --build-arg WEIGHTS_PATH=${LLAMA_WEIGHTS_PATH} \
   --build-arg MODEL_TYPE=llama2-chat \
-  --build-arg VERSION=0.0.1 \
-  -t $LLAMA_MODEL_NAME:latest .
+  --build-arg VERSION=${VERSION} \
+  -t ${LLAMA_MODEL_NAME}:${VERSION} .
 ```
 
 Then `docker push` the images to your private registry.
@@ -51,6 +58,8 @@ inference:
       imagePullSecrets: # Optional
         - <IMAGE PULL SECRETS>
 ```
+
+See [examples/inference](../../../examples/inference) for sample manifests.
 
 ## Usage
 

@@ -52,4 +52,4 @@ spec:
         key: nvidia.com/gpu
         operator: Exists
       nodeSelector:
-        pool: al7binstruct
+        pool: mistral7bins

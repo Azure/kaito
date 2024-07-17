@@ -5,6 +5,7 @@ package v1alpha1
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"reflect"
 	"sort"
@@ -24,9 +25,22 @@ import (
 
 const DefaultReleaseNamespace = "kaito-workspace"
 
+var ValidStrength string = "0.5"
+var InvalidStrength1 string = "invalid"
+var InvalidStrength2 string = "1.5"
+
 var gpuCountRequirement string
 var totalGPUMemoryRequirement string
 var perGPUMemoryRequirement string
+
+var invalidSourceName string
+
+func init() {
+	// Define a invalid source name longer than 253
+	for i := 0; i < 32; i++ {
+		invalidSourceName += "Adapter1"
+	}
+}
 
 type testModel struct{}
 
@@ -106,10 +120,6 @@ func defaultConfigMapManifest() *v1.ConfigMap {
     local_files_only: true
     device_map: "auto"
 
-  TokenizerParams:
-    padding: true
-    truncation: true
-
   QuantizationConfig:
     load_in_4bit: false
 
@@ -149,10 +159,6 @@ func qloraConfigMapManifest() *v1.ConfigMap {
     torch_dtype: "bfloat16"
     local_files_only: true
     device_map: "auto"
-
-  TokenizerParams:
-    padding: true
-    truncation: true
 
   QuantizationConfig:
     load_in_4bit: true
@@ -195,6 +201,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		preset              bool
 		errContent          string // Content expect error to include, if any
 		expectErrs          bool
+		validateTuning      bool // To indicate if we are testing tuning validation
 	}{
 		{
 			name: "Valid resource",
@@ -208,6 +215,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			preset:              true,
 			errContent:          "",
 			expectErrs:          false,
+			validateTuning:      false,
 		},
 		{
 			name: "Insufficient total GPU memory",
@@ -221,6 +229,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			preset:              true,
 			errContent:          "Insufficient total GPU memory",
 			expectErrs:          true,
+			validateTuning:      false,
 		},
 
 		{
@@ -235,6 +244,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			preset:              true,
 			errContent:          "Insufficient number of GPUs",
 			expectErrs:          true,
+			validateTuning:      false,
 		},
 		{
 			name: "Insufficient per GPU memory",
@@ -248,6 +258,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			preset:              true,
 			errContent:          "Insufficient per GPU memory",
 			expectErrs:          true,
+			validateTuning:      false,
 		},
 
 		{
@@ -256,8 +267,9 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				InstanceType: "Standard_invalid_sku",
 				Count:        pointerToInt(1),
 			},
-			errContent: "Unsupported instance",
-			expectErrs: true,
+			errContent:     "Unsupported instance",
+			expectErrs:     true,
+			validateTuning: false,
 		},
 		{
 			name: "Only Template set",
@@ -265,9 +277,10 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				InstanceType: "Standard_NV12s_v3",
 				Count:        pointerToInt(1),
 			},
-			preset:     false,
-			errContent: "",
-			expectErrs: false,
+			preset:         false,
+			errContent:     "",
+			expectErrs:     false,
+			validateTuning: false,
 		},
 		{
 			name: "N-Prefix SKU",
@@ -275,8 +288,9 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				InstanceType: "Standard_Nsku",
 				Count:        pointerToInt(1),
 			},
-			errContent: "",
-			expectErrs: false,
+			errContent:     "",
+			expectErrs:     false,
+			validateTuning: false,
 		},
 
 		{
@@ -285,44 +299,81 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				InstanceType: "Standard_Dsku",
 				Count:        pointerToInt(1),
 			},
-			errContent: "",
-			expectErrs: false,
+			errContent:     "",
+			expectErrs:     false,
+			validateTuning: false,
+		},
+		{
+			name: "Tuning validation with single node",
+			resourceSpec: &ResourceSpec{
+				InstanceType: "Standard_NC6",
+				Count:        pointerToInt(1),
+			},
+			errContent:     "",
+			expectErrs:     false,
+			validateTuning: true,
+		},
+		{
+			name: "Tuning validation with multinode",
+			resourceSpec: &ResourceSpec{
+				InstanceType: "Standard_NC6",
+				Count:        pointerToInt(2),
+			},
+			errContent:     "Tuning does not currently support multinode configurations",
+			expectErrs:     true,
+			validateTuning: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var spec InferenceSpec
+			if tc.validateTuning {
+				tuningSpec := &TuningSpec{}
+				errs := tc.resourceSpec.validateCreateWithTuning(tuningSpec)
+				hasErrs := errs != nil
+				if hasErrs != tc.expectErrs {
+					t.Errorf("validateCreateWithTuning() errors = %v, expectErrs %v", errs, tc.expectErrs)
+				}
 
-			if tc.preset {
-				spec = InferenceSpec{
-					Preset: &PresetSpec{
-						PresetMeta: PresetMeta{
-							Name: ModelName("test-validation"),
-						},
-					},
+				if hasErrs && tc.errContent != "" {
+					errMsg := errs.Error()
+					if !strings.Contains(errMsg, tc.errContent) {
+						t.Errorf("validateCreateWithTuning() error message = %v, expected to contain = %v", errMsg, tc.errContent)
+					}
 				}
 			} else {
-				spec = InferenceSpec{
-					Template: &v1.PodTemplateSpec{}, // Assuming a non-nil TemplateSpec implies it's set
+				var spec InferenceSpec
+
+				if tc.preset {
+					spec = InferenceSpec{
+						Preset: &PresetSpec{
+							PresetMeta: PresetMeta{
+								Name: ModelName("test-validation"),
+							},
+						},
+					}
+				} else {
+					spec = InferenceSpec{
+						Template: &v1.PodTemplateSpec{}, // Assuming a non-nil TemplateSpec implies it's set
+					}
 				}
-			}
 
-			gpuCountRequirement = tc.modelGPUCount
-			totalGPUMemoryRequirement = tc.modelTotalGPUMemory
-			perGPUMemoryRequirement = tc.modelPerGPUMemory
+				gpuCountRequirement = tc.modelGPUCount
+				totalGPUMemoryRequirement = tc.modelTotalGPUMemory
+				perGPUMemoryRequirement = tc.modelPerGPUMemory
 
-			errs := tc.resourceSpec.validateCreate(spec)
-			hasErrs := errs != nil
-			if hasErrs != tc.expectErrs {
-				t.Errorf("validateCreate() errors = %v, expectErrs %v", errs, tc.expectErrs)
-			}
+				errs := tc.resourceSpec.validateCreateWithInference(&spec)
+				hasErrs := errs != nil
+				if hasErrs != tc.expectErrs {
+					t.Errorf("validateCreate() errors = %v, expectErrs %v", errs, tc.expectErrs)
+				}
 
-			// If there is an error and errContent is not empty, check that the error contains the expected content.
-			if hasErrs && tc.errContent != "" {
-				errMsg := errs.Error()
-				if !strings.Contains(errMsg, tc.errContent) {
-					t.Errorf("validateCreate() error message = %v, expected to contain = %v", errMsg, tc.errContent)
+				// If there is an error and errContent is not empty, check that the error contains the expected content.
+				if hasErrs && tc.errContent != "" {
+					errMsg := errs.Error()
+					if !strings.Contains(errMsg, tc.errContent) {
+						t.Errorf("validateCreate() error message = %v, expected to contain = %v", errMsg, tc.errContent)
+					}
 				}
 			}
 		})
@@ -483,6 +534,56 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			expectErrs: true,
 		},
 		{
+			name: "Adapeters more than 10",
+			inferenceSpec: func() *InferenceSpec {
+				spec := &InferenceSpec{
+					Preset: &PresetSpec{
+						PresetMeta: PresetMeta{
+							Name:       ModelName("test-validation"),
+							AccessMode: ModelImageAccessModePublic,
+						},
+					},
+				}
+				for i := 1; i <= 11; i++ {
+					spec.Adapters = append(spec.Adapters, AdapterSpec{
+						Source: &DataSource{
+							Name:  fmt.Sprintf("Adapter-%d", i),
+							Image: fmt.Sprintf("fake.kaito.com/kaito-image:0.0.%d", i),
+						},
+						Strength: &ValidStrength,
+					})
+				}
+				return spec
+			}(),
+			errContent: "Number of Adapters exceeds the maximum limit, maximum of 10 allowed",
+			expectErrs: true,
+		},
+		{
+			name: "Adapeters names are duplicated",
+			inferenceSpec: func() *InferenceSpec {
+				spec := &InferenceSpec{
+					Preset: &PresetSpec{
+						PresetMeta: PresetMeta{
+							Name:       ModelName("test-validation"),
+							AccessMode: ModelImageAccessModePublic,
+						},
+					},
+				}
+				for i := 1; i <= 2; i++ {
+					spec.Adapters = append(spec.Adapters, AdapterSpec{
+						Source: &DataSource{
+							Name:  "Adapter",
+							Image: fmt.Sprintf("fake.kaito.com/kaito-image:0.0.%d", i),
+						},
+						Strength: &ValidStrength,
+					})
+				}
+				return spec
+			}(),
+			errContent: "",
+			expectErrs: true,
+		},
+		{
 			name: "Valid Preset",
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
@@ -492,7 +593,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 					},
 				},
 			},
-			errContent: "",
+			errContent: "Duplicate adapter source name found:",
 			expectErrs: false,
 		},
 	}
@@ -522,6 +623,102 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 				errMsg := errs.Error()
 				if !strings.Contains(errMsg, tc.errContent) {
 					t.Errorf("validateCreate() error message = %v, expected to contain = %v", errMsg, tc.errContent)
+				}
+			}
+		})
+	}
+}
+
+func TestAdapterSpecValidateCreateorUpdate(t *testing.T) {
+	RegisterValidationTestModels()
+	tests := []struct {
+		name        string
+		adapterSpec *AdapterSpec
+		errContent  string // Content expected error to include, if any
+		expectErrs  bool
+	}{
+		{
+			name: "Missing Source",
+			adapterSpec: &AdapterSpec{
+				Strength: &ValidStrength,
+			},
+			errContent: "Source",
+			expectErrs: true,
+		},
+		{
+			name: "Missing Source Name",
+			adapterSpec: &AdapterSpec{
+				Source: &DataSource{
+					Image: "fake.kaito.com/kaito-image:0.0.1",
+				},
+				Strength: &ValidStrength,
+			},
+			errContent: "Name of Adapter field must be specified",
+			expectErrs: true,
+		},
+		{
+			name: "Invalid Strength, not a number",
+			adapterSpec: &AdapterSpec{
+				Source: &DataSource{
+					Name:  "Adapter-1",
+					Image: "fake.kaito.com/kaito-image:0.0.1",
+				},
+				Strength: &InvalidStrength1,
+			},
+			errContent: "Invalid strength value for Adapter 'Adapter-1'",
+			expectErrs: true,
+		},
+		{
+			name: "Invalid Strength, larger than 1",
+			adapterSpec: &AdapterSpec{
+				Source: &DataSource{
+					Name:  "Adapter-1",
+					Image: "fake.kaito.com/kaito-image:0.0.1",
+				},
+				Strength: &InvalidStrength2,
+			},
+			errContent: "Strength value for Adapter 'Adapter-1' must be between 0 and 1",
+			expectErrs: true,
+		},
+		{
+			name: "Invalid Source Name, longer than 253",
+			adapterSpec: &AdapterSpec{
+				Source: &DataSource{
+					Name:  invalidSourceName,
+					Image: "fake.kaito.com/kaito-image:0.0.1",
+				},
+				Strength: &ValidStrength,
+			},
+			errContent: "Name of Adapter must be a valid DNS subdomain value",
+			expectErrs: true,
+		},
+		{
+			name: "Valid Adapter",
+			adapterSpec: &AdapterSpec{
+				Source: &DataSource{
+					Name:  "Adapter-1",
+					Image: "fake.kaito.com/kaito-image:0.0.1",
+				},
+			},
+			errContent: "",
+			expectErrs: false,
+		},
+	}
+
+	// Run the tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			errs := tc.adapterSpec.validateCreateorUpdate()
+			hasErrs := errs != nil
+			if hasErrs != tc.expectErrs {
+				t.Errorf("validateUpdate() errors = %v, expectErrs %v", errs, tc.expectErrs)
+			}
+
+			// If there is an error and errContent is not empty, check that the error contains the expected content.
+			if hasErrs && tc.errContent != "" {
+				errMsg := errs.Error()
+				if !strings.Contains(errMsg, tc.errContent) {
+					t.Errorf("validateUpdate() error message = %v, expected to contain = %v", errMsg, tc.errContent)
 				}
 			}
 		})
@@ -570,6 +767,31 @@ func TestInferenceSpecValidateUpdate(t *testing.T) {
 			name: "Template Set",
 			newInference: &InferenceSpec{
 				Template: &v1.PodTemplateSpec{},
+			},
+			oldInference: &InferenceSpec{
+				Template: nil,
+			},
+			errContent: "field cannot be unset/set if it was set/unset",
+			expectErrs: true,
+		},
+		{
+			name: "Template Set",
+			newInference: &InferenceSpec{
+				Template: &v1.PodTemplateSpec{},
+				Adapters: []AdapterSpec{
+					{
+						Source: &DataSource{
+							Name:  "Adapter-1",
+							Image: "fake.kaito.com/kaito-image:0.0.1",
+						},
+					},
+					{
+						Source: &DataSource{
+							Name:  "Adapter-1",
+							Image: "fake.kaito.com/kaito-image:0.0.6",
+						},
+					},
+				},
 			},
 			oldInference: &InferenceSpec{
 				Template: nil,
@@ -761,8 +983,8 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 		{
 			name: "All fields valid",
 			tuningSpec: &TuningSpec{
-				Input:  &DataSource{Name: "valid-input", Volume: &v1.VolumeSource{}},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Input:  &DataSource{Name: "valid-input", Image: "AZURE_ACR.azurecr.io/test:0.0.0"},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0", ImagePushSecret: "secret"},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
 			},
@@ -772,8 +994,8 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 		{
 			name: "Verify QLoRA Config",
 			tuningSpec: &TuningSpec{
-				Input:  &DataSource{Name: "valid-input", Volume: &v1.VolumeSource{}},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Input:  &DataSource{Name: "valid-input", Image: "AZURE_ACR.azurecr.io/test:0.0.0"},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0", ImagePushSecret: "secret"},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodQLora,
 			},
@@ -783,7 +1005,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 		{
 			name: "Missing Input",
 			tuningSpec: &TuningSpec{
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0", ImagePushSecret: ""},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
 			},
@@ -804,7 +1026,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 			name: "Missing Preset",
 			tuningSpec: &TuningSpec{
 				Input:  &DataSource{Name: "valid-input"},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0", ImagePushSecret: ""},
 				Method: TuningMethodLora,
 			},
 			wantErr:   true,
@@ -814,7 +1036,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 			name: "Invalid Preset",
 			tuningSpec: &TuningSpec{
 				Input:  &DataSource{Name: "valid-input"},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0", ImagePushSecret: ""},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("invalid-preset")}},
 				Method: TuningMethodLora,
 			},
@@ -825,7 +1047,7 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 			name: "Invalid Method",
 			tuningSpec: &TuningSpec{
 				Input:  &DataSource{Name: "valid-input"},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0", ImagePushSecret: ""},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: "invalid-method",
 			},
@@ -867,13 +1089,13 @@ func TestTuningSpecValidateUpdate(t *testing.T) {
 			name: "No changes",
 			oldTuning: &TuningSpec{
 				Input:  &DataSource{Name: "input1"},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0"},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
 			},
 			newTuning: &TuningSpec{
 				Input:  &DataSource{Name: "input1"},
-				Output: &DataDestination{Volume: &v1.VolumeSource{}},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/test:0.0.0"},
 				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
 				Method: TuningMethodLora,
 			},
@@ -940,7 +1162,7 @@ func TestDataSourceValidateCreate(t *testing.T) {
 		{
 			name: "Volume specified only",
 			dataSource: &DataSource{
-				Volume: &v1.VolumeSource{},
+				Image: "AZURE_ACR.azurecr.io/test:0.0.0",
 			},
 			wantErr: false,
 		},
@@ -973,21 +1195,20 @@ func TestDataSourceValidateCreate(t *testing.T) {
 			wantErr:    true,
 			errField:   "Exactly one of URLs, Volume, or Image must be specified",
 		},
-		{
-			name: "URLs and Volume specified",
-			dataSource: &DataSource{
-				URLs:   []string{"http://example.com/data"},
-				Volume: &v1.VolumeSource{},
-			},
-			wantErr:  true,
-			errField: "Exactly one of URLs, Volume, or Image must be specified",
-		},
+		// {
+		// 	name: "URLs and Volume specified",
+		// 	dataSource: &DataSource{
+		// 		URLs:   []string{"http://example.com/data"},
+		// 		Volume: &v1.VolumeSource{},
+		// 	},
+		// 	wantErr:  true,
+		// 	errField: "Exactly one of URLs, Volume, or Image must be specified",
+		// },
 		{
 			name: "All fields specified",
 			dataSource: &DataSource{
-				URLs:   []string{"http://example.com/data"},
-				Volume: &v1.VolumeSource{},
-				Image:  "aimodels.azurecr.io/data-image:latest",
+				URLs:  []string{"http://example.com/data"},
+				Image: "aimodels.azurecr.io/data-image:latest",
 			},
 			wantErr:  true,
 			errField: "Exactly one of URLs, Volume, or Image must be specified",
@@ -1021,14 +1242,14 @@ func TestDataSourceValidateUpdate(t *testing.T) {
 		{
 			name: "No changes",
 			oldSource: &DataSource{
-				URLs:             []string{"http://example.com/data1", "http://example.com/data2"},
-				Volume:           &v1.VolumeSource{},
+				URLs: []string{"http://example.com/data1", "http://example.com/data2"},
+				// Volume:           &v1.VolumeSource{},
 				Image:            "data-image:latest",
 				ImagePullSecrets: []string{"secret1", "secret2"},
 			},
 			newSource: &DataSource{
-				URLs:             []string{"http://example.com/data2", "http://example.com/data1"}, // Note the different order, should not matter
-				Volume:           &v1.VolumeSource{},
+				URLs: []string{"http://example.com/data2", "http://example.com/data1"}, // Note the different order, should not matter
+				// Volume:           &v1.VolumeSource{},
 				Image:            "data-image:latest",
 				ImagePullSecrets: []string{"secret2", "secret1"}, // Note the different order, should not matter
 			},
@@ -1113,13 +1334,13 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 			wantErr:         true,
 			errField:        "At least one of Volume or Image must be specified",
 		},
-		{
-			name: "Volume specified only",
-			dataDestination: &DataDestination{
-				Volume: &v1.VolumeSource{},
-			},
-			wantErr: false,
-		},
+		// {
+		// 	name: "Volume specified only",
+		// 	dataDestination: &DataDestination{
+		// 		Volume: &v1.VolumeSource{},
+		// 	},
+		// 	wantErr: false,
+		// },
 		{
 			name: "Image specified only",
 			dataDestination: &DataDestination{
@@ -1144,15 +1365,15 @@ func TestDataDestinationValidateCreate(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		{
-			name: "Both fields specified",
-			dataDestination: &DataDestination{
-				Volume:          &v1.VolumeSource{},
-				Image:           "aimodels.azurecr.io/data-image:latest",
-				ImagePushSecret: "imagePushSecret",
-			},
-			wantErr: false,
-		},
+		// {
+		// 	name: "Both fields specified",
+		// 	dataDestination: &DataDestination{
+		// 		Volume:          &v1.VolumeSource{},
+		// 		Image:           "aimodels.azurecr.io/data-image:latest",
+		// 		ImagePushSecret: "imagePushSecret",
+		// 	},
+		// 	wantErr: false,
+		// },
 	}
 
 	for _, tt := range tests {
@@ -1182,12 +1403,12 @@ func TestDataDestinationValidateUpdate(t *testing.T) {
 		{
 			name: "No changes",
 			oldDest: &DataDestination{
-				Volume:          &v1.VolumeSource{},
+				// Volume:          &v1.VolumeSource{},
 				Image:           "old-image:latest",
 				ImagePushSecret: "old-secret",
 			},
 			newDest: &DataDestination{
-				Volume:          &v1.VolumeSource{},
+				// Volume:          &v1.VolumeSource{},
 				Image:           "old-image:latest",
 				ImagePushSecret: "old-secret",
 			},

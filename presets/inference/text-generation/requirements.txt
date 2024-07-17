@@ -1,20 +1,23 @@
 # Dependencies for TFS
 
 # Core Dependencies
-transformers==4.40.2
+transformers==4.41.2
 torch==2.2.0
 accelerate==0.30.1
 fastapi>=0.111.0,<0.112.0  # Allow patch updates
 pydantic>=2.7.1,<2.8      # Allow patch updates
 uvicorn[standard]>=0.29.0,<0.30.0  # Allow patch updates
+peft==0.11.1
+numpy==1.22.4
+sentencepiece==0.2.0
 
 # Utility libraries
 bitsandbytes==0.42.0
 
 # Less critical, can be latest
-deepspeed
 gputil
 psutil
 # For UTs
 pytest
 httpx
+peft

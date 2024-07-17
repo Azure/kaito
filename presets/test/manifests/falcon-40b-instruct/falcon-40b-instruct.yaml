@@ -53,4 +53,4 @@ spec:
         key: nvidia.com/gpu
         operator: Exists
       nodeSelector:
-        pool: n40binstruct
+        pool: falcon40bins
