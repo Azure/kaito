@@ -16,12 +16,17 @@ const (
 	// WorkspaceConditionTypeResourceStatus is the state when Resource has been created.
 	WorkspaceConditionTypeResourceStatus = ConditionType("ResourceReady")
 
-	// WorkspaceConditionTypeInferenceStatus is the state when Inference has been created.
+	// WorkspaceConditionTypeInferenceStatus is the state when Inference service has been ready.
 	WorkspaceConditionTypeInferenceStatus = ConditionType("InferenceReady")
+
+	// WorkspaceConditionTypeTuningJobStatus is the state when the tuning job starts normally.
+	WorkspaceConditionTypeTuningJobStatus ConditionType = ConditionType("JobStarted")
 
 	//WorkspaceConditionTypeDeleting is the Workspace state when starts to get deleted.
 	WorkspaceConditionTypeDeleting = ConditionType("WorkspaceDeleting")
 
-	//WorkspaceConditionTypeReady is the Workspace state that summarize all operations' state.
-	WorkspaceConditionTypeReady ConditionType = ConditionType("WorkspaceReady")
+	//WorkspaceConditionTypeSucceeded is the Workspace state that summarizes all operations' states.
+	//For inference, the "True" condition means the inference service is ready to serve requests.
+	//For fine tuning, the "True" condition means the tuning job completes successfully.
+	WorkspaceConditionTypeSucceeded ConditionType = ConditionType("WorkspaceSucceeded")
 )

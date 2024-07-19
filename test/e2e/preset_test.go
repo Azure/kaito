@@ -489,7 +489,7 @@ func validateWorkspaceReadiness(workspaceObj *kaitov1alpha1.Workspace) {
 			}
 
 			_, conditionFound := lo.Find(workspaceObj.Status.Conditions, func(condition metav1.Condition) bool {
-				return condition.Type == string(kaitov1alpha1.WorkspaceConditionTypeReady) &&
+				return condition.Type == string(kaitov1alpha1.WorkspaceConditionTypeSucceeded) &&
 					condition.Status == metav1.ConditionTrue
 			})
 			return conditionFound
