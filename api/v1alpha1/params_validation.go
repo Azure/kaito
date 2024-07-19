@@ -152,7 +152,7 @@ func validateTuningParameters(modelName, methodLowerCase, sku string) *apis.Fiel
 	if err != nil {
 		return apis.ErrInvalidValue(fmt.Sprintf("Failed to get SKU handler: %v", err), "sku")
 	}
-	
+
 	skuConfig, skuExists := skuHandler.GetGPUConfigs()[sku]
 	if !skuExists {
 		return apis.ErrInvalidValue(fmt.Sprintf("Unsupported SKU: '%s'", sku), "sku")
@@ -305,7 +305,9 @@ func (r *TuningSpec) validateConfigMap(ctx context.Context, namespace, methodLow
 			errs = errs.Also(err)
 		}
 
-		if err := validateTrainingArgsViaConfigMap(&cm, string(r.Preset.Name), methodLowerCase, sku); err != nil {
+		if r.Preset == nil {
+			errs = errs.Also(apis.ErrMissingField("Preset"))
+		} else if err := validateTrainingArgsViaConfigMap(&cm, string(r.Preset.Name), methodLowerCase, sku); err != nil {
 			errs = errs.Also(err)
 		}
 	}
