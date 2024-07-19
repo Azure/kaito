@@ -199,7 +199,7 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 		return fmt.Errorf("failed to list revisions: %w", err)
 	}
 	sort.Slice(revisions.Items, func(i, j int) bool {
-		return revisions.Items[i].Revision > revisions.Items[j].Revision
+		return revisions.Items[i].Revision < revisions.Items[j].Revision
 	})
 
 	revisionNum := int64(1)
@@ -232,7 +232,7 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 		return fmt.Errorf("failed to update Workspace annotations: %w", err)
 	}
 
-	if err := c.Client.Create(ctx, newRevision); err != nil {
+	if err := c.Create(ctx, newRevision); err != nil {
 		return fmt.Errorf("failed to create new ControllerRevision: %w", err)
 	}
 

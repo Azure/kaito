@@ -954,3 +954,59 @@ func TestApplyWorkspaceResource(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateControllerRevision(t *testing.T) {
+	testcases := map[string]struct {
+		callMocks     func(c *test.MockClient)
+		workspace     *v1alpha1.Workspace
+		expectedError error
+	}{
+
+		"No new revision needed": {
+			callMocks: func(c *test.MockClient) {
+				c.On("List", mock.Anything, mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(errors.New("should not be called")).Once()
+			},
+			workspace:     test.MockWorkspaceWithComputeHash,
+			expectedError: nil,
+		},
+
+		"Fail to create ControllerRevision": {
+			callMocks: func(c *test.MockClient) {
+				c.On("List", mock.Anything, mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(nil).Once()
+				c.On("Create", mock.Anything, mock.IsType(&appsv1.ControllerRevision{}), mock.Anything).Return(errors.New("failed to create ControllerRevision")).Once()
+				c.On("Update", mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil).Once()
+			},
+			workspace:     test.MockWorkspaceWithMatchingLabel,
+			expectedError: errors.New("failed to create new ControllerRevision: failed to create ControllerRevision"),
+		},
+
+		"Successfully create new ControllerRevision": {
+			callMocks: func(c *test.MockClient) {
+				c.On("List", mock.Anything, mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(nil).Once()
+				c.On("Create", mock.Anything, mock.IsType(&appsv1.ControllerRevision{}), mock.Anything).Return(nil).Once()
+				c.On("Update", mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil).Once()
+			},
+			workspace:     test.MockWorkspaceWithMatchingLabel,
+			expectedError: nil,
+		},
+	}
+	for k, tc := range testcases {
+		t.Run(k, func(t *testing.T) {
+			mockClient := test.NewClient()
+			tc.callMocks(mockClient)
+
+			reconciler := &WorkspaceReconciler{
+				Client: mockClient,
+				Scheme: test.NewTestScheme(),
+			}
+			ctx := context.Background()
+
+			err := reconciler.updateControllerRevision(ctx, tc.workspace)
+			if tc.expectedError == nil {
+				assert.Check(t, err == nil, "Not expected to return error")
+			} else {
+				assert.Equal(t, tc.expectedError.Error(), err.Error())
+			}
+		})
+	}
+}
