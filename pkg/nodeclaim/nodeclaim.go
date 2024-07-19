@@ -15,7 +15,6 @@ import (
 	awsv1beta1 "github.com/aws/karpenter-provider-aws/pkg/apis/v1beta1"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/featuregates"
-	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/consts"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
@@ -62,7 +61,7 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 		v1beta1.DoNotDisruptAnnotationKey: "true", // To prevent Karpenter from scaling down.
 	}
 
-	cloudName := utils.GetCloudProviderName(ctx)
+	cloudName := os.Getenv("CLOUD_PROVIDER")
 
 	var nodeClassRefKind string
 
@@ -85,8 +84,8 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, w
 			},
 			Taints: []v1.Taint{
 				{
-					Key:    utils.SKUString,
-					Value:  utils.GPUString,
+					Key:    consts.SKUString,
+					Value:  consts.GPUString,
 					Effect: v1.TaintEffectNoSchedule,
 				},
 			},
@@ -221,7 +220,8 @@ func CreateNodeClaim(ctx context.Context, nodeClaimObj *v1beta1.NodeClaim, kubeC
 
 // CreateKarpenterNodeClass creates a nodeClass object for Karpenter.
 func CreateKarpenterNodeClass(ctx context.Context, kubeClient client.Client) error {
-	cloudName := utils.GetCloudProviderName(ctx)
+	cloudName := os.Getenv("CLOUD_PROVIDER")
+
 	if cloudName == consts.AzureCloudName {
 		nodeClassObj := GenerateAKSNodeClassManifest(ctx)
 		return kubeClient.Create(ctx, nodeClassObj, &client.CreateOptions{})
@@ -321,8 +321,7 @@ func CheckNodeClaimStatus(ctx context.Context, nodeClaimObj *v1beta1.NodeClaim, 
 	}
 }
 
-func IsNodeClassAvailable(ctx context.Context, kubeClient client.Client) bool {
-	cloudName := utils.GetCloudProviderName(ctx)
+func IsNodeClassAvailable(ctx context.Context, cloudName string, kubeClient client.Client) bool {
 	if cloudName == consts.AzureCloudName {
 		err := kubeClient.Get(ctx, client.ObjectKey{Name: NodeClassName},
 			&azurev1alpha2.AKSNodeClass{}, &client.GetOptions{})

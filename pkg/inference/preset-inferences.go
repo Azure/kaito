@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/azure/kaito/pkg/utils"
+	"github.com/azure/kaito/pkg/utils/consts"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/model"
@@ -62,8 +63,8 @@ var (
 		},
 		{
 			Effect:   corev1.TaintEffectNoSchedule,
-			Value:    utils.GPUString,
-			Key:      utils.SKUString,
+			Value:    consts.GPUString,
+			Key:      consts.SKUString,
 			Operator: corev1.TolerationOpEqual,
 		},
 	}

@@ -4,7 +4,6 @@
 package utils
 
 import (
-	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -15,11 +14,6 @@ import (
 
 	"github.com/azure/kaito/pkg/sku"
 	"github.com/azure/kaito/pkg/utils/consts"
-)
-
-const (
-	SKUString = "sku"
-	GPUString = "gpu"
 )
 
 func Contains(s []string, e string) bool {
@@ -103,10 +97,6 @@ func GetReleaseNamespace() (string, error) {
 		return namespace, nil
 	}
 	return "", fmt.Errorf("failed to determine release namespace from file %s and env var %s", namespaceFilePath, consts.DefaultReleaseNamespaceEnvVar)
-}
-
-func GetCloudProviderName(ctx context.Context) string {
-	return os.Getenv("CLOUD_PROVIDER")
 }
 
 func GetSKUHandler() (sku.CloudSKUHandler, error) {

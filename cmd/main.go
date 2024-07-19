@@ -3,13 +3,19 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/k8sclient"
+	"github.com/azure/kaito/pkg/nodeclaim"
+	"github.com/azure/kaito/pkg/utils/consts"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 
@@ -108,9 +114,10 @@ func main() {
 	}
 
 	k8sclient.SetGlobalClient(mgr.GetClient())
+	kClient := k8sclient.GetGlobalClient()
 
 	if err = (&controllers.WorkspaceReconciler{
-		Client:   k8sclient.GetGlobalClient(),
+		Client:   kClient,
 		Log:      log.Log.WithName("controllers").WithName("Workspace"),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("KAITO-Workspace-controller"),
@@ -159,4 +166,44 @@ func main() {
 		klog.ErrorS(err, "problem running manager")
 		exitWithErrorFunc()
 	}
+	ctx := withShutdownSignal(context.Background())
+
+	// check if Karpenter NodeClass is available. If not, the controller will create it automatically.
+	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+		cloud := GetCloudProviderName()
+		if !nodeclaim.IsNodeClassAvailable(ctx, cloud, kClient) {
+			klog.Infof("NodeClass is not available, creating NodeClass")
+			if err := nodeclaim.CreateKarpenterNodeClass(ctx, kClient); err != nil {
+				if client.IgnoreAlreadyExists(err) != nil {
+					exitWithErrorFunc()
+				}
+			}
+		}
+	}
+}
+
+// withShutdownSignal returns a copy of the parent context that will close if
+// the process receives termination signals.
+func withShutdownSignal(ctx context.Context) context.Context {
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGINT, os.Interrupt)
+
+	nctx, cancel := context.WithCancel(ctx)
+
+	go func() {
+		<-signalChan
+		klog.Info("received shutdown signal")
+		cancel()
+	}()
+	return nctx
+}
+
+// GetCloudProviderName returns the cloud provider name from the environment variable.
+// If the environment variable is not set, the controller will exit with an error.
+func GetCloudProviderName() string {
+	cloudProvider := os.Getenv("CLOUD_PROVIDER")
+	if cloudProvider == "" {
+		exitWithErrorFunc()
+	}
+	return cloudProvider
 }

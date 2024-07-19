@@ -19,7 +19,6 @@ import (
 	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/machine"
 	"github.com/azure/kaito/pkg/nodeclaim"
-	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/consts"
 	"github.com/azure/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/mock"
@@ -174,7 +173,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: utils.GPUString,
+							machine.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -200,7 +199,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: utils.GPUString,
+							machine.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -226,7 +225,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: utils.GPUString,
+							machine.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -256,7 +255,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: utils.GPUString,
+							machine.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
