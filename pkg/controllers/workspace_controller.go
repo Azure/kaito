@@ -28,6 +28,7 @@ import (
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +36,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
+	"knative.dev/pkg/apis"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -635,6 +637,7 @@ func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&kaitov1alpha1.Workspace{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&appsv1.StatefulSet{}).
+		Owns(&batchv1.Job{}).
 		Watches(&v1alpha5.Machine{}, c.watchMachines()).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 5})
 
@@ -656,6 +659,14 @@ func (c *WorkspaceReconciler) watchMachines() handler.EventHandler {
 			}
 			namespace, ok := machineObj.Labels[kaitov1alpha1.LabelWorkspaceNamespace]
 			if !ok {
+				return nil
+			}
+			_, conditionFound := lo.Find(machineObj.GetConditions(), func(condition apis.Condition) bool {
+				return condition.Type == apis.ConditionReady &&
+					condition.Status == v1.ConditionTrue
+			})
+			if conditionFound && machineObj.DeletionTimestamp.IsZero() {
+				// No need to reconcile workspace if the machine is in READY state unless machine is deleted.
 				return nil
 			}
 			return []reconcile.Request{
