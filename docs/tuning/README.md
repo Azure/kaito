@@ -90,6 +90,17 @@ TrainingArguments [Full List](https://huggingface.co/docs/transformers/v4.40.2/e
 - save_strategy: Strategy for saving checkpoints, e.g., "epoch".
 - per_device_train_batch_size: Batch size per device during training.
 - num_train_epochs: Total number of training epochs to perform, defaults to 3.0.
+- Additional Details:
+  - Number of Steps per Epoch: The number of steps per epoch is determined by the size of the dataset and the batch size:
+    ```
+    Number of Steps per Epoch = Number of Samples in Dataset / Batch Size
+    ```
+    You can specify the batch size here with `per_device_train_batch_size`.
+  - Total Tuning Time: The total tuning time depends on the number of epochs, the batch size, and the max steps. The total number of steps can be calculated as:
+    ```
+    Total Steps = Number of Epochs * (Number of Samples in Dataset / Batch Size)
+    ```
+    If `max_steps` is specified, training will stop after reaching this number of steps, even if the specified epochs have not been completed.
 
 DataCollator [Full List](https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/data_collator#transformers.DataCollatorForLanguageModeling)
 - mlm: Masked language modeling flag.
