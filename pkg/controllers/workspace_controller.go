@@ -457,10 +457,18 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kaito
 				if err := resources.UpdateNodeWithLabel(ctx, nodeObj.Name, resources.LabelKeyNvidia, resources.LabelValueNvidia, c.Client); err != nil {
 					if apierrors.IsNotFound(err) {
 						klog.ErrorS(err, "nvidia plugin cannot be installed, node not found", "node", nodeObj.Name)
-						if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionFalse,
-							"checkMachineStatusFailed", err.Error()); updateErr != nil {
-							klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
-							return updateErr
+						if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+							if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeNodeClaimStatus, metav1.ConditionFalse,
+								"checkNodeClaimStatusFailed", err.Error()); updateErr != nil {
+								klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+								return updateErr
+							}
+						} else {
+							if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionFalse,
+								"checkMachineStatusFailed", err.Error()); updateErr != nil {
+								klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+								return updateErr
+							}
 						}
 						return err
 					}

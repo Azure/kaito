@@ -31,15 +31,15 @@ func init() {
 }
 
 var (
-	PresetPhi3Mini4kModel   = "phi-3-mini-4k-instruct"
-	PresetPhi3Mini128kModel = "phi-3-mini-128k-instruct"
-	PresetPhi3Medium4kModel = "phi-3-medium-4k-instruct"
+	PresetPhi3Mini4kModel     = "phi-3-mini-4k-instruct"
+	PresetPhi3Mini128kModel   = "phi-3-mini-128k-instruct"
+	PresetPhi3Medium4kModel   = "phi-3-medium-4k-instruct"
 	PresetPhi3Medium128kModel = "phi-3-medium-128k-instruct"
 
 	PresetPhiTagMap = map[string]string{
 		"Phi3Mini4kInstruct":     "0.0.1",
 		"Phi3Mini128kInstruct":   "0.0.1",
-		"Phi3Medium4kInstruct":   "0.0.1", 
+		"Phi3Medium4kInstruct":   "0.0.1",
 		"Phi3Medium128kInstruct": "0.0.1",
 	}
 

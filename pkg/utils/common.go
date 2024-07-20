@@ -16,11 +16,6 @@ import (
 	"github.com/azure/kaito/pkg/utils/consts"
 )
 
-const (
-	SKUString = "sku"
-	GPUString = "gpu"
-)
-
 func Contains(s []string, e string) bool {
 	for _, a := range s {
 		if a == e {
