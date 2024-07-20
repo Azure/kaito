@@ -86,8 +86,10 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 
 func (c *WorkspaceReconciler) ensureFinalizer(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) error {
 	if !controllerutil.ContainsFinalizer(workspaceObj, consts.WorkspaceFinalizer) {
-		patch := client.MergeFrom(workspaceObj.DeepCopy())
+		original := workspaceObj.DeepCopy()
 		controllerutil.AddFinalizer(workspaceObj, consts.WorkspaceFinalizer)
+		// Create a patch from the original object to the modified object
+		patch := client.MergeFrom(original)
 		if err := c.Client.Patch(ctx, workspaceObj, patch); err != nil {
 			klog.ErrorS(err, "failed to ensure the finalizer to the workspace", "workspace", klog.KObj(workspaceObj))
 			return err
