@@ -6,6 +6,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sort"
 	"strings"
 	"time"
@@ -40,7 +41,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -68,20 +68,12 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 
 	klog.InfoS("Reconciling", "workspace", req.NamespacedName)
 
+	if err := c.ensureFinalizer(ctx, workspaceObj); err != nil {
+		return reconcile.Result{}, err
+	}
 	// Handle deleting workspace, garbage collect all the resources.
 	if !workspaceObj.DeletionTimestamp.IsZero() {
 		return c.deleteWorkspace(ctx, workspaceObj)
-	} else {
-		// Ensure finalizer
-		if !controllerutil.ContainsFinalizer(workspaceObj, consts.WorkspaceFinalizer) {
-			controllerutil.AddFinalizer(workspaceObj, consts.WorkspaceFinalizer)
-			updateCopy := workspaceObj.DeepCopy()
-			if updateErr := c.Update(ctx, updateCopy, &client.UpdateOptions{}); updateErr != nil {
-				klog.ErrorS(updateErr, "failed to ensure the finalizer to the workspace",
-					"workspace", klog.KObj(updateCopy))
-				return ctrl.Result{}, updateErr
-			}
-		}
 	}
 
 	if workspaceObj.Inference != nil && workspaceObj.Inference.Preset != nil {
@@ -92,6 +84,18 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	}
 
 	return c.addOrUpdateWorkspace(ctx, workspaceObj)
+}
+
+func (c *WorkspaceReconciler) ensureFinalizer(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) error {
+	if !controllerutil.ContainsFinalizer(workspaceObj, consts.WorkspaceFinalizer) {
+		patch := client.MergeFrom(workspaceObj.DeepCopy())
+		controllerutil.AddFinalizer(workspaceObj, consts.WorkspaceFinalizer)
+		if err := c.Client.Patch(ctx, workspaceObj, patch); err != nil {
+			klog.ErrorS(err, "failed to ensure the finalizer to the workspace", "workspace", klog.KObj(workspaceObj))
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace) (reconcile.Result, error) {
@@ -478,10 +482,18 @@ func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kaito
 				if err := resources.UpdateNodeWithLabel(ctx, nodeObj.Name, resources.LabelKeyNvidia, resources.LabelValueNvidia, c.Client); err != nil {
 					if apierrors.IsNotFound(err) {
 						klog.ErrorS(err, "nvidia plugin cannot be installed, node not found", "node", nodeObj.Name)
-						if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionFalse,
-							"checkMachineStatusFailed", err.Error()); updateErr != nil {
-							klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
-							return updateErr
+						if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+							if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeNodeClaimStatus, metav1.ConditionFalse,
+								"checkNodeClaimStatusFailed", err.Error()); updateErr != nil {
+								klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+								return updateErr
+							}
+						} else {
+							if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeMachineStatus, metav1.ConditionFalse,
+								"checkMachineStatusFailed", err.Error()); updateErr != nil {
+								klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+								return updateErr
+							}
 						}
 						return err
 					}

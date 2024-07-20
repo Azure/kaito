@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/azure/kaito/pkg/utils/consts"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	"knative.dev/pkg/apis"
@@ -43,12 +44,12 @@ var (
 		{
 			Effect:   corev1.TaintEffectNoSchedule,
 			Operator: corev1.TolerationOpEqual,
-			Key:      utils.GPUString,
+			Key:      consts.GPUString,
 		},
 		{
 			Effect: corev1.TaintEffectNoSchedule,
-			Value:  utils.GPUString,
-			Key:    utils.SKUString,
+			Value:  consts.GPUString,
+			Key:    consts.SKUString,
 		},
 	}
 )
