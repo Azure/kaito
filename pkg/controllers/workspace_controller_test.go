@@ -6,17 +6,19 @@ package controllers
 import (
 	"context"
 	"errors"
+	"os"
 	"reflect"
 	"sort"
 	"testing"
 	"time"
 
+	azurev1alpha2 "github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	awsv1beta1 "github.com/aws/karpenter-provider-aws/pkg/apis/v1beta1"
 	"github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/machine"
 	"github.com/azure/kaito/pkg/nodeclaim"
-	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/consts"
 	"github.com/azure/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/mock"
@@ -171,7 +173,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: utils.GPUString,
+							machine.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -197,7 +199,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: utils.GPUString,
+							machine.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -223,7 +225,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: utils.GPUString,
+							machine.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -253,7 +255,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: utils.GPUString,
+							machine.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -359,11 +361,31 @@ func TestCreateAndValidateMachineNode(t *testing.T) {
 			workspace:     *test.MockWorkspaceDistributedModel,
 			expectedError: nil,
 		},
-		"A nodeClaim is successfully created": {
+		"An Azure nodeClaim is successfully created": {
 			callMocks: func(c *test.MockClient) {
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&azurev1alpha2.AKSNodeClass{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Node{}), mock.Anything).Return(nil)
+				os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
+			},
+			objectConditions: apis.Conditions{
+				{
+					Type:   apis.ConditionReady,
+					Status: corev1.ConditionTrue,
+				},
+			},
+			workspace:             *test.MockWorkspaceDistributedModel,
+			karpenterFeatureGates: true,
+			expectedError:         nil,
+		},
+		"An AWS nodeClaim is successfully created": {
+			callMocks: func(c *test.MockClient) {
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&awsv1beta1.EC2NodeClass{}), mock.Anything).Return(nil)
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Node{}), mock.Anything).Return(nil)
+				os.Setenv("CLOUD_PROVIDER", "aws")
 			},
 			objectConditions: apis.Conditions{
 				{
@@ -377,10 +399,12 @@ func TestCreateAndValidateMachineNode(t *testing.T) {
 		},
 		"Node is not created because nodeClaim creation fails": {
 			callMocks: func(c *test.MockClient) {
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&azurev1alpha2.AKSNodeClass{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
 			},
 			objectConditions: apis.Conditions{
 				{
@@ -444,10 +468,12 @@ func TestCreateAndValidateNodeClaimNode(t *testing.T) {
 	}{
 		"Node is not created because nodeClaim creation fails": {
 			callMocks: func(c *test.MockClient) {
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&azurev1alpha2.AKSNodeClass{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
 			},
 			karpenterFeatureGates: true,
 			nodeClaimConditions: apis.Conditions{
@@ -462,6 +488,7 @@ func TestCreateAndValidateNodeClaimNode(t *testing.T) {
 		},
 		"A nodeClaim is successfully created": {
 			callMocks: func(c *test.MockClient) {
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&azurev1alpha2.AKSNodeClass{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Node{}), mock.Anything).Return(nil)

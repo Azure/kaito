@@ -10,4 +10,6 @@ const (
 	FeatureFlagKarpenter          = "Karpenter"
 	AzureCloudName                = "azure"
 	AWSCloudName                  = "aws"
+	GPUString                     = "gpu"
+	SKUString                     = "sku"
 )

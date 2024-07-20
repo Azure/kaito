@@ -22,7 +22,7 @@ data:
       TrainingArguments: # Configurable Parameters: https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/trainer#transformers.TrainingArguments
         output_dir: "/mnt/results"
         # num_train_epochs: <Defaults to 3, adjustable>
-        ddp_find_unused_parameters: false # Default to false to prevent errors during distributed training.
+        ddp_find_unused_parameters: false # Default to false to prevent errors during distributed training
         save_strategy: "epoch" # Default to save at end of each epoch
         per_device_train_batch_size: 1
     
@@ -31,8 +31,7 @@ data:
     
       DatasetConfig: # Configurable Parameters: https://github.com/Azure/kaito/blob/main/presets/tuning/text-generation/cli.py#L44
         shuffle_dataset: true
-        train_test_split: 1 # Default to using all data for fine-tuning due to strong pre-trained baseline and typically limited fine-tuning data.
-        # Expected Dataset format: 
+        train_test_split: 1 # Default to using all data for fine-tuning due to strong pre-trained baseline and typically limited fine-tuning data
+        # Expected Dataset format:
         # {"messages": [{"role": "system", "content": "Marv is a factual chatbot that is also sarcastic."}, {"role": "user", "content": "What's the capital of France?"}, {"role": "assistant", "content": "Paris, as if everyone doesn't know that already."}]}
         # e.g. https://huggingface.co/datasets/philschmid/dolly-15k-oai-style
-    
