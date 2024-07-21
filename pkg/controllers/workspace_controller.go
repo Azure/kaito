@@ -586,9 +586,8 @@ func (c *WorkspaceReconciler) applyTuning(ctx context.Context, wObj *kaitov1alph
 			"WorkspaceTuningJobStatusFailed", err.Error()); updateErr != nil {
 			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
 			return updateErr
-		} else {
-			return err
 		}
+		return err
 	}
 
 	if err := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeTuningJobStatus, metav1.ConditionTrue,
