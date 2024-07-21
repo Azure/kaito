@@ -29,8 +29,11 @@ spec:
     - jsonPath: .status.conditions[?(@.type=="InferenceReady")].status
       name: InferenceReady
       type: string
-    - jsonPath: .status.conditions[?(@.type=="WorkspaceReady")].status
-      name: WorkspaceReady
+    - jsonPath: .status.conditions[?(@.type=="JobStarted")].status
+      name: JobStarted
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="WorkspaceSucceeded")].status
+      name: WorkspaceSucceeded
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age

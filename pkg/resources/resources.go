@@ -80,8 +80,8 @@ func CheckResourceStatus(obj client.Object, kubeClient client.Client, timeoutDur
 					return nil
 				}
 			case *batchv1.Job:
-				klog.InfoS("checking job status", "name", k8sResource.Name, "namespace", k8sResource.Namespace, "succeeded", k8sResource.Status.Succeeded, "active", k8sResource.Status.Active, "failed", k8sResource.Status.Failed)
-				if k8sResource.Status.Failed == 0 {
+				if k8sResource.Status.Active > 0 || k8sResource.Status.Succeeded > 0 {
+					klog.InfoS("job status is active/succeeded", "name", k8sResource.Name)
 					return nil
 				}
 			default:
