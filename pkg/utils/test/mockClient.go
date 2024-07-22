@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/stretchr/testify/mock"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -83,7 +84,6 @@ func (m *MockClient) Get(ctx context.Context, key types.NamespacedName, obj k8sC
 }
 
 func (m *MockClient) List(ctx context.Context, list k8sClient.ObjectList, opts ...k8sClient.ListOption) error {
-
 	v := reflect.ValueOf(list).Elem()
 	newList := m.getObjectListFromMap(list)
 	v.Set(reflect.ValueOf(newList).Elem())
@@ -121,6 +121,14 @@ func (m *MockClient) getObjectListFromMap(list k8sClient.ObjectList) k8sClient.O
 			}
 		}
 		return nodeClaimList
+	case *appsv1.ControllerRevisionList:
+		controllerRevisionList := &appsv1.ControllerRevisionList{}
+		for _, obj := range relevantMap {
+			if m, ok := obj.(*appsv1.ControllerRevision); ok {
+				controllerRevisionList.Items = append(controllerRevisionList.Items, *m)
+			}
+		}
+		return controllerRevisionList
 	}
 	//add additional object lists as needed
 	return nil
