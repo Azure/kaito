@@ -6,6 +6,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"sort"
@@ -958,36 +959,86 @@ func TestApplyWorkspaceResource(t *testing.T) {
 func TestUpdateControllerRevision(t *testing.T) {
 	testcases := map[string]struct {
 		callMocks     func(c *test.MockClient)
-		workspace     *v1alpha1.Workspace
+		workspace     v1alpha1.Workspace
 		expectedError error
+		verifyCalls   func(c *test.MockClient)
 	}{
-
 		"No new revision needed": {
 			callMocks: func(c *test.MockClient) {
-				c.On("List", mock.Anything, mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(errors.New("should not be called")).Once()
+				c.On("List", mock.IsType(context.Background()), mock.Anything, mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(errors.New("should not be called"))
 			},
 			workspace:     test.MockWorkspaceWithComputeHash,
 			expectedError: nil,
+			verifyCalls: func(c *test.MockClient) {
+				c.AssertNumberOfCalls(t, "List", 0)
+				c.AssertNumberOfCalls(t, "Create", 0)
+				c.AssertNumberOfCalls(t, "Update", 0)
+				c.AssertNumberOfCalls(t, "Delete", 0)
+			},
 		},
-
 		"Fail to create ControllerRevision": {
 			callMocks: func(c *test.MockClient) {
-				c.On("List", mock.Anything, mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(nil).Once()
-				c.On("Create", mock.Anything, mock.IsType(&appsv1.ControllerRevision{}), mock.Anything).Return(errors.New("failed to create ControllerRevision")).Once()
-				c.On("Update", mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil).Once()
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(nil)
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevision{}), mock.Anything).Return(errors.New("failed to create ControllerRevision"))
+				c.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 			},
-			workspace:     test.MockWorkspaceWithMatchingLabel,
+			workspace:     test.MockWorkspaceFailToCreateCR,
 			expectedError: errors.New("failed to create new ControllerRevision: failed to create ControllerRevision"),
+			verifyCalls: func(c *test.MockClient) {
+				c.AssertNumberOfCalls(t, "List", 1)
+				c.AssertNumberOfCalls(t, "Create", 1)
+				c.AssertNumberOfCalls(t, "Update", 1)
+				c.AssertNumberOfCalls(t, "Delete", 0)
+			},
 		},
-
 		"Successfully create new ControllerRevision": {
 			callMocks: func(c *test.MockClient) {
-				c.On("List", mock.Anything, mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(nil).Once()
-				c.On("Create", mock.Anything, mock.IsType(&appsv1.ControllerRevision{}), mock.Anything).Return(nil).Once()
-				c.On("Update", mock.Anything, mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil).Once()
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(nil)
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevision{}), mock.Anything).Return(nil)
+				c.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
 			},
-			workspace:     test.MockWorkspaceWithMatchingLabel,
+			workspace:     test.MockWorkspaceSuccessful,
 			expectedError: nil,
+			verifyCalls: func(c *test.MockClient) {
+				c.AssertNumberOfCalls(t, "List", 1)
+				c.AssertNumberOfCalls(t, "Create", 1)
+				c.AssertNumberOfCalls(t, "Update", 1)
+				c.AssertNumberOfCalls(t, "Delete", 0)
+			},
+		},
+		"Successfully delete old ControllerRevision": {
+			callMocks: func(c *test.MockClient) {
+				revisions := &appsv1.ControllerRevisionList{}
+				for i := 0; i <= consts.MaxRevisionHistoryLimit; i++ {
+					revision := &appsv1.ControllerRevision{
+						ObjectMeta: v1.ObjectMeta{
+							Name: fmt.Sprintf("revision-%d", i),
+						},
+						Revision: int64(i),
+					}
+					revisions.Items = append(revisions.Items, *revision)
+				}
+				relevantMap := c.CreateMapWithType(revisions)
+
+				for _, obj := range revisions.Items {
+					m := obj
+					objKey := client.ObjectKeyFromObject(&m)
+					relevantMap[objKey] = &m
+				}
+
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(nil)
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevision{}), mock.Anything).Return(nil)
+				c.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.On("Delete", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevision{}), mock.Anything).Return(nil)
+			},
+			workspace:     test.MockWorkspaceWithDeleteOldCR,
+			expectedError: nil,
+			verifyCalls: func(c *test.MockClient) {
+				c.AssertNumberOfCalls(t, "List", 1)
+				c.AssertNumberOfCalls(t, "Create", 1)
+				c.AssertNumberOfCalls(t, "Update", 1)
+				c.AssertNumberOfCalls(t, "Delete", 1)
+			},
 		},
 	}
 	for k, tc := range testcases {
@@ -1001,11 +1052,14 @@ func TestUpdateControllerRevision(t *testing.T) {
 			}
 			ctx := context.Background()
 
-			err := reconciler.updateControllerRevision(ctx, tc.workspace)
+			err := reconciler.updateControllerRevision(ctx, &tc.workspace)
 			if tc.expectedError == nil {
 				assert.Check(t, err == nil, "Not expected to return error")
 			} else {
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
+			}
+			if tc.verifyCalls != nil {
+				tc.verifyCalls(mockClient)
 			}
 		})
 	}

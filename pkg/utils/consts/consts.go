@@ -12,4 +12,5 @@ const (
 	AWSCloudName                  = "aws"
 	GPUString                     = "gpu"
 	SKUString                     = "sku"
+	MaxRevisionHistoryLimit       = 10
 )

@@ -204,7 +204,7 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 
 	revisionNum := int64(1)
 
-	if exists {
+	if len(revisions.Items) > 0 {
 		revisionNum = revisions.Items[len(revisions.Items)-1].Revision + 1
 	}
 
@@ -236,8 +236,7 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 		return fmt.Errorf("failed to create new ControllerRevision: %w", err)
 	}
 
-	const maxRevisionHistoryLimit = 10
-	if len(revisions.Items) > maxRevisionHistoryLimit {
+	if len(revisions.Items) > consts.MaxRevisionHistoryLimit {
 		if err := c.Delete(ctx, &revisions.Items[0]); err != nil {
 			return fmt.Errorf("failed to delete old revision: %w", err)
 		}

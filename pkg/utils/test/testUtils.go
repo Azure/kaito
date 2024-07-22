@@ -73,9 +73,37 @@ var (
 )
 
 var (
-	MockWorkspaceWithMatchingLabel = &v1alpha1.Workspace{
+	MockWorkspaceWithDeleteOldCR = v1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "testWorkspace",
+			Name:      "testWorkspace",
+			Namespace: "kaito",
+			Annotations: map[string]string{
+				"workspace.kaito.io/revision": "1171dc5d15043c92e684c8f06689eb241763a735181fdd2b59c8bd8fd6eecdd4",
+			},
+		},
+		Resource: v1alpha1.ResourceSpec{
+			Count:        &gpuNodeCount,
+			InstanceType: "Standard_NC12s_v3",
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"workspace.kaito.io/name": "testWorkspace",
+				},
+			},
+		},
+		Inference: &v1alpha1.InferenceSpec{
+			Preset: &v1alpha1.PresetSpec{
+				PresetMeta: v1alpha1.PresetMeta{
+					Name: "test-model-DeleteOldCR", // presetMeta name is changed
+				},
+			},
+		},
+	}
+)
+
+var (
+	MockWorkspaceFailToCreateCR = v1alpha1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "testWorkspace-failedtocreateCR",
 			Namespace:   "kaito",
 			Annotations: map[string]string{},
 		},
@@ -99,7 +127,33 @@ var (
 )
 
 var (
-	MockWorkspaceWithComputeHash = &v1alpha1.Workspace{
+	MockWorkspaceSuccessful = v1alpha1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "testWorkspace-successful",
+			Namespace:   "kaito",
+			Annotations: map[string]string{},
+		},
+		Resource: v1alpha1.ResourceSpec{
+			Count:        &gpuNodeCount,
+			InstanceType: "Standard_NC12s_v3",
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"workspace.kaito.io/name": "testWorkspace",
+				},
+			},
+		},
+		Inference: &v1alpha1.InferenceSpec{
+			Preset: &v1alpha1.PresetSpec{
+				PresetMeta: v1alpha1.PresetMeta{
+					Name: "test-model",
+				},
+			},
+		},
+	}
+)
+
+var (
+	MockWorkspaceWithComputeHash = v1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testWorkspace",
 			Namespace: "kaito",
