@@ -120,7 +120,7 @@ To support automatically pushing the tuning results to a container registry, Kai
 
 The main container uses one of the supported model images. The image entry launches the [fine\_tuning.py](https://github.com/Azure/kaito/blob/main/presets/tuning/text-generation/fine_tuning.py) script.
 
-All three containers use shared local volumes (by mounting same `EmptyDir` volumes). Hence file copies between containers are avoided.
+All three containers use shared local volumes (by mounting the same `EmptyDir` volumes), hence file copies between containers are avoided.
 
 # Troubleshooting
 
