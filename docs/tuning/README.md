@@ -114,11 +114,11 @@ Kaito uses the Kubernetes **batchv1.job** workload to manage the tuning Pod. Whe
 </div>
 Figure 1. Kaito tuning pod structure.
 
-An initcontainer `data-downloader` is introduced to download the training input dataset from the URLs specified in the tuning spec. In case an image is specified in the input, the `data-downloader` container simply uses the specified image as the container image. This initcontainer ensures the training data is available locally before the training process starts.
+- InitContainer `data-downloader`: Downloads the training input dataset from the URLs specified in the tuning spec. If an image is specified in the input, the `data-downloader` container uses the specified image as the container image. This initContainer ensures the training data is available locally before the training process starts.
 
-To support automatically pushing the tuning results to a container registry, Kaito adds a sidecar container which has `docker` installed. This container runs a script which periodically checks the training progress. Once the training is done, indicated by a sentinel file created by the training process, the script will build a container image containing the training results and push the image to the specified container registry.
+- Sidecar container: Supports automatically pushing the tuning results to a container registry. This container, with `docker` installed, runs a script to periodically check the training progress. Once the training is done, indicated by a sentinel file created by the training process, the script builds a container image containing the training results and pushes the image to the specified container registry.
 
-The main container uses one of the supported model images. The image entry launches the [fine\_tuning.py](https://github.com/Azure/kaito/blob/main/presets/tuning/text-generation/fine_tuning.py) script.
+- Main container: Uses one of the supported model images. The image entry launches the [fine\_tuning.py](https://github.com/Azure/kaito/blob/main/presets/tuning/text-generation/fine_tuning.py) script.
 
 All three containers use shared local volumes (by mounting the same `EmptyDir` volumes), hence file copies between containers are avoided.
 
