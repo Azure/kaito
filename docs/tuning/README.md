@@ -108,7 +108,7 @@ If your dataset is not in one of these formats, it will be passed directly to th
 Note: if you build a container image for the input dataset, please copy the dataset to the **`/data`** directory inside the container.
 
 # Tuning Job
-Kaito uses the Kubernetes **batchv1.job** workload to manage the tuning Pod. When a tuning workspace custom resource is created, Kaito controller will create a job with the same name of the workspace in the same namespace. To streamline the tuning workflow, Kaito adds two containers in addition to the main container that runs the tuning process. The pod structure is illustrated in Figure 1.
+Kaito uses the Kubernetes **batchv1.job** workload to manage the tuning Pod. When a tuning workspace custom resource is created, the Kaito controller will create a job with the same name as the workspace in the same namespace. To streamline the tuning workflow, Kaito adds two containers in addition to the main container that runs the tuning process. The pod structure is illustrated in Figure 1.
 <div align="left">
   <img src="../img/kaito-fine-tuning.png" width=40% title="Kaito fine tuning" alt="Kaito fine tuning">
 </div>
