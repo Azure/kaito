@@ -127,7 +127,7 @@ All three containers use shared local volumes (by mounting the same `EmptyDir` v
 ### Job pod failures
 When the tuning job reaches the failed state, at least one of the above three containers has encountered errors. Users can check the logs of these containers using the `kubectl logs PODNAME -n NAMESPACE -c CONTAINERNAME` command.
 
-For the inticontainer and the sidecar container, possible errors include invalid input/out URLs or invalid image pull secretes. Users can fix the problems by updating the workspace custom resource with corrections. The Kaito controller will create a new job using the updated spec.
+- InitContainer and Sidecar Container: Possible errors include invalid input/output URLs or invalid image pull secrets. Users can fix these problems by updating the workspace custom resource with corrections. The Kaito controller will create a new job using the updated spec.
 
 For the main container, errors may occur when CUDA reports out of gpu memory. In this case, users should reduce the batch size (the default is 1) if it has been customized to a value larger than 1. If the batch size is already 1, the workspace must be recreated using a different gpu sku with bigger gpu memory. Note that Kaito has optimized the training memory usage by dropping the preallocated memory cache. Our internal tests show that the performance impact due to this change is negligible.
 
