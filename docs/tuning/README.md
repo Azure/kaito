@@ -118,7 +118,7 @@ Figure 1. Kaito tuning pod structure.
 
 - Sidecar container: It is introduced to support automatically pushing the tuning results to a container registry. This container, with `docker` installed, runs a script to periodically check the training progress. Once the training is done, indicated by a sentinel file created by the training process, the script builds a container image containing the training results and pushes the image to the specified container registry.
 
-- Main container: Uses one of the supported model images. The image entry launches the [fine\_tuning.py](https://github.com/Azure/kaito/blob/main/presets/tuning/text-generation/fine_tuning.py) script.
+- Main container: It uses one of the supported model images. The image entry launches the [fine\_tuning.py](https://github.com/Azure/kaito/blob/main/presets/tuning/text-generation/fine_tuning.py) script.
 
 All three containers use shared local volumes (by mounting the same `EmptyDir` volumes), hence file copies between containers are avoided.
 
