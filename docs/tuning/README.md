@@ -1,5 +1,5 @@
 # Kaito fine tuning
-This document presents how to use the Kaito `workspace` CRD for parameter-efficient fine-tuning (PEFT) of models, how a Kubernetes job is designed to automate the tunning workflow and several best practices for troubleshooting.
+This document presents how to use the Kaito `workspace` Custom Resource Definition (CRD) for parameter-efficient fine-tuning (PEFT) of models, how a Kubernetes job is designed to automate the tuning workflow, and several best practices for troubleshooting.
 
 ## Usage
 Kaito tuning APIs allow users to specify the supported tuning methods like LoRA or QLoRA, the input dataset and configuration settings, and the output destination for saving the tunning results. Currently, Kaito supports both URL and image as the type of tuning input source. It only supports image as the type of output destination. In the future, Kaito will additionally support the Kubernetes `v1.Volume` API for both the input source and the output destination.
