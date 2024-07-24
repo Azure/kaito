@@ -114,7 +114,7 @@ Kaito uses the Kubernetes **batchv1.job** workload to manage the tuning Pod. Whe
 </div>
 Figure 1. Kaito tuning pod structure.
 
-- InitContainer `data-downloader`: Downloads the training input dataset from the URLs specified in the tuning spec. If an image is specified in the input, the `data-downloader` container uses the specified image as the container image. This initContainer ensures the training data is available locally before the training process starts.
+- Initcontainer `data-downloader`: It downloads the training input dataset from the URLs specified in the tuning spec if needed. If an image is specified in the input, the `data-downloader` container uses the specified image as the container image. This initcontainer ensures the training data is available locally before the training process starts.
 
 - Sidecar container: Supports automatically pushing the tuning results to a container registry. This container, with `docker` installed, runs a script to periodically check the training progress. Once the training is done, indicated by a sentinel file created by the training process, the script builds a container image containing the training results and pushes the image to the specified container registry.
 
