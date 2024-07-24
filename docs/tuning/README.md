@@ -132,7 +132,7 @@ For the inticontainer and the sidecar container, possible errors include invalid
 For the main container, errors may occur when CUDA reports out of gpu memory. In this case, users should reduce the batch size (the default is 1) if it has been customized to a value larger than 1. If the batch size is already 1, the workspace must be recreated using a different gpu sku with bigger gpu memory. Note that Kaito has optimized the training memory usage by dropping the preallocated memory cache. Our internal tests show that the performance impact due to this change is negligible.
 
 ### Time for job completion
-The training job can take a long time depending on the size of the input dataset and training pipeline configurations. The total training time is largely determined by the total number of training steps that need to be performed. The total number of steps can be calculated as:
+The training job can take a long time depending on the size of the input dataset and training pipeline configurations. The total training time is largely determined by the total number of training steps, calculated as:
 ```
 total steps = number of epochs * (number of samples in dataset / batch size)
 ```
