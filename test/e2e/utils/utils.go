@@ -8,14 +8,15 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/samber/lo"
@@ -35,7 +36,7 @@ var (
 	// PollInterval defines the interval time for a poll operation.
 	PollInterval = 2 * time.Second
 	// PollTimeout defines the time after which the poll operation times out.
-	PollTimeout = 60 * time.Second
+	PollTimeout = 120 * time.Second
 )
 
 func GetEnv(envVar string) string {
