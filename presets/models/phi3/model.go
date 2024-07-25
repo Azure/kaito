@@ -77,7 +77,7 @@ func (*phi3Mini4KInst) GetTuningParameters() *model.PresetParam {
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
-		PerGPUMemoryRequirement:   "16Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		PerGPUMemoryRequirement:   "16Gi",
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
@@ -116,7 +116,7 @@ func (*phi3Mini128KInst) GetTuningParameters() *model.PresetParam {
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
-		PerGPUMemoryRequirement:   "16Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		PerGPUMemoryRequirement:   "16Gi",
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
@@ -155,7 +155,7 @@ func (*Phi3Medium4kInstruct) GetTuningParameters() *model.PresetParam {
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "13Gi",
-		PerGPUMemoryRequirement:   "13Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		PerGPUMemoryRequirement:   "13Gi",
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
@@ -194,7 +194,7 @@ func (*Phi3Medium128kInstruct) GetTuningParameters() *model.PresetParam {
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "13Gi",
-		PerGPUMemoryRequirement:   "13Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		PerGPUMemoryRequirement:   "13Gi",
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
