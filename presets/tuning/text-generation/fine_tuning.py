@@ -13,6 +13,7 @@ from dataset import DatasetManager
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           BitsAndBytesConfig, HfArgumentParser, Trainer,
+                          TrainerCallback, TrainerControl, TrainerState,
                           TrainingArguments)
 from trl import SFTTrainer
 
@@ -91,7 +92,11 @@ if ds_config.shuffle_dataset:
 
 train_dataset, eval_dataset = dm.split_dataset()
 
-# checkpoint_callback = CheckpointCallback()
+class EmptyCacheCallback(TrainerCallback):
+    def on_step_end(self, args, state: TrainerState, control: TrainerControl, **kwargs):
+        torch.cuda.empty_cache()
+        return control
+empty_cache_callback = EmptyCacheCallback()
 
 # Prepare for training
 torch.cuda.set_device(accelerator.process_index)
@@ -105,6 +110,7 @@ trainer = accelerator.prepare(SFTTrainer(
     args=ta_args,
     data_collator=dc_args,
     dataset_text_field=dm.dataset_text_field,
+    callbacks=[empty_cache_callback]
     # metrics = "tensorboard" or "wandb" # TODO
 ))
 trainer.train()
@@ -113,6 +119,7 @@ trainer.save_model(ta_args.output_dir)
 
 # Write file to signify training completion
 timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+print("Fine-Tuning completed\n")
 completion_indicator_path = os.path.join(ta_args.output_dir, "fine_tuning_completed.txt")
 with open(completion_indicator_path, 'w') as f:
     f.write(f"Fine-Tuning completed at {timestamp}\n")
