@@ -65,7 +65,7 @@ func (*mistral7b) GetTuningParameters() *model.PresetParam {
 		DiskStorageRequirement:    "100Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
-		PerGPUMemoryRequirement:   "16Gi", // We run Mistral using native vertical model parallel, no per GPU memory requirement.
+		PerGPUMemoryRequirement:   "16Gi",
 		//TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunParams:            mistralRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,

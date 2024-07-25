@@ -58,7 +58,7 @@ func (*phi2) GetTuningParameters() *model.PresetParam {
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
-		PerGPUMemoryRequirement:   "16Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		PerGPUMemoryRequirement:   "16Gi",
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
