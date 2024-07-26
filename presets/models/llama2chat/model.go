@@ -42,10 +42,10 @@ func (*llama2Chat7b) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "LLaMa2",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
-		DiskStorageRequirement:    "34G",
+		DiskStorageRequirement:    "34Gi",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "16G",
-		PerGPUMemoryRequirement:   "14G", // We run llama2 using tensor parallelism, the memory of each GPU needs to be bigger than the tensor shard size.
+		TotalGPUMemoryRequirement: "16Gi",
+		PerGPUMemoryRequirement:   "14Gi", // We run llama2 using tensor parallelism, the memory of each GPU needs to be bigger than the tensor shard size.
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
@@ -73,10 +73,10 @@ func (*llama2Chat13b) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "LLaMa2",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
-		DiskStorageRequirement:    "46G",
+		DiskStorageRequirement:    "46Gi",
 		GPUCountRequirement:       "2",
-		TotalGPUMemoryRequirement: "30G",
-		PerGPUMemoryRequirement:   "15G", // We run llama2 using tensor parallelism, the memory of each GPU needs to be bigger than the tensor shard size.
+		TotalGPUMemoryRequirement: "30Gi",
+		PerGPUMemoryRequirement:   "15Gi", // We run llama2 using tensor parallelism, the memory of each GPU needs to be bigger than the tensor shard size.
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,
@@ -104,10 +104,10 @@ func (*llama2Chat70b) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "LLaMa2",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePrivate),
-		DiskStorageRequirement:    "158G",
+		DiskStorageRequirement:    "158Gi",
 		GPUCountRequirement:       "8",
-		TotalGPUMemoryRequirement: "192G",
-		PerGPUMemoryRequirement:   "19G", // We run llama2 using tensor parallelism, the memory of each GPU needs to be bigger than the tensor shard size.
+		TotalGPUMemoryRequirement: "192Gi",
+		PerGPUMemoryRequirement:   "19Gi", // We run llama2 using tensor parallelism, the memory of each GPU needs to be bigger than the tensor shard size.
 		TorchRunParams:            inference.DefaultTorchRunParams,
 		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
 		ModelRunParams:            llamaRunParams,

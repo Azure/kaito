@@ -40,10 +40,10 @@ func (*phi2) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "Phi",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
-		DiskStorageRequirement:    "50G",
+		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "12G",
-		PerGPUMemoryRequirement:   "0G", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		TotalGPUMemoryRequirement: "12Gi",
+		PerGPUMemoryRequirement:   "0Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            phiRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
@@ -55,10 +55,10 @@ func (*phi2) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "Phi",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
-		DiskStorageRequirement:    "50G",
+		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "16G",
-		PerGPUMemoryRequirement:   "16G",
+		TotalGPUMemoryRequirement: "16Gi",
+		PerGPUMemoryRequirement:   "16Gi",
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,

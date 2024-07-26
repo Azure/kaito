@@ -59,10 +59,10 @@ func (*falcon7b) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "Falcon",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
-		DiskStorageRequirement:    "50G",
+		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "14G",
-		PerGPUMemoryRequirement:   "0G", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
+		TotalGPUMemoryRequirement: "14Gi",
+		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            falconRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
@@ -74,10 +74,10 @@ func (*falcon7b) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "Falcon",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
-		DiskStorageRequirement:    "50G",
+		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "16G",
-		PerGPUMemoryRequirement:   "16G",
+		TotalGPUMemoryRequirement: "16Gi",
+		PerGPUMemoryRequirement:   "16Gi",
 		TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunPrams:             falconRunTuningParams, // TODO
 		ReadinessTimeout:              time.Duration(30) * time.Minute,
@@ -102,10 +102,10 @@ func (*falcon7bInst) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "Falcon",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
-		DiskStorageRequirement:    "50G",
+		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "14G",
-		PerGPUMemoryRequirement:   "0G", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
+		TotalGPUMemoryRequirement: "14Gi",
+		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            falconRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
@@ -134,8 +134,8 @@ func (*falcon40b) GetInferenceParameters() *model.PresetParam {
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "400",
 		GPUCountRequirement:       "2",
-		TotalGPUMemoryRequirement: "90G",
-		PerGPUMemoryRequirement:   "0G", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
+		TotalGPUMemoryRequirement: "90Gi",
+		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            falconRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
@@ -148,10 +148,10 @@ func (*falcon40b) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "Falcon",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
-		DiskStorageRequirement:    "50G",
+		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "2",
-		TotalGPUMemoryRequirement: "90G",
-		PerGPUMemoryRequirement:   "16G",
+		TotalGPUMemoryRequirement: "90Gi",
+		PerGPUMemoryRequirement:   "16Gi",
 		TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunPrams:             falconRunTuningParams, // TODO
 		ReadinessTimeout: time.Duration(30) * time.Minute,
@@ -176,8 +176,8 @@ func (*falcon40bInst) GetInferenceParameters() *model.PresetParam {
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "400",
 		GPUCountRequirement:       "2",
-		TotalGPUMemoryRequirement: "90G",
-		PerGPUMemoryRequirement:   "0G", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
+		TotalGPUMemoryRequirement: "90Gi",
+		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            falconRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
