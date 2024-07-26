@@ -46,10 +46,10 @@ func (*mistral7b) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "Mistral",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
-		DiskStorageRequirement:    "100Gi",
+		DiskStorageRequirement:    "100G",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "14Gi",
-		PerGPUMemoryRequirement:   "0Gi", // We run Mistral using native vertical model parallel, no per GPU memory requirement.
+		TotalGPUMemoryRequirement: "14G",
+		PerGPUMemoryRequirement:   "0G", // We run Mistral using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            mistralRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
@@ -62,10 +62,10 @@ func (*mistral7b) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "Mistral",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
-		DiskStorageRequirement:    "100Gi",
+		DiskStorageRequirement:    "100G",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "16Gi",
-		PerGPUMemoryRequirement:   "16Gi",
+		TotalGPUMemoryRequirement: "16G",
+		PerGPUMemoryRequirement:   "16G",
 		//TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunParams:            mistralRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
@@ -89,10 +89,10 @@ func (*mistral7bInst) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
 		ModelFamilyName:           "Mistral",
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
-		DiskStorageRequirement:    "100Gi",
+		DiskStorageRequirement:    "100G",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "16Gi",
-		PerGPUMemoryRequirement:   "0Gi", // We run mistral using native vertical model parallel, no per GPU memory requirement.
+		TotalGPUMemoryRequirement: "16G",
+		PerGPUMemoryRequirement:   "0G", // We run mistral using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            mistralRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
