@@ -22,6 +22,8 @@ const (
 	CapacityNvidiaGPU = "nvidia.com/gpu"
 )
 
+var ValidStrength string = "0.5"
+
 var (
 	MockWorkspaceDistributedModel = &v1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -174,6 +176,75 @@ var (
 			Preset: &v1alpha1.PresetSpec{
 				PresetMeta: v1alpha1.PresetMeta{
 					Name: "test-model",
+				},
+			},
+		},
+	}
+)
+
+var (
+	MockWorkspaceWithUpdatedDeployment = v1alpha1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testWorkspace",
+			Namespace: "kaito",
+			Annotations: map[string]string{
+				"workspace.kaito.io/revision": "1171dc5d15043c92e684c8f06689eb241763a735181fdd2b59c8bd8fd6eecdd4",
+			},
+		},
+		Resource: v1alpha1.ResourceSpec{
+			Count:        &gpuNodeCount,
+			InstanceType: "Standard_NC12s_v3",
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"workspace.kaito.io/name": "testWorkspace",
+				},
+			},
+		},
+		Inference: &v1alpha1.InferenceSpec{
+			Preset: &v1alpha1.PresetSpec{
+				PresetMeta: v1alpha1.PresetMeta{
+					Name: "test-model",
+				},
+			},
+			Adapters: []v1alpha1.AdapterSpec{
+				{
+					Source: &v1alpha1.DataSource{
+						Name:  "Adapter-1",
+						Image: "fake.kaito.com/kaito-image:0.0.1",
+					},
+					Strength: &ValidStrength,
+				},
+			},
+		},
+	}
+)
+
+var (
+	MockDeployment = appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testWorkspace",
+			Namespace: "kaito",
+		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": "test-app",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test-container",
+							Image: "nginx:latest",
+							Ports: []corev1.ContainerPort{
+								{
+									ContainerPort: 80,
+									Protocol:      corev1.ProtocolTCP,
+								},
+							},
+						},
+					},
 				},
 			},
 		},
