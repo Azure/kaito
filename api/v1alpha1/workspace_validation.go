@@ -6,6 +6,7 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"github.com/azure/kaito/pkg/utils/consts"
 	"reflect"
 	"regexp"
 	"sort"
@@ -321,8 +322,8 @@ func (r *ResourceSpec) validateCreateWithInference(inference *InferenceSpec) (er
 
 			machineCount := *r.Count
 			machineTotalNumGPUs := resource.NewQuantity(int64(machineCount*skuConfig.GPUCount), resource.DecimalSI)
-			machinePerGPUMemory := resource.NewQuantity(int64(skuConfig.GPUMem/skuConfig.GPUCount), resource.BinarySI) // Ensure it's per GPU
-			machineTotalGPUMem := resource.NewQuantity(int64(machineCount*skuConfig.GPUMem), resource.BinarySI)        // Total GPU memory
+			machinePerGPUMemory := resource.NewQuantity(int64(skuConfig.GPUMem/skuConfig.GPUCount)*consts.GiBToBytes, resource.BinarySI) // Ensure it's per GPU
+			machineTotalGPUMem := resource.NewQuantity(int64(machineCount*skuConfig.GPUMem)*consts.GiBToBytes, resource.BinarySI)        // Total GPU memory
 
 			modelGPUCount := resource.MustParse(model.GetInferenceParameters().GPUCountRequirement)
 			modelPerGPUMemory := resource.MustParse(model.GetInferenceParameters().PerGPUMemoryRequirement)
