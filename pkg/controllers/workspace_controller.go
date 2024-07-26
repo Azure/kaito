@@ -235,9 +235,15 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 
 	if len(revisions.Items) > 0 {
 		revisionNum = revisions.Items[len(revisions.Items)-1].Revision + 1
+<<<<<<< HEAD
 		for i := range revisions.Items {
 			if revisions.Items[i].Annotations[WorkspaceRevisionAnnotation] == latestHash {
 				latestRevision = &revisions.Items[i]
+=======
+		for _, rev := range revisions.Items {
+			if rev.Annotations[WorkspaceRevisionAnnotation] == latestHash {
+				latestRevision = &rev
+>>>>>>> 48b7cef (Update deployment object when adapter changes are detected)
 				break
 			}
 		}
@@ -269,9 +275,15 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 
 	annotations[WorkspaceRevisionAnnotation] = currentHash
 	wObj.SetAnnotations(annotations)
+<<<<<<< HEAD
 	deployment := &appsv1.Deployment{}
 	if wObj.Inference != nil {
 		if previousWObj == nil || !compareAdapters(previousWObj.Inference.Adapters, wObj.Inference.Adapters) {
+=======
+	if wObj.Inference != nil {
+		if previousWObj != nil && !compareAdapters(previousWObj.Inference.Adapters, wObj.Inference.Adapters) {
+			deployment := &appsv1.Deployment{}
+>>>>>>> 48b7cef (Update deployment object when adapter changes are detected)
 			if err := c.Get(ctx, types.NamespacedName{
 				Name:      wObj.Name,
 				Namespace: wObj.Namespace,
