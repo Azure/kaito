@@ -275,22 +275,7 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 	initContainers := []corev1.Container{}
 	envs := []corev1.EnvVar{}
 	if len(workspaceObj.Inference.Adapters) > 0 {
-		for _, adapter := range workspaceObj.Inference.Adapters {
-			// TODO: accept Volumes and url link to pull images
-			initContainer := corev1.Container{
-				Name:            adapter.Source.Name,
-				Image:           adapter.Source.Image,
-				Command:         []string{"/bin/sh", "-c", fmt.Sprintf("mkdir -p /mnt/adapter/%s && cp -r /data/* /mnt/adapter/%s", adapter.Source.Name, adapter.Source.Name)},
-				VolumeMounts:    volumeMount,
-				ImagePullPolicy: corev1.PullAlways,
-			}
-			initContainers = append(initContainers, initContainer)
-			env := corev1.EnvVar{
-				Name:  adapter.Source.Name,
-				Value: *adapter.Strength,
-			}
-			envs = append(envs, env)
-		}
+		initContainers, envs = GenerateInitContainers(workspaceObj)
 	}
 
 	return &appsv1.Deployment{
@@ -347,6 +332,30 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 			},
 		},
 	}
+}
+
+func GenerateInitContainers(wObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.EnvVar) {
+	initContainers := []corev1.Container{}
+	envs := []corev1.EnvVar{}
+	if len(wObj.Inference.Adapters) > 0 {
+		for _, adapter := range wObj.Inference.Adapters {
+			initContainer := corev1.Container{
+				Name:            adapter.Source.Name,
+				Image:           adapter.Source.Image,
+				Command:         []string{"/bin/sh", "-c", fmt.Sprintf("mkdir -p /mnt/adapter/%s && cp -r /data/* /mnt/adapter/%s", adapter.Source.Name, adapter.Source.Name)},
+				VolumeMounts:    []corev1.VolumeMount{},
+				ImagePullPolicy: corev1.PullAlways,
+			}
+			initContainers = append(initContainers, initContainer)
+			env := corev1.EnvVar{
+				Name:  adapter.Source.Name,
+				Value: *adapter.Strength,
+			}
+			envs = append(envs, env)
+		}
+
+	}
+	return initContainers, envs
 }
 
 func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, tolerations []corev1.Toleration) *appsv1.Deployment {
