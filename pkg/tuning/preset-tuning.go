@@ -316,7 +316,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		return nil, apis.ErrInvalidValue(fmt.Sprintf("Failed to get SKU handler: %v", err), "sku")
 	}
 
-	skuNumGPUs := tuningObj.GPUCountRequirement // Default to using inferenceObj in case sku information not available
+	skuNumGPUs := tuningObj.GPUCountRequirement // Default to using tuningObj in case sku information not available
 	skuConfig, skuExists := skuHandler.GetGPUConfigs()[workspaceObj.Resource.InstanceType]
 	if skuExists {
 		skuNumGPUs = fmt.Sprintf("%d", skuConfig.GPUCount)
