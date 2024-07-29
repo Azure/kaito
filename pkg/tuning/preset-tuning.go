@@ -310,7 +310,19 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	if err != nil {
 		return nil, err
 	}
-	commands, resourceReq := prepareTuningParameters(ctx, workspaceObj, modelCommand, tuningObj)
+
+	skuHandler, err := utils.GetSKUHandler()
+	if err != nil {
+		return nil, apis.ErrInvalidValue(fmt.Sprintf("Failed to get SKU handler: %v", err), "sku")
+	}
+
+	skuNumGPUs := tuningObj.GPUCountRequirement // Default to using inferenceObj in case sku information not available
+	skuConfig, skuExists := skuHandler.GetGPUConfigs()[workspaceObj.Resource.InstanceType]
+	if skuExists {
+		skuNumGPUs = fmt.Sprintf("%d", skuConfig.GPUCount)
+	}
+
+	commands, resourceReq := prepareTuningParameters(ctx, workspaceObj, modelCommand, tuningObj, skuNumGPUs)
 	tuningImage, tuningImagePullSecrets := GetTuningImageInfo(ctx, workspaceObj, tuningObj)
 	if tuningImagePullSecrets != nil {
 		imagePullSecrets = append(imagePullSecrets, tuningImagePullSecrets...)
@@ -460,7 +472,8 @@ func prepareModelRunParameters(ctx context.Context, tuningObj *model.PresetParam
 // accelerate launch <TORCH_PARAMS> baseCommand <MODEL_PARAMS>
 // and sets the GPU resources required for tuning.
 // Returns the command and resource configuration.
-func prepareTuningParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, modelCommand string, tuningObj *model.PresetParam) ([]string, corev1.ResourceRequirements) {
+func prepareTuningParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, modelCommand string,
+	tuningObj *model.PresetParam, skuNumGPUs string) ([]string, corev1.ResourceRequirements) {
 	if tuningObj.TorchRunParams == nil {
 		tuningObj.TorchRunParams = make(map[string]string)
 	}
@@ -473,10 +486,10 @@ func prepareTuningParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace,
 
 	resourceRequirements := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(tuningObj.GPUCountRequirement),
+			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(skuNumGPUs),
 		},
 		Limits: corev1.ResourceList{
-			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(tuningObj.GPUCountRequirement),
+			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(skuNumGPUs),
 		},
 	}
 

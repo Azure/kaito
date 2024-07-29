@@ -5,6 +5,7 @@ package inference
 import (
 	"context"
 	"fmt"
+	"knative.dev/pkg/apis"
 	"os"
 	"strconv"
 
@@ -138,7 +139,18 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		volumeMounts = append(volumeMounts, adapterVolumeMount)
 	}
 
-	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj)
+	skuHandler, err := utils.GetSKUHandler()
+	if err != nil {
+		return nil, apis.ErrInvalidValue(fmt.Sprintf("Failed to get SKU handler: %v", err), "sku")
+	}
+
+	skuNumGPUs := inferenceObj.GPUCountRequirement // Default to using inferenceObj in case sku information not available
+	skuConfig, skuExists := skuHandler.GetGPUConfigs()[workspaceObj.Resource.InstanceType]
+	if skuExists {
+		skuNumGPUs = fmt.Sprintf("%d", skuConfig.GPUCount)
+	}
+
+	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj, skuNumGPUs)
 	image, imagePullSecrets := GetInferenceImageInfo(ctx, workspaceObj, inferenceObj)
 
 	var depObj client.Object
@@ -149,7 +161,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		depObj = resources.GenerateDeploymentManifest(ctx, workspaceObj, image, imagePullSecrets, *workspaceObj.Resource.Count, commands,
 			containerPorts, livenessProbe, readinessProbe, resourceReq, tolerations, volumes, volumeMounts)
 	}
-	err := resources.CreateResource(ctx, depObj, kubeClient)
+	err = resources.CreateResource(ctx, depObj, kubeClient)
 	if client.IgnoreAlreadyExists(err) != nil {
 		return nil, err
 	}
@@ -160,7 +172,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 // torchrun <TORCH_PARAMS> <OPTIONAL_RDZV_PARAMS> baseCommand <MODEL_PARAMS>
 // and sets the GPU resources required for inference.
 // Returns the command and resource configuration.
-func prepareInferenceParameters(ctx context.Context, inferenceObj *model.PresetParam) ([]string, corev1.ResourceRequirements) {
+func prepareInferenceParameters(ctx context.Context, inferenceObj *model.PresetParam, skuNumGPUs string) ([]string, corev1.ResourceRequirements) {
 	torchCommand := utils.BuildCmdStr(inferenceObj.BaseCommand, inferenceObj.TorchRunParams)
 	torchCommand = utils.BuildCmdStr(torchCommand, inferenceObj.TorchRunRdzvParams)
 	modelCommand := utils.BuildCmdStr(InferenceFile, inferenceObj.ModelRunParams)
@@ -168,10 +180,10 @@ func prepareInferenceParameters(ctx context.Context, inferenceObj *model.PresetP
 
 	resourceRequirements := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(inferenceObj.GPUCountRequirement),
+			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(skuNumGPUs),
 		},
 		Limits: corev1.ResourceList{
-			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(inferenceObj.GPUCountRequirement),
+			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(skuNumGPUs),
 		},
 	}
 
