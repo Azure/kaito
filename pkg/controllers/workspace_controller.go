@@ -235,9 +235,9 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 
 	if len(revisions.Items) > 0 {
 		revisionNum = revisions.Items[len(revisions.Items)-1].Revision + 1
-		for _, rev := range revisions.Items {
-			if rev.Annotations[WorkspaceRevisionAnnotation] == latestHash {
-				latestRevision = &rev
+		for i := range revisions.Items {
+			if revisions.Items[i].Annotations[WorkspaceRevisionAnnotation] == latestHash {
+				latestRevision = &revisions.Items[i]
 				break
 			}
 		}
@@ -269,9 +269,9 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 
 	annotations[WorkspaceRevisionAnnotation] = currentHash
 	wObj.SetAnnotations(annotations)
+	deployment := &appsv1.Deployment{}
 	if wObj.Inference != nil {
-		if previousWObj != nil && !compareAdapters(previousWObj.Inference.Adapters, wObj.Inference.Adapters) {
-			deployment := &appsv1.Deployment{}
+		if previousWObj == nil || !compareAdapters(previousWObj.Inference.Adapters, wObj.Inference.Adapters) {
 			if err := c.Get(ctx, types.NamespacedName{
 				Name:      wObj.Name,
 				Namespace: wObj.Namespace,
@@ -281,14 +281,21 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 				}
 				return client.IgnoreNotFound(err)
 			}
-			initContainers, envs := resources.GenerateInitContainers(wObj)
-			spec := &deployment.Spec
+			if deployment.Annotations == nil {
+				deployment.Annotations = make(map[string]string)
+			}
 
-			spec.Template.Spec.InitContainers = initContainers
-			spec.Template.Spec.Containers[0].Env = envs
+			if hash, exists := deployment.Annotations[WorkspaceRevisionAnnotation]; !exists || (hash != currentHash) {
 
-			if err := c.Update(ctx, deployment); err != nil {
-				return fmt.Errorf("failed to update deployment: %w", err)
+				initContainers, envs := resources.GenerateInitContainers(wObj)
+				spec := &deployment.Spec
+				spec.Template.Spec.InitContainers = initContainers
+				spec.Template.Spec.Containers[0].Env = envs
+				deployment.Annotations[WorkspaceRevisionAnnotation] = currentHash
+
+				if err := c.Update(ctx, deployment); err != nil {
+					return fmt.Errorf("failed to update deployment: %w", err)
+				}
 			}
 
 		}

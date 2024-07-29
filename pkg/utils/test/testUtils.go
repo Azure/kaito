@@ -220,10 +220,11 @@ var (
 )
 
 var (
-	MockDeployment = appsv1.Deployment{
+	MockDeploymentUpdated = appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testWorkspace",
-			Namespace: "kaito",
+			Name:        "testWorkspace",
+			Namespace:   "kaito",
+			Annotations: map[string]string{},
 		},
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{
@@ -243,6 +244,40 @@ var (
 									Protocol:      corev1.ProtocolTCP,
 								},
 							},
+						},
+					},
+				},
+			},
+		},
+	}
+	MockDeploymentWithAnnotationsAndContainer1 = appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test-container",
+							Image: "nginx:latest",
+						},
+					},
+				},
+			},
+		},
+	}
+	MockDeploymentWithAnnotationsAndContainer2 = appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test-container2",
+							Image: "nginx:latest",
 						},
 					},
 				},
@@ -395,6 +430,66 @@ var (
 	MockNodeClaimList = &v1beta1.NodeClaimList{
 		Items: []v1beta1.NodeClaim{
 			MockNodeClaim,
+		},
+	}
+)
+
+var (
+	Adapters1 = []v1alpha1.AdapterSpec{
+		{
+			Source: &v1alpha1.DataSource{
+				Name:  "Adapter-1",
+				Image: "fake.kaito.com/kaito-image:0.0.1",
+			},
+			Strength: &ValidStrength,
+		},
+	}
+	Adapters2 = []v1alpha1.AdapterSpec{
+		{
+			Source: &v1alpha1.DataSource{
+				Name:  "Adapter-1",
+				Image: "fake.kaito.com/kaito-image:0.0.1",
+			},
+			Strength: &ValidStrength,
+		},
+		{
+			Source: &v1alpha1.DataSource{
+				Name:  "Adapter-2",
+				Image: "fake.kaito.com/kaito-image:0.0.2",
+			},
+			Strength: &ValidStrength,
+		},
+	}
+	Adapters3 = []v1alpha1.AdapterSpec{
+		{
+			Source: &v1alpha1.DataSource{
+				Name:  "Adapter-2",
+				Image: "fake.kaito.com/kaito-image:0.0.2",
+			},
+			Strength: &ValidStrength,
+		},
+		{
+			Source: &v1alpha1.DataSource{
+				Name:  "Adapter-1",
+				Image: "fake.kaito.com/kaito-image:0.0.1",
+			},
+			Strength: &ValidStrength,
+		},
+	}
+	Adapters4 = []v1alpha1.AdapterSpec{
+		{
+			Source: &v1alpha1.DataSource{
+				Name:  "Adapter-1",
+				Image: "fake.kaito.com/kaito-image:0.0.1",
+			},
+			Strength: &ValidStrength,
+		},
+		{
+			Source: &v1alpha1.DataSource{
+				Name:  "Adapter-3",
+				Image: "fake.kaito.com/kaito-image:0.0.3",
+			},
+			Strength: &ValidStrength,
 		},
 	}
 )
