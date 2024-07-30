@@ -5,6 +5,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	awsv1beta1 "github.com/aws/karpenter-provider-aws/pkg/apis/v1beta1"
 	"github.com/azure/kaito/api/v1alpha1"
+	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/machine"
 	"github.com/azure/kaito/pkg/nodeclaim"
@@ -27,6 +29,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"knative.dev/pkg/apis"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -981,13 +984,20 @@ func TestUpdateControllerRevision(t *testing.T) {
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevision{}), mock.Anything).Return(errors.New("failed to create ControllerRevision"))
 				c.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).
+					Run(func(args mock.Arguments) {
+						dep := args.Get(2).(*appsv1.Deployment)
+						*dep = test.MockDeploymentWithAnnotationsAndContainer1
+					}).
+					Return(nil)
+				c.On("Update", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 			},
 			workspace:     test.MockWorkspaceFailToCreateCR,
 			expectedError: errors.New("failed to create new ControllerRevision: failed to create ControllerRevision"),
 			verifyCalls: func(c *test.MockClient) {
 				c.AssertNumberOfCalls(t, "List", 1)
 				c.AssertNumberOfCalls(t, "Create", 1)
-				c.AssertNumberOfCalls(t, "Update", 1)
+				c.AssertNumberOfCalls(t, "Update", 2)
 				c.AssertNumberOfCalls(t, "Delete", 0)
 			},
 		},
@@ -996,13 +1006,20 @@ func TestUpdateControllerRevision(t *testing.T) {
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevision{}), mock.Anything).Return(nil)
 				c.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).
+					Run(func(args mock.Arguments) {
+						dep := args.Get(2).(*appsv1.Deployment)
+						*dep = test.MockDeploymentWithAnnotationsAndContainer2
+					}).
+					Return(nil)
+				c.On("Update", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 			},
 			workspace:     test.MockWorkspaceSuccessful,
 			expectedError: nil,
 			verifyCalls: func(c *test.MockClient) {
 				c.AssertNumberOfCalls(t, "List", 1)
 				c.AssertNumberOfCalls(t, "Create", 1)
-				c.AssertNumberOfCalls(t, "Update", 1)
+				c.AssertNumberOfCalls(t, "Update", 2)
 				c.AssertNumberOfCalls(t, "Delete", 0)
 			},
 		},
@@ -1029,6 +1046,13 @@ func TestUpdateControllerRevision(t *testing.T) {
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevision{}), mock.Anything).Return(nil)
 				c.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).
+					Run(func(args mock.Arguments) {
+						dep := args.Get(2).(*appsv1.Deployment)
+						*dep = test.MockDeploymentWithAnnotationsAndContainer2
+					}).
+					Return(nil)
+				c.On("Update", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 				c.On("Delete", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevision{}), mock.Anything).Return(nil)
 			},
 			workspace:     test.MockWorkspaceWithDeleteOldCR,
@@ -1036,8 +1060,50 @@ func TestUpdateControllerRevision(t *testing.T) {
 			verifyCalls: func(c *test.MockClient) {
 				c.AssertNumberOfCalls(t, "List", 1)
 				c.AssertNumberOfCalls(t, "Create", 1)
-				c.AssertNumberOfCalls(t, "Update", 1)
+				c.AssertNumberOfCalls(t, "Update", 2)
 				c.AssertNumberOfCalls(t, "Delete", 1)
+			},
+		},
+		"Deployment updated when adapters change": {
+			callMocks: func(c *test.MockClient) {
+				revisions := &appsv1.ControllerRevisionList{}
+				jsonData, _ := json.Marshal(test.MockWorkspaceWithComputeHash)
+				revision := &appsv1.ControllerRevision{
+					ObjectMeta: v1.ObjectMeta{
+						Name:        "revision-1",
+						Annotations: test.MockWorkspaceWithComputeHash.Annotations,
+					},
+					Revision: int64(1),
+					Data:     runtime.RawExtension{Raw: jsonData},
+				}
+				revisions.Items = append(revisions.Items, *revision)
+
+				relevantMap := c.CreateMapWithType(revisions)
+
+				for _, obj := range revisions.Items {
+					m := obj
+					objKey := client.ObjectKeyFromObject(&m)
+					relevantMap[objKey] = &m
+				}
+
+				c.CreateOrUpdateObjectInMap(&test.MockDeploymentUpdated)
+
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevisionList{}), mock.Anything).Return(nil)
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.ControllerRevision{}), mock.Anything).Return(nil)
+				c.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.Workspace{}), mock.Anything).Return(nil)
+
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
+
+				c.On("Update", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
+			},
+			workspace:     test.MockWorkspaceWithUpdatedDeployment,
+			expectedError: nil,
+			verifyCalls: func(c *test.MockClient) {
+				c.AssertNumberOfCalls(t, "List", 1)
+				c.AssertNumberOfCalls(t, "Create", 1)
+				c.AssertNumberOfCalls(t, "Update", 2) // one for workspace and one for deployment
+				c.AssertNumberOfCalls(t, "Get", 1)
+				c.AssertNumberOfCalls(t, "Delete", 0)
 			},
 		},
 	}
@@ -1061,6 +1127,47 @@ func TestUpdateControllerRevision(t *testing.T) {
 			if tc.verifyCalls != nil {
 				tc.verifyCalls(mockClient)
 			}
+		})
+	}
+}
+
+func TestCompareAdapters(t *testing.T) {
+	testcases := map[string]struct {
+		oldAdapters    []kaitov1alpha1.AdapterSpec
+		newAdapters    []kaitov1alpha1.AdapterSpec
+		expectedResult bool
+	}{
+		"Both slices are empty": {
+			oldAdapters:    []kaitov1alpha1.AdapterSpec{},
+			newAdapters:    []kaitov1alpha1.AdapterSpec{},
+			expectedResult: true,
+		},
+		"One slice is empty": {
+			oldAdapters:    []kaitov1alpha1.AdapterSpec{},
+			newAdapters:    test.Adapters1,
+			expectedResult: false,
+		},
+		"Different lengths": {
+			oldAdapters:    test.Adapters1,
+			newAdapters:    test.Adapters2,
+			expectedResult: false,
+		},
+		"Different contents": {
+			oldAdapters:    test.Adapters2,
+			newAdapters:    test.Adapters4,
+			expectedResult: false,
+		},
+		"Same length and contents": {
+			oldAdapters:    test.Adapters2,
+			newAdapters:    test.Adapters3,
+			expectedResult: true,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			result := compareAdapters(tc.oldAdapters, tc.newAdapters)
+			assert.Equal(t, tc.expectedResult, result, "Expected result did not match actual result")
 		})
 	}
 }

@@ -9,10 +9,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
+
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/nodeclaim"
@@ -37,6 +39,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
@@ -213,8 +216,7 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 		return nil
 	}
 
-	data := map[string]string{"hash": currentHash}
-	jsonData, err := json.Marshal(data)
+	jsonData, err := json.Marshal(wObj)
 	if err != nil {
 		return fmt.Errorf("failed to marshal revision data: %w", err)
 	}
@@ -228,9 +230,23 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 	})
 
 	revisionNum := int64(1)
+	var latestRevision *appsv1.ControllerRevision
+	var previousWObj *kaitov1alpha1.Workspace
 
 	if len(revisions.Items) > 0 {
 		revisionNum = revisions.Items[len(revisions.Items)-1].Revision + 1
+		for i := range revisions.Items {
+			if revisions.Items[i].Annotations[WorkspaceRevisionAnnotation] == latestHash {
+				latestRevision = &revisions.Items[i]
+				break
+			}
+		}
+		if latestRevision != nil {
+			previousWObj = &kaitov1alpha1.Workspace{}
+			if err := json.Unmarshal(latestRevision.Data.Raw, previousWObj); err != nil {
+				return fmt.Errorf("failed to unmarshal previous workspace object: %w", err)
+			}
+		}
 	}
 
 	newRevision := &appsv1.ControllerRevision{
@@ -253,6 +269,37 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 
 	annotations[WorkspaceRevisionAnnotation] = currentHash
 	wObj.SetAnnotations(annotations)
+	deployment := &appsv1.Deployment{}
+	if wObj.Inference != nil {
+		if previousWObj == nil || !compareAdapters(previousWObj.Inference.Adapters, wObj.Inference.Adapters) {
+			if err := c.Get(ctx, types.NamespacedName{
+				Name:      wObj.Name,
+				Namespace: wObj.Namespace,
+			}, deployment); err != nil {
+				if !errors.IsNotFound(err) {
+					klog.ErrorS(err, "failed to get deployment", "deplyment", wObj.Name)
+				}
+				return client.IgnoreNotFound(err)
+			}
+			if deployment.Annotations == nil {
+				deployment.Annotations = make(map[string]string)
+			}
+
+			if hash, exists := deployment.Annotations[WorkspaceRevisionAnnotation]; !exists || (hash != currentHash) {
+
+				initContainers, envs := resources.GenerateInitContainers(wObj)
+				spec := &deployment.Spec
+				spec.Template.Spec.InitContainers = initContainers
+				spec.Template.Spec.Containers[0].Env = envs
+				deployment.Annotations[WorkspaceRevisionAnnotation] = currentHash
+
+				if err := c.Update(ctx, deployment); err != nil {
+					return fmt.Errorf("failed to update deployment: %w", err)
+				}
+			}
+
+		}
+	}
 	if err := c.Update(ctx, wObj); err != nil {
 		return fmt.Errorf("failed to update Workspace annotations: %w", err)
 	}
@@ -276,6 +323,35 @@ func computeHash(w *kaitov1alpha1.Workspace) string {
 	encoder.Encode(w.Inference)
 	encoder.Encode(w.Tuning)
 	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func compareAdapters(oldAdapters, newAdapters []kaitov1alpha1.AdapterSpec) bool {
+	// If both slices are nil or empty, they are equal
+	if len(oldAdapters) == 0 && len(newAdapters) == 0 {
+		return true
+	}
+
+	// If only one of the slices is nil or empty, they are not equal
+	if len(oldAdapters) != len(newAdapters) {
+		return false
+	}
+
+	oldAdaptersMap := make(map[string]kaitov1alpha1.AdapterSpec)
+	for _, adapter := range oldAdapters {
+		key := fmt.Sprintf("%s-%s", adapter.Source.Name, *adapter.Strength)
+		oldAdaptersMap[key] = adapter
+	}
+
+	for _, adapter := range newAdapters {
+		key := fmt.Sprintf("%s-%s", adapter.Source.Name, *adapter.Strength)
+		oldAdapter, found := oldAdaptersMap[key]
+		if !found || !reflect.DeepEqual(oldAdapter, adapter) {
+			return false
+		}
+		delete(oldAdaptersMap, key)
+	}
+
+	return len(oldAdaptersMap) == 0
 }
 
 func (c *WorkspaceReconciler) selectWorkspaceNodes(qualified []*corev1.Node, preferred []string, previous []string, count int) []*corev1.Node {
