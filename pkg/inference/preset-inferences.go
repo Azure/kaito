@@ -150,7 +150,6 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	if skuExists {
 		skuNumGPUs = fmt.Sprintf("%d", skuConfig.GPUCount)
 	} else {
-		// Fetch Machine objects with the specified label
 		machineList, err := machine.ListMachinesByWorkspace(context.TODO(), workspaceObj, kubeClient)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to list Machine objects: %v", err)
