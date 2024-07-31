@@ -3,7 +3,6 @@ package tuning
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/fields"
 	"os"
 	"path/filepath"
 	"strings"
@@ -322,27 +321,11 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	if skuExists {
 		skuNumGPUs = fmt.Sprintf("%d", skuConfig.GPUCount)
 	} else {
-		nodeNames := workspaceObj.Status.WorkerNodes
-		if len(nodeNames) == 0 {
-			return nil, fmt.Errorf("no worker nodes found in the workspace")
-		}
-		// Fetch the node objects
-		var allNodes corev1.NodeList
-		for _, nodeName := range nodeNames {
-			nodeList := &corev1.NodeList{}
-			fieldSelector := fields.OneTermEqualSelector("metadata.name", nodeName)
-			err = kubeClient.List(context.TODO(), nodeList, &client.ListOptions{
-				FieldSelector: fieldSelector,
-			})
-			if err != nil {
-				fmt.Printf("Failed to list Node object %s: %v", nodeName, err)
-				continue
-			}
-			allNodes.Items = append(allNodes.Items, nodeList.Items...)
-		}
-
-		if gpuCount := utils.GetGPUCountFromNodes(&allNodes); gpuCount != "" {
-			skuNumGPUs = gpuCount
+		skuGPUCount, err := utils.FetchGPUCountFromNodes(ctx, kubeClient, workspaceObj.Status.WorkerNodes)
+		if err != nil {
+			fmt.Printf("Failed to fetch GPU count from nodes %v", err)
+		} else if skuGPUCount != "" {
+			skuNumGPUs = fmt.Sprintf("%d", skuGPUCount)
 		}
 	}
 

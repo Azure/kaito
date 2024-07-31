@@ -4,16 +4,18 @@
 package utils
 
 import (
+	"context"
 	"fmt"
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/azure/kaito/pkg/sku"
 	"github.com/azure/kaito/pkg/utils/consts"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"knative.dev/pkg/apis"
 	"os"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func Contains(s []string, e string) bool {
@@ -115,26 +117,33 @@ func GetSKUHandler() (sku.CloudSKUHandler, error) {
 	return skuHandler, nil
 }
 
-func GetGPUCountFromWorkspaceMachines(machineList *v1alpha5.MachineList) string {
-	// Iterate through the Machine objects and get the GPU count from capacity
-	for _, item := range machineList.Items {
-		capacity := item.Status.Capacity
-		gpuCount, exists := capacity["nvidia.com/gpu"]
-		if !exists {
-			fmt.Printf("Failed to find GPU capacity in Machine object %v", item)
+// FetchGPUCountFromNodes retrieves the GPU count from the given node names.
+func FetchGPUCountFromNodes(ctx context.Context, kubeClient client.Client, nodeNames []string) (string, error) {
+	if len(nodeNames) == 0 {
+		return "", fmt.Errorf("no worker nodes found in the workspace")
+	}
+
+	var allNodes v1.NodeList
+	for _, nodeName := range nodeNames {
+		nodeList := &v1.NodeList{}
+		fieldSelector := fields.OneTermEqualSelector("metadata.name", nodeName)
+		err := kubeClient.List(ctx, nodeList, &client.ListOptions{
+			FieldSelector: fieldSelector,
+		})
+		if err != nil {
+			fmt.Printf("Failed to list Node object %s: %v\n", nodeName, err)
 			continue
 		}
-
-		fmt.Printf("Detected SKU GPU Count. Number of GPUs available: %s\n", gpuCount.String())
-		return gpuCount.String()
+		allNodes.Items = append(allNodes.Items, nodeList.Items...)
 	}
-	return ""
+
+	return GetGPUCountFromNodes(&allNodes), nil
 }
 
 func GetGPUCountFromNodes(nodeList *v1.NodeList) string {
 	for _, node := range nodeList.Items {
 		gpuCount, exists := node.Status.Capacity[consts.NvidiaGPU]
-		if exists {
+		if exists && gpuCount.String() != "" {
 			return gpuCount.String()
 		}
 	}
