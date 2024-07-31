@@ -144,18 +144,8 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		return nil, apis.ErrInvalidValue(fmt.Sprintf("Failed to get SKU handler: %v", err), "sku")
 	}
 
-	skuNumGPUs := inferenceObj.GPUCountRequirement // Default to using inferenceObj in case sku information not available
-	skuConfig, skuExists := skuHandler.GetGPUConfigs()[workspaceObj.Resource.InstanceType]
-	if skuExists {
-		skuNumGPUs = fmt.Sprintf("%d", skuConfig.GPUCount)
-	} else {
-		skuGPUCount, err := utils.FetchGPUCountFromNodes(ctx, kubeClient, workspaceObj.Status.WorkerNodes)
-		if err != nil {
-			fmt.Printf("Failed to fetch GPU count from nodes %v", err)
-		} else if skuGPUCount != "" {
-			skuNumGPUs = fmt.Sprintf("%d", skuGPUCount)
-		}
-	}
+	skuNumGPUs := utils.GetSKUNumGPUs(ctx, kubeClient, skuHandler,
+		workspaceObj.Status.WorkerNodes, workspaceObj.Resource.InstanceType, inferenceObj.GPUCountRequirement)
 
 	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj, skuNumGPUs)
 	image, imagePullSecrets := GetInferenceImageInfo(ctx, workspaceObj, inferenceObj)

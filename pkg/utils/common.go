@@ -117,6 +117,25 @@ func GetSKUHandler() (sku.CloudSKUHandler, error) {
 	return skuHandler, nil
 }
 
+func GetSKUNumGPUs(ctx context.Context, kubeClient client.Client, skuHandler sku.CloudSKUHandler, workerNodes []string,
+	instanceType, defaultGPUCount string) string {
+	skuNumGPUs := defaultGPUCount // Default to using the provided default GPU count
+
+	skuConfig, skuExists := skuHandler.GetGPUConfigs()[instanceType]
+	if skuExists {
+		skuNumGPUs = fmt.Sprintf("%d", skuConfig.GPUCount)
+	} else {
+		skuGPUCount, err := FetchGPUCountFromNodes(ctx, kubeClient, workerNodes)
+		if err != nil {
+			fmt.Printf("Failed to fetch GPU count from nodes: %v", err)
+		} else if skuGPUCount != "" {
+			skuNumGPUs = skuGPUCount
+		}
+	}
+
+	return skuNumGPUs
+}
+
 // FetchGPUCountFromNodes retrieves the GPU count from the given node names.
 func FetchGPUCountFromNodes(ctx context.Context, kubeClient client.Client, nodeNames []string) (string, error) {
 	if len(nodeNames) == 0 {
@@ -137,10 +156,10 @@ func FetchGPUCountFromNodes(ctx context.Context, kubeClient client.Client, nodeN
 		allNodes.Items = append(allNodes.Items, nodeList.Items...)
 	}
 
-	return GetGPUCountFromNodes(&allNodes), nil
+	return GetPerNodeGPUCountFromNodes(&allNodes), nil
 }
 
-func GetGPUCountFromNodes(nodeList *v1.NodeList) string {
+func GetPerNodeGPUCountFromNodes(nodeList *v1.NodeList) string {
 	for _, node := range nodeList.Items {
 		gpuCount, exists := node.Status.Capacity[consts.NvidiaGPU]
 		if exists && gpuCount.String() != "" {
