@@ -19,3 +19,6 @@ xformers
 trl
 tensorboard
 gputil
+psutil
+pytest
+httpx
