@@ -311,13 +311,11 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		return nil, err
 	}
 
-	skuHandler, err := utils.GetSKUHandler()
+	skuNumGPUs, err := utils.GetSKUNumGPUs(ctx, kubeClient, workspaceObj.Status.WorkerNodes,
+		workspaceObj.Resource.InstanceType, tuningObj.GPUCountRequirement)
 	if err != nil {
-		return nil, apis.ErrInvalidValue(fmt.Sprintf("Failed to get SKU handler: %v", err), "sku")
+		return nil, fmt.Errorf("failed to get SKU num GPUs: %v", err)
 	}
-
-	skuNumGPUs := utils.GetSKUNumGPUs(ctx, kubeClient, skuHandler,
-		workspaceObj.Status.WorkerNodes, workspaceObj.Resource.InstanceType, tuningObj.GPUCountRequirement)
 
 	commands, resourceReq := prepareTuningParameters(ctx, workspaceObj, modelCommand, tuningObj, skuNumGPUs)
 	tuningImage, tuningImagePullSecrets := GetTuningImageInfo(ctx, workspaceObj, tuningObj)

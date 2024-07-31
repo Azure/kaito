@@ -5,7 +5,6 @@ package inference
 import (
 	"context"
 	"fmt"
-	"knative.dev/pkg/apis"
 	"os"
 	"strconv"
 
@@ -139,13 +138,11 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		volumeMounts = append(volumeMounts, adapterVolumeMount)
 	}
 
-	skuHandler, err := utils.GetSKUHandler()
+	skuNumGPUs, err := utils.GetSKUNumGPUs(ctx, kubeClient, workspaceObj.Status.WorkerNodes,
+		workspaceObj.Resource.InstanceType, inferenceObj.GPUCountRequirement)
 	if err != nil {
-		return nil, apis.ErrInvalidValue(fmt.Sprintf("Failed to get SKU handler: %v", err), "sku")
+		return nil, fmt.Errorf("failed to get SKU num GPUs: %v", err)
 	}
-
-	skuNumGPUs := utils.GetSKUNumGPUs(ctx, kubeClient, skuHandler,
-		workspaceObj.Status.WorkerNodes, workspaceObj.Resource.InstanceType, inferenceObj.GPUCountRequirement)
 
 	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj, skuNumGPUs)
 	image, imagePullSecrets := GetInferenceImageInfo(ctx, workspaceObj, inferenceObj)

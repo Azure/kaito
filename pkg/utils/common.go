@@ -117,8 +117,12 @@ func GetSKUHandler() (sku.CloudSKUHandler, error) {
 	return skuHandler, nil
 }
 
-func GetSKUNumGPUs(ctx context.Context, kubeClient client.Client, skuHandler sku.CloudSKUHandler, workerNodes []string,
-	instanceType, defaultGPUCount string) string {
+func GetSKUNumGPUs(ctx context.Context, kubeClient client.Client, workerNodes []string, instanceType, defaultGPUCount string) (string, error) {
+	skuHandler, err := GetSKUHandler()
+	if err != nil {
+		return "", apis.ErrInvalidValue(fmt.Sprintf("Failed to get SKU handler: %v", err), "sku")
+	}
+
 	skuNumGPUs := defaultGPUCount // Default to using the provided default GPU count
 
 	skuConfig, skuExists := skuHandler.GetGPUConfigs()[instanceType]
@@ -133,7 +137,7 @@ func GetSKUNumGPUs(ctx context.Context, kubeClient client.Client, skuHandler sku
 		}
 	}
 
-	return skuNumGPUs
+	return skuNumGPUs, nil
 }
 
 // FetchGPUCountFromNodes retrieves the GPU count from the given node names.
