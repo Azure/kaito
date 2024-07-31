@@ -10,6 +10,7 @@ import (
 	"github.com/azure/kaito/pkg/utils/consts"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"knative.dev/pkg/apis"
 	"os"
@@ -126,6 +127,16 @@ func GetGPUCountFromWorkspaceMachines(machineList *v1alpha5.MachineList) string 
 
 		fmt.Printf("Detected SKU GPU Count. Number of GPUs available: %s\n", gpuCount.String())
 		return gpuCount.String()
+	}
+	return ""
+}
+
+func GetGPUCountFromNodes(nodeList *v1.NodeList) string {
+	for _, node := range nodeList.Items {
+		gpuCount, exists := node.Status.Capacity["nvidia.com/gpu"]
+		if exists {
+			return gpuCount.String()
+		}
 	}
 	return ""
 }
