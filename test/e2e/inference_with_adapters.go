@@ -18,23 +18,42 @@ import (
 
 var DefaultStrength = "1.0"
 
-var imageName = "e2e-adapter"
-var fullImageName = utils.GetEnv("ADAPTER_REGISTRY") + "/" + imageName + ":0.0.1"
+var imageName1 = "e2e-adapter"
+var fullImageName1 = utils.GetEnv("ADAPTER_REGISTRY") + "/" + imageName1 + ":0.0.1"
+var imageName2 = "e2e-adapter2"
+var fullImageName2 = utils.GetEnv("ADAPTER_REGISTRY") + "/" + imageName2 + ":0.0.1"
 
-var validAdapters = []kaitov1alpha1.AdapterSpec{
+var validAdapters1 = []kaitov1alpha1.AdapterSpec{
 	{
 		Source: &kaitov1alpha1.DataSource{
-			Name:  imageName,
-			Image: fullImageName,
+			Name:  imageName1,
+			Image: fullImageName1,
 		},
 		Strength: &DefaultStrength,
 	},
 }
 
-var expectedInitContainers = []corev1.Container{
+var validAdapters2 = []kaitov1alpha1.AdapterSpec{
 	{
-		Name:  imageName,
-		Image: fullImageName,
+		Source: &kaitov1alpha1.DataSource{
+			Name:  imageName2,
+			Image: fullImageName2,
+		},
+		Strength: &DefaultStrength,
+	},
+}
+
+var expectedInitContainers1 = []corev1.Container{
+	{
+		Name:  imageName1,
+		Image: fullImageName1,
+	},
+}
+
+var expectedInitContainers2 = []corev1.Container{
+	{
+		Name:  imageName2,
+		Image: fullImageName2,
 	},
 }
 
@@ -72,6 +91,39 @@ func validateAdapters(workspaceObj *kaitov1alpha1.Workspace, expectedInitContain
 	})
 }
 
+func validateNoAdapters(workspaceObj *kaitov1alpha1.Workspace, expectedInitContainers []corev1.Container) {
+	By("Checking the Adapters should be deleted", func() {
+		Eventually(func() bool {
+			var err error
+			var initContainers []corev1.Container
+
+			dep := &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      workspaceObj.Name,
+					Namespace: workspaceObj.Namespace,
+				},
+			}
+			err = TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: workspaceObj.Namespace,
+				Name:      workspaceObj.Name,
+			}, dep)
+			initContainers = dep.Spec.Template.Spec.InitContainers
+
+			if err != nil {
+				GinkgoWriter.Printf("Error fetching resource: %v\n", err)
+				return false
+			}
+
+			if len(initContainers) != len(expectedInitContainers) {
+				return false
+			}
+			initContainer, expectedInitContainer := initContainers[0], expectedInitContainers[0]
+
+			return initContainer.Image == expectedInitContainer.Image && initContainer.Name == expectedInitContainer.Name
+		}, 20*time.Minute, utils.PollInterval).Should(BeFalse(), "Failed to wait for adapter resource to be ")
+	})
+}
+
 var _ = Describe("Workspace Preset", func() {
 	BeforeEach(func() {
 		loadTestEnvVars()
@@ -90,7 +142,7 @@ var _ = Describe("Workspace Preset", func() {
 
 	It("should create a falcon workspace with adapter", func() {
 		numOfNode := 1
-		workspaceObj := createCustomWorkspaceWithAdapter(numOfNode)
+		workspaceObj := createCustomWorkspaceWithAdapter(numOfNode, validAdapters1)
 
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
@@ -106,7 +158,12 @@ var _ = Describe("Workspace Preset", func() {
 
 		validateWorkspaceReadiness(workspaceObj)
 
-		validateAdapters(workspaceObj, expectedInitContainers)
+		validateAdapters(workspaceObj, expectedInitContainers1)
+
+		workspaceObj = updateCustomWorkspaceWithAdapter(workspaceObj, validAdapters2)
+		time.Sleep(90 * time.Second)
+		validateAdapters(workspaceObj, expectedInitContainers2)
+		validateNoAdapters(workspaceObj, expectedInitContainers1)
 	})
 
 })

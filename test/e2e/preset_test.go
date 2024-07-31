@@ -68,7 +68,7 @@ func loadModelVersions() {
 	}
 }
 
-func createCustomWorkspaceWithAdapter(numOfNode int) *kaitov1alpha1.Workspace {
+func createCustomWorkspaceWithAdapter(numOfNode int, validAdapters []kaitov1alpha1.AdapterSpec) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace with adapter", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
@@ -77,6 +77,14 @@ func createCustomWorkspaceWithAdapter(numOfNode int) *kaitov1alpha1.Workspace {
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-falcon"},
 			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil, validAdapters)
 
+		createAndValidateWorkspace(workspaceObj)
+	})
+	return workspaceObj
+}
+
+func updateCustomWorkspaceWithAdapter(workspaceObj *kaitov1alpha1.Workspace, validAdapters []kaitov1alpha1.AdapterSpec) *kaitov1alpha1.Workspace {
+	By("Updating a workspace with adapter", func() {
+		workspaceObj.Inference.Adapters = validAdapters
 		createAndValidateWorkspace(workspaceObj)
 	})
 	return workspaceObj
