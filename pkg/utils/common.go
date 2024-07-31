@@ -133,7 +133,7 @@ func GetGPUCountFromWorkspaceMachines(machineList *v1alpha5.MachineList) string 
 
 func GetGPUCountFromNodes(nodeList *v1.NodeList) string {
 	for _, node := range nodeList.Items {
-		gpuCount, exists := node.Status.Capacity["nvidia.com/gpu"]
+		gpuCount, exists := node.Status.Capacity[consts.NvidiaGPU]
 		if exists {
 			return gpuCount.String()
 		}

@@ -324,7 +324,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	} else {
 		nodeNames := workspaceObj.Status.WorkerNodes
 		if len(nodeNames) == 0 {
-			return nil, fmt.Errorf("No worker nodes found in the workspace")
+			return nil, fmt.Errorf("no worker nodes found in the workspace")
 		}
 		// Fetch the node objects
 		var allNodes corev1.NodeList
