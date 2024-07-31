@@ -118,14 +118,14 @@ func GetGPUCountFromWorkspaceMachines(machineList *v1alpha5.MachineList) string 
 	// Iterate through the Machine objects and get the GPU count from capacity
 	for _, item := range machineList.Items {
 		capacity := item.Status.Capacity
-		gpuCountStr, exists := capacity["nvidia.com/gpu"]
+		gpuCount, exists := capacity["nvidia.com/gpu"]
 		if !exists {
 			fmt.Printf("Failed to find GPU capacity in Machine object %v", item)
 			continue
 		}
 
-		fmt.Printf("Detected SKU GPU Count. Number of GPUs available: %s\n", gpuCountStr)
-		return gpuCountStr.String()
+		fmt.Printf("Detected SKU GPU Count. Number of GPUs available: %s\n", gpuCount.String())
+		return gpuCount.String()
 	}
 	return ""
 }
