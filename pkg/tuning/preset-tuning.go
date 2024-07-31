@@ -3,6 +3,7 @@ package tuning
 import (
 	"context"
 	"fmt"
+	"github.com/azure/kaito/pkg/machine"
 	"os"
 	"path/filepath"
 	"strings"
@@ -320,6 +321,16 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	skuConfig, skuExists := skuHandler.GetGPUConfigs()[workspaceObj.Resource.InstanceType]
 	if skuExists {
 		skuNumGPUs = fmt.Sprintf("%d", skuConfig.GPUCount)
+	} else {
+		// Fetch Machine objects with the specified label
+		machineList, err := machine.ListMachinesByWorkspace(context.TODO(), workspaceObj, kubeClient)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to list Machine objects: %v", err)
+		}
+
+		if gpuCount := utils.GetGPUCountFromWorkspaceMachines(machineList); gpuCount != "" {
+			skuNumGPUs = gpuCount
+		}
 	}
 
 	commands, resourceReq := prepareTuningParameters(ctx, workspaceObj, modelCommand, tuningObj, skuNumGPUs)

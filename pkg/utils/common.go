@@ -5,15 +5,14 @@ package utils
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
-
-	"gopkg.in/yaml.v2"
-	"k8s.io/apimachinery/pkg/runtime"
-	"knative.dev/pkg/apis"
-
+	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/azure/kaito/pkg/sku"
 	"github.com/azure/kaito/pkg/utils/consts"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	"k8s.io/apimachinery/pkg/runtime"
+	"knative.dev/pkg/apis"
+	"os"
 )
 
 func Contains(s []string, e string) bool {
@@ -113,4 +112,20 @@ func GetSKUHandler() (sku.CloudSKUHandler, error) {
 	}
 
 	return skuHandler, nil
+}
+
+func GetGPUCountFromWorkspaceMachines(machineList *v1alpha5.MachineList) string {
+	// Iterate through the Machine objects and get the GPU count from capacity
+	for _, item := range machineList.Items {
+		capacity := item.Status.Capacity
+		gpuCountStr, exists := capacity["nvidia.com/gpu"]
+		if !exists {
+			fmt.Printf("Failed to find GPU capacity in Machine object %v", item)
+			continue
+		}
+
+		fmt.Printf("Detected SKU GPU Count. Number of GPUs available: %s\n", gpuCountStr)
+		return gpuCountStr.String()
+	}
+	return ""
 }

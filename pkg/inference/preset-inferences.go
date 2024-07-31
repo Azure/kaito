@@ -5,6 +5,7 @@ package inference
 import (
 	"context"
 	"fmt"
+	"github.com/azure/kaito/pkg/machine"
 	"knative.dev/pkg/apis"
 	"os"
 	"strconv"
@@ -148,6 +149,16 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	skuConfig, skuExists := skuHandler.GetGPUConfigs()[workspaceObj.Resource.InstanceType]
 	if skuExists {
 		skuNumGPUs = fmt.Sprintf("%d", skuConfig.GPUCount)
+	} else {
+		// Fetch Machine objects with the specified label
+		machineList, err := machine.ListMachinesByWorkspace(context.TODO(), workspaceObj, kubeClient)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to list Machine objects: %v", err)
+		}
+
+		if gpuCount := utils.GetGPUCountFromWorkspaceMachines(machineList); gpuCount != "" {
+			skuNumGPUs = gpuCount
+		}
 	}
 
 	commands, resourceReq := prepareInferenceParameters(ctx, inferenceObj, skuNumGPUs)
