@@ -90,6 +90,17 @@ Starting with version v0.3.0, Kaito supports model fine-tuning and using fine-tu
 
 ## FAQ
 
+### How do I ensure preferred nodes are correctly labeled for use in my workspace?
+
+For using preferred nodes, make sure the node has the label specified in the labelSelector 
+under matchLabels. For example, if your labelSelector is:
+```
+  labelSelector:
+    matchLabels:
+      apps: falcon-7b
+```
+Then the node should have the label: `apps=falcon-7b`.
+
 ### How to upgrade the existing deployment to use the latest model configuration?
 
 When using hosted public models, a user can delete the existing inference workload (`Deployment` of `StatefulSet`) manually, and the workspace controller will create a new one with the latest preset configuration (e.g., the image version) defined in the current release. For private models, it is recommended to create a new workspace with a new image version in the Spec.
