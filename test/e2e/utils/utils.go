@@ -206,8 +206,9 @@ func GenerateInferenceWorkspaceManifest(name, namespace, imageName string, resou
 
 	workspace := &kaitov1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:        name,
+			Namespace:   namespace,
+			Annotations: map[string]string{},
 		},
 		Resource: kaitov1alpha1.ResourceSpec{
 			Count:          lo.ToPtr(resourceCount),

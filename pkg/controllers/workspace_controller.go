@@ -209,6 +209,7 @@ func (c *WorkspaceReconciler) deleteWorkspace(ctx context.Context, wObj *kaitov1
 
 func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
 	currentHash := computeHash(wObj)
+	klog.Info("test debug", "wObj", wObj)
 	annotations := wObj.GetAnnotations()
 
 	latestHash, exists := annotations[WorkspaceRevisionAnnotation]
@@ -266,7 +267,10 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 		Revision: revisionNum,
 		Data:     runtime.RawExtension{Raw: jsonData},
 	}
-
+	if annotations == nil {
+		klog.Info("test debug", "annotations", annotations)
+		annotations = make(map[string]string)
+	}
 	annotations[WorkspaceRevisionAnnotation] = currentHash
 	wObj.SetAnnotations(annotations)
 	deployment := &appsv1.Deployment{}

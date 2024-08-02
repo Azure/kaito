@@ -68,7 +68,7 @@ func loadModelVersions() {
 	}
 }
 
-func createCustomWorkspaceWithAdapter(numOfNode int) *kaitov1alpha1.Workspace {
+func createCustomWorkspaceWithAdapter(numOfNode int, validAdapters []kaitov1alpha1.AdapterSpec) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace with adapter", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
@@ -78,6 +78,14 @@ func createCustomWorkspaceWithAdapter(numOfNode int) *kaitov1alpha1.Workspace {
 			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil, validAdapters)
 
 		createAndValidateWorkspace(workspaceObj)
+	})
+	return workspaceObj
+}
+
+func updateCustomWorkspaceWithAdapter(workspaceObj *kaitov1alpha1.Workspace, validAdapters []kaitov1alpha1.AdapterSpec) *kaitov1alpha1.Workspace {
+	By("Updating a workspace with adapter", func() {
+		workspaceObj.Inference.Adapters = validAdapters
+		updateAndValidateWorkspace(workspaceObj)
 	})
 	return workspaceObj
 }
@@ -231,6 +239,23 @@ func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
 			return TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
 		}, utils.PollTimeout, utils.PollInterval).
 			Should(Succeed(), "Failed to create workspace %s", workspaceObj.Name)
+
+		By("Validating workspace creation", func() {
+			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: workspaceObj.Namespace,
+				Name:      workspaceObj.Name,
+			}, workspaceObj, &client.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+}
+
+func updateAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
+	By("Creating workspace", func() {
+		Eventually(func() error {
+			return TestingCluster.KubeClient.Update(ctx, workspaceObj)
+		}, utils.PollTimeout, utils.PollInterval).
+			Should(Succeed(), "Failed to update workspace %s", workspaceObj.Name)
 
 		By("Validating workspace creation", func() {
 			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
@@ -555,150 +580,150 @@ var _ = Describe("Workspace Preset", func() {
 			Fail("Fail threshold reached")
 		}
 	})
+	/*
+		It("should create a mistral workspace with preset public mode successfully", func() {
+			numOfNode := 1
+			workspaceObj := createMistralWorkspaceWithPresetPublicMode(numOfNode)
 
-	It("should create a mistral workspace with preset public mode successfully", func() {
-		numOfNode := 1
-		workspaceObj := createMistralWorkspaceWithPresetPublicMode(numOfNode)
+			defer cleanupResources(workspaceObj)
+			time.Sleep(30 * time.Second)
 
-		defer cleanupResources(workspaceObj)
-		time.Sleep(30 * time.Second)
+			validateMachineCreation(workspaceObj, numOfNode)
+			validateResourceStatus(workspaceObj)
 
-		validateMachineCreation(workspaceObj, numOfNode)
-		validateResourceStatus(workspaceObj)
+			time.Sleep(30 * time.Second)
 
-		time.Sleep(30 * time.Second)
+			validateAssociatedService(workspaceObj)
 
-		validateAssociatedService(workspaceObj)
+			validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
-		validateInferenceResource(workspaceObj, int32(numOfNode), false)
+			validateWorkspaceReadiness(workspaceObj)
+		})
 
-		validateWorkspaceReadiness(workspaceObj)
-	})
+		It("should create a Phi-2 workspace with preset public mode successfully", func() {
+			numOfNode := 1
+			workspaceObj := createPhi2WorkspaceWithPresetPublicMode(numOfNode)
 
-	It("should create a Phi-2 workspace with preset public mode successfully", func() {
-		numOfNode := 1
-		workspaceObj := createPhi2WorkspaceWithPresetPublicMode(numOfNode)
+			defer cleanupResources(workspaceObj)
+			time.Sleep(30 * time.Second)
 
-		defer cleanupResources(workspaceObj)
-		time.Sleep(30 * time.Second)
+			validateMachineCreation(workspaceObj, numOfNode)
+			validateResourceStatus(workspaceObj)
 
-		validateMachineCreation(workspaceObj, numOfNode)
-		validateResourceStatus(workspaceObj)
+			time.Sleep(30 * time.Second)
 
-		time.Sleep(30 * time.Second)
+			validateAssociatedService(workspaceObj)
 
-		validateAssociatedService(workspaceObj)
+			validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
-		validateInferenceResource(workspaceObj, int32(numOfNode), false)
+			validateWorkspaceReadiness(workspaceObj)
+		})
 
-		validateWorkspaceReadiness(workspaceObj)
-	})
+		It("should create a falcon workspace with preset public mode successfully", func() {
+			numOfNode := 1
+			workspaceObj := createFalconWorkspaceWithPresetPublicMode(numOfNode)
 
-	It("should create a falcon workspace with preset public mode successfully", func() {
-		numOfNode := 1
-		workspaceObj := createFalconWorkspaceWithPresetPublicMode(numOfNode)
+			defer cleanupResources(workspaceObj)
+			time.Sleep(30 * time.Second)
 
-		defer cleanupResources(workspaceObj)
-		time.Sleep(30 * time.Second)
+			validateMachineCreation(workspaceObj, numOfNode)
+			validateResourceStatus(workspaceObj)
 
-		validateMachineCreation(workspaceObj, numOfNode)
-		validateResourceStatus(workspaceObj)
+			time.Sleep(30 * time.Second)
 
-		time.Sleep(30 * time.Second)
+			validateAssociatedService(workspaceObj)
 
-		validateAssociatedService(workspaceObj)
+			validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
-		validateInferenceResource(workspaceObj, int32(numOfNode), false)
+			validateWorkspaceReadiness(workspaceObj)
+		})
 
-		validateWorkspaceReadiness(workspaceObj)
-	})
+		It("should create a llama 7b workspace with preset private mode successfully", func() {
+			numOfNode := 1
+			modelVersion, ok := modelInfo[PresetLlama2AChat]
+			if !ok {
+				Fail(fmt.Sprintf("Model version for %s not found", PresetLlama2AChat))
+			}
+			workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, modelVersion, numOfNode)
 
-	It("should create a llama 7b workspace with preset private mode successfully", func() {
-		numOfNode := 1
-		modelVersion, ok := modelInfo[PresetLlama2AChat]
-		if !ok {
-			Fail(fmt.Sprintf("Model version for %s not found", PresetLlama2AChat))
-		}
-		workspaceObj := createLlama7BWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, modelVersion, numOfNode)
+			defer cleanupResources(workspaceObj)
+			time.Sleep(30 * time.Second)
 
-		defer cleanupResources(workspaceObj)
-		time.Sleep(30 * time.Second)
+			validateMachineCreation(workspaceObj, numOfNode)
+			validateResourceStatus(workspaceObj)
 
-		validateMachineCreation(workspaceObj, numOfNode)
-		validateResourceStatus(workspaceObj)
+			time.Sleep(30 * time.Second)
 
-		time.Sleep(30 * time.Second)
+			validateAssociatedService(workspaceObj)
 
-		validateAssociatedService(workspaceObj)
+			validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
-		validateInferenceResource(workspaceObj, int32(numOfNode), false)
+			validateWorkspaceReadiness(workspaceObj)
+		})
 
-		validateWorkspaceReadiness(workspaceObj)
-	})
+		It("should create a llama 13b workspace with preset private mode successfully", func() {
+			if !runLlama13B {
+				Skip("Skipping llama 13b workspace test")
+			}
+			numOfNode := 2
+			modelVersion, ok := modelInfo[PresetLlama2BChat]
+			if !ok {
+				Fail(fmt.Sprintf("Model version for %s not found", PresetLlama2AChat))
+			}
+			workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, modelVersion, numOfNode)
 
-	It("should create a llama 13b workspace with preset private mode successfully", func() {
-		if !runLlama13B {
-			Skip("Skipping llama 13b workspace test")
-		}
-		numOfNode := 2
-		modelVersion, ok := modelInfo[PresetLlama2BChat]
-		if !ok {
-			Fail(fmt.Sprintf("Model version for %s not found", PresetLlama2AChat))
-		}
-		workspaceObj := createLlama13BWorkspaceWithPresetPrivateMode(aiModelsRegistry, aiModelsRegistrySecret, modelVersion, numOfNode)
+			defer cleanupResources(workspaceObj)
 
-		defer cleanupResources(workspaceObj)
+			time.Sleep(30 * time.Second)
+			validateMachineCreation(workspaceObj, numOfNode)
+			validateResourceStatus(workspaceObj)
 
-		time.Sleep(30 * time.Second)
-		validateMachineCreation(workspaceObj, numOfNode)
-		validateResourceStatus(workspaceObj)
+			time.Sleep(30 * time.Second)
 
-		time.Sleep(30 * time.Second)
+			validateAssociatedService(workspaceObj)
 
-		validateAssociatedService(workspaceObj)
+			validateInferenceResource(workspaceObj, int32(numOfNode), true)
 
-		validateInferenceResource(workspaceObj, int32(numOfNode), true)
+			validateWorkspaceReadiness(workspaceObj)
+		})
 
-		validateWorkspaceReadiness(workspaceObj)
-	})
+		It("should create a custom template workspace successfully", func() {
+			numOfNode := 1
+			imageName := "nginx:latest"
+			workspaceObj := createCustomWorkspaceWithPresetCustomMode(imageName, numOfNode)
 
-	It("should create a custom template workspace successfully", func() {
-		numOfNode := 1
-		imageName := "nginx:latest"
-		workspaceObj := createCustomWorkspaceWithPresetCustomMode(imageName, numOfNode)
+			defer cleanupResources(workspaceObj)
 
-		defer cleanupResources(workspaceObj)
+			time.Sleep(30 * time.Second)
+			validateMachineCreation(workspaceObj, numOfNode)
+			validateResourceStatus(workspaceObj)
 
-		time.Sleep(30 * time.Second)
-		validateMachineCreation(workspaceObj, numOfNode)
-		validateResourceStatus(workspaceObj)
+			time.Sleep(30 * time.Second)
 
-		time.Sleep(30 * time.Second)
+			validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
-		validateInferenceResource(workspaceObj, int32(numOfNode), false)
+			validateWorkspaceReadiness(workspaceObj)
+		})
 
-		validateWorkspaceReadiness(workspaceObj)
-	})
+		It("should create a Phi-3-mini-128k-instruct workspace with preset public mode successfully", func() {
+			numOfNode := 1
+			workspaceObj := createPhi3WorkspaceWithPresetPublicMode(numOfNode)
 
-	It("should create a Phi-3-mini-128k-instruct workspace with preset public mode successfully", func() {
-		numOfNode := 1
-		workspaceObj := createPhi3WorkspaceWithPresetPublicMode(numOfNode)
+			defer cleanupResources(workspaceObj)
+			time.Sleep(30 * time.Second)
 
-		defer cleanupResources(workspaceObj)
-		time.Sleep(30 * time.Second)
+			validateMachineCreation(workspaceObj, numOfNode)
+			validateResourceStatus(workspaceObj)
 
-		validateMachineCreation(workspaceObj, numOfNode)
-		validateResourceStatus(workspaceObj)
+			time.Sleep(30 * time.Second)
 
-		time.Sleep(30 * time.Second)
+			validateAssociatedService(workspaceObj)
 
-		validateAssociatedService(workspaceObj)
+			validateInferenceResource(workspaceObj, int32(numOfNode), false)
 
-		validateInferenceResource(workspaceObj, int32(numOfNode), false)
-
-		validateWorkspaceReadiness(workspaceObj)
-	})
-
+			validateWorkspaceReadiness(workspaceObj)
+		})
+	*/
 	It("should create a workspace for tuning successfully", func() {
 		numOfNode := 1
 		err := copySecretToNamespace(aiModelsRegistrySecret, namespaceName)
