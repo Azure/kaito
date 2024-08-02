@@ -24,8 +24,7 @@ For models that support distributed inference, when the node count is larger tha
    - `CUDA_LAUNCH_BLOCKING=1`: This variable provides more detailed debug information
    - Reduce GPU Memory Fragmentation by setting:
       - `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
-      - `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512`
-
+      - Set this to a value like `512 MB` as a starting point and adjust as needed. `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512` 
 
 ## Tuning
 Debugging GPU OOM (Out of Memory) issues during the fine-tuning process involves several strategies. Here are some steps to help you resolve these issues:
