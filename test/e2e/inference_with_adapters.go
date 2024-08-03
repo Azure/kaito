@@ -19,7 +19,7 @@ import (
 var DefaultStrength = "1.0"
 
 var imageName = "e2e-adapter"
-var fullImageName = utils.GetEnv("ADAPTER_REGISTRY") + "/" + imageName + ":0.0.1"
+var fullImageName = utils.GetEnv("E2E_ACR_REGISTRY") + "/" + imageName + ":0.0.1"
 
 var validAdapters = []kaitov1alpha1.AdapterSpec{
 	{

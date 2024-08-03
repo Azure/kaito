@@ -40,6 +40,11 @@ const (
 	PresetPhi3Mini128kModel      = "phi-3-mini-128k-instruct"
 )
 
+var (
+	datasetImageName     = "e2e-dataset"
+	fullDatasetImageName = utils.GetEnv("E2E_ACR_REGISTRY") + "/" + datasetImageName + ":0.0.1"
+)
+
 func loadTestEnvVars() {
 	var err error
 	runLlama13B, err = strconv.ParseBool(os.Getenv("RUN_LLAMA_13B"))
@@ -216,7 +221,7 @@ func createPhi3TuningWorkspaceWithPresetPublicMode(configMapName string, numOfNo
 		uniqueID = fmt.Sprint("preset-", rand.Intn(1000))
 		outputRegistryUrl := fmt.Sprintf("%s.azurecr.io/%s:%s", azureClusterName, e2eOutputImageName, e2eOutputImageTag)
 		workspaceObj = utils.GenerateE2ETuningWorkspaceManifest(uniqueID, namespaceName, "",
-			outputRegistryUrl, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
+			fullDatasetImageName, outputRegistryUrl, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-tuning-falcon"},
 			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePublic, []string{aiModelsRegistrySecret}, configMapName)
 
@@ -287,11 +292,12 @@ func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace, expectedCoun
 		Eventually(func() bool {
 			machineList, err := getAllValidMachines(workspaceObj)
 			if err != nil {
-				fmt.Printf("Failed to get all valid machines: %v", err)
+				fmt.Printf("Failed to get all valid machines: %v\n", err)
 				return false
 			}
 
 			if len(machineList.Items) != expectedCount {
+				fmt.Printf("Expected %d machines, but found %d machines\n", expectedCount, len(machineList.Items))
 				return false
 			}
 
@@ -300,6 +306,7 @@ func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace, expectedCoun
 					return condition.Type == apis.ConditionReady && condition.Status == v1.ConditionTrue
 				})
 				if !conditionFound {
+					fmt.Printf("Machine %s is not ready\n", machine.Name)
 					return false
 				}
 			}

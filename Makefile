@@ -199,6 +199,15 @@ docker-build-adapter: docker-buildx
 		--pull \
 		--tag $(REGISTRY)/e2e-adapter:0.0.1 .
 
+.PHONY: docker-build-dataset
+docker-build-dataset: docker-buildx
+	docker buildx build \
+		--file ./docker/dataset/Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform="linux/$(ARCH)" \
+		--pull \
+		--tag $(REGISTRY)/e2e-dataset:0.0.1 .
+
 ##@ Deployment
 
 ifndef ignore-not-found
