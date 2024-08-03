@@ -306,7 +306,6 @@ func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace, expectedCoun
 					return condition.Type == apis.ConditionReady && condition.Status == v1.ConditionTrue
 				})
 				if !conditionFound {
-					fmt.Printf("Machine %s is not ready\n", machine.Name)
 					return false
 				}
 			}
