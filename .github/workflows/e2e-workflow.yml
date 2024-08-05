@@ -134,6 +134,13 @@ jobs:
           make docker-build-adapter
         env:
           REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
+      
+      - name: build dataset image
+        shell: bash
+        run: |
+          make docker-build-dataset
+        env:
+          REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
 
       - name: create cluster
         shell: bash
@@ -210,7 +217,7 @@ jobs:
           REGISTRY: ${{ env.REGISTRY }}
           AI_MODELS_REGISTRY: ${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io
           AI_MODELS_REGISTRY_SECRET: ${{ secrets.E2E_AMRT_SECRET_NAME }}
-          ADAPTER_REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
+          E2E_ACR_REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
 
       - name: Cleanup e2e resources
         if: ${{ always() }}
