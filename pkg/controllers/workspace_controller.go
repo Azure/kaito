@@ -207,7 +207,7 @@ func (c *WorkspaceReconciler) deleteWorkspace(ctx context.Context, wObj *kaitov1
 	return c.garbageCollectWorkspace(ctx, wObj)
 }
 
-func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
+func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj *kaitov1alpha1.Workspace) error { // TODO: Move non-updateControllerRevision related logic to separate functions
 	currentHash := computeHash(wObj)
 	annotations := wObj.GetAnnotations()
 
@@ -267,6 +267,10 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 		Data:     runtime.RawExtension{Raw: jsonData},
 	}
 
+	if annotations == nil {
+		annotations = make(map[string]string)
+	} // nil checking.
+
 	annotations[WorkspaceRevisionAnnotation] = currentHash
 	wObj.SetAnnotations(annotations)
 	deployment := &appsv1.Deployment{}
@@ -287,11 +291,29 @@ func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj
 
 			if hash, exists := deployment.Annotations[WorkspaceRevisionAnnotation]; !exists || (hash != currentHash) {
 
-				initContainers, envs := resources.GenerateInitContainers(wObj)
+				var volumes []corev1.Volume
+				var volumeMounts []corev1.VolumeMount
+				shmVolume, shmVolumeMount := utils.ConfigSHMVolume(*wObj.Resource.Count)
+				if shmVolume.Name != "" {
+					volumes = append(volumes, shmVolume)
+				}
+				if shmVolumeMount.Name != "" {
+					volumeMounts = append(volumeMounts, shmVolumeMount)
+				}
+
+				if len(wObj.Inference.Adapters) > 0 {
+					adapterVolume, adapterVolumeMount := utils.ConfigAdapterVolume()
+					volumes = append(volumes, adapterVolume)
+					volumeMounts = append(volumeMounts, adapterVolumeMount)
+				}
+
+				initContainers, envs := resources.GenerateInitContainers(wObj, volumeMounts)
 				spec := &deployment.Spec
 				spec.Template.Spec.InitContainers = initContainers
 				spec.Template.Spec.Containers[0].Env = envs
+				spec.Template.Spec.Containers[0].VolumeMounts = volumeMounts
 				deployment.Annotations[WorkspaceRevisionAnnotation] = currentHash
+				spec.Template.Spec.Volumes = volumes
 
 				if err := c.Update(ctx, deployment); err != nil {
 					return fmt.Errorf("failed to update deployment: %w", err)
