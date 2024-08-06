@@ -4,16 +4,18 @@
 package utils
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
-	"os"
-
-	"gopkg.in/yaml.v2"
-	"k8s.io/apimachinery/pkg/runtime"
-	"knative.dev/pkg/apis"
-
 	"github.com/azure/kaito/pkg/sku"
 	"github.com/azure/kaito/pkg/utils/consts"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	"knative.dev/pkg/apis"
+	"os"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func Contains(s []string, e string) bool {
@@ -113,4 +115,60 @@ func GetSKUHandler() (sku.CloudSKUHandler, error) {
 	}
 
 	return skuHandler, nil
+}
+
+func GetSKUNumGPUs(ctx context.Context, kubeClient client.Client, workerNodes []string, instanceType, defaultGPUCount string) (string, error) {
+	skuHandler, err := GetSKUHandler()
+	if err != nil {
+		return "", apis.ErrInvalidValue(fmt.Sprintf("Failed to get SKU handler: %v", err), "sku")
+	}
+
+	skuNumGPUs := defaultGPUCount // Default to using the provided default GPU count
+
+	skuConfig, skuExists := skuHandler.GetGPUConfigs()[instanceType]
+	if skuExists {
+		skuNumGPUs = fmt.Sprintf("%d", skuConfig.GPUCount)
+	} else {
+		skuGPUCount, err := FetchGPUCountFromNodes(ctx, kubeClient, workerNodes)
+		if err != nil {
+			fmt.Printf("Failed to fetch GPU count from nodes: %v", err)
+		} else if skuGPUCount != "" {
+			skuNumGPUs = skuGPUCount
+		}
+	}
+
+	return skuNumGPUs, nil
+}
+
+// FetchGPUCountFromNodes retrieves the GPU count from the given node names.
+func FetchGPUCountFromNodes(ctx context.Context, kubeClient client.Client, nodeNames []string) (string, error) {
+	if len(nodeNames) == 0 {
+		return "", fmt.Errorf("no worker nodes found in the workspace")
+	}
+
+	var allNodes v1.NodeList
+	for _, nodeName := range nodeNames {
+		nodeList := &v1.NodeList{}
+		fieldSelector := fields.OneTermEqualSelector("metadata.name", nodeName)
+		err := kubeClient.List(ctx, nodeList, &client.ListOptions{
+			FieldSelector: fieldSelector,
+		})
+		if err != nil {
+			fmt.Printf("Failed to list Node object %s: %v\n", nodeName, err)
+			continue
+		}
+		allNodes.Items = append(allNodes.Items, nodeList.Items...)
+	}
+
+	return GetPerNodeGPUCountFromNodes(&allNodes), nil
+}
+
+func GetPerNodeGPUCountFromNodes(nodeList *v1.NodeList) string {
+	for _, node := range nodeList.Items {
+		gpuCount, exists := node.Status.Capacity[consts.NvidiaGPU]
+		if exists && gpuCount.String() != "" {
+			return gpuCount.String()
+		}
+	}
+	return ""
 }
