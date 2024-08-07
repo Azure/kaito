@@ -7,7 +7,7 @@ toolchain go1.22.5
 require (
 	github.com/Azure/karpenter-provider-azure v0.5.0
 	github.com/aws/karpenter-core v0.29.2
-	github.com/aws/karpenter-provider-aws v0.36.2
+	github.com/aws/karpenter-provider-aws v0.37.0
 	github.com/go-logr/logr v1.4.2
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
@@ -24,13 +24,14 @@ require (
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 	knative.dev/pkg v0.0.0-20240515073057-11a3d46fe4d6
 	sigs.k8s.io/controller-runtime v0.18.4
-	sigs.k8s.io/karpenter v0.36.2
+	sigs.k8s.io/karpenter v0.37.0
 )
 
 require (
 	contrib.go.opencensus.io/exporter/ocagent v0.7.1-0.20200907061046-05415f1de66d // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
-	github.com/aws/aws-sdk-go v1.51.16 // indirect
+	github.com/aws/aws-sdk-go v1.53.6 // indirect
+	github.com/awslabs/operatorpkg v0.0.0-20240518001059-1e35978ba21b // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/blendle/zapdriver v1.3.1 // indirect
@@ -104,8 +105,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.30.1 // indirect
 	k8s.io/apiserver v0.30.1 // indirect
-	k8s.io/cloud-provider v0.29.3 // indirect
-	k8s.io/csi-translation-lib v0.29.3 // indirect
+	k8s.io/cloud-provider v0.30.1 // indirect
+	k8s.io/csi-translation-lib v0.30.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	k8s.io/pod-security-admission v0.0.0 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
