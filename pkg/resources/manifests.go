@@ -275,7 +275,7 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 	initContainers := []corev1.Container{}
 	envs := []corev1.EnvVar{}
 	if len(workspaceObj.Inference.Adapters) > 0 {
-		initContainers, envs = GenerateInitContainers(workspaceObj)
+		initContainers, envs = GenerateInitContainers(workspaceObj, volumeMount)
 	}
 
 	return &appsv1.Deployment{
@@ -334,16 +334,16 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 	}
 }
 
-func GenerateInitContainers(wObj *kaitov1alpha1.Workspace) ([]corev1.Container, []corev1.EnvVar) {
-	initContainers := []corev1.Container{}
-	envs := []corev1.EnvVar{}
+func GenerateInitContainers(wObj *kaitov1alpha1.Workspace, volumeMount []corev1.VolumeMount) ([]corev1.Container, []corev1.EnvVar) {
+	var initContainers []corev1.Container
+	var envs []corev1.EnvVar
 	if len(wObj.Inference.Adapters) > 0 {
 		for _, adapter := range wObj.Inference.Adapters {
 			initContainer := corev1.Container{
 				Name:            adapter.Source.Name,
 				Image:           adapter.Source.Image,
 				Command:         []string{"/bin/sh", "-c", fmt.Sprintf("mkdir -p /mnt/adapter/%s && cp -r /data/* /mnt/adapter/%s", adapter.Source.Name, adapter.Source.Name)},
-				VolumeMounts:    []corev1.VolumeMount{},
+				VolumeMounts:    volumeMount,
 				ImagePullPolicy: corev1.PullAlways,
 			}
 			initContainers = append(initContainers, initContainer)
