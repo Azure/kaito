@@ -154,39 +154,44 @@ while ! docker info > /dev/null 2>&1; do
 done
 echo 'Docker daemon started'
 
+PUSH_SUCCEEDED=false
+
 while true; do
   FILE_PATH=$(find %s -name 'fine_tuning_completed.txt')
   if [ ! -z "$FILE_PATH" ]; then
-    echo "FOUND TRAINING COMPLETED FILE at $FILE_PATH"
+    if [ "$PUSH_SUCCEEDED" = false ]; then
+      echo "FOUND TRAINING COMPLETED FILE at $FILE_PATH"
 
-    PARENT_DIR=$(dirname "$FILE_PATH")
-    echo "Parent directory is $PARENT_DIR"
+      PARENT_DIR=$(dirname "$FILE_PATH")
+      echo "Parent directory is $PARENT_DIR"
 
-    TEMP_CONTEXT=$(mktemp -d)
-    cp "$PARENT_DIR/adapter_config.json" "$TEMP_CONTEXT/adapter_config.json"
-    cp -r "$PARENT_DIR/adapter_model.safetensors" "$TEMP_CONTEXT/adapter_model.safetensors"
+      TEMP_CONTEXT=$(mktemp -d)
+      cp "$PARENT_DIR/adapter_config.json" "$TEMP_CONTEXT/adapter_config.json"
+      cp -r "$PARENT_DIR/adapter_model.safetensors" "$TEMP_CONTEXT/adapter_model.safetensors"
 
-    # Create a minimal Dockerfile
-    echo 'FROM busybox:latest
-    RUN mkdir -p /data
-    ADD adapter_config.json /data/
-    ADD adapter_model.safetensors /data/' > "$TEMP_CONTEXT/Dockerfile"
+      # Create a minimal Dockerfile
+      echo 'FROM busybox:latest
+      RUN mkdir -p /data
+      ADD adapter_config.json /data/
+      ADD adapter_model.safetensors /data/' > "$TEMP_CONTEXT/Dockerfile"
 
-    docker build -t %s "$TEMP_CONTEXT"
-    
-    while true; do
-      if docker push %s; then
-        echo "Upload complete"
-        # Cleanup: Remove the temporary directory
-        rm -rf "$TEMP_CONTEXT"
-        # Remove the file to prevent repeated builds
-        rm "$FILE_PATH"
-        break
-      else
-        echo "Push failed, retrying in 30 seconds..."
-        sleep 30
-      fi
-    done
+      docker build -t %s "$TEMP_CONTEXT"
+      
+      while true; do
+        if docker push %s; then
+          echo "Upload complete"
+          # Cleanup: Remove the temporary directory
+          rm -rf "$TEMP_CONTEXT"
+          # Remove the file to prevent repeated builds
+          rm "$FILE_PATH"
+          PUSH_SUCCEEDED=true
+          break
+        else
+          echo "Push failed, retrying in 30 seconds..."
+          sleep 30
+        fi
+      done
+    fi
   fi
   sleep 10  # Check every 10 seconds
 done`, outputDir, image, image)
