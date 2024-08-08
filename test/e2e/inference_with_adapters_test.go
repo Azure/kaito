@@ -4,6 +4,10 @@
 package e2e
 
 import (
+	"fmt"
+	"math/rand"
+	"os"
+	"strconv"
 	"time"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -38,6 +42,48 @@ var expectedInitContainers = []corev1.Container{
 	},
 }
 
+func loadTestEnvVars() {
+	var err error
+	runLlama13B, err = strconv.ParseBool(os.Getenv("RUN_LLAMA_13B"))
+	if err != nil {
+		fmt.Print("Error: RUN_LLAMA_13B ENV Variable not set")
+		runLlama13B = false
+	}
+
+	aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
+	aiModelsRegistrySecret = utils.GetEnv("AI_MODELS_REGISTRY_SECRET")
+	supportedModelsYamlPath = utils.GetEnv("SUPPORTED_MODELS_YAML_PATH")
+}
+
+func loadModelVersions() {
+	// Load stable model versions
+	configs, err := utils.GetModelConfigInfo(supportedModelsYamlPath)
+	if err != nil {
+		fmt.Printf("Failed to load model configs: %v\n", err)
+		os.Exit(1)
+	}
+
+	modelInfo, err = utils.ExtractModelVersion(configs)
+	if err != nil {
+		fmt.Printf("Failed to extract stable model versions: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func createCustomWorkspaceWithAdapter(numOfNode int) *kaitov1alpha1.Workspace {
+	workspaceObj := &kaitov1alpha1.Workspace{}
+	By("Creating a workspace with adapter", func() {
+		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
+		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC12s_v3",
+			&metav1.LabelSelector{
+				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-falcon"},
+			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil, validAdapters)
+
+		createAndValidateWorkspace(workspaceObj)
+	})
+	return workspaceObj
+}
+
 func validateAdapters(workspaceObj *kaitov1alpha1.Workspace, expectedInitContainers []corev1.Container) {
 	By("Checking the Adapters", func() {
 		Eventually(func() bool {
@@ -50,7 +96,7 @@ func validateAdapters(workspaceObj *kaitov1alpha1.Workspace, expectedInitContain
 					Namespace: workspaceObj.Namespace,
 				},
 			}
-			err = TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err = utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, dep)
@@ -95,7 +141,11 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, numOfNode)
+		if suiteTestName == "azkarpenter" {
+			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
+		} else {
+			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
+		}
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)

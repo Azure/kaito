@@ -159,12 +159,6 @@ func main() {
 			exitWithErrorFunc()
 		}
 	}
-
-	klog.InfoS("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		klog.ErrorS(err, "problem running manager")
-		exitWithErrorFunc()
-	}
 	ctx := withShutdownSignal(context.Background())
 
 	// check if Karpenter NodeClass is available. If not, the controller will create it automatically.
@@ -174,10 +168,17 @@ func main() {
 			klog.Infof("NodeClass is not available, creating NodeClass")
 			if err := nodeclaim.CreateKarpenterNodeClass(ctx, kClient); err != nil {
 				if client.IgnoreAlreadyExists(err) != nil {
+					klog.ErrorS(err, "unable to create NodeClass")
 					exitWithErrorFunc()
 				}
 			}
 		}
+	}
+
+	klog.InfoS("starting manager")
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		klog.ErrorS(err, "problem running manager")
+		exitWithErrorFunc()
 	}
 }
 
