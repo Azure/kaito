@@ -173,15 +173,20 @@ while true; do
     ADD adapter_model.safetensors /data/' > "$TEMP_CONTEXT/Dockerfile"
 
     docker build -t %s "$TEMP_CONTEXT"
-    docker push %s
-
-    # Cleanup: Remove the temporary directory
-    rm -rf "$TEMP_CONTEXT"
-
-    # Remove the file to prevent repeated builds
-    rm "$FILE_PATH"
-    echo "Upload complete"
-    exit 0
+    
+    while true; do
+      if docker push %s; then
+        echo "Upload complete"
+        # Cleanup: Remove the temporary directory
+        rm -rf "$TEMP_CONTEXT"
+        # Remove the file to prevent repeated builds
+        rm "$FILE_PATH"
+        break
+      else
+        echo "Push failed, retrying in 30 seconds..."
+        sleep 30
+      fi
+    done
   fi
   sleep 10  # Check every 10 seconds
 done`, outputDir, image, image)
