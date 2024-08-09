@@ -44,7 +44,7 @@ Please check the installation guidance [here](./docs/installation.md).
 After installing Kaito, one can try following commands to start a falcon-7b inference service.
 
 ```sh
-$ cat examples/kaito_workspace_falcon_7b.yaml
+$ cat examples/inference/kaito_workspace_falcon_7b.yaml
 apiVersion: kaito.sh/v1alpha1
 kind: Workspace
 metadata:
@@ -58,7 +58,7 @@ inference:
   preset:
     name: "falcon-7b"
 
-$ kubectl apply -f examples/kaito_workspace_falcon_7b.yaml
+$ kubectl apply -f examples/inference/kaito_workspace_falcon_7b.yaml
 ```
 
 The workspace status can be tracked by running the following command. When the WORKSPACEREADY column becomes `True`, the model has been deployed successfully.
