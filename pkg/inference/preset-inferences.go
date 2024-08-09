@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/consts"
@@ -105,6 +106,10 @@ func GetInferenceImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		}
 		return imageName, imagePullSecretRefs
 	} else {
+		if strings.HasPrefix(workspaceObj.Name, "preset-adapter-") {
+			imageName := "aimodelsregistrytest.azurecr.io/kaito-falcon-7b-e2e:0.0.1"
+			return imageName, imagePullSecretRefs
+		} // Note: THIS IS ONLY FOR E2E TEST, TO LOAD THE INFERENCE API WITHOUT UPDALDING NEW IMAGE, WILL BE DELETED WHEN MERGE
 		imageName := string(workspaceObj.Inference.Preset.Name)
 		imageTag := presetObj.Tag
 		registryName := os.Getenv("PRESET_REGISTRY_NAME")
