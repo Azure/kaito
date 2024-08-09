@@ -132,7 +132,8 @@ else:
     else:
         print("Warning: Did not find any valid adapters mounted, using base model")
         model = base_model
-
+    print("Adapter added:", ', '.join(sorted(adapter_names)))
+    
 print("Model:", model)
 
 pipeline_kwargs = {

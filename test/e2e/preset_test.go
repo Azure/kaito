@@ -76,7 +76,7 @@ func loadModelVersions() {
 func createCustomWorkspaceWithAdapter(numOfNode int) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace with adapter", func() {
-		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
+		uniqueID := fmt.Sprint("preset-adapter-", rand.Intn(1000)) // Note: THIS IS ONLY FOR E2E TEST, TO LOAD THE INFERENCE API WITHOUT UPDALDING NEW IMAGE,  WILL CHANGE IT BACK TO "preset-" WHEN MERGE
 		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC12s_v3",
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-falcon"},
