@@ -56,6 +56,7 @@ func loadTestEnvVars() {
 	aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
 	aiModelsRegistrySecret = utils.GetEnv("AI_MODELS_REGISTRY_SECRET")
 	supportedModelsYamlPath = utils.GetEnv("SUPPORTED_MODELS_YAML_PATH")
+	azureClusterName = utils.GetEnv("AZURE_CLUSTER_NAME")
 }
 
 func loadModelVersions() {
