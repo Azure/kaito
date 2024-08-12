@@ -15,7 +15,7 @@ The target models are popular open-sourced large models such as [falcon](https:/
 Kaito has the following key differentiations compared to most of the mainstream model deployment methodologies built on top of virtual machine infrastructures:
 
 - Manage large model files using container images. A http server is provided to perform inference calls using the model library.
-- Avoid tuning workload parameters to fit GPU hardware by providing preset configurations.
+- Provide preset configurations to avoid adjusting workload parameters based on GPU hardware.
 - Auto-provision GPU nodes based on model requirements.
 - Host large model images in the public Microsoft Container Registry (MCR) if the license allows.
 
