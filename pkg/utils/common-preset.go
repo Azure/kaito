@@ -31,12 +31,20 @@ func ConfigImagePushSecretVolume(imagePushSecret string) (corev1.Volume, corev1.
 	volume := corev1.Volume{
 		Name: "docker-config",
 		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName: imagePushSecret,
-				Items: []corev1.KeyToPath{
+			Projected: &corev1.ProjectedVolumeSource{
+				Sources: []corev1.VolumeProjection{
 					{
-						Key:  ".dockerconfigjson",
-						Path: "config.json",
+						Secret: &corev1.SecretProjection{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: imagePushSecret,
+							},
+							Items: []corev1.KeyToPath{
+								{
+									Key:  ".dockerconfigjson",
+									Path: "config.json",
+								},
+							},
+						},
 					},
 				},
 			},
