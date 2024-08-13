@@ -175,10 +175,10 @@ while true; do
       ADD adapter_config.json /data/
       ADD adapter_model.safetensors /data/' > "$TEMP_CONTEXT/Dockerfile"
 
-      docker build -t %s "$TEMP_CONTEXT"
+      docker --config /root/.docker/config/config.json build -t %s "$TEMP_CONTEXT"
       
       while true; do
-        if docker push %s; then
+        if docker --config /root/.docker/config/config.json push %s; then
           echo "Upload complete"
           # Cleanup: Remove the temporary directory
           rm -rf "$TEMP_CONTEXT"
