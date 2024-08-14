@@ -1,17 +1,16 @@
-# Kaito Tuning Workspace API
+# Kaito fine tuning
+This document presents how to use the Kaito `workspace` Custom Resource Definition (CRD) for parameter-efficient fine-tuning (PEFT) of models, how a Kubernetes job is designed to automate the tuning workflow, and several best practices for troubleshooting.
 
-This guide provides instructions on how to use the Kaito Tuning Workspace API for parameter-efficient fine-tuning (PEFT) of models. The API supports methods like LoRA and QLoRA and allows users to specify their own datasets and configuration settings.
+## Usage
+Kaito tuning APIs allow users to specify supported tuning methods like [LoRA or QLoRA](https://huggingface.co/docs/peft/main/en/conceptual_guides/lora), the input dataset and configuration settings, and the output destination for saving the tuning results. Currently, Kaito supports both URL and image as the types of tuning input sources. It only supports image as the type of output destination. In the future, Kaito will additionally support the Kubernetes `v1.Volume` API for both the input source and the output destination.
 
-## Getting Started
 
-To use the Kaito Tuning Workspace API, you need to define a Workspace custom resource (CR). Below are examples of how to define the CR and its various components.
+### Tuning workspace
+Here are two examples of using Kaito workspace CRD to define workspaces for tuning different models:
 
-## Example Workspace Definitions
-Here are three examples of using the API to define a workspace for tuning different models:
+Example 1: Tuning [`phi-3-mini`](../../examples/fine-tuning/kaito_workspace_tuning_phi_3.yaml). This example uses a public dataset specified by a URL in the input.
 
-Example 1: Tuning [`phi-3-mini`](../../examples/fine-tuning/kaito_workspace_tuning_phi_3.yaml)
-
-Example 2: Tuning `falcon-7b`
+Example 2: Tuning `falcon-7b`. This example shows how to use an image as the source of input data.
 ```yaml
 apiVersion: kaito.sh/v1alpha1
 kind: Workspace
@@ -21,98 +20,67 @@ resource:
   instanceType: "Standard_NC6s_v3"
   labelSelector:
     matchLabels:
-      app: tuning-phi-3-falcon
+      app: tuning-falcon
 tuning:
   preset:
     name: falcon-7b
   method: qlora
   input:
-    image: ACR_REPO_HERE.azurecr.io/IMAGE_NAME_HERE:0.0.1
-    imagePullSecrets: 
+    image: PULLREGISTRY/DATA_NAME_HERE:0.0.1
+    imagePullSecrets:
       - IMAGE_PULL_SECRETS_HERE
   output:
-    image: ACR_REPO_HERE.azurecr.io/IMAGE_NAME_HERE:0.0.1  # Tuning Output
-    imagePushSecret: aimodelsregistrysecret
+    image: PUSHREGISTRY/ADAPTER_NAME_HERE:0.0.1  # Tuning Output
+    imagePushSecret: IMAGE_PUSH_SECRET_HERE
 
 ```
-Generic TuningSpec Structure: 
-```yaml
-tuning:
-  preset:
-    name: preset-model
-  method: lora or qlora
-  config: custom-configmap (optional)
-  input: # Image or URL
-    urls:
-      - "https://example.com/dataset.parquet?download=true"
-  # Future updates will include support for v1.Volume as an input type.
-  output: # Image
-    image: "youracr.azurecr.io/custom-adapter:0.0.1"
-    imagePushSecret: youracrsecret
-```
 
-## Default ConfigMaps
-The default configuration for different tuning methods can be specified 
-using ConfigMaps. Below are examples for LoRA and QLoRA methods.
+The detailed `TuningSpec`API definitions can be found [here](https://github.com/Azure/kaito/blob/2ccc93daf9d5385649f3f219ff131ee7c9c47f3e/api/v1alpha1/workspace_types.go#L145).
 
-- [Default LoRA ConfigMap](../../charts/kaito/workspace/templates/lora-params.yaml)
+### Tuning configurations
+Kaito provides default tuning configurations for different tuning methods. They are managed by Kubernetes configmaps.
+- [default LoRA configmap](../../charts/kaito/workspace/templates/lora-params.yaml)
+- [default QLoRA configmap](../../charts/kaito/workspace/templates/qlora-params.yaml)
 
-- [QLoRA ConfigMap](../../charts/kaito/workspace/templates/qlora-params.yaml)
+## Tuning configmaps
+User can specify a customized configmap via the `Config` field of the `TuningSpec`. The customized configmap should be structured based on the default configmaps provided by Kaito. Please read the following section carefully when attempting to change the default parameters used by Kaito.
 
-## Using Custom ConfigMaps
-You can specify your own custom ConfigMap and include it in the `Config` 
-field of the `TuningSpec`
+### Categorized key parameters
+Note that changing these parameters may largely impact the tuning result. In addition, users can add extra parameters that are not presented in the default configmaps. For a complete list of supported parameters, please refer to the provided huggingface documentation.
 
-For more information on configurable parameters, please refer to the respective documentation links provided in the default ConfigMap examples.
-
-## Key Parameters in Kaito ConfigMap Structure
-The following sections highlight important parameters for each configuration area in the Kaito ConfigMap. For a complete list of parameters, please refer to the provided Hugging Face documentation links.
-
-ModelConfig [Full List](https://huggingface.co/docs/transformers/v4.40.2/en/model_doc/auto#transformers.AutoModelForCausalLM.from_pretrained)
+ModelConfig([full list](https://huggingface.co/docs/transformers/v4.40.2/en/model_doc/auto#transformers.AutoModelForCausalLM.from_pretrained))
 - torch_dtype: Specifies the data type for PyTorch tensors, e.g., "bfloat16".
 - local_files_only: Indicates whether to only use local files.
 - device_map: Configures device mapping for the model, typically "auto".
 
-QuantizationConfig [Full List](https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/quantization#transformers.BitsAndBytesConfig)
+QuantizationConfig([full list](https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/quantization#transformers.BitsAndBytesConfig))
 - load_in_4bit: Enables loading the model with 4-bit precision.
 - bnb_4bit_quant_type: Specifies the type of 4-bit quantization, e.g., "nf4".
 - bnb_4bit_compute_dtype: Data type for computation, e.g., "bfloat16".
 - bnb_4bit_use_double_quant: Enables double quantization.
 
-LoraConfig [Full List](https://huggingface.co/docs/peft/v0.8.2/en/package_reference/lora#peft.LoraConfig)
-- r: Rank of the low-rank matrices used in LoRA.
+LoraConfig([full list](https://huggingface.co/docs/peft/v0.8.2/en/package_reference/lora#peft.LoraConfig))
+- **r**: Rank of the low-rank matrices used in LoRA.
 - lora_alpha: Scaling factor for LoRA.
 - lora_dropout: Dropout rate for LoRA layers.
 
-TrainingArguments [Full List](https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/trainer#transformers.TrainingArguments)
-- output_dir: Directory where the training results will be saved.
+TrainingArguments([full list](https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/trainer#transformers.TrainingArguments))
 - ddp_find_unused_parameters: Flag to handle unused parameters during distributed training.
 - save_strategy: Strategy for saving checkpoints, e.g., "epoch".
 - per_device_train_batch_size: Batch size per device during training.
 - num_train_epochs: Total number of training epochs to perform, defaults to 3.0.
-- Additional Details:
-  - Number of Steps per Epoch: The number of steps per epoch is determined by the size of the dataset and the batch size:
-    ```
-    Number of Steps per Epoch = Number of Samples in Dataset / Batch Size
-    ```
-    You can specify the batch size here with `per_device_train_batch_size`.
-  - Total Tuning Time: The total tuning time depends on the number of epochs, the batch size, and the max steps. The total number of steps can be calculated as:
-    ```
-    Total Steps = Number of Epochs * (Number of Samples in Dataset / Batch Size)
-    ```
-    If `max_steps` is specified, training will stop after reaching this number of steps, even if the specified epochs have not been completed.
 
-DataCollator [Full List](https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/data_collator#transformers.DataCollatorForLanguageModeling)
+DataCollator([full list](https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/data_collator#transformers.DataCollatorForLanguageModeling))
 - mlm: Masked language modeling flag.
 
-DatasetConfig [Full List](https://github.com/Azure/kaito/blob/main/presets/tuning/text-generation/cli.py#L44)
+DatasetConfig([full list](https://github.com/Azure/kaito/blob/main/presets/tuning/text-generation/cli.py#L44))
 - shuffle_dataset: Whether to shuffle the dataset.
 - train_test_split: Proportion of data used for training, typically set to 1 for using all data.
 
-## Expected Dataset Format
-The dataset should follow a specific format. For example:
+## Input dataset format
+The input dataset for fine tuning should follow specific formats defined in the huggingface trainer library. Supported formats include conversational and instruction formats.
 
-- Conversational Format
+- Conversational format
   ```json
   {
     "messages": [
@@ -122,22 +90,52 @@ The dataset should follow a specific format. For example:
     ]
   }
   ```
-For a practical example, refer to [HuggingFace Dolly 15k OAI-style dataset](https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/tree/main).
+For example, [HuggingFace Dolly 15k OAI-style dataset](https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/tree/main).
 
-- Instruction Format
+- Instruction format
   ```json
   {"prompt": "<prompt text>", "completion": "<ideal generated text>"}
   {"prompt": "<prompt text>", "completion": "<ideal generated text>"}
   {"prompt": "<prompt text>", "completion": "<ideal generated text>"}
   ```
 
-For a practical example, refer to [HuggingFace Instruction Dataset](https://huggingface.co/datasets/HuggingFaceH4/instruction-dataset/tree/main)
+For example, [HuggingFace Instruction Dataset](https://huggingface.co/datasets/HuggingFaceH4/instruction-dataset/tree/main)
 
 
-## Dataset Format Support
+If your dataset is not in one of these formats, it will be passed directly to the training library ([SFTTrainer](https://huggingface.co/docs/trl/en/sft_trainer)) without any preprocessing. This may result in undefined behavior if the dataset does not align with the trainer's expected input structure. To ensure proper functionality, you may need to preprocess the dataset to match one of the supported formats. For more details, please refer to this [documentation](https://huggingface.co/docs/trl/v0.9.4/sft_trainer#dataset-format-support).
 
-The SFTTrainer supports popular dataset formats, allowing direct passage of the dataset without pre-processing. Supported formats include conversational and instruction formats. If your dataset is not in one of these formats, it will be passed directly to the SFTTrainer without any preprocessing. This may result in undefined behavior if the dataset does not align with the trainer's expected input structure.
 
-To ensure proper function, you may need to preprocess the dataset to match one of the supported formats.
+Note: if you build a container image for the input dataset, please copy the dataset to the **`/data`** directory inside the container.
 
-For example usage and more details, refer to the [Official Hugging Face documentation and tutorials](https://huggingface.co/docs/trl/v0.9.4/sft_trainer#dataset-format-support).
+# Tuning Job
+Kaito uses the Kubernetes **batchv1.job** workload to manage the tuning Pod. When a tuning workspace custom resource is created, the Kaito controller will create a job with the same name as the workspace in the same namespace. To streamline the tuning workflow, Kaito adds two containers in addition to the main container that runs the tuning process. The pod structure is illustrated in Figure 1.
+<div align="left">
+  <img src="../img/kaito-fine-tuning.png" width=40% title="Kaito fine tuning" alt="Kaito fine tuning">
+</div>
+Figure 1. Kaito tuning pod structure.
+
+- Initcontainer `data-downloader`: It downloads the training input dataset from the URLs specified in the tuning spec if needed. If an image is specified in the input, the `data-downloader` container uses the specified image as the container image. This initcontainer ensures the training data is available locally before the training process starts.
+
+- Sidecar container: It is introduced to support automatically pushing the tuning results to a container registry. This container, with `docker` installed, runs a script to periodically check the training progress. Once the training is done, indicated by a sentinel file created by the training process, the script builds a container image containing the training results and pushes the image to the specified container registry.
+
+- Main container: It uses one of the supported model images. The image entry launches the [fine\_tuning.py](https://github.com/Azure/kaito/blob/main/presets/tuning/text-generation/fine_tuning.py) script.
+
+All three containers use shared local volumes (by mounting the same `EmptyDir` volumes), hence file copies between containers are avoided.
+
+# Troubleshooting
+
+### Job pod failures
+When the tuning job reaches the failed state, at least one of the above three containers has encountered errors. Users can check the logs of these containers using the `kubectl logs PODNAME -n NAMESPACE -c CONTAINERNAME` command.
+
+For the initcontainer and sidecar container, possible errors include invalid input/output URLs or invalid image pull secrets. Users can fix these problems by updating the workspace custom resource with corrections. The Kaito controller will create a new job using the updated spec.
+
+For the main container, errors may occur when CUDA reports out of GPU memory. Users should reduce the batch size (the default is 1) if it has been customized to a value larger than 1. If the batch size is already 1, the workspace must be recreated using a different GPU SKU with larger GPU memory. Note that Kaito has optimized the training memory usage by dropping the preallocated memory cache. Our internal tests show that the performance impact due to this change is negligible.
+
+### Time for job completion
+The training job can take a long time depending on the size of the input dataset and training pipeline configurations. The total training time is largely determined by the total number of training steps, calculated as:
+```
+total steps = number of epochs * (number of samples in dataset / batch size)
+```
+where `number of epochs` and `batch size` can be customized in the tuning configmap. However, if the `max_steps` parameter is also specified in the configmap, training will stop after reaching the max steps, even if the specified epochs have not been completed.
+
+Please file issues if you experience abnormal slowness of the training job.

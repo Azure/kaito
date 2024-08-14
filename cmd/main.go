@@ -26,6 +26,7 @@ import (
 	"knative.dev/pkg/injection/sharedmain"
 	"knative.dev/pkg/signals"
 	"knative.dev/pkg/webhook"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -116,12 +117,10 @@ func main() {
 	k8sclient.SetGlobalClient(mgr.GetClient())
 	kClient := k8sclient.GetGlobalClient()
 
-	if err = (&controllers.WorkspaceReconciler{
-		Client:   kClient,
-		Log:      log.Log.WithName("controllers").WithName("Workspace"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("KAITO-Workspace-controller"),
-	}).SetupWithManager(mgr); err != nil {
+	workspaceReconciler := controllers.NewWorkspaceReconciler(k8sclient.GetGlobalClient(),
+		mgr.GetScheme(), log.Log.WithName("controllers").WithName("Workspace"), mgr.GetEventRecorderFor("KAITO-Workspace-controller"))
+
+	if err = workspaceReconciler.SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "unable to create controller", "controller", "Workspace")
 		exitWithErrorFunc()
 	}

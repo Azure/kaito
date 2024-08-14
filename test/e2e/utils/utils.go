@@ -8,14 +8,15 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/samber/lo"
@@ -35,7 +36,7 @@ var (
 	// PollInterval defines the interval time for a poll operation.
 	PollInterval = 2 * time.Second
 	// PollTimeout defines the time after which the poll operation times out.
-	PollTimeout = 60 * time.Second
+	PollTimeout = 120 * time.Second
 )
 
 func GetEnv(envVar string) string {
@@ -270,7 +271,7 @@ func GenerateTuningWorkspaceManifest(name, namespace, imageName string, resource
 	return workspace
 }
 
-func GenerateE2ETuningWorkspaceManifest(name, namespace, imageName, outputRegistry string,
+func GenerateE2ETuningWorkspaceManifest(name, namespace, imageName, datasetImageName, outputRegistry string,
 	resourceCount int, instanceType string, labelSelector *metav1.LabelSelector,
 	preferredNodes []string, presetName kaitov1alpha1.ModelName, accessMode kaitov1alpha1.ModelImageAccessMode,
 	imagePullSecret []string, customConfigMapName string) *kaitov1alpha1.Workspace {
@@ -305,7 +306,7 @@ func GenerateE2ETuningWorkspaceManifest(name, namespace, imageName, outputRegist
 	workspace.Tuning = &workspaceTuning
 	workspace.Tuning.Method = kaitov1alpha1.TuningMethodQLora
 	workspace.Tuning.Input = &kaitov1alpha1.DataSource{
-		URLs: []string{ExampleDatasetURL},
+		Image: datasetImageName,
 	}
 	workspace.Tuning.Output = &kaitov1alpha1.DataDestination{
 		Image:           outputRegistry,
