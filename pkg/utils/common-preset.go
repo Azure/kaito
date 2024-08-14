@@ -53,7 +53,7 @@ func ConfigImagePushSecretVolume(imagePushSecret string) (corev1.Volume, corev1.
 
 	volumeMount := corev1.VolumeMount{
 		Name:      "docker-config",
-		MountPath: "/root/.docker/config",
+		MountPath: "/tmp/.docker/config",
 	}
 
 	return volume, volumeMount
