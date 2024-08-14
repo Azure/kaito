@@ -189,7 +189,7 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspace, imageName string,
 	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements, tolerations []corev1.Toleration,
-	initContainers []corev1.Container, sidecarContainers []corev1.Container, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount, 
+	initContainers []corev1.Container, sidecarContainers []corev1.Container, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount,
 	envVars []corev1.EnvVar) *batchv1.Job {
 	labels := map[string]string{
 		kaitov1alpha1.LabelWorkspaceName: wObj.Name,
@@ -275,22 +275,7 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 	initContainers := []corev1.Container{}
 	envs := []corev1.EnvVar{}
 	if len(workspaceObj.Inference.Adapters) > 0 {
-		for _, adapter := range workspaceObj.Inference.Adapters {
-			// TODO: accept Volumes and url link to pull images
-			initContainer := corev1.Container{
-				Name:            adapter.Source.Name,
-				Image:           adapter.Source.Image,
-				Command:         []string{"/bin/sh", "-c", fmt.Sprintf("mkdir -p /mnt/adapter/%s && cp -r /data/* /mnt/adapter/%s", adapter.Source.Name, adapter.Source.Name)},
-				VolumeMounts:    volumeMount,
-				ImagePullPolicy: corev1.PullAlways,
-			}
-			initContainers = append(initContainers, initContainer)
-			env := corev1.EnvVar{
-				Name:  adapter.Source.Name,
-				Value: *adapter.Strength,
-			}
-			envs = append(envs, env)
-		}
+		initContainers, envs = GenerateInitContainers(workspaceObj, volumeMount)
 	}
 
 	return &appsv1.Deployment{
@@ -347,6 +332,30 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 			},
 		},
 	}
+}
+
+func GenerateInitContainers(wObj *kaitov1alpha1.Workspace, volumeMount []corev1.VolumeMount) ([]corev1.Container, []corev1.EnvVar) {
+	var initContainers []corev1.Container
+	var envs []corev1.EnvVar
+	if len(wObj.Inference.Adapters) > 0 {
+		for _, adapter := range wObj.Inference.Adapters {
+			initContainer := corev1.Container{
+				Name:            adapter.Source.Name,
+				Image:           adapter.Source.Image,
+				Command:         []string{"/bin/sh", "-c", fmt.Sprintf("mkdir -p /mnt/adapter/%s && cp -r /data/* /mnt/adapter/%s", adapter.Source.Name, adapter.Source.Name)},
+				VolumeMounts:    volumeMount,
+				ImagePullPolicy: corev1.PullAlways,
+			}
+			initContainers = append(initContainers, initContainer)
+			env := corev1.EnvVar{
+				Name:  adapter.Source.Name,
+				Value: *adapter.Strength,
+			}
+			envs = append(envs, env)
+		}
+
+	}
+	return initContainers, envs
 }
 
 func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, tolerations []corev1.Toleration) *appsv1.Deployment {

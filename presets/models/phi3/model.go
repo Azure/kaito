@@ -31,15 +31,15 @@ func init() {
 }
 
 var (
-	PresetPhi3Mini4kModel   = "phi-3-mini-4k-instruct"
-	PresetPhi3Mini128kModel = "phi-3-mini-128k-instruct"
-	PresetPhi3Medium4kModel = "phi-3-medium-4k-instruct"
+	PresetPhi3Mini4kModel     = "phi-3-mini-4k-instruct"
+	PresetPhi3Mini128kModel   = "phi-3-mini-128k-instruct"
+	PresetPhi3Medium4kModel   = "phi-3-medium-4k-instruct"
 	PresetPhi3Medium128kModel = "phi-3-medium-128k-instruct"
 
 	PresetPhiTagMap = map[string]string{
 		"Phi3Mini4kInstruct":     "0.0.1",
 		"Phi3Mini128kInstruct":   "0.0.1",
-		"Phi3Medium4kInstruct":   "0.0.1", 
+		"Phi3Medium4kInstruct":   "0.0.1",
 		"Phi3Medium128kInstruct": "0.0.1",
 	}
 
@@ -76,8 +76,8 @@ func (*phi3Mini4KInst) GetTuningParameters() *model.PresetParam {
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "16Gi",
-		PerGPUMemoryRequirement:   "16Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		TotalGPUMemoryRequirement: "72Gi",
+		PerGPUMemoryRequirement:   "72Gi",
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
@@ -115,8 +115,8 @@ func (*phi3Mini128KInst) GetTuningParameters() *model.PresetParam {
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "16Gi",
-		PerGPUMemoryRequirement:   "16Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		TotalGPUMemoryRequirement: "72Gi",
+		PerGPUMemoryRequirement:   "72Gi",
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
@@ -139,7 +139,7 @@ func (*Phi3Medium4kInstruct) GetInferenceParameters() *model.PresetParam {
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "16Gi",
+		TotalGPUMemoryRequirement: "28Gi",
 		PerGPUMemoryRequirement:   "0Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            phiRunParams,
@@ -154,8 +154,8 @@ func (*Phi3Medium4kInstruct) GetTuningParameters() *model.PresetParam {
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "13Gi",
-		PerGPUMemoryRequirement:   "13Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		TotalGPUMemoryRequirement: "80Gi",
+		PerGPUMemoryRequirement:   "80Gi",
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
@@ -178,7 +178,7 @@ func (*Phi3Medium128kInstruct) GetInferenceParameters() *model.PresetParam {
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "16Gi",
+		TotalGPUMemoryRequirement: "28Gi",
 		PerGPUMemoryRequirement:   "0Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            phiRunParams,
@@ -193,8 +193,8 @@ func (*Phi3Medium128kInstruct) GetTuningParameters() *model.PresetParam {
 		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
-		TotalGPUMemoryRequirement: "13Gi",
-		PerGPUMemoryRequirement:   "13Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		TotalGPUMemoryRequirement: "80Gi",
+		PerGPUMemoryRequirement:   "80Gi",
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,

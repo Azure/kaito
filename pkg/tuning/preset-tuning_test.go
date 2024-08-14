@@ -441,7 +441,7 @@ func TestPrepareTuningParameters(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			commands, resources := prepareTuningParameters(ctx, tc.workspaceObj, tc.modelCommand, tc.tuningObj)
+			commands, resources := prepareTuningParameters(ctx, tc.workspaceObj, tc.modelCommand, tc.tuningObj, "2")
 			assert.Equal(t, tc.expectedCommands, commands)
 			assert.Equal(t, tc.expectedRequirements.Requests, resources.Requests)
 			assert.Equal(t, tc.expectedRequirements.Limits, resources.Limits)

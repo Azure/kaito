@@ -12,7 +12,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/utils"
+	"github.com/azure/kaito/pkg/utils/consts"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -76,7 +76,7 @@ func GenerateMachineManifest(ctx context.Context, storageRequirement string, wor
 				{
 					Key:      LabelGPUProvisionerCustom,
 					Operator: v1.NodeSelectorOpIn,
-					Values:   []string{utils.GPUString},
+					Values:   []string{consts.GPUString},
 				},
 				{
 					Key:      v1.LabelArchStable,
@@ -91,8 +91,8 @@ func GenerateMachineManifest(ctx context.Context, storageRequirement string, wor
 			},
 			Taints: []v1.Taint{
 				{
-					Key:    utils.SKUString,
-					Value:  utils.GPUString,
+					Key:    consts.SKUString,
+					Value:  consts.GPUString,
 					Effect: v1.TaintEffectNoSchedule,
 				},
 			},

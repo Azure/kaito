@@ -5,6 +5,8 @@ package inference
 
 import (
 	"context"
+	"github.com/azure/kaito/pkg/utils/consts"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -74,6 +76,7 @@ func TestCreatePresetInference(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
+			os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
 			mockClient := test.NewClient()
 			tc.callMocks(mockClient)
 
