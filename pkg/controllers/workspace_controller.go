@@ -5,11 +5,16 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
+
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/nodeclaim"
@@ -34,6 +39,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
@@ -46,8 +52,10 @@ import (
 )
 
 const (
-	gpuSkuPrefix             = "Standard_N"
-	nodePluginInstallTimeout = 60 * time.Second
+	gpuSkuPrefix                = "Standard_N"
+	nodePluginInstallTimeout    = 60 * time.Second
+	WorkspaceRevisionAnnotation = "workspace.kaito.io/revision"
+	WorkspaceNameLabel          = "workspace.kaito.io/name"
 )
 
 type WorkspaceReconciler struct {
@@ -55,6 +63,15 @@ type WorkspaceReconciler struct {
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
+}
+
+func NewWorkspaceReconciler(client client.Client, scheme *runtime.Scheme, log logr.Logger, Recorder record.EventRecorder) *WorkspaceReconciler {
+	return &WorkspaceReconciler{
+		Client:   client,
+		Scheme:   scheme,
+		Log:      log,
+		Recorder: Recorder,
+	}
 }
 
 func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
@@ -83,7 +100,17 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		}
 	}
 
-	return c.addOrUpdateWorkspace(ctx, workspaceObj)
+	result, err := c.addOrUpdateWorkspace(ctx, workspaceObj)
+	if err != nil {
+		return result, err
+	}
+
+	if err := c.updateControllerRevision(ctx, workspaceObj); err != nil {
+		klog.ErrorS(err, "failed to update ControllerRevision", "workspace", klog.KObj(workspaceObj))
+		return reconcile.Result{}, nil
+	}
+
+	return result, nil
 }
 
 func (c *WorkspaceReconciler) ensureFinalizer(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace) error {
@@ -178,6 +205,175 @@ func (c *WorkspaceReconciler) deleteWorkspace(ctx context.Context, wObj *kaitov1
 	}
 
 	return c.garbageCollectWorkspace(ctx, wObj)
+}
+
+func (c *WorkspaceReconciler) updateControllerRevision(ctx context.Context, wObj *kaitov1alpha1.Workspace) error { // TODO: Move non-updateControllerRevision related logic to separate functions
+	currentHash := computeHash(wObj)
+	annotations := wObj.GetAnnotations()
+
+	latestHash, exists := annotations[WorkspaceRevisionAnnotation]
+	if exists && latestHash == currentHash {
+		return nil
+	}
+
+	jsonData, err := json.Marshal(wObj)
+	if err != nil {
+		return fmt.Errorf("failed to marshal revision data: %w", err)
+	}
+
+	revisions := &appsv1.ControllerRevisionList{}
+	if err := c.List(ctx, revisions, client.InNamespace(wObj.Namespace), client.MatchingLabels{WorkspaceNameLabel: wObj.Name}); err != nil {
+		return fmt.Errorf("failed to list revisions: %w", err)
+	}
+	sort.Slice(revisions.Items, func(i, j int) bool {
+		return revisions.Items[i].Revision < revisions.Items[j].Revision
+	})
+
+	revisionNum := int64(1)
+	var latestRevision *appsv1.ControllerRevision
+	var previousWObj *kaitov1alpha1.Workspace
+
+	if len(revisions.Items) > 0 {
+		revisionNum = revisions.Items[len(revisions.Items)-1].Revision + 1
+		for i := range revisions.Items {
+			if revisions.Items[i].Annotations[WorkspaceRevisionAnnotation] == latestHash {
+				latestRevision = &revisions.Items[i]
+				break
+			}
+		}
+		if latestRevision != nil {
+			previousWObj = &kaitov1alpha1.Workspace{}
+			if err := json.Unmarshal(latestRevision.Data.Raw, previousWObj); err != nil {
+				return fmt.Errorf("failed to unmarshal previous workspace object: %w", err)
+			}
+		}
+	}
+
+	newRevision := &appsv1.ControllerRevision{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%s", wObj.Name, currentHash[:8]),
+			Namespace: wObj.Namespace,
+			Labels: map[string]string{
+				WorkspaceNameLabel: wObj.Name,
+			},
+			Annotations: map[string]string{
+				WorkspaceRevisionAnnotation: currentHash,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(wObj, kaitov1alpha1.GroupVersion.WithKind("Workspace")),
+			},
+		},
+		Revision: revisionNum,
+		Data:     runtime.RawExtension{Raw: jsonData},
+	}
+
+	if annotations == nil {
+		annotations = make(map[string]string)
+	} // nil checking.
+
+	annotations[WorkspaceRevisionAnnotation] = currentHash
+	wObj.SetAnnotations(annotations)
+	deployment := &appsv1.Deployment{}
+	if wObj.Inference != nil {
+		if previousWObj == nil || !compareAdapters(previousWObj.Inference.Adapters, wObj.Inference.Adapters) {
+			if err := c.Get(ctx, types.NamespacedName{
+				Name:      wObj.Name,
+				Namespace: wObj.Namespace,
+			}, deployment); err != nil {
+				if !errors.IsNotFound(err) {
+					klog.ErrorS(err, "failed to get deployment", "deplyment", wObj.Name)
+				}
+				return client.IgnoreNotFound(err)
+			}
+			if deployment.Annotations == nil {
+				deployment.Annotations = make(map[string]string)
+			}
+
+			if hash, exists := deployment.Annotations[WorkspaceRevisionAnnotation]; !exists || (hash != currentHash) {
+
+				var volumes []corev1.Volume
+				var volumeMounts []corev1.VolumeMount
+				shmVolume, shmVolumeMount := utils.ConfigSHMVolume(*wObj.Resource.Count)
+				if shmVolume.Name != "" {
+					volumes = append(volumes, shmVolume)
+				}
+				if shmVolumeMount.Name != "" {
+					volumeMounts = append(volumeMounts, shmVolumeMount)
+				}
+
+				if len(wObj.Inference.Adapters) > 0 {
+					adapterVolume, adapterVolumeMount := utils.ConfigAdapterVolume()
+					volumes = append(volumes, adapterVolume)
+					volumeMounts = append(volumeMounts, adapterVolumeMount)
+				}
+
+				initContainers, envs := resources.GenerateInitContainers(wObj, volumeMounts)
+				spec := &deployment.Spec
+				spec.Template.Spec.InitContainers = initContainers
+				spec.Template.Spec.Containers[0].Env = envs
+				spec.Template.Spec.Containers[0].VolumeMounts = volumeMounts
+				deployment.Annotations[WorkspaceRevisionAnnotation] = currentHash
+				spec.Template.Spec.Volumes = volumes
+
+				if err := c.Update(ctx, deployment); err != nil {
+					return fmt.Errorf("failed to update deployment: %w", err)
+				}
+			}
+
+		}
+	}
+	if err := c.Update(ctx, wObj); err != nil {
+		return fmt.Errorf("failed to update Workspace annotations: %w", err)
+	}
+
+	if err := c.Create(ctx, newRevision); err != nil {
+		return fmt.Errorf("failed to create new ControllerRevision: %w", err)
+	}
+
+	if len(revisions.Items) > consts.MaxRevisionHistoryLimit {
+		if err := c.Delete(ctx, &revisions.Items[0]); err != nil {
+			return fmt.Errorf("failed to delete old revision: %w", err)
+		}
+	}
+	return nil
+}
+
+func computeHash(w *kaitov1alpha1.Workspace) string {
+	hasher := sha256.New()
+	encoder := json.NewEncoder(hasher)
+	encoder.Encode(w.Resource)
+	encoder.Encode(w.Inference)
+	encoder.Encode(w.Tuning)
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func compareAdapters(oldAdapters, newAdapters []kaitov1alpha1.AdapterSpec) bool {
+	// If both slices are nil or empty, they are equal
+	if len(oldAdapters) == 0 && len(newAdapters) == 0 {
+		return true
+	}
+
+	// If only one of the slices is nil or empty, they are not equal
+	if len(oldAdapters) != len(newAdapters) {
+		return false
+	}
+
+	oldAdaptersMap := make(map[string]kaitov1alpha1.AdapterSpec)
+	for _, adapter := range oldAdapters {
+		key := fmt.Sprintf("%s-%s", adapter.Source.Name, *adapter.Strength)
+		oldAdaptersMap[key] = adapter
+	}
+
+	for _, adapter := range newAdapters {
+		key := fmt.Sprintf("%s-%s", adapter.Source.Name, *adapter.Strength)
+		oldAdapter, found := oldAdaptersMap[key]
+		if !found || !reflect.DeepEqual(oldAdapter, adapter) {
+			return false
+		}
+		delete(oldAdaptersMap, key)
+	}
+
+	return len(oldAdaptersMap) == 0
 }
 
 func (c *WorkspaceReconciler) selectWorkspaceNodes(qualified []*corev1.Node, preferred []string, previous []string, count int) []*corev1.Node {
@@ -679,6 +875,7 @@ func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&kaitov1alpha1.Workspace{}).
+		Owns(&appsv1.ControllerRevision{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&batchv1.Job{}).

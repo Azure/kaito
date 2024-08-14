@@ -6,6 +6,7 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"github.com/azure/kaito/pkg/utils/consts"
 	"reflect"
 	"regexp"
 	"sort"
@@ -318,25 +319,54 @@ func (r *ResourceSpec) validateCreateWithInference(inference *InferenceSpec) (er
 	if skuConfig, exists := SupportedGPUConfigs[instanceType]; exists {
 		if presetName != "" {
 			model := plugin.KaitoModelRegister.MustGet(presetName) // InferenceSpec has been validated so the name is valid.
-			// Validate GPU count for given SKU
+
 			machineCount := *r.Count
-			totalNumGPUs := machineCount * skuConfig.GPUCount
-			totalGPUMem := machineCount * skuConfig.GPUMem * skuConfig.GPUCount
+			machineTotalNumGPUs := resource.NewQuantity(int64(machineCount*skuConfig.GPUCount), resource.DecimalSI)
+			machinePerGPUMemory := resource.NewQuantity(int64(skuConfig.GPUMem/skuConfig.GPUCount)*consts.GiBToBytes, resource.BinarySI) // Ensure it's per GPU
+			machineTotalGPUMem := resource.NewQuantity(int64(machineCount*skuConfig.GPUMem)*consts.GiBToBytes, resource.BinarySI)        // Total GPU memory
 
 			modelGPUCount := resource.MustParse(model.GetInferenceParameters().GPUCountRequirement)
 			modelPerGPUMemory := resource.MustParse(model.GetInferenceParameters().PerGPUMemoryRequirement)
 			modelTotalGPUMemory := resource.MustParse(model.GetInferenceParameters().TotalGPUMemoryRequirement)
 
 			// Separate the checks for specific error messages
-			if int64(totalNumGPUs) < modelGPUCount.Value() {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient number of GPUs: Instance type %s provides %d, but preset %s requires at least %d", instanceType, totalNumGPUs, presetName, modelGPUCount.Value()), "instanceType"))
+			if machineTotalNumGPUs.Cmp(modelGPUCount) < 0 {
+				errs = errs.Also(apis.ErrInvalidValue(
+					fmt.Sprintf(
+						"Insufficient number of GPUs: Instance type %s provides %s, but preset %s requires at least %d",
+						instanceType,
+						machineTotalNumGPUs.String(),
+						presetName,
+						modelGPUCount.Value(),
+					),
+					"instanceType",
+				))
 			}
-			skuPerGPUMemory := skuConfig.GPUMem / skuConfig.GPUCount
-			if int64(skuPerGPUMemory) < modelPerGPUMemory.ScaledValue(resource.Giga) {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient per GPU memory: Instance type %s provides %d per GPU, but preset %s requires at least %d per GPU", instanceType, skuPerGPUMemory, presetName, modelPerGPUMemory.ScaledValue(resource.Giga)), "instanceType"))
+
+			if machinePerGPUMemory.Cmp(modelPerGPUMemory) < 0 {
+				errs = errs.Also(apis.ErrInvalidValue(
+					fmt.Sprintf(
+						"Insufficient per GPU memory: Instance type %s provides %s per GPU, but preset %s requires at least %s per GPU",
+						instanceType,
+						machinePerGPUMemory.String(),
+						presetName,
+						modelPerGPUMemory.String(),
+					),
+					"instanceType",
+				))
 			}
-			if int64(totalGPUMem) < modelTotalGPUMemory.ScaledValue(resource.Giga) {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient total GPU memory: Instance type %s has a total of %d, but preset %s requires at least %d", instanceType, totalGPUMem, presetName, modelTotalGPUMemory.ScaledValue(resource.Giga)), "instanceType"))
+
+			if machineTotalGPUMem.Cmp(modelTotalGPUMemory) < 0 {
+				errs = errs.Also(apis.ErrInvalidValue(
+					fmt.Sprintf(
+						"Insufficient total GPU memory: Instance type %s has a total of %s, but preset %s requires at least %s",
+						instanceType,
+						machineTotalGPUMem.String(),
+						presetName,
+						modelTotalGPUMemory.String(),
+					),
+					"instanceType",
+				))
 			}
 		}
 	} else {

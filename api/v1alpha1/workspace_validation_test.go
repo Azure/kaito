@@ -204,7 +204,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		validateTuning      bool // To indicate if we are testing tuning validation
 	}{
 		{
-			name: "Valid resource",
+			name: "Valid Resource",
 			resourceSpec: &ResourceSpec{
 				InstanceType: "Standard_ND96asr_v4",
 				Count:        pointerToInt(1),
@@ -212,6 +212,20 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			modelGPUCount:       "8",
 			modelPerGPUMemory:   "19Gi",
 			modelTotalGPUMemory: "152Gi",
+			preset:              true,
+			errContent:          "",
+			expectErrs:          false,
+			validateTuning:      false,
+		},
+		{
+			name: "Valid Resource - SKU Capacity == Model Requirement",
+			resourceSpec: &ResourceSpec{
+				InstanceType: "Standard_NC12s_v3",
+				Count:        pointerToInt(1),
+			},
+			modelGPUCount:       "1",
+			modelPerGPUMemory:   "16Gi",
+			modelTotalGPUMemory: "16Gi",
 			preset:              true,
 			errContent:          "",
 			expectErrs:          false,
