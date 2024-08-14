@@ -3,6 +3,7 @@ name: publish_helm_chart
 on:
   repository_dispatch:
     types: [ create-release ]
+  workflow_dispatch:
 
 permissions:
   id-token: write # This is required for requesting the JWT
