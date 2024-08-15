@@ -217,7 +217,8 @@ jobs:
           --docker-username=${ACR_USERNAME} \
           --docker-password=${ACR_PASSWORD}
 
-      - name: Add Private-Hosted Registry Secret Credentials
+      # Add Private-Hosted ACR secret for private models like llama
+      - name: Add Private-Hosted ACR Secret Credentials
         run: |
           kubectl create secret docker-registry ${{ secrets.E2E_AMRT_SECRET_NAME }} \
           --docker-server=${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io \
