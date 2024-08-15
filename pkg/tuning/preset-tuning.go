@@ -191,7 +191,7 @@ while true; do
           PUSH_SUCCEEDED=true
           # Signal completion
           touch /tmp/upload_complete
-          break
+          exit 0
         else
           echo "Push failed, retrying in 30 seconds..."
           sleep 30
