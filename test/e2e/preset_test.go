@@ -53,8 +53,11 @@ func loadTestEnvVars() {
 		runLlama13B = false
 	}
 
+	// Required for Llama models
 	aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
 	aiModelsRegistrySecret = utils.GetEnv("AI_MODELS_REGISTRY_SECRET")
+	// Currently required for uploading fine-tuning results
+	e2eACRSecret = utils.GetEnv("E2E_ACR_REGISTRY_SECRET")
 	supportedModelsYamlPath = utils.GetEnv("SUPPORTED_MODELS_YAML_PATH")
 	azureClusterName = utils.GetEnv("AZURE_CLUSTER_NAME")
 }
@@ -224,7 +227,7 @@ func createPhi3TuningWorkspaceWithPresetPublicMode(configMapName string, numOfNo
 		workspaceObj = utils.GenerateE2ETuningWorkspaceManifest(uniqueID, namespaceName, "",
 			fullDatasetImageName, outputRegistryUrl, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-tuning-falcon"},
-			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePublic, []string{aiModelsRegistrySecret}, configMapName)
+			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePublic, []string{e2eACRSecret}, configMapName)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
@@ -543,6 +546,7 @@ func deleteWorkspace(workspaceObj *kaitov1alpha1.Workspace) error {
 var runLlama13B bool
 var aiModelsRegistry string
 var aiModelsRegistrySecret string
+var e2eACRSecret string
 var supportedModelsYamlPath string
 var modelInfo map[string]string
 var azureClusterName string
@@ -708,7 +712,7 @@ var _ = Describe("Workspace Preset", func() {
 
 	It("should create a workspace for tuning successfully", func() {
 		numOfNode := 1
-		err := copySecretToNamespace(aiModelsRegistrySecret, namespaceName)
+		err := copySecretToNamespace(e2eACRSecret, namespaceName)
 		if err != nil {
 			log.Fatalf("Error copying secret: %v", err)
 		}
