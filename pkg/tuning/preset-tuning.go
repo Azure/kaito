@@ -176,6 +176,7 @@ while true; do
       ADD adapter_model.safetensors /data/' > "$TEMP_CONTEXT/Dockerfile"
 
 	  # Add symbolic link to read-only mounted config.json
+      mkdir -p /root/.docker
 	  ln -s /tmp/.docker/config/config.json /root/.docker/config.json
 
       docker build -t %s "$TEMP_CONTEXT"

@@ -212,6 +212,12 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 			errs = errs.Also(apis.ErrInvalidValue("Invalid image format, require full input image URL", "Image"))
 		}
 		sourcesSpecified++
+	} else {
+		// Executes if image is of correct format
+		err := utils.ExtractAndValidateRepoName(r.Image)
+		if err != nil {
+			errs = errs.Also(apis.ErrInvalidValue(err.Error(), "Image"))
+		}
 	}
 
 	// Ensure exactly one of URLs, Volume, or Image is specified
@@ -271,16 +277,11 @@ func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 		re := regexp.MustCompile(`^(.+/[^:/]+):([^:/]+)$`)
 		if !re.MatchString(r.Image) {
 			errs = errs.Also(apis.ErrInvalidValue("Invalid image format, require full output image URL", "Image"))
-		} else {	// Executes if image is of correct format
-			// Extract repository name (part after the last / and before the colon :)
-			// Suppose r.Image == modelsregistry.azurecr.io/ADAPTER_HERE:0.0.1
-			parts := strings.Split(r.Image, "/")
-			lastPart := parts[len(parts)-1]           // Extracts "ADAPTER_HERE:0.0.1"
-			repoName := strings.Split(lastPart, ":")[0] // Extracts "ADAPTER_HERE"
-			
-			// Check if repository name is lowercase
-			if repoName != strings.ToLower(repoName) {
-				errs = errs.Also(apis.ErrInvalidValue("Repository name must be lowercase", "Image"))
+		} else {
+			// Executes if image is of correct format
+			err := utils.ExtractAndValidateRepoName(r.Image)
+			if err != nil {
+				errs = errs.Also(apis.ErrInvalidValue(err.Error(), "Image"))
 			}
 		}
 
