@@ -153,6 +153,7 @@ while ! docker info > /dev/null 2>&1; do
   sleep 1
 done
 echo 'Docker daemon started'
+touch /tmp/docker_ready
 
 PUSH_SUCCEEDED=false
 
@@ -189,6 +190,8 @@ while true; do
           # Remove the file to prevent repeated builds
           rm "$FILE_PATH"
           PUSH_SUCCEEDED=true
+          # Signal completion
+          touch /tmp/upload_complete
           break
         else
           echo "Push failed, retrying in 30 seconds..."
@@ -382,8 +385,18 @@ func handleImageDataDestination(ctx context.Context, outputDir, image, imagePush
 		},
 		Command: []string{"/bin/sh", "-c"},
 		Args:    []string{dockerSidecarScriptPushImage(outputDir, image)},
+		ReadinessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				Exec: &corev1.ExecAction{
+					Command: []string{"/bin/sh", "-c", "[ -f /tmp/docker_ready ]"},
+				},
+			},
+			InitialDelaySeconds: 5,
+			PeriodSeconds:       10,
+			FailureThreshold:    1, // Optional: Fail quickly if the probe fails
+			SuccessThreshold:    1, // Optional: Mark as ready immediately after the first success
+		},
 	}
-
 	volume, volumeMount := utils.ConfigImagePushSecretVolume(imagePushSecret)
 	return sidecarContainer, volume, volumeMount
 }

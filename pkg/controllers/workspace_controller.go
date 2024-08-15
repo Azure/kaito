@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/labels"
 	"reflect"
 	"sort"
 	"strings"
@@ -151,21 +152,53 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 			}
 			return reconcile.Result{}, err
 		}
-		// Only mark workspace succeeded when job completes.
+
+		// Get the Job associated with the Workspace
 		job := &batchv1.Job{}
-		if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, job); err == nil {
-			if job.Status.Succeeded > 0 {
-				if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeSucceeded, metav1.ConditionTrue,
-					"workspaceSucceeded", "workspace succeeds"); updateErr != nil {
-					klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
-					return reconcile.Result{}, err
+		if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, job); err != nil {
+			klog.ErrorS(err, "failed to get job resource", "workspace", klog.KObj(wObj))
+			return reconcile.Result{}, err
+		}
+
+		// Get the Pod associated with this Job
+		podList := &corev1.PodList{}
+		if err = c.Client.List(ctx, podList, &client.ListOptions{
+			Namespace:     job.Namespace,
+			LabelSelector: labels.SelectorFromSet(job.Spec.Template.Labels),
+		}); err != nil {
+			klog.ErrorS(err, "failed to get pods for job", "job", klog.KObj(job))
+			return reconcile.Result{}, err
+		}
+
+		if len(podList.Items) == 0 {
+			klog.V(4).InfoS("No pods found for job, waiting", "job", klog.KObj(job))
+			return reconcile.Result{}, nil
+		}
+
+		pod := &podList.Items[0]
+		isMainContainerComplete := false
+
+		// Check if the main container has completed
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			if containerStatus.Name == wObj.Name { // Main container name matches the Workspace name
+				if containerStatus.State.Terminated != nil && containerStatus.State.Terminated.ExitCode == 0 {
+					isMainContainerComplete = true
+					break
 				}
-			} else { // The job is still running
-				if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeSucceeded, metav1.ConditionFalse,
-					"workspacePending", "workspace has not completed"); updateErr != nil {
-					klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
-					return reconcile.Result{}, err
-				}
+			}
+		}
+
+		if isMainContainerComplete {
+			if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeSucceeded, metav1.ConditionTrue,
+				"workspaceSucceeded", "workspace succeeds"); updateErr != nil {
+				klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+				return reconcile.Result{}, updateErr
+			}
+		} else {
+			if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeSucceeded, metav1.ConditionFalse,
+				"workspacePending", "workspace has not completed"); updateErr != nil {
+				klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+				return reconcile.Result{}, updateErr
 			}
 		}
 	} else if wObj.Inference != nil {
