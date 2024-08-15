@@ -196,8 +196,29 @@ jobs:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
-            
-      - name: Add Secret Credentials
+
+      # Retrieve E2E ACR credentials and create Kubernetes secret
+      - name: Set up E2E ACR Credentials and Secret
+        shell: bash
+        run: |
+          # Retrieve the ACR username and password
+          ACR_USERNAME=$(az acr credential show --name ${{ env.CLUSTER_NAME }} --resource-group ${{ env.CLUSTER_NAME }} --query "username" -o tsv)
+          ACR_PASSWORD=$(az acr credential show --name ${{ env.CLUSTER_NAME }} --resource-group ${{ env.CLUSTER_NAME }} --query "passwords[0].value" -o tsv)
+
+          # Ensure credentials were retrieved successfully
+          if [ -z "$ACR_USERNAME" ] || [ -z "$ACR_PASSWORD" ]; then
+            echo "Failed to retrieve ACR credentials"
+            exit 1
+          fi
+
+          # Create the Kubernetes secret with the retrieved credentials
+          kubectl create secret docker-registry ${{ env.CLUSTER_NAME }}-acr-secret \
+          --docker-server=${{ env.CLUSTER_NAME }}.azurecr.io \
+          --docker-username=${ACR_USERNAME} \
+          --docker-password=${ACR_PASSWORD}
+
+      # Add Private-Hosted ACR secret for private models like llama
+      - name: Add Private-Hosted ACR Secret Credentials
         run: |
           kubectl create secret docker-registry ${{ secrets.E2E_AMRT_SECRET_NAME }} \
           --docker-server=${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io \
@@ -218,6 +239,7 @@ jobs:
           AI_MODELS_REGISTRY: ${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io
           AI_MODELS_REGISTRY_SECRET: ${{ secrets.E2E_AMRT_SECRET_NAME }}
           E2E_ACR_REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
+          E2E_ACR_REGISTRY_SECRET: ${{ env.CLUSTER_NAME }}-acr-secret
 
       - name: Cleanup e2e resources
         if: ${{ always() }}
