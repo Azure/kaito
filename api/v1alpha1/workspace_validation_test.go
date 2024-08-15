@@ -1069,6 +1069,17 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 			errFields: []string{"Method"},
 		},
 		{
+			name: "Invalid Input Source Casing",
+			tuningSpec: &TuningSpec{
+				Input:  &DataSource{Name: "valid-input", Image: "AZURE_ACR.azurecr.io/INPUT:0.0.0"},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/output:0.0.0", ImagePushSecret: "secret"},
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method: TuningMethodLora,
+			},
+			wantErr:   true,
+			errFields: []string{"Image"},
+		},
+		{
 			name: "Invalid Output Destination Casing",
 			tuningSpec: &TuningSpec{
 				Input:  &DataSource{Name: "valid-input", Image: "AZURE_ACR.azurecr.io/input:0.0.0"},

@@ -210,14 +210,14 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 		re := regexp.MustCompile(`^(.+/[^:/]+):([^:/]+)$`)
 		if !re.MatchString(r.Image) {
 			errs = errs.Also(apis.ErrInvalidValue("Invalid image format, require full input image URL", "Image"))
+		} else {
+			// Executes if image is of correct format
+			err := utils.ExtractAndValidateRepoName(r.Image)
+			if err != nil {
+				errs = errs.Also(apis.ErrInvalidValue(err.Error(), "Image"))
+			}
 		}
 		sourcesSpecified++
-	} else {
-		// Executes if image is of correct format
-		err := utils.ExtractAndValidateRepoName(r.Image)
-		if err != nil {
-			errs = errs.Also(apis.ErrInvalidValue(err.Error(), "Image"))
-		}
 	}
 
 	// Ensure exactly one of URLs, Volume, or Image is specified
