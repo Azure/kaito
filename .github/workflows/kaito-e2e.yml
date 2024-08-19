@@ -17,9 +17,19 @@ permissions:
 
 jobs:
   run-e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [ gpuprovisioner ]
+    permissions:
+      contents: read
+      id-token: write
+      statuses: write
     uses: ./.github/workflows/e2e-workflow.yml
     with:
       git_sha: ${{ github.event.pull_request.head.sha }}
+      k8s_version: ${{ vars.AKS_K8S_VERSION }}
+      suite: ${{ matrix.suite }}
     secrets:
       E2E_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       E2E_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
