@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -14,7 +15,6 @@ import (
 	azurev1alpha2 "github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
 	awsv1beta1 "github.com/aws/karpenter-provider-aws/pkg/apis/v1beta1"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/utils/consts"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
@@ -190,13 +190,12 @@ func CreateNodeClaim(ctx context.Context, nodeClaimObj *v1beta1.NodeClaim, kubeC
 	return retry.OnError(retry.DefaultBackoff, func(err error) bool {
 		return err.Error() != ErrorInstanceTypesUnavailable
 	}, func() error {
-		if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
-			err := CreateKarpenterNodeClass(ctx, kubeClient)
-			if err != nil {
-				return err
-			}
+		err := CheckNodeClass(ctx, kubeClient)
+		if err != nil {
+			return err
 		}
-		err := kubeClient.Create(ctx, nodeClaimObj, &client.CreateOptions{})
+
+		err = kubeClient.Create(ctx, nodeClaimObj, &client.CreateOptions{})
 		if err != nil {
 			return err
 		}
@@ -221,6 +220,7 @@ func CreateNodeClaim(ctx context.Context, nodeClaimObj *v1beta1.NodeClaim, kubeC
 // CreateKarpenterNodeClass creates a nodeClass object for Karpenter.
 func CreateKarpenterNodeClass(ctx context.Context, kubeClient client.Client) error {
 	cloudName := os.Getenv("CLOUD_PROVIDER")
+	klog.InfoS("CreateKarpenterNodeClass", "cloudName", cloudName)
 
 	if cloudName == consts.AzureCloudName {
 		nodeClassObj := GenerateAKSNodeClassManifest(ctx)
@@ -333,4 +333,22 @@ func IsNodeClassAvailable(ctx context.Context, cloudName string, kubeClient clie
 	}
 	klog.Error("unsupported cloud provider ", cloudName)
 	return false
+}
+
+// CheckNodeClass checks if Karpenter NodeClass is available. If not, the controller will create it automatically.
+// This is only applicable when Karpenter feature flag is enabled.
+func CheckNodeClass(ctx context.Context, kClient client.Client) error {
+	cloudProvider := os.Getenv("CLOUD_PROVIDER")
+	if cloudProvider == "" {
+		return errors.New("CLOUD_PROVIDER environment variable cannot be empty")
+	}
+	if !IsNodeClassAvailable(ctx, cloudProvider, kClient) {
+		klog.Infof("NodeClass is not available, creating NodeClass")
+		if err := CreateKarpenterNodeClass(ctx, kClient);
+			err != nil && client.IgnoreAlreadyExists(err) != nil {
+			klog.ErrorS(err, "unable to create NodeClass")
+			return errors.New("error while creating NodeClass")
+		}
+	}
+	return nil
 }
