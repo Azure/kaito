@@ -6,6 +6,9 @@ on:
       git_sha:
         type: string
         required: true
+      nodeprovisioner:
+        type: string
+        required: true
       tag:
         type: string
       isRelease:
@@ -19,7 +22,6 @@ on:
         default: "eastus"
       k8s_version:
         type: string
-        default: "1.29.2"
     secrets:
       E2E_CLIENT_ID:
         required: true
@@ -34,22 +36,21 @@ on:
       E2E_ACR_AMRT_PASSWORD:
         required: true
 
-permissions:
-  contents: read # This is required for actions/checkout
-
 jobs:
   e2e-tests:
     runs-on: ubuntu-latest
+    name: e2e-tests-${{ inputs.nodeprovisioner }}
     permissions:
       contents: read
       id-token: write # This is required for requesting the JWT
     environment: e2e-test
     env:
       GO_VERSION: "1.22"
-
+      KARPENTER_NAMESPACE: "karpenter"
+      GPU_PROVISIONER_NAMESPACE: "gpu-provisioner"
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+        uses: step-security/harden-runner@5c7944e73c4c2a096b17a9cb74d65b6c2bbafbde # v2.9.1
         with:
           egress-policy: audit
 
@@ -67,15 +68,15 @@ jobs:
           fi
 
           echo "VERSION=${rand}" >> $GITHUB_ENV
-          echo "CLUSTER_NAME=kaito${rand}" >> $GITHUB_ENV
+          echo "CLUSTER_NAME=${{ inputs.nodeprovisioner }}${rand}" >> $GITHUB_ENV
+          echo "REGISTRY=${{ inputs.nodeprovisioner }}${rand}.azurecr.io" >> $GITHUB_ENV
           echo "RUN_LLAMA_13B=false" >> $GITHUB_ENV
-          echo "REGISTRY=kaito${rand}.azurecr.io" >> $GITHUB_ENV
 
       - name: Set Registry
         if: ${{ inputs.isRelease }}
         run: |
-              echo "REGISTRY=${{ inputs.registry }}" >> $GITHUB_ENV
-              echo "VERSION=$(echo ${{ inputs.tag }} | tr -d v)" >> $GITHUB_ENV
+          echo "REGISTRY=${{ inputs.registry }}" >> $GITHUB_ENV
+          echo "VERSION=$(echo ${{ inputs.tag }} | tr -d v)" >> $GITHUB_ENV
 
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v5.0.2
@@ -113,7 +114,7 @@ jobs:
         uses: azure/CLI@v2.0.0
         with:
           inlineScript: |
-            az identity create --name gpuIdentity --resource-group  ${{ env.CLUSTER_NAME }}
+            az identity create --name ${{ inputs.nodeprovisioner }}Identity --resource-group  ${{ env.CLUSTER_NAME }}
 
       - name: Generate APIs
         run: |
@@ -127,7 +128,7 @@ jobs:
         env:
           REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
-      
+
       - name: build adapter image
         shell: bash
         run: |
@@ -135,10 +136,21 @@ jobs:
         env:
           REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
 
+      - name: build dataset image
+        shell: bash
+        run: |
+          make docker-build-dataset
+        env:
+          REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
+
       - name: create cluster
         shell: bash
         run: |
-          make create-aks-cluster
+          if [ "${{ inputs.nodeprovisioner }}" == "gpuprovisioner" ]; then
+             make create-aks-cluster
+          else
+            make create-aks-cluster-for-karpenter
+          fi
         env:
           AZURE_ACR_NAME: ${{ env.CLUSTER_NAME }}
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
@@ -146,11 +158,28 @@ jobs:
           AZURE_LOCATION: ${{ inputs.region }}
           AKS_K8S_VERSION: ${{ inputs.k8s_version }}
 
+      - name: Az login
+        uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
+        with:
+          client-id: ${{ secrets.E2E_CLIENT_ID }}
+          tenant-id: ${{ secrets.E2E_TENANT_ID }}
+          subscription-id: ${{ secrets.E2E_SUBSCRIPTION_ID }}
+
+      - name: Create Identities and Permissions for ${{ inputs.nodeprovisioner }}
+        shell: bash
+        run: |
+          make generate-identities
+        env:
+          AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
+          AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
+          TEST_SUITE: ${{ inputs.nodeprovisioner }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_SUBSCRIPTION_ID }}
+
       - name: Install gpu-provisioner helm chart
+        if: ${{ inputs.nodeprovisioner == 'gpuprovisioner' }}
         shell: bash
         run: |
           make gpu-provisioner-helm
-          kubectl wait --for=condition=available deploy "gpu-provisioner" -n gpu-provisioner --timeout=300s
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
@@ -158,26 +187,33 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_SUBSCRIPTION_ID }}
           GPU_PROVISIONER_VERSION: ${{ vars.GPU_PROVISIONER_VERSION }}
 
+      - name: Install karpenter Azure provider helm chart
+        if: ${{ inputs.nodeprovisioner == 'azkarpenter' }}
+        shell: bash
+        run: |
+          make azure-karpenter-helm
+        env:
+          AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
+          AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
+          AZURE_TENANT_ID: ${{ secrets.E2E_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_SUBSCRIPTION_ID }}
+          KARPENTER_VERSION: ${{ vars.KARPENTER_VERSION }}
+          KARPENTER_NAMESPACE: ${{ env.KARPENTER_NAMESPACE }}
+
       - uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
         with:
           client-id: ${{ secrets.E2E_CLIENT_ID }}
           tenant-id: ${{ secrets.E2E_TENANT_ID }}
           subscription-id: ${{ secrets.E2E_SUBSCRIPTION_ID }}
 
-      - name: Create Role Assignment
-        uses: azure/CLI@v2.0.0
-        with:
-          inlineScript: |
-            IDENTITY_PRINCIPAL_ID="$(az identity show --name gpuIdentity --resource-group ${{ env.CLUSTER_NAME }} --query 'principalId' -otsv)"
-            az role assignment create --assignee ${IDENTITY_PRINCIPAL_ID} --scope "/subscriptions/${{ secrets.E2E_SUBSCRIPTION_ID }}/resourceGroups/${{ env.CLUSTER_NAME }}"  --role "Contributor"
-
-      - name: Create Azure Federated Identity
-        uses: azure/CLI@v2.0.0
-        with:
-          inlineScript: |
-            AKS_OIDC_ISSUER="$(az aks show -n "${{ env.CLUSTER_NAME }}" -g "${{ env.CLUSTER_NAME }}" --query 'oidcIssuerProfile.issuerUrl' -otsv)"
-            az identity federated-credential create --name gpu-fed-credential --identity-name gpuIdentity --resource-group "${{ env.CLUSTER_NAME }}" \
-            --issuer "${AKS_OIDC_ISSUER}" --subject system:serviceaccount:"gpu-provisioner:gpu-provisioner" --audience api://AzureADTokenExchange
+      - name: build KAITO image
+        if: ${{ !inputs.isRelease }}
+        shell: bash
+        run: |
+          make docker-build-kaito
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          VERSION: ${{ env.VERSION }}
 
       - name: Install KAITO Workspace helm chart
         shell: bash
@@ -189,14 +225,44 @@ jobs:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
-            
-      - name: Add Secret Credentials
+          TEST_SUITE: ${{ inputs.nodeprovisioner }}
+
+      # Retrieve E2E ACR credentials and create Kubernetes secret
+      - name: Set up E2E ACR Credentials and Secret
+        shell: bash
+        run: |
+          # Retrieve the ACR username and password
+          ACR_USERNAME=$(az acr credential show --name ${{ env.CLUSTER_NAME }} --resource-group ${{ env.CLUSTER_NAME }} --query "username" -o tsv)
+          ACR_PASSWORD=$(az acr credential show --name ${{ env.CLUSTER_NAME }} --resource-group ${{ env.CLUSTER_NAME }} --query "passwords[0].value" -o tsv)
+
+          # Ensure credentials were retrieved successfully
+          if [ -z "$ACR_USERNAME" ] || [ -z "$ACR_PASSWORD" ]; then
+            echo "Failed to retrieve ACR credentials"
+            exit 1
+          fi
+
+          # Create the Kubernetes secret with the retrieved credentials
+          kubectl create secret docker-registry ${{ env.CLUSTER_NAME }}-acr-secret \
+          --docker-server=${{ env.CLUSTER_NAME }}.azurecr.io \
+          --docker-username=${ACR_USERNAME} \
+          --docker-password=${ACR_PASSWORD}
+
+      # Add Private-Hosted ACR secret for private models like llama
+      - name: Add Private-Hosted ACR Secret Credentials
         run: |
           kubectl create secret docker-registry ${{ secrets.E2E_AMRT_SECRET_NAME }} \
           --docker-server=${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io \
           --docker-username=${{ secrets.E2E_ACR_AMRT_USERNAME }} \
           --docker-password=${{ secrets.E2E_ACR_AMRT_PASSWORD }}
-            
+
+      - name: Log ${{ inputs.nodeprovisioner }}
+        run: |
+          if [ "${{ inputs.nodeprovisioner }}" == "gpuprovisioner" ]; then
+            kubectl logs -n "${{ env.GPU_PROVISIONER_NAMESPACE }}" -l app.kubernetes.io/name=gpu-provisioner -c controller
+          else
+            kubectl logs -n "${{ env.KARPENTER_NAMESPACE }}" -l app.kubernetes.io/name=karpenter -c controller
+          fi
+
       - name: Log kaito-workspace
         run: |
           kubectl get pods -n kaito-workspace -o name | grep "^pod/kaito-workspace" | sed 's/^pod\///' | xargs -I {} kubectl logs -n kaito-workspace {}
@@ -210,7 +276,9 @@ jobs:
           REGISTRY: ${{ env.REGISTRY }}
           AI_MODELS_REGISTRY: ${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io
           AI_MODELS_REGISTRY_SECRET: ${{ secrets.E2E_AMRT_SECRET_NAME }}
-          ADAPTER_REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
+          TEST_SUITE: ${{ inputs.nodeprovisioner }}
+          E2E_ACR_REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
+          E2E_ACR_REGISTRY_SECRET: ${{ env.CLUSTER_NAME }}-acr-secret
 
       - name: Cleanup e2e resources
         if: ${{ always() }}
