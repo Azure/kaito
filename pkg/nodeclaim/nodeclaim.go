@@ -225,9 +225,11 @@ func CreateKarpenterNodeClass(ctx context.Context, kubeClient client.Client) err
 	if cloudName == consts.AzureCloudName {
 		nodeClassObj := GenerateAKSNodeClassManifest(ctx)
 		return kubeClient.Create(ctx, nodeClassObj, &client.CreateOptions{})
-	} else { //aws
+	} else if cloudName == consts.AWSCloudName {
 		nodeClassObj := GenerateEC2NodeClassManifest(ctx)
 		return kubeClient.Create(ctx, nodeClassObj, &client.CreateOptions{})
+	} else {
+		return errors.New("unsupported cloud provider " + cloudName)
 	}
 }
 
