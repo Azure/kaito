@@ -32,4 +32,3 @@ tolerations: []
 affinity: {}
 # Values can be "azure" or "aws"
 cloudProviderName: "azure"
-clusterName: ""
