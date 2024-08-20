@@ -30,7 +30,7 @@ AKS_K8S_VERSION ?= 1.30.0
 AZURE_RESOURCE_GROUP ?= demo
 AZURE_CLUSTER_NAME ?= kaito-demo
 AZURE_RESOURCE_GROUP_MC=MC_$(AZURE_RESOURCE_GROUP)_$(AZURE_CLUSTER_NAME)_$(AZURE_LOCATION)
-GPU_NAMESPACE ?= gpu-provisioner
+GPU_PROVISIONER_NAMESPACE ?= gpu-provisioner
 KAITO_NAMESPACE ?= kaito-workspace
 GPU_PROVISIONER_MSI_NAME ?= gpuprovisionerIdentity
 
@@ -118,8 +118,9 @@ $(E2E_TEST):
 .PHONY: kaito-workspace-e2e-test
 kaito-workspace-e2e-test: $(E2E_TEST) $(GINKGO)
 	AI_MODELS_REGISTRY_SECRET=$(AI_MODELS_REGISTRY_SECRET) RUN_LLAMA_13B=$(RUN_LLAMA_13B) \
- 	AI_MODELS_REGISTRY=$(AI_MODELS_REGISTRY) GPU_NAMESPACE=$(GPU_NAMESPACE) KAITO_NAMESPACE=$(KAITO_NAMESPACE) \
- 	TEST_SUITE=$(TEST_SUITE) SUPPORTED_MODELS_YAML_PATH=$(SUPPORTED_MODELS_YAML_PATH) \
+ 	AI_MODELS_REGISTRY=$(AI_MODELS_REGISTRY) GPU_PROVISIONER_NAMESPACE=$(GPU_PROVISIONER_NAMESPACE) \
+ 	KARPENTER_NAMESPACE=$(KARPENTER_NAMESPACE) KAITO_NAMESPACE=$(KAITO_NAMESPACE) TEST_SUITE=$(TEST_SUITE) \
+	SUPPORTED_MODELS_YAML_PATH=$(SUPPORTED_MODELS_YAML_PATH) \
  	$(GINKGO) -v -trace $(GINKGO_ARGS) $(E2E_TEST)
 
 ## --------------------------------------
@@ -242,7 +243,7 @@ gpu-provisioner-helm:  ## Update Azure client env vars and settings in helm valu
 	chmod +x ./configure-helm-values.sh && ./configure-helm-values.sh $(AZURE_CLUSTER_NAME) \
 	$(AZURE_RESOURCE_GROUP) $(GPU_PROVISIONER_MSI_NAME)
 
-	helm install gpu-provisioner \
+	helm install $(GPU_PROVISIONER_NAMESPACE) \
 	--values gpu-provisioner-values.yaml \
 	--set settings.azure.clusterName=$(AZURE_CLUSTER_NAME) \
 	https://github.com/Azure/gpu-provisioner/raw/gh-pages/charts/gpu-provisioner-$(GPU_PROVISIONER_VERSION).tgz
