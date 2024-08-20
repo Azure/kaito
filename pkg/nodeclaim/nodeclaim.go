@@ -346,8 +346,7 @@ func CheckNodeClass(ctx context.Context, kClient client.Client) error {
 	}
 	if !IsNodeClassAvailable(ctx, cloudProvider, kClient) {
 		klog.Infof("NodeClass is not available, creating NodeClass")
-		if err := CreateKarpenterNodeClass(ctx, kClient);
-			err != nil && client.IgnoreAlreadyExists(err) != nil {
+		if err := CreateKarpenterNodeClass(ctx, kClient); err != nil && client.IgnoreAlreadyExists(err) != nil {
 			klog.ErrorS(err, "unable to create NodeClass")
 			return errors.New("error while creating NodeClass")
 		}

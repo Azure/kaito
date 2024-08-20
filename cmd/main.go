@@ -16,6 +16,7 @@ import (
 	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/k8sclient"
 	"github.com/azure/kaito/pkg/nodeclaim"
+	"github.com/azure/kaito/pkg/utils/consts"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 
@@ -160,16 +161,18 @@ func main() {
 
 		// wait 2 seconds to allow reconciling webhookconfiguration and service endpoint.
 		time.Sleep(2 * time.Second)
-
-		if err := featuregates.ParseAndValidateFeatureGates(featureGates); err != nil {
-			klog.ErrorS(err, "unable to set `feature-gates` flag")
-			exitWithErrorFunc()
-		}
 	}
 
-	err = nodeclaim.CheckNodeClass(ctx, kClient)
-	if err != nil {
+	if err := featuregates.ParseAndValidateFeatureGates(featureGates); err != nil {
+		klog.ErrorS(err, "unable to set `feature-gates` flag")
 		exitWithErrorFunc()
+	}
+
+	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+		err = nodeclaim.CheckNodeClass(ctx, kClient)
+		if err != nil {
+			exitWithErrorFunc()
+		}
 	}
 
 	klog.InfoS("starting manager")
