@@ -6,7 +6,7 @@ on:
       git_sha:
         type: string
         required: true
-      nodeprovisioner:
+      node_provisioner:
         type: string
         required: true
       tag:
@@ -39,7 +39,7 @@ on:
 jobs:
   e2e-tests:
     runs-on: ubuntu-latest
-    name: e2e-tests-${{ inputs.nodeprovisioner }}
+    name: e2e-tests-${{ inputs.node_provisioner }}
     permissions:
       contents: read
       id-token: write # This is required for requesting the JWT
@@ -68,8 +68,8 @@ jobs:
           fi
 
           echo "VERSION=${rand}" >> $GITHUB_ENV
-          echo "CLUSTER_NAME=${{ inputs.nodeprovisioner }}${rand}" >> $GITHUB_ENV
-          echo "REGISTRY=${{ inputs.nodeprovisioner }}${rand}.azurecr.io" >> $GITHUB_ENV
+          echo "CLUSTER_NAME=${{ inputs.node_provisioner }}${rand}" >> $GITHUB_ENV
+          echo "REGISTRY=${{ inputs.node_provisioner }}${rand}.azurecr.io" >> $GITHUB_ENV
           echo "RUN_LLAMA_13B=false" >> $GITHUB_ENV
 
       - name: Set Registry
@@ -114,7 +114,7 @@ jobs:
         uses: azure/CLI@v2.0.0
         with:
           inlineScript: |
-            az identity create --name ${{ inputs.nodeprovisioner }}Identity --resource-group  ${{ env.CLUSTER_NAME }}
+            az identity create --name ${{ inputs.node_provisioner }}Identity --resource-group  ${{ env.CLUSTER_NAME }}
 
       - name: Generate APIs
         run: |
@@ -146,7 +146,7 @@ jobs:
       - name: create cluster
         shell: bash
         run: |
-          if [ "${{ inputs.nodeprovisioner }}" == "gpuprovisioner" ]; then
+          if [ "${{ inputs.node_provisioner }}" == "gpuprovisioner" ]; then
              make create-aks-cluster
           else
             make create-aks-cluster-for-karpenter
@@ -165,18 +165,18 @@ jobs:
           tenant-id: ${{ secrets.E2E_TENANT_ID }}
           subscription-id: ${{ secrets.E2E_SUBSCRIPTION_ID }}
 
-      - name: Create Identities and Permissions for ${{ inputs.nodeprovisioner }}
+      - name: Create Identities and Permissions for ${{ inputs.node_provisioner }}
         shell: bash
         run: |
           make generate-identities
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
-          TEST_SUITE: ${{ inputs.nodeprovisioner }}
+          TEST_SUITE: ${{ inputs.node_provisioner }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_SUBSCRIPTION_ID }}
 
       - name: Install gpu-provisioner helm chart
-        if: ${{ inputs.nodeprovisioner == 'gpuprovisioner' }}
+        if: ${{ inputs.node_provisioner == 'gpuprovisioner' }}
         shell: bash
         run: |
           make gpu-provisioner-helm
@@ -188,7 +188,7 @@ jobs:
           GPU_PROVISIONER_VERSION: ${{ vars.GPU_PROVISIONER_VERSION }}
 
       - name: Install karpenter Azure provider helm chart
-        if: ${{ inputs.nodeprovisioner == 'azkarpenter' }}
+        if: ${{ inputs.node_provisioner == 'azkarpenter' }}
         shell: bash
         run: |
           make azure-karpenter-helm
@@ -225,7 +225,7 @@ jobs:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
-          TEST_SUITE: ${{ inputs.nodeprovisioner }}
+          TEST_SUITE: ${{ inputs.node_provisioner }}
 
       # Retrieve E2E ACR credentials and create Kubernetes secret
       - name: Set up E2E ACR Credentials and Secret
@@ -255,9 +255,9 @@ jobs:
           --docker-username=${{ secrets.E2E_ACR_AMRT_USERNAME }} \
           --docker-password=${{ secrets.E2E_ACR_AMRT_PASSWORD }}
 
-      - name: Log ${{ inputs.nodeprovisioner }}
+      - name: Log ${{ inputs.node_provisioner }}
         run: |
-          if [ "${{ inputs.nodeprovisioner }}" == "gpuprovisioner" ]; then
+          if [ "${{ inputs.node_provisioner }}" == "gpuprovisioner" ]; then
             kubectl logs -n "${{ env.GPU_PROVISIONER_NAMESPACE }}" -l app.kubernetes.io/name=gpu-provisioner -c controller
           else
             kubectl logs -n "${{ env.KARPENTER_NAMESPACE }}" -l app.kubernetes.io/name=karpenter -c controller
@@ -276,7 +276,7 @@ jobs:
           REGISTRY: ${{ env.REGISTRY }}
           AI_MODELS_REGISTRY: ${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io
           AI_MODELS_REGISTRY_SECRET: ${{ secrets.E2E_AMRT_SECRET_NAME }}
-          TEST_SUITE: ${{ inputs.nodeprovisioner }}
+          TEST_SUITE: ${{ inputs.node_provisioner }}
           E2E_ACR_REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
           E2E_ACR_REGISTRY_SECRET: ${{ env.CLUSTER_NAME }}-acr-secret
 
