@@ -22,16 +22,23 @@ E2E_TEST := $(BIN_DIR)/$(E2E_TEST_BIN)
 GINKGO_VER := v2.19.0
 GINKGO_BIN := ginkgo
 GINKGO := $(TOOLS_BIN_DIR)/$(GINKGO_BIN)-$(GINKGO_VER)
+TEST_SUITE ?= gpuprovisioner
 
 AZURE_SUBSCRIPTION_ID ?= $(AZURE_SUBSCRIPTION_ID)
 AZURE_LOCATION ?= eastus
-AKS_K8S_VERSION ?= 1.29.2
+AKS_K8S_VERSION ?= 1.30.0
 AZURE_RESOURCE_GROUP ?= demo
 AZURE_CLUSTER_NAME ?= kaito-demo
 AZURE_RESOURCE_GROUP_MC=MC_$(AZURE_RESOURCE_GROUP)_$(AZURE_CLUSTER_NAME)_$(AZURE_LOCATION)
 GPU_NAMESPACE ?= gpu-provisioner
 KAITO_NAMESPACE ?= kaito-workspace
-GPU_PROVISIONER_MSI_NAME ?= gpuIdentity
+GPU_PROVISIONER_MSI_NAME ?= gpuprovisionerIdentity
+
+## Azure Karpenter parameters
+KARPENTER_NAMESPACE ?= karpenter
+KARPENTER_SA_NAME ?= karpenter-sa
+KARPENTER_VERSION ?= 0.5.1
+AZURE_KARPENTER_MSI_NAME ?= azkarpenterIdentity
 
 RUN_LLAMA_13B ?= false
 AI_MODELS_REGISTRY ?= modelregistry.azurecr.io
@@ -54,7 +61,6 @@ endif
 
 $(GOLANGCI_LINT):
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/golangci/golangci-lint/cmd/golangci-lint $(GOLANGCI_LINT_BIN) $(GOLANGCI_LINT_VER)
-
 $(GINKGO):
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/onsi/ginkgo/v2/ginkgo $(GINKGO_BIN) $(GINKGO_VER)
 
@@ -80,12 +86,8 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
-.PHONY: fmt
-fmt: ## Run go fmt against code.
-	go fmt ./...
-
 ## --------------------------------------
-## Tests
+## Unit Tests
 ## --------------------------------------
 .PHONY: unit-test
 unit-test: ## Run unit tests.
@@ -94,12 +96,13 @@ unit-test: ## Run unit tests.
 	-race -coverprofile=coverage.txt -covermode=atomic
 	go tool cover -func=coverage.txt
 
+## --------------------------------------
+## E2E tests
+## --------------------------------------
+
 inference-api-e2e: 
 	pip install -r presets/inference/text-generation/requirements.txt
 	pytest -o log_cli=true -o log_cli_level=INFO .
-
-$(E2E_TEST):
-	(cd test/e2e && go test -c . -o $(E2E_TEST))
 
 # Ginkgo configurations
 GINKGO_FOCUS ?=
@@ -109,12 +112,19 @@ GINKGO_NO_COLOR ?= false
 GINKGO_TIMEOUT ?= 120m
 GINKGO_ARGS ?= -focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" -nodes=$(GINKGO_NODES) -no-color=$(GINKGO_NO_COLOR) -timeout=$(GINKGO_TIMEOUT)
 
+$(E2E_TEST):
+	(cd test/e2e && go test -c . -o $(E2E_TEST))
+
 .PHONY: kaito-workspace-e2e-test
 kaito-workspace-e2e-test: $(E2E_TEST) $(GINKGO)
 	AI_MODELS_REGISTRY_SECRET=$(AI_MODELS_REGISTRY_SECRET) RUN_LLAMA_13B=$(RUN_LLAMA_13B) \
  	AI_MODELS_REGISTRY=$(AI_MODELS_REGISTRY) GPU_NAMESPACE=$(GPU_NAMESPACE) KAITO_NAMESPACE=$(KAITO_NAMESPACE) \
-	SUPPORTED_MODELS_YAML_PATH=$(SUPPORTED_MODELS_YAML_PATH) \
+ 	TEST_SUITE=$(TEST_SUITE) SUPPORTED_MODELS_YAML_PATH=$(SUPPORTED_MODELS_YAML_PATH) \
  	$(GINKGO) -v -trace $(GINKGO_ARGS) $(E2E_TEST)
+
+## --------------------------------------
+## Azure resources
+## --------------------------------------
 
 .PHONY: create-rg
 create-rg: ## Create resource group
@@ -127,47 +137,32 @@ create-acr:  ## Create test ACR
 
 .PHONY: create-aks-cluster
 create-aks-cluster: ## Create test AKS cluster (with msi, oidc, and workload identity enabled)
-	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --location $(AZURE_LOCATION) \
-	--attach-acr $(AZURE_ACR_NAME) 	--kubernetes-version $(AKS_K8S_VERSION) --node-count 1 --generate-ssh-keys  \
+	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) \
+	--location $(AZURE_LOCATION) --attach-acr $(AZURE_ACR_NAME) \
+	--kubernetes-version $(AKS_K8S_VERSION) --node-count 1 --generate-ssh-keys  \
 	--enable-managed-identity --enable-workload-identity --enable-oidc-issuer --node-vm-size Standard_D2s_v3 -o none
+	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --overwrite-existing
 
 .PHONY: create-aks-cluster-with-kaito
 create-aks-cluster-with-kaito: ## Create test AKS cluster (with msi, oidc and kaito enabled)
-	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --location $(AZURE_LOCATION) --node-count 1 \
- 	--generate-ssh-keys --enable-managed-identity --enable-oidc-issuer --enable-ai-toolchain-operator -o none
+	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) \
+	--location $(AZURE_LOCATION) --attach-acr $(AZURE_ACR_NAME) \
+	--kubernetes-version $(AKS_K8S_VERSION) --node-count 1 --generate-ssh-keys  \
+	--enable-managed-identity --enable-workload-identity --enable-oidc-issuer -o none
+	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --overwrite-existing
 
-	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
+.PHONY: create-aks-cluster-for-karpenter
+create-aks-cluster-for-karpenter: ## Create test AKS cluster (with msi, cilium, oidc, and workload identity enabled)
+	az aks create --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) \
+    --location $(AZURE_LOCATION) --attach-acr $(AZURE_ACR_NAME) --node-vm-size "Standard_D2s_v3" \
+    --kubernetes-version $(AKS_K8S_VERSION) --node-count 3 --generate-ssh-keys \
+    --network-plugin azure --network-plugin-mode overlay --network-dataplane cilium \
+    --enable-managed-identity --enable-oidc-issuer --enable-workload-identity -o none
+	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --overwrite-existing
 
-.PHONY: prepare-kaito-addon-identity
-prepare-kaito-addon-identity:
-	IDENTITY_PRINCIPAL_ID=$(shell az identity show --name "ai-toolchain-operator-$(AZURE_CLUSTER_NAME)" -g "$(AZURE_RESOURCE_GROUP_MC)"  --query 'principalId');\
-	az role assignment create --assignee $$IDENTITY_PRINCIPAL_ID --scope "/subscriptions/$(AZURE_SUBSCRIPTION_ID)/resourceGroups/$(AZURE_RESOURCE_GROUP_MC)"  --role "Contributor"
-
-	AKS_OIDC_ISSUER=$(shell az aks show -n "$(AZURE_CLUSTER_NAME)" -g "$(AZURE_RESOURCE_GROUP_MC)" --query 'oidcIssuerProfile.issuerUrl');\
-	az identity federated-credential create --name gpu-federated-cred --identity-name "ai-toolchain-operator-$(AZURE_CLUSTER_NAME)" \
-    -g "$(AZURE_RESOURCE_GROUP)" --issuer $$AKS_OIDC_ISSUER \
-    --subject system:serviceaccount:"$(KAITO_NAMESPACE):kaito-gpu-provisioner" --audience api://AzureADTokenExchange
-
-.PHONY: az-patch-install-helm
-az-patch-install-helm: ## Update Azure client env vars and settings in helm values.yml
-	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
-
-	yq -i '(.image.repository)                                              = "$(REGISTRY)/workspace"'                    ./charts/kaito/workspace/values.yaml
-	yq -i '(.image.tag)                                                     = "$(IMG_TAG)"'                               ./charts/kaito/workspace/values.yaml
-
-	helm install kaito-workspace ./charts/kaito/workspace --namespace $(KAITO_NAMESPACE) --create-namespace
-
-##@ Build
-
-.PHONY: build
-build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/*.go
-
-.PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/main.go
-
-##@ Docker
+## --------------------------------------
+## Image Docker Build
+## --------------------------------------
 BUILDX_BUILDER_NAME ?= img-builder
 OUTPUT_TYPE ?= type=registry
 QEMU_VERSION ?= 7.2.0-1
@@ -208,39 +203,90 @@ docker-build-dataset: docker-buildx
 		--pull \
 		--tag $(REGISTRY)/e2e-dataset:0.0.1 .
 
-##@ Deployment
+## --------------------------------------
+## Kaito Installation
+## --------------------------------------
+.PHONY: prepare-kaito-addon-identity
+prepare-kaito-addon-identity:
+	IDENTITY_PRINCIPAL_ID=$(shell az identity show --name "ai-toolchain-operator-$(AZURE_CLUSTER_NAME)" -g "$(AZURE_RESOURCE_GROUP_MC)"  --query 'principalId');\
+	az role assignment create --assignee $$IDENTITY_PRINCIPAL_ID --scope "/subscriptions/$(AZURE_SUBSCRIPTION_ID)/resourceGroups/$(AZURE_RESOURCE_GROUP_MC)"  --role "Contributor"
 
-ifndef ignore-not-found
-  ignore-not-found = false
-endif
+	AKS_OIDC_ISSUER=$(shell az aks show -n "$(AZURE_CLUSTER_NAME)" -g "$(AZURE_RESOURCE_GROUP_MC)" --query 'oidcIssuerProfile.issuerUrl');\
+	az identity federated-credential create --name gpu-federated-cred --identity-name "ai-toolchain-operator-$(AZURE_CLUSTER_NAME)" \
+    -g "$(AZURE_RESOURCE_GROUP)" --issuer $$AKS_OIDC_ISSUER \
+    --subject system:serviceaccount:"$(KAITO_NAMESPACE):kaito-gpu-provisioner" --audience api://AzureADTokenExchange
 
-##@ gpu-provider
-gpu-provisioner-identity-perm: ## Create identity for gpu-provisioner
-	az identity create --name $(GPU_PROVISIONER_MSI_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
-
-	IDENTITY_PRINCIPAL_ID=$(shell az identity show --name $(GPU_PROVISIONER_MSI_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --subscription $(AZURE_SUBSCRIPTION_ID) --query 'principalId');\
-	az role assignment create --assignee $$IDENTITY_PRINCIPAL_ID --scope /subscriptions/$(AZURE_SUBSCRIPTION_ID)/resourceGroups/$(AZURE_RESOURCE_GROUP)  --role "Contributor"
-
-	AKS_OIDC_ISSUER=$(shell az aks show -n "$(AZURE_CLUSTER_NAME)" -g "$(AZURE_RESOURCE_GROUP)" --subscription $(AZURE_SUBSCRIPTION_ID) --query "oidcIssuerProfile.issuerUrl");\
-	az identity federated-credential create --name gpu-federatecredential --identity-name $(GPU_PROVISIONER_MSI_NAME) --resource-group "$(AZURE_RESOURCE_GROUP)" --issuer $$AKS_OIDC_ISSUER \
-	--subject system:serviceaccount:"$(GPU_NAMESPACE):$(GPU_NAMESPACE)" --audience api://AzureADTokenExchange --subscription $(AZURE_SUBSCRIPTION_ID)
-
-.PHONY: gpu-provisioner-helm
-gpu-provisioner-helm:  ## Update Azure client env vars and settings in helm values.yml
+.PHONY: az-patch-install-helm
+az-patch-install-helm: ## Update Azure client env vars and settings in helm values.yml
 	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
 
-	curl -sO https://raw.githubusercontent.com/Azure/gpu-provisioner/main/hack/deploy/configure-helm-values.sh
-	chmod +x ./configure-helm-values.sh && ./configure-helm-values.sh $(AZURE_CLUSTER_NAME) $(AZURE_RESOURCE_GROUP) $(GPU_PROVISIONER_MSI_NAME)
+	yq -i '(.image.repository)                                              = "$(REGISTRY)/workspace"'                    ./charts/kaito/workspace/values.yaml
+	yq -i '(.image.tag)                                                     = "$(IMG_TAG)"'                               ./charts/kaito/workspace/values.yaml
+	if [ $(TEST_SUITE) = "azkarpenter" ]; then \
+		yq -i '(.featureGates.Karpenter)                                    = "true"'                                       ./charts/kaito/workspace/values.yaml; \
+	fi
+	yq -i '(.clusterName)                                                   = "$(AZURE_CLUSTER_NAME)"'                    ./charts/kaito/workspace/values.yaml
 
-	helm install $(GPU_NAMESPACE) --values gpu-provisioner-values.yaml --set settings.azure.clusterName=$(AZURE_CLUSTER_NAME) --wait \
+	helm install kaito-workspace ./charts/kaito/workspace --namespace $(KAITO_NAMESPACE) --create-namespace
+
+generate-identities: ## Create identities for the provisioner component.
+	./hack/deploy/generate-identities.sh \
+	$(AZURE_CLUSTER_NAME) $(AZURE_RESOURCE_GROUP) $(TEST_SUITE) $(AZURE_SUBSCRIPTION_ID)
+
+## --------------------------------------
+## gpu-provider installation
+## --------------------------------------
+.PHONY: gpu-provisioner-helm
+gpu-provisioner-helm:  ## Update Azure client env vars and settings in helm values.yml
+	curl -sO https://raw.githubusercontent.com/Azure/gpu-provisioner/main/hack/deploy/configure-helm-values.sh
+	chmod +x ./configure-helm-values.sh && ./configure-helm-values.sh $(AZURE_CLUSTER_NAME) \
+	$(AZURE_RESOURCE_GROUP) $(GPU_PROVISIONER_MSI_NAME)
+
+	helm install gpu-provisioner \
+	--values gpu-provisioner-values.yaml \
+	--set settings.azure.clusterName=$(AZURE_CLUSTER_NAME) \
 	https://github.com/Azure/gpu-provisioner/raw/gh-pages/charts/gpu-provisioner-$(GPU_PROVISIONER_VERSION).tgz
 
-##@ Build Dependencies
+	kubectl wait --for=condition=available deploy "gpu-provisioner" -n gpu-provisioner --timeout=300s
+## --------------------------------------
+## Azure Karpenter Installation
+## --------------------------------------
+.PHONY: azure-karpenter-helm
+azure-karpenter-helm:  ## Update Azure client env vars and settings in helm values.yml
+	curl -sO https://raw.githubusercontent.com/Azure/karpenter-provider-azure/main/hack/deploy/configure-values.sh
+	chmod +x ./configure-values.sh && ./configure-values.sh $(AZURE_CLUSTER_NAME) \
+	$(AZURE_RESOURCE_GROUP) $(KARPENTER_SA_NAME) $(AZURE_KARPENTER_MSI_NAME)
 
+	helm upgrade --install karpenter oci://mcr.microsoft.com/aks/karpenter/karpenter \
+	--version "$(KARPENTER_VERSION)" \
+    --namespace "$(KARPENTER_NAMESPACE)" --create-namespace \
+    --values karpenter-values.yaml \
+    --set controller.resources.requests.cpu=1 \
+    --set controller.resources.requests.memory=1Gi \
+    --set controller.resources.limits.cpu=1 \
+    --set controller.resources.limits.memory=1Gi
+
+	kubectl wait --for=condition=available deploy "karpenter" -n karpenter --timeout=300s
+
+##@ Build
+.PHONY: build
+build: manifests generate fmt vet ## Build manager binary.
+	go build -o bin/manager cmd/*.go
+
+.PHONY: run
+run: manifests generate fmt vet ## Run a controller from your host.
+	go run ./cmd/main.go
+
+##@ Build Dependencies
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
+
+##@ Deployment
+ifndef ignore-not-found
+  ignore-not-found = false
+endif
 
 ## Tool Binaries
 KUBECTL ?= kubectl
@@ -272,9 +318,13 @@ vet: ## Run go vet against code.
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run -v
 
+.PHONY: fmt
+fmt: ## Run go fmt against code.
+	go fmt ./...
+
 ## --------------------------------------
 ## Release
-## To create a release, run `make release VERSION=x.y.z`
+## To create a release, run `make release VERSION=vx.y.z`
 ## --------------------------------------
 .PHONY: release-manifest
 release-manifest:
