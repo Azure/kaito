@@ -157,16 +157,19 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 			if job.Status.Succeeded > 0 {
 				if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeSucceeded, metav1.ConditionTrue,
 					"workspaceSucceeded", "workspace succeeds"); updateErr != nil {
-					klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
-					return reconcile.Result{}, err
+					klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+					return reconcile.Result{}, updateErr
 				}
 			} else { // The job is still running
 				if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeSucceeded, metav1.ConditionFalse,
 					"workspacePending", "workspace has not completed"); updateErr != nil {
-					klog.ErrorS(err, "failed to update workspace status", "workspace", klog.KObj(wObj))
-					return reconcile.Result{}, err
+					klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
+					return reconcile.Result{}, updateErr
 				}
 			}
+		} else {
+			klog.ErrorS(err, "failed to get job resource", "workspace", klog.KObj(wObj))
+			return reconcile.Result{}, err
 		}
 	} else if wObj.Inference != nil {
 		if err := c.ensureService(ctx, wObj); err != nil {

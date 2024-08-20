@@ -129,10 +129,11 @@ else:
         active_adapters = model.active_adapters
         if len(active_adapters) != 1 or active_adapters[0] != "combined_adapter":
             raise ValueError(f"Adpaters is input but not merged correctlly")
+        print("Adapter added:", ', '.join(sorted(adapter_names)))
     else:
         print("Warning: Did not find any valid adapters mounted, using base model")
         model = base_model
-
+     
 print("Model:", model)
 
 pipeline_kwargs = {

@@ -210,6 +210,12 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 		re := regexp.MustCompile(`^(.+/[^:/]+):([^:/]+)$`)
 		if !re.MatchString(r.Image) {
 			errs = errs.Also(apis.ErrInvalidValue("Invalid image format, require full input image URL", "Image"))
+		} else {
+			// Executes if image is of correct format
+			err := utils.ExtractAndValidateRepoName(r.Image)
+			if err != nil {
+				errs = errs.Also(apis.ErrInvalidValue(err.Error(), "Image"))
+			}
 		}
 		sourcesSpecified++
 	}
@@ -271,6 +277,12 @@ func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 		re := regexp.MustCompile(`^(.+/[^:/]+):([^:/]+)$`)
 		if !re.MatchString(r.Image) {
 			errs = errs.Also(apis.ErrInvalidValue("Invalid image format, require full output image URL", "Image"))
+		} else {
+			// Executes if image is of correct format
+			err := utils.ExtractAndValidateRepoName(r.Image)
+			if err != nil {
+				errs = errs.Also(apis.ErrInvalidValue(err.Error(), "Image"))
+			}
 		}
 		// Cloud Provider requires credentials to push image
 		if r.ImagePushSecret == "" {

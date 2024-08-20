@@ -16,6 +16,7 @@ import (
 	"knative.dev/pkg/apis"
 	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 )
 
 func Contains(s []string, e string) bool {
@@ -171,4 +172,19 @@ func GetPerNodeGPUCountFromNodes(nodeList *v1.NodeList) string {
 		}
 	}
 	return ""
+}
+
+func ExtractAndValidateRepoName(image string) error {
+	// Extract repository name (part after the last / and before the colon :)
+	// For example given image: modelsregistry.azurecr.io/ADAPTER_HERE:0.0.1
+	parts := strings.Split(image, "/")
+	lastPart := parts[len(parts)-1]             // Extracts "ADAPTER_HERE:0.0.1"
+	repoName := strings.Split(lastPart, ":")[0] // Extracts "ADAPTER_HERE"
+
+	// Check if repository name is lowercase
+	if repoName != strings.ToLower(repoName) {
+		return fmt.Errorf("Repository name must be lowercase")
+	}
+
+	return nil
 }
