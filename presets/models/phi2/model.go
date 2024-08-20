@@ -25,7 +25,7 @@ var (
 		"Phi2": "0.0.4",
 	}
 
-	baseCommandPresetPhi = "accelerate launch"
+	baseCommandPresetPhi = "python3 metrics_server.py & accelerate launch"
 	phiRunParams         = map[string]string{
 		"torch_dtype": "float16",
 		"pipeline":    "text-generation",

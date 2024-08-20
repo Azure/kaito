@@ -31,7 +31,7 @@ var (
 		"Mistral7BInstruct": "0.0.6",
 	}
 
-	baseCommandPresetMistral = "accelerate launch"
+	baseCommandPresetMistral = "python3 metrics_server.py & accelerate launch"
 	mistralRunParams         = map[string]string{
 		"torch_dtype": "bfloat16",
 		"pipeline":    "text-generation",
