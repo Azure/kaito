@@ -40,6 +40,11 @@ const (
 	PresetPhi3Mini128kModel      = "phi-3-mini-128k-instruct"
 )
 
+var (
+	datasetImageName     = "e2e-dataset"
+	fullDatasetImageName = utils.GetEnv("E2E_ACR_REGISTRY") + "/" + datasetImageName + ":0.0.1"
+)
+
 func loadTestEnvVars() {
 	var err error
 	runLlama13B, err = strconv.ParseBool(os.Getenv("RUN_LLAMA_13B"))
@@ -48,9 +53,13 @@ func loadTestEnvVars() {
 		runLlama13B = false
 	}
 
+	// Required for Llama models
 	aiModelsRegistry = utils.GetEnv("AI_MODELS_REGISTRY")
 	aiModelsRegistrySecret = utils.GetEnv("AI_MODELS_REGISTRY_SECRET")
+	// Currently required for uploading fine-tuning results
+	e2eACRSecret = utils.GetEnv("E2E_ACR_REGISTRY_SECRET")
 	supportedModelsYamlPath = utils.GetEnv("SUPPORTED_MODELS_YAML_PATH")
+	azureClusterName = utils.GetEnv("AZURE_CLUSTER_NAME")
 }
 
 func loadModelVersions() {
@@ -216,9 +225,9 @@ func createPhi3TuningWorkspaceWithPresetPublicMode(configMapName string, numOfNo
 		uniqueID = fmt.Sprint("preset-", rand.Intn(1000))
 		outputRegistryUrl := fmt.Sprintf("%s.azurecr.io/%s:%s", azureClusterName, e2eOutputImageName, e2eOutputImageTag)
 		workspaceObj = utils.GenerateE2ETuningWorkspaceManifest(uniqueID, namespaceName, "",
-			outputRegistryUrl, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
+			fullDatasetImageName, outputRegistryUrl, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-tuning-falcon"},
-			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePublic, []string{aiModelsRegistrySecret}, configMapName)
+			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePublic, []string{e2eACRSecret}, configMapName)
 
 		createAndValidateWorkspace(workspaceObj)
 	})
@@ -287,11 +296,12 @@ func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace, expectedCoun
 		Eventually(func() bool {
 			machineList, err := getAllValidMachines(workspaceObj)
 			if err != nil {
-				fmt.Printf("Failed to get all valid machines: %v", err)
+				fmt.Printf("Failed to get all valid machines: %v\n", err)
 				return false
 			}
 
 			if len(machineList.Items) != expectedCount {
+				fmt.Printf("Expected %d machines, but found %d machines\n", expectedCount, len(machineList.Items))
 				return false
 			}
 
@@ -536,6 +546,7 @@ func deleteWorkspace(workspaceObj *kaitov1alpha1.Workspace) error {
 var runLlama13B bool
 var aiModelsRegistry string
 var aiModelsRegistrySecret string
+var e2eACRSecret string
 var supportedModelsYamlPath string
 var modelInfo map[string]string
 var azureClusterName string
@@ -701,7 +712,7 @@ var _ = Describe("Workspace Preset", func() {
 
 	It("should create a workspace for tuning successfully", func() {
 		numOfNode := 1
-		err := copySecretToNamespace(aiModelsRegistrySecret, namespaceName)
+		err := copySecretToNamespace(e2eACRSecret, namespaceName)
 		if err != nil {
 			log.Fatalf("Error copying secret: %v", err)
 		}

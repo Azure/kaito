@@ -136,11 +136,13 @@ else:
         active_adapters = model.active_adapters
         if len(active_adapters) != 1 or active_adapters[0] != "combined_adapter":
             raise ValueError(f"Adapters not merged correctly")
+        logger.info("Adapter added: %s", ', '.join(sorted(adapter_names)))
     else:
         logger.warning("Did not find any valid adapters mounted, using base model")
         model = base_model
 
 logger.info("Model loaded successfully")
+logger.info("Model: %s", model)
 
 pipeline_kwargs = {
     "trust_remote_code": args.trust_remote_code,
