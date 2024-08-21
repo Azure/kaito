@@ -84,7 +84,7 @@ def get_metrics():
         if torch.cuda.is_available():
             gpus = GPUtil.getGPUs()
             gpu_info = [GPUInfo(
-                id=gpu.id,
+                id=str(gpu.id),
                 name=gpu.name,
                 load=f"{gpu.load * 100:.2f}%",
                 temperature=f"{gpu.temperature} C",
