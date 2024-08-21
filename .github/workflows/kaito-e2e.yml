@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-provisioner: [ gpuprovisioner ]
+        node-provisioner: [gpuprovisioner, azkarpenter]
     permissions:
       contents: read
       id-token: write

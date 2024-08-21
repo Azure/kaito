@@ -37,10 +37,10 @@ echo "IDENTITY_JSON: $IDENTITY_JSON"
 
 IDENTITY_PRINCIPAL_ID=$(jq -r '.principalId' <<< "$IDENTITY_JSON")
 
-AZURE_RESOURCE_GROUP_RESOURCE_ID="/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP"
+AZURE_RESOURCE_GROUP_RESOURCE_ID=$(az group show --name "${AZURE_RESOURCE_GROUP}" --query "id" -otsv)
 
 AZURE_RESOURCE_GROUP_MC=$(jq -r ".nodeResourceGroup" <<< "$AKS_JSON")
-AZURE_RESOURCE_GROUP_MC_RESOURCE_ID="/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP_MC"
+AZURE_RESOURCE_GROUP_MC_RESOURCE_ID=$(az group show --name "${AZURE_RESOURCE_GROUP_MC}" --query "id" -otsv)
 
 sleep 40 ## wait for the identity credential to be created
 
@@ -53,12 +53,9 @@ az identity federated-credential create --name "${FED_NAME}" \
 
 if [[ "${COMPONENT_NAME}" == "azkarpenter" ]]; then
   echo "Creating role assignments for $COMPONENT_NAME ..."
-  for role in "Virtual Machine Contributor" "Network Contributor" "Managed Identity Operator" "Contributor"; do
+  for role in "Virtual Machine Contributor" "Network Contributor" "Managed Identity Operator"; do
     az role assignment create --assignee "$IDENTITY_PRINCIPAL_ID" \
     --scope "$AZURE_RESOURCE_GROUP_MC_RESOURCE_ID" \
-    --role "$role"
-   az role assignment create --assignee "$IDENTITY_PRINCIPAL_ID" \
-    --scope "$AZURE_RESOURCE_GROUP_RESOURCE_ID" \
     --role "$role"
   done
 else
