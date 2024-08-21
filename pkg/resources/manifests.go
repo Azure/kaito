@@ -215,6 +215,7 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 		},
 	}, sidecarContainers...)
 
+	var numBackoff int32
 	return &batchv1.Job{
 		TypeMeta: v1.TypeMeta{
 			APIVersion: "batch/v1",
@@ -235,6 +236,7 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 			},
 		},
 		Spec: batchv1.JobSpec{
+			BackoffLimit: &numBackoff, // default is 6. A failed tuning job is unlikely to be self-recoverable, no need to recreate the pod.
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: v1.ObjectMeta{
 					Labels: labels,

@@ -136,6 +136,6 @@ The training job can take a long time depending on the size of the input dataset
 ```
 total steps = number of epochs * (number of samples in dataset / batch size)
 ```
-where `number of epochs` and `batch size` can be customized in the tuning configmap. However, if the `max_steps` parameter is also specified in the configmap, training will stop after reaching the max steps, even if the specified epochs have not been completed.
+where `number of epochs` and `batch size` can be customized in the tuning configmap. However, if the `max_steps` parameter is also specified in the configmap, training will stop after reaching the max steps, even if the specified epochs have not been completed. Users can track the tuning progress in the job pod's log, reported by the number of steps completed out of the total.
 
 Please file issues if you experience abnormal slowness of the training job.
