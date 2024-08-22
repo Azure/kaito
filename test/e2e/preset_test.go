@@ -526,11 +526,7 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		if nodeProvisionerName == "azkarpenter" {
-			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
-		} else {
-			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
-		}
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -549,12 +545,7 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		if nodeProvisionerName == "azkarpenter" {
-			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
-		} else {
-			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
-		}
-
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -573,12 +564,7 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		if nodeProvisionerName == "azkarpenter" {
-			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
-		} else {
-			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
-		}
-
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -601,12 +587,7 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		if nodeProvisionerName == "azkarpenter" {
-			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
-		} else {
-			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
-		}
-
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -633,12 +614,7 @@ var _ = Describe("Workspace Preset", func() {
 
 		time.Sleep(30 * time.Second)
 
-		if nodeProvisionerName == "azkarpenter" {
-			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
-		} else {
-			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
-		}
-
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -658,13 +634,7 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 
 		time.Sleep(30 * time.Second)
-
-		if nodeProvisionerName == "azkarpenter" {
-			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
-		} else {
-			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
-		}
-
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -681,11 +651,7 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		if nodeProvisionerName == "azkarpenter" {
-			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
-		} else {
-			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
-		}
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -709,15 +675,10 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		if nodeProvisionerName == "azkarpenter" {
-			utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
-		} else {
-			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
-		}
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
-
 		validateTuningResource(workspaceObj)
 
 		validateACRTuningResultsUploaded(workspaceObj, jobName)
@@ -726,3 +687,11 @@ var _ = Describe("Workspace Preset", func() {
 	})
 
 })
+
+func validateCreateNode(workspaceObj *kaitov1alpha1.Workspace, numOfNode int) {
+	if nodeProvisionerName == "azkarpenter" {
+		utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
+	} else {
+		utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
+	}
+}
