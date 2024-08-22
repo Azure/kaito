@@ -23,12 +23,16 @@ If setting environment variables doesn't resolve the issue, consider these steps
 1. Reduce Batch Size: 
    - The default batch size is set to the smallest size of 1. If you haven't modified this, you are already using the minimum batch size.
 2. Enable QLoRa (Quantization)
-   - Refer to `../charts/kaito/templates/qlora-params.yaml` for an example. (TODO: example GRaph)
-3. Truncation and Padding
-   - Truncation reduces data sample sizes, which can help prevent OOM errors. For more information, refer to [Hugging Face's documentation on padding and truncation](https://huggingface.co/docs/transformers/en/pad_truncation).
-
-There are several ways to go about debugging GPU OOM issues during the fine-tuning process. 
-
+   - Refer to `../charts/kaito/templates/qlora-params.yaml` for an example. (TODO: example Graph)
+3. Truncation
+  - Reduces the size of data samples, which helps prevent OOM errors by limiting the memory required for processing.
+  - Pros: 
+    - Helps avoid OOM errors by reducing memory usage.
+    - Improves processing speed for large datasets.
+  - Cons: 
+    - Truncating input data might lead to loss of important context or information, which could negatively impact model performance.
+  - How to Implement: Customers can preprocess input data using scripts to truncate sequences to a desired length before feeding them into the model.
+   - For more information on truncation, refer to [Hugging Face's documentation on padding and truncation](https://huggingface.co/docs/transformers/en/pad_truncation).
 
 ### Observing and Adjusting the Dataset
 
