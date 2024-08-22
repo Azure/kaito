@@ -161,8 +161,12 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 					return reconcile.Result{}, updateErr
 				}
 			} else { // The job is still running
+				var readyPod int32
+				if job.Status.Ready != nil {
+					readyPod = *job.Status.Ready
+				}
 				if updateErr := c.updateStatusConditionIfNotMatch(ctx, wObj, kaitov1alpha1.WorkspaceConditionTypeSucceeded, metav1.ConditionFalse,
-					"workspacePending", "workspace has not completed"); updateErr != nil {
+					"workspacePending", fmt.Sprintf("workspace has not completed, tuning job has %d active pod, %d ready pod", job.Status.Active, readyPod)); updateErr != nil {
 					klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
 					return reconcile.Result{}, updateErr
 				}
