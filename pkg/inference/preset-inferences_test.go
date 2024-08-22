@@ -5,11 +5,12 @@ package inference
 
 import (
 	"context"
-	"github.com/azure/kaito/pkg/utils/consts"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/azure/kaito/pkg/utils/consts"
 
 	"github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/utils/test"
@@ -115,7 +116,7 @@ func TestCreatePresetInference(t *testing.T) {
 			}
 			mockClient.CreateOrUpdateObjectInMap(svc)
 
-			createdObject, _ := CreatePresetInference(context.TODO(), workspace, inferenceObj, useHeadlessSvc, mockClient)
+			createdObject, _ := CreatePresetInference(context.TODO(), workspace, test.MockWorkspaceWithPresetHash, inferenceObj, useHeadlessSvc, mockClient)
 			createdWorkload := ""
 			switch createdObject.(type) {
 			case *appsv1.Deployment:

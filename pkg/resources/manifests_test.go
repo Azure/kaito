@@ -6,8 +6,9 @@ package resources
 import (
 	"context"
 	"fmt"
-	"github.com/azure/kaito/pkg/utils/test"
 	"reflect"
+
+	"github.com/azure/kaito/pkg/utils/test"
 
 	"testing"
 
@@ -65,7 +66,7 @@ func TestGenerateDeploymentManifest(t *testing.T) {
 
 		workspace := test.MockWorkspaceWithPreset
 
-		obj := GenerateDeploymentManifest(context.TODO(), workspace,
+		obj := GenerateDeploymentManifest(context.TODO(), workspace, test.MockWorkspaceWithPresetHash,
 			"",  //imageName
 			nil, //imagePullSecretRefs
 			*workspace.Resource.Count,
