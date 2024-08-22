@@ -1,10 +1,12 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-package e2e
+package utils
 
 import (
+	azurev1alpha2 "github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	awsv1beta1 "github.com/aws/karpenter-provider-aws/pkg/apis/v1beta1"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -14,6 +16,7 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 )
 
 const (
@@ -43,6 +46,9 @@ func GetClusterClient(cluster *Cluster) {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(kaitov1alpha1.AddToScheme(scheme))
 	utilruntime.Must(v1alpha5.SchemeBuilder.AddToScheme(scheme))
+	utilruntime.Must(v1beta1.SchemeBuilder.AddToScheme(scheme))
+	utilruntime.Must(azurev1alpha2.SchemeBuilder.AddToScheme(scheme))
+	utilruntime.Must(awsv1beta1.SchemeBuilder.AddToScheme(scheme))
 
 	restConfig := config.GetConfigOrDie()
 

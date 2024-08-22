@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/test/e2e/utils"
 	. "github.com/onsi/ginkgo/v2"
@@ -23,8 +22,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"knative.dev/pkg/apis"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -33,10 +30,8 @@ const (
 	PresetLlama2BChat            = "llama-2-13b-chat"
 	PresetFalcon7BModel          = "falcon-7b"
 	PresetFalcon40BModel         = "falcon-40b"
-	PresetMistral7BModel         = "mistral-7b"
 	PresetMistral7BInstructModel = "mistral-7b-instruct"
 	PresetPhi2Model              = "phi-2"
-	PresetPhi3Mini4kModel        = "phi-3-mini-4k-instruct"
 	PresetPhi3Mini128kModel      = "phi-3-mini-128k-instruct"
 )
 
@@ -202,12 +197,12 @@ func createCustomTuningConfigMapForE2E() *v1.ConfigMap {
 func createAndValidateConfigMap(configMap *v1.ConfigMap) {
 	By("Creating ConfigMap", func() {
 		Eventually(func() error {
-			return TestingCluster.KubeClient.Create(ctx, configMap, &client.CreateOptions{})
+			return utils.TestingCluster.KubeClient.Create(ctx, configMap, &client.CreateOptions{})
 		}, utils.PollTimeout, utils.PollInterval).
 			Should(Succeed(), "Failed to create ConfigMap %s", configMap.Name)
 
 		By("Validating ConfigMap creation", func() {
-			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: configMap.Namespace,
 				Name:      configMap.Name,
 			}, configMap, &client.GetOptions{})
@@ -237,12 +232,12 @@ func createPhi3TuningWorkspaceWithPresetPublicMode(configMapName string, numOfNo
 func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Creating workspace", func() {
 		Eventually(func() error {
-			return TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
+			return utils.TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
 		}, utils.PollTimeout, utils.PollInterval).
 			Should(Succeed(), "Failed to create workspace %s", workspaceObj.Name)
 
 		By("Validating workspace creation", func() {
-			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, workspaceObj, &client.GetOptions{})
@@ -256,7 +251,7 @@ func copySecretToNamespace(secretName, targetNamespace string) error {
 	originalSecret := &v1.Secret{}
 
 	// Fetch the original secret from the default namespace
-	err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+	err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 		Namespace: originalNamespace,
 		Name:      secretName,
 	}, originalSecret)
@@ -268,7 +263,7 @@ func copySecretToNamespace(secretName, targetNamespace string) error {
 	newSecret := utils.CopySecret(originalSecret, targetNamespace)
 
 	// Create the new secret in the target namespace
-	err = TestingCluster.KubeClient.Create(ctx, newSecret)
+	err = utils.TestingCluster.KubeClient.Create(ctx, newSecret)
 	if err != nil {
 		return fmt.Errorf("failed to create secret %s in namespace %s: %v", secretName, targetNamespace, err)
 	}
@@ -276,53 +271,11 @@ func copySecretToNamespace(secretName, targetNamespace string) error {
 	return nil
 }
 
-func getAllValidMachines(workspaceObj *kaitov1alpha1.Workspace) (*v1alpha5.MachineList, error) {
-	machineList := &v1alpha5.MachineList{}
-	ls := labels.Set{
-		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
-		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
-	}
-
-	err := TestingCluster.KubeClient.List(ctx, machineList, &client.MatchingLabelsSelector{Selector: ls.AsSelector()})
-	if err != nil {
-		return nil, err
-	}
-	return machineList, nil
-}
-
-// Logic to validate machine creation
-func validateMachineCreation(workspaceObj *kaitov1alpha1.Workspace, expectedCount int) {
-	By("Checking machine created by the workspace CR", func() {
-		Eventually(func() bool {
-			machineList, err := getAllValidMachines(workspaceObj)
-			if err != nil {
-				fmt.Printf("Failed to get all valid machines: %v\n", err)
-				return false
-			}
-
-			if len(machineList.Items) != expectedCount {
-				fmt.Printf("Expected %d machines, but found %d machines\n", expectedCount, len(machineList.Items))
-				return false
-			}
-
-			for _, machine := range machineList.Items {
-				_, conditionFound := lo.Find(machine.GetConditions(), func(condition apis.Condition) bool {
-					return condition.Type == apis.ConditionReady && condition.Status == v1.ConditionTrue
-				})
-				if !conditionFound {
-					return false
-				}
-			}
-			return true
-		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for machine to be ready")
-	})
-}
-
 // Logic to validate resource status
 func validateResourceStatus(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Checking the resource status", func() {
 		Eventually(func() bool {
-			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, workspaceObj, &client.GetOptions{})
@@ -348,7 +301,7 @@ func validateAssociatedService(workspaceObj *kaitov1alpha1.Workspace) {
 		service := &v1.Service{}
 
 		Eventually(func() bool {
-			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: serviceNamespace,
 				Name:      serviceName,
 			}, service)
@@ -382,7 +335,7 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, expectedRe
 						Namespace: workspaceObj.Namespace,
 					},
 				}
-				err = TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				err = utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 					Namespace: workspaceObj.Namespace,
 					Name:      workspaceObj.Name,
 				}, sts)
@@ -395,7 +348,7 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, expectedRe
 						Namespace: workspaceObj.Namespace,
 					},
 				}
-				err = TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				err = utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 					Namespace: workspaceObj.Namespace,
 					Name:      workspaceObj.Name,
 				}, dep)
@@ -430,7 +383,7 @@ func validateTuningResource(workspaceObj *kaitov1alpha1.Workspace) {
 					Namespace: workspaceObj.Namespace,
 				},
 			}
-			err = TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err = utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, job)
@@ -489,7 +442,7 @@ func validateACRTuningResultsUploaded(workspaceObj *kaitov1alpha1.Workspace, job
 func validateWorkspaceReadiness(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Checking the workspace status is ready", func() {
 		Eventually(func() bool {
-			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, workspaceObj, &client.GetOptions{})
@@ -519,7 +472,7 @@ func deleteWorkspace(workspaceObj *kaitov1alpha1.Workspace) error {
 	By("Deleting workspace", func() {
 		Eventually(func() error {
 			// Check if the workspace exists
-			err := TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      workspaceObj.Name,
 			}, workspaceObj)
@@ -532,7 +485,7 @@ func deleteWorkspace(workspaceObj *kaitov1alpha1.Workspace) error {
 				return fmt.Errorf("error checking if workspace %s exists: %v", workspaceObj.Name, err)
 			}
 
-			err = TestingCluster.KubeClient.Delete(ctx, workspaceObj, &client.DeleteOptions{})
+			err = utils.TestingCluster.KubeClient.Delete(ctx, workspaceObj, &client.DeleteOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to delete workspace %s: %v", workspaceObj.Name, err)
 			}
@@ -554,7 +507,6 @@ var azureClusterName string
 var _ = Describe("Workspace Preset", func() {
 	BeforeEach(func() {
 		loadTestEnvVars()
-
 		loadModelVersions()
 	})
 
@@ -574,7 +526,7 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, numOfNode)
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -593,7 +545,7 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, numOfNode)
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -612,7 +564,7 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, numOfNode)
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -635,7 +587,7 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, numOfNode)
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -661,7 +613,8 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 
 		time.Sleep(30 * time.Second)
-		validateMachineCreation(workspaceObj, numOfNode)
+
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -681,7 +634,7 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 
 		time.Sleep(30 * time.Second)
-		validateMachineCreation(workspaceObj, numOfNode)
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -698,7 +651,7 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, numOfNode)
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -722,11 +675,10 @@ var _ = Describe("Workspace Preset", func() {
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
 
-		validateMachineCreation(workspaceObj, numOfNode)
+		validateCreateNode(workspaceObj, numOfNode)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
-
 		validateTuningResource(workspaceObj)
 
 		validateACRTuningResultsUploaded(workspaceObj, jobName)
@@ -735,3 +687,11 @@ var _ = Describe("Workspace Preset", func() {
 	})
 
 })
+
+func validateCreateNode(workspaceObj *kaitov1alpha1.Workspace, numOfNode int) {
+	if nodeProvisionerName == "azkarpenter" {
+		utils.ValidateNodeClaimCreation(ctx, workspaceObj, numOfNode)
+	} else {
+		utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
+	}
+}
