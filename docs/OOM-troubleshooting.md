@@ -32,6 +32,27 @@ If setting environment variables doesn't resolve the issue, consider these steps
   - Cons: 
     - Truncating input data might lead to loss of important context or information, which could negatively impact model performance.
   - How to Implement: Customers can preprocess input data using scripts to truncate sequences to a desired length before feeding them into the model.
+  Example Script for Truncation
+  ```
+  # Download Original Dataset
+  curl -sSL https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/resolve/main/data/train-00000-of-00001-54e3756291ca09c6.parquet?download=true -o dataset.parquet
+  ```
+
+  ```
+  from datasets import load_dataset
+
+  TRUNCATION_LENGTH = 5000
+  def total_content_length(example):
+    total_length = sum(len(message['content']) for message in example['messages'])
+    return total_length
+  def filter_long_entries(example):
+    return total_content_length(example) <= TRUNCATION_LENGTH
+  
+  dataset = load_dataset("parquet", data_files="dataset.parquet", split="train")
+  filtered_dataset = dataset.filter(filter_long_entries)
+  filtered_dataset.save_to_disk('filtered_dataset')
+  filtered_dataset.push_to_hub("<HF_USERNAME>/<DATASET_NAME>")
+  ```
    - For more information on truncation, refer to [Hugging Face's documentation on padding and truncation](https://huggingface.co/docs/transformers/en/pad_truncation).
 
 ### Observing and Adjusting the Dataset
