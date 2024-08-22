@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import logging
 import os
 import sys
 from dataclasses import asdict
@@ -17,8 +18,12 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           TrainingArguments)
 from trl import SFTTrainer
 
-CONFIG_YAML = os.environ.get('YAML_FILE_PATH', '/mnt/config/training_config.yaml')
+# Initialize logger
+logger = logging.getLogger(__name__)
+debug_mode = os.environ.get('DEBUG_MODE', 'false').lower() == 'true'
+logging.basicConfig(level=logging.DEBUG if debug_mode else logging.INFO)
 
+CONFIG_YAML = os.environ.get('YAML_FILE_PATH', '/mnt/config/training_config.yaml')
 parsed_configs = parse_configs(CONFIG_YAML)
 
 model_config = parsed_configs.get('ModelConfig')
@@ -33,7 +38,7 @@ accelerator = Accelerator()
 # Load Model Args
 model_args = asdict(model_config)
 if accelerator.distributed_type != "NO":  # Meaning we require distributed training
-    print("Setting device map for distributed training")
+    logger.debug("Setting device map for distributed training")
     model_args["device_map"] = {"": accelerator.process_index}
 
 # Load BitsAndBytesConfig
@@ -47,7 +52,7 @@ tokenizer = AutoTokenizer.from_pretrained(**tokenizer_args)
 if not tokenizer.pad_token:
     tokenizer.pad_token = tokenizer.eos_token
 if dc_args.mlm and tokenizer.mask_token is None:
-    print(
+    logger.warning(
         "This tokenizer does not have a mask token which is necessary for masked language modeling. "
         "You should pass `mlm=False` to train on causal language modeling instead. "
         "Setting mlm=False"
@@ -61,14 +66,15 @@ model = AutoModelForCausalLM.from_pretrained(
     quantization_config=bnb_config if enable_qlora else None,
 )
 
-print("Model Loaded")
+logger.info("Model Loaded")
 
 if enable_qlora:
     # Preparing the Model for QLoRA
     model = prepare_model_for_kbit_training(model)
-    print("QLoRA Enabled")
+    logger.info("QLoRA Enabled")
 
 if not ext_lora_config:
+    logger.error("LoraConfig must be specified")
     raise ValueError("LoraConfig must be specified")
 
 lora_config_args = asdict(ext_lora_config)
@@ -83,7 +89,7 @@ dm = DatasetManager(ds_config)
 # Load the dataset
 dm.load_data()
 if not dm.get_dataset():
-    print("Failed to load dataset.")
+    logger.error("Failed to load dataset.")
     raise ValueError("Unable to load the dataset.")
 
 # Shuffling the dataset (if needed)
@@ -119,7 +125,7 @@ trainer.save_model(ta_args.output_dir)
 
 # Write file to signify training completion
 timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-print("Fine-Tuning completed\n")
+logger.info("Fine-Tuning completed\n")
 completion_indicator_path = os.path.join(ta_args.output_dir, "fine_tuning_completed.txt")
 with open(completion_indicator_path, 'w') as f:
     f.write(f"Fine-Tuning completed at {timestamp}\n")

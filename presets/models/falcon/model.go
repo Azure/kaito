@@ -44,7 +44,7 @@ var (
 		"Falcon40BInstruct": "0.0.6",
 	}
 
-	baseCommandPresetFalcon = "accelerate launch"
+	baseCommandPresetFalcon = "python3 metrics_server.py & accelerate launch"
 	falconRunParams         = map[string]string{
 		"torch_dtype": "bfloat16",
 		"pipeline":    "text-generation",
