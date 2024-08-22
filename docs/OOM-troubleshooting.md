@@ -2,10 +2,16 @@
 
 ### Gathering Debug Information
 1. Set CUDA Environment Variables:
-   - `CUDA_LAUNCH_BLOCKING=1`: This variable provides more detailed debug information
+   - `CUDA_LAUNCH_BLOCKING=1`: Forces synchronous CUDA kernel launches to provide detailed error information and help pinpoint failures.
+      - Pros & Cons: Useful for debugging, but may reduce performance, so it's not recommended for production environments.
    - Reduce GPU Memory Fragmentation by setting:
-      - `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
-      - Set this to a value like `512 MB` as a starting point and adjust as needed. `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512` 
+      - `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` and
+      - `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512`: Optimize memory allocation to prevent OOM errors. Start with 512 MB and adjust as needed.
+   - How to Set: Add these to the container's environment variables or update the deployment container command. If the new pod gets stuck in a pending state, either delete the running pod to prioritize the rollout or scale the deployment down to zero and back up:
+      ```
+      kubectl scale deployment <deployment-name> --replicas=0
+      kubectl scale deployment <deployment-name> --replicas=1
+      ```
 
 ## Tuning
 Debugging GPU OOM (Out of Memory) issues during the fine-tuning process involves several strategies. Here are some steps to help you resolve these issues:
