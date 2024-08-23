@@ -3,7 +3,7 @@ transformers==4.41.2
 torch==2.2.0
 accelerate==0.30.1
 fastapi>=0.111.0,<0.112.0  # Allow patch updates
-pydantic>=2.7.1,<2.8      # Allow patch updates
+pydantic==2.7.4
 uvicorn[standard]>=0.29.0,<0.30.0  # Allow patch updates
 
 # Utility libraries
