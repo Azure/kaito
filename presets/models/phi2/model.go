@@ -22,10 +22,11 @@ var (
 	PresetPhi2Model = "phi-2"
 
 	PresetPhiTagMap = map[string]string{
-		"Phi2": "0.0.4",
+		"Phi2": "0.0.5",
 	}
 
-	baseCommandPresetPhi = "python3 metrics_server.py & accelerate launch"
+	baseCommandPresetPhiInference = "accelerate launch"
+	baseCommandPresetPhiTuning = "python3 metrics_server.py & accelerate launch"
 	phiRunParams         = map[string]string{
 		"torch_dtype": "float16",
 		"pipeline":    "text-generation",
@@ -47,7 +48,7 @@ func (*phi2) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            phiRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetPhi,
+		BaseCommand:               baseCommandPresetPhiInference,
 		Tag:                       PresetPhiTagMap["Phi2"],
 	}
 }
@@ -62,7 +63,7 @@ func (*phi2) GetTuningParameters() *model.PresetParam {
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetPhi,
+		BaseCommand:      baseCommandPresetPhiTuning,
 		Tag:              PresetPhiTagMap["Phi2"],
 	}
 }
