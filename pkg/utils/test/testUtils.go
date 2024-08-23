@@ -74,13 +74,16 @@ var (
 	}
 )
 
+var MockWorkspaceWithPresetHash = "89ae127050ec264a5ce84db48ef7226574cdf1299e6bd27fe90b927e34cc8adb"
+
 var (
 	MockWorkspaceWithDeleteOldCR = v1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testWorkspace",
 			Namespace: "kaito",
 			Annotations: map[string]string{
-				"workspace.kaito.io/revision": "1171dc5d15043c92e684c8f06689eb241763a735181fdd2b59c8bd8fd6eecdd4",
+				"workspace.kaito.io/hash":     "1171dc5d15043c92e684c8f06689eb241763a735181fdd2b59c8bd8fd6eecdd4",
+				"workspace.kaito.io/revision": "1",
 			},
 		},
 		Resource: v1alpha1.ResourceSpec{
@@ -105,9 +108,11 @@ var (
 var (
 	MockWorkspaceFailToCreateCR = v1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "testWorkspace-failedtocreateCR",
-			Namespace:   "kaito",
-			Annotations: map[string]string{},
+			Name:      "testWorkspace-failedtocreateCR",
+			Namespace: "kaito",
+			Annotations: map[string]string{
+				"workspace.kaito.io/revision": "1",
+			},
 		},
 		Resource: v1alpha1.ResourceSpec{
 			Count:        &gpuNodeCount,
@@ -131,9 +136,11 @@ var (
 var (
 	MockWorkspaceSuccessful = v1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "testWorkspace-successful",
-			Namespace:   "kaito",
-			Annotations: map[string]string{},
+			Name:      "testWorkspace-successful",
+			Namespace: "kaito",
+			Annotations: map[string]string{
+				"workspace.kaito.io/revision": "0",
+			},
 		},
 		Resource: v1alpha1.ResourceSpec{
 			Count:        &gpuNodeCount,
@@ -160,7 +167,37 @@ var (
 			Name:      "testWorkspace",
 			Namespace: "kaito",
 			Annotations: map[string]string{
-				"workspace.kaito.io/revision": "1171dc5d15043c92e684c8f06689eb241763a735181fdd2b59c8bd8fd6eecdd4",
+				"workspace.kaito.io/hash":     "1171dc5d15043c92e684c8f06689eb241763a735181fdd2b59c8bd8fd6eecdd4",
+				"workspace.kaito.io/revision": "1",
+			},
+		},
+		Resource: v1alpha1.ResourceSpec{
+			Count:        &gpuNodeCount,
+			InstanceType: "Standard_NC12s_v3",
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"workspace.kaito.io/name": "testWorkspace",
+				},
+			},
+		},
+		Inference: &v1alpha1.InferenceSpec{
+			Preset: &v1alpha1.PresetSpec{
+				PresetMeta: v1alpha1.PresetMeta{
+					Name: "test-model",
+				},
+			},
+		},
+	}
+)
+
+var (
+	MockWorkspaceUpdateCR = v1alpha1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testWorkspace",
+			Namespace: "kaito",
+			Annotations: map[string]string{
+				"workspace.kaito.io/hash":     "1171dc5d15043c92e684c8f06689eb241763a735181fdd2b59c8bd8fd6eecdd4",
+				"workspace.kaito.io/revision": "1",
 			},
 		},
 		Resource: v1alpha1.ResourceSpec{
@@ -188,7 +225,8 @@ var (
 			Name:      "testWorkspace",
 			Namespace: "kaito",
 			Annotations: map[string]string{
-				"workspace.kaito.io/revision": "1171dc5d15043c92e684c8f06689eb241763a735181fdd2b59c8bd8fd6eecdd4",
+				"workspace.kaito.io/hash":     "1171dc5d15043c92e684c8f06689eb241763a735181fdd2b59c8bd8fd6eecdd4",
+				"workspace.kaito.io/revision": "1",
 			},
 		},
 		Resource: v1alpha1.ResourceSpec{
@@ -220,13 +258,15 @@ var (
 )
 
 var (
+	numRep                = int32(1)
 	MockDeploymentUpdated = appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "testWorkspace",
 			Namespace:   "kaito",
-			Annotations: map[string]string{},
+			Annotations: map[string]string{v1alpha1.WorkspaceRevisionAnnotation: "1"},
 		},
 		Spec: appsv1.DeploymentSpec{
+			Replicas: &numRep,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -244,10 +284,33 @@ var (
 									Protocol:      corev1.ProtocolTCP,
 								},
 							},
+							Env: []corev1.EnvVar{
+								{
+									Name:  "ENV_VAR_NAME",
+									Value: "ENV_VAR_VALUE",
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "volume-name",
+									MountPath: "/mount/path",
+								},
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "volume-name",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{},
+							},
 						},
 					},
 				},
 			},
+		},
+		Status: appsv1.DeploymentStatus{
+			ReadyReplicas: 1,
 		},
 	}
 	MockDeploymentWithAnnotationsAndContainer1 = appsv1.Deployment{
