@@ -43,7 +43,8 @@ var (
 		"Phi3Medium128kInstruct": "0.0.2",
 	}
 
-	baseCommandPresetPhi = "python3 metrics_server.py & accelerate launch"
+	baseCommandPresetPhiInference = "accelerate launch"
+	baseCommandPresetPhiTuning = "python3 metrics_server.py & accelerate launch"
 	phiRunParams         = map[string]string{
 		"torch_dtype":       "auto",
 		"pipeline":          "text-generation",
@@ -66,7 +67,7 @@ func (*phi3Mini4KInst) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            phiRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetPhi,
+		BaseCommand:               baseCommandPresetPhiInference,
 		Tag:                       PresetPhiTagMap["Phi3Mini4kInstruct"],
 	}
 }
@@ -81,7 +82,7 @@ func (*phi3Mini4KInst) GetTuningParameters() *model.PresetParam {
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetPhi,
+		BaseCommand:      baseCommandPresetPhiTuning,
 		Tag:              PresetPhiTagMap["Phi3Mini4kInstruct"],
 	}
 }
@@ -105,7 +106,7 @@ func (*phi3Mini128KInst) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            phiRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetPhi,
+		BaseCommand:               baseCommandPresetPhiInference,
 		Tag:                       PresetPhiTagMap["Phi3Mini128kInstruct"],
 	}
 }
@@ -120,7 +121,7 @@ func (*phi3Mini128KInst) GetTuningParameters() *model.PresetParam {
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetPhi,
+		BaseCommand:      baseCommandPresetPhiTuning,
 		Tag:              PresetPhiTagMap["Phi3Mini128kInstruct"],
 	}
 }
@@ -144,7 +145,7 @@ func (*Phi3Medium4kInstruct) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            phiRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetPhi,
+		BaseCommand:               baseCommandPresetPhiInference,
 		Tag:                       PresetPhiTagMap["Phi3Medium4kInstruct"],
 	}
 }
@@ -159,7 +160,7 @@ func (*Phi3Medium4kInstruct) GetTuningParameters() *model.PresetParam {
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetPhi,
+		BaseCommand:      baseCommandPresetPhiTuning,
 		Tag:              PresetPhiTagMap["Phi3Medium4kInstruct"],
 	}
 }
@@ -183,7 +184,7 @@ func (*Phi3Medium128kInstruct) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            phiRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetPhi,
+		BaseCommand:               baseCommandPresetPhiInference,
 		Tag:                       PresetPhiTagMap["Phi3Medium128kInstruct"],
 	}
 }
@@ -198,7 +199,7 @@ func (*Phi3Medium128kInstruct) GetTuningParameters() *model.PresetParam {
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetPhi,
+		BaseCommand:      baseCommandPresetPhiTuning,
 		Tag:              PresetPhiTagMap["Phi3Medium128kInstruct"],
 	}
 }

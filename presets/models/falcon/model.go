@@ -44,7 +44,8 @@ var (
 		"Falcon40BInstruct": "0.0.7",
 	}
 
-	baseCommandPresetFalcon = "python3 metrics_server.py & accelerate launch"
+	baseCommandPresetFalconInference = "accelerate launch"
+	baseCommandPresetFalconTuning = "python3 metrics_server.py & accelerate launch"
 	falconRunParams         = map[string]string{
 		"torch_dtype": "bfloat16",
 		"pipeline":    "text-generation",
@@ -66,7 +67,7 @@ func (*falcon7b) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            falconRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetFalcon,
+		BaseCommand:               baseCommandPresetFalconInference,
 		Tag:                       PresetFalconTagMap["Falcon7B"],
 	}
 }
@@ -81,7 +82,7 @@ func (*falcon7b) GetTuningParameters() *model.PresetParam {
 		TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunPrams:             falconRunTuningParams, // TODO
 		ReadinessTimeout:              time.Duration(30) * time.Minute,
-		BaseCommand:                   baseCommandPresetFalcon,
+		BaseCommand:                   baseCommandPresetFalconTuning,
 		Tag:                           PresetFalconTagMap["Falcon7B"],
 		TuningPerGPUMemoryRequirement: map[string]int{"qlora": 16},
 	}
@@ -109,7 +110,7 @@ func (*falcon7bInst) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            falconRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetFalcon,
+		BaseCommand:               baseCommandPresetFalconInference,
 		Tag:                       PresetFalconTagMap["Falcon7BInstruct"],
 	}
 
@@ -139,7 +140,7 @@ func (*falcon40b) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            falconRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetFalcon,
+		BaseCommand:               baseCommandPresetFalconInference,
 		Tag:                       PresetFalconTagMap["Falcon40B"],
 	}
 
@@ -155,7 +156,7 @@ func (*falcon40b) GetTuningParameters() *model.PresetParam {
 		TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunPrams:             falconRunTuningParams, // TODO
 		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetFalcon,
+		BaseCommand:      baseCommandPresetFalconTuning,
 		Tag:              PresetFalconTagMap["Falcon40B"],
 	}
 }
@@ -181,7 +182,7 @@ func (*falcon40bInst) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            falconRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetFalcon,
+		BaseCommand:               baseCommandPresetFalconInference,
 		Tag:                       PresetFalconTagMap["Falcon40BInstruct"],
 	}
 }
