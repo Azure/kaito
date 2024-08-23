@@ -38,10 +38,10 @@ var (
 	PresetFalcon40BInstructModel = PresetFalcon40BModel + "-instruct"
 
 	PresetFalconTagMap = map[string]string{
-		"Falcon7B":          "0.0.5",
-		"Falcon7BInstruct":  "0.0.5",
-		"Falcon40B":         "0.0.6",
-		"Falcon40BInstruct": "0.0.6",
+		"Falcon7B":          "0.0.6",
+		"Falcon7BInstruct":  "0.0.6",
+		"Falcon40B":         "0.0.7",
+		"Falcon40BInstruct": "0.0.7",
 	}
 
 	baseCommandPresetFalcon = "python3 metrics_server.py & accelerate launch"

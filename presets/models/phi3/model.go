@@ -37,10 +37,10 @@ var (
 	PresetPhi3Medium128kModel = "phi-3-medium-128k-instruct"
 
 	PresetPhiTagMap = map[string]string{
-		"Phi3Mini4kInstruct":     "0.0.1",
-		"Phi3Mini128kInstruct":   "0.0.1",
-		"Phi3Medium4kInstruct":   "0.0.1",
-		"Phi3Medium128kInstruct": "0.0.1",
+		"Phi3Mini4kInstruct":     "0.0.2",
+		"Phi3Mini128kInstruct":   "0.0.2",
+		"Phi3Medium4kInstruct":   "0.0.2",
+		"Phi3Medium128kInstruct": "0.0.2",
 	}
 
 	baseCommandPresetPhi = "python3 metrics_server.py & accelerate launch"

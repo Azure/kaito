@@ -27,8 +27,8 @@ var (
 	PresetMistral7BInstructModel = PresetMistral7BModel + "-instruct"
 
 	PresetMistralTagMap = map[string]string{
-		"Mistral7B":         "0.0.6",
-		"Mistral7BInstruct": "0.0.6",
+		"Mistral7B":         "0.0.7",
+		"Mistral7BInstruct": "0.0.7",
 	}
 
 	baseCommandPresetMistral = "python3 metrics_server.py & accelerate launch"
