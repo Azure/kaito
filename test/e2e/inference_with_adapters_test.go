@@ -4,6 +4,8 @@
 package e2e
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
@@ -38,8 +40,8 @@ var expectedInitContainers = []corev1.Container{
 	},
 }
 
-func validateAdapters(workspaceObj *kaitov1alpha1.Workspace, expectedInitContainers []corev1.Container) {
-	By("Checking the Adapters", func() {
+func validateInitContainers(workspaceObj *kaitov1alpha1.Workspace, expectedInitContainers []corev1.Container) {
+	By("Checking the InitContainers", func() {
 		Eventually(func() bool {
 			var err error
 			var initContainers []corev1.Container
@@ -68,6 +70,36 @@ func validateAdapters(workspaceObj *kaitov1alpha1.Workspace, expectedInitContain
 
 			// GinkgoWriter.Printf("Resource '%s' not ready. Ready replicas: %d\n", workspaceObj.Name, readyReplicas)
 			return initContainer.Image == expectedInitContainer.Image && initContainer.Name == expectedInitContainer.Name
+		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for initContainers to be ready")
+	})
+}
+
+func validateAdapterAdded(workspaceObj *kaitov1alpha1.Workspace, deploymentName string, adapterName string) {
+	By("Checking the Adapters", func() {
+		Eventually(func() bool {
+			coreClient, err := utils.GetK8sConfig()
+			if err != nil {
+				GinkgoWriter.Printf("Failed to create core client: %v\n", err)
+				return false
+			}
+
+			namespace := workspaceObj.Namespace
+			podName, err := utils.GetPodNameForDeployment(coreClient, namespace, deploymentName)
+			if err != nil {
+				GinkgoWriter.Printf("Failed to get pod name for deployment %s: %v\n", deploymentName, err)
+				return false
+			}
+
+			logs, err := utils.GetPodLogs(coreClient, namespace, podName, "")
+			if err != nil {
+				GinkgoWriter.Printf("Failed to get logs from pod %s: %v\n", podName, err)
+				return false
+			}
+
+			searchStringAdapter := fmt.Sprintf("Adapter added: %s", adapterName)
+			searchStringModelSuccess := "Model loaded successfully"
+
+			return strings.Contains(logs, searchStringAdapter) && strings.Contains(logs, searchStringModelSuccess)
 		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for adapter resource to be ready")
 	})
 }
@@ -110,7 +142,8 @@ var _ = Describe("Workspace Preset", func() {
 
 		validateWorkspaceReadiness(workspaceObj)
 
-		validateAdapters(workspaceObj, expectedInitContainers)
+		validateInitContainers(workspaceObj, expectedInitContainers)
+		validateAdapterAdded(workspaceObj, workspaceObj.Name, imageName)
 	})
 
 })
