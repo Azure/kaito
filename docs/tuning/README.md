@@ -17,7 +17,7 @@ kind: Workspace
 metadata:
   name: workspace-tuning-falcon
 resource:
-  instanceType: "Standard_NC6s_v3"
+  instanceType: "Standard_NC24ads_A100_v4"
   labelSelector:
     matchLabels:
       app: tuning-falcon
@@ -35,7 +35,7 @@ tuning:
 
 ```
 
-The detailed `TuningSpec`API definitions can be found [here](https://github.com/Azure/kaito/blob/2ccc93daf9d5385649f3f219ff131ee7c9c47f3e/api/v1alpha1/workspace_types.go#L145).
+The detailed `TuningSpec` API definitions can be found [here](https://github.com/Azure/kaito/blob/2ccc93daf9d5385649f3f219ff131ee7c9c47f3e/api/v1alpha1/workspace_types.go#L145).
 
 ### Tuning configurations
 Kaito provides default tuning configurations for different tuning methods. They are managed by Kubernetes configmaps.
