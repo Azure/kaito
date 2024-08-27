@@ -63,11 +63,11 @@ inference:
         image:  "<YOUR_IMAGE>"
       strength: "0.2"
 ```
-Currently, only images are supported as adapter sources. The `strength` field specifies the multiplier for applying the adapter weights to the raw model weights.
+Currently, only images are supported as adapter sources. The `strength` field specifies the multiplier applied to the adapter weights relative to the raw model weights.
 
-Note: if you build a container image for an existing adapter, please copy all adapter files to the **/data** directory inside the container.
+**Note:** When building a container image for an existing adapter, ensure all adapter files are copied to the **/data** directory inside the container.
 
-The detailed `InferenceSpec` API definitions can be found [here](https://github.com/Azure/kaito/blob/2ccc93daf9d5385649f3f219ff131ee7c9c47f3e/api/v1alpha1/workspace_types.go#L75).
+For detailed `InferenceSpec` API definitions, refer to the [documentation](https://github.com/Azure/kaito/blob/2ccc93daf9d5385649f3f219ff131ee7c9c47f3e/api/v1alpha1/workspace_types.go#L75).
 
 
 # Inference workload
