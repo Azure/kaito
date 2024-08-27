@@ -81,7 +81,6 @@ When adapters are specified in the `inference` spec, the Kaito controller will a
 </div>
 Figure 1. Kaito inference pod (with adapters) structure.
 
-
 If an image is specified in the adapter source, the corresponding initcontainer uses the specified image as the container image. These initcontainers ensures all adapter data are available locally before the inference service starts. The main container uses one of the supported model images. The image entry launches the [inference\_api.py](../../presets/inference/text-generation/inference_api.py) script.
 
 All containers use shared local volumes (by mounting the same EmptyDir volumes), hence file copies between containers are avoided.
