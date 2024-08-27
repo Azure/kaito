@@ -86,7 +86,7 @@ All containers share local volumes by mounting the same `EmptyDir` volumes, avoi
 
 ## Workload update
 
-Users can update the `workspace` customer resource and change the `adapters` field in the inference spec. The Kaito controller will apply a workload deployment update to make adapter changes take effect. The inference service pod will be recreated, causing a short period of service downtime. Once the new adapters are merged with the raw model weights and loaded into the GPU memory, the service will resume.
+To update the `adapters` field in the `inference` spec, users can modify the `workspace` custom resource. The Kaito controller will apply the changes, triggering a workload deployment update. This will recreate the inference service pod, resulting in a brief service downtime. Once the new adapters are merged with the raw model weights and loaded into GPU memory, the service will resume.
 
 
 # Troubleshooting
