@@ -64,7 +64,7 @@ If issues persist, examine your tuning dataset for outliers:
 
 ### Memory Management
 
-In Kaito, we call torch.cuda.empty_cache() at every tuning step to prevent OOM errors. Here’s an experiment demonstrating the impact of this approach:
+In Kaito, we call `torch.cuda.empty_cache()` at every tuning step to prevent OOM errors. Here’s an experiment demonstrating the impact of this approach:
 
 1. Memory Usage Over Time:
    - Running a tuning job for Phi-3 on an A100 GPU shows memory usage patterns. ![mem_usage_no_cache_clear.png](mem_usage_no_cache_clear.png)
