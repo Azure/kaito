@@ -21,7 +21,7 @@ inference:
     name: "falcon-7b"
 ```
 
-If a user runs Kaito in an on-premise Kubernetes cluster where GPU SKUs are unavailable, the GPU nodes can be prepared in advance. The user should ensure the corresponding vendor specific GPU plugin is installed successfully in every prepared node, i.e., the node status should report a non-zero allocatable GPU resource count. For example,
+If a user runs Kaito in an on-premise Kubernetes cluster where GPU SKUs are unavailable, the GPU nodes can be pre-configured. The user should ensure that the corresponding vendor-specific GPU plugin is installed successfully in every prepared node, i.e. the node status should report a non-zero GPU resource in the allocatable field. For example:
 
 ```
 $ kubectl get node $NODE_NAME -o json | jq .status.allocatable
