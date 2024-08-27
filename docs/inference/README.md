@@ -74,16 +74,15 @@ The detailed `InferenceSpec` API definitions can be found [here](https://github.
 
 Depending on whether the specified model supports distributed inference or not, the Kaito controller will choose to use either Kubernetes **apps.deployment** workload (by default) or Kubernetes **apps.statefulset** workload (if the model supports distributed inference) to manage the inference service, which is exposed using a Cluster-IP type of Kubernetes `service`.
 
-When adapters are specified in the `inference` spec, the Kaito controller will add initcontainers for every adapter in addition to the main container. The pod structure is illustrated in Figure 1.
+When adapters are specified in the `inference` spec, the Kaito controller adds an initcontainer for each adapter in addition to the main container. The pod structure is shown in Figure 1.
 
 <div align="left">
   <img src="../img/kaito-inference-adapter.png" width=40% title="Kaito inference adapter" alt="Kaito inference adapter">
 </div>
-Figure 1. Kaito inference pod (with adapters) structure.
 
-If an image is specified in the adapter source, the corresponding initcontainer uses the specified image as the container image. These initcontainers ensures all adapter data are available locally before the inference service starts. The main container uses one of the supported model images. The image entry launches the [inference\_api.py](../../presets/inference/text-generation/inference_api.py) script.
+If an image is specified as the adapter source, the corresponding initcontainer uses that image as its container image. These initcontainers ensure all adapter data is available locally before the inference service starts. The main container uses a supported model image, launching the [inference_api.py](https://github.com/Azure/kaito/presets/inference/text-generation/inference_api.py) script.
 
-All containers use shared local volumes (by mounting the same EmptyDir volumes), hence file copies between containers are avoided.
+All containers share local volumes by mounting the same `EmptyDir` volumes, avoiding file copies between containers.
 
 ## Workload update
 
