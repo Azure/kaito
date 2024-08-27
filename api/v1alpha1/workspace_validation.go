@@ -6,12 +6,12 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
-	"github.com/azure/kaito/pkg/utils/consts"
 	"reflect"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/azure/kaito/pkg/utils/consts"
 
 	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/plugin"
@@ -183,7 +183,7 @@ func (r *TuningSpec) validateUpdate(old *TuningSpec) (errs *apis.FieldError) {
 	if r.Output == nil {
 		errs = errs.Also(apis.ErrMissingField("Output"))
 	} else {
-		errs = errs.Also(r.Output.validateUpdate(old.Output).ViaField("Output"))
+		errs = errs.Also(r.Output.validateUpdate().ViaField("Output"))
 	}
 	if !reflect.DeepEqual(old.Preset, r.Preset) {
 		errs = errs.Also(apis.ErrGeneric("Preset cannot be changed", "Preset"))
@@ -235,33 +235,7 @@ func (r *DataSource) validateUpdate(old *DataSource, isTuning bool) (errs *apis.
 	if r.Volume != nil {
 		errs = errs.Also(apis.ErrInvalidValue("Volume support is not implemented yet", "Volume"))
 	}
-	oldURLs := make([]string, len(old.URLs))
-	copy(oldURLs, old.URLs)
-	sort.Strings(oldURLs)
 
-	newURLs := make([]string, len(r.URLs))
-	copy(newURLs, r.URLs)
-	sort.Strings(newURLs)
-
-	if !reflect.DeepEqual(oldURLs, newURLs) {
-		errs = errs.Also(apis.ErrInvalidValue("URLs field cannot be changed once set", "URLs"))
-	}
-	// TODO: check if the Volume is changed
-	if old.Image != r.Image {
-		errs = errs.Also(apis.ErrInvalidValue("Image field cannot be changed once set", "Image"))
-	}
-
-	oldSecrets := make([]string, len(old.ImagePullSecrets))
-	copy(oldSecrets, old.ImagePullSecrets)
-	sort.Strings(oldSecrets)
-
-	newSecrets := make([]string, len(r.ImagePullSecrets))
-	copy(newSecrets, r.ImagePullSecrets)
-	sort.Strings(newSecrets)
-
-	if !reflect.DeepEqual(oldSecrets, newSecrets) {
-		errs = errs.Also(apis.ErrInvalidValue("ImagePullSecrets field cannot be changed once set", "ImagePullSecrets"))
-	}
 	return errs
 }
 
@@ -298,18 +272,12 @@ func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 	return errs
 }
 
-func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.FieldError) {
+func (r *DataDestination) validateUpdate() (errs *apis.FieldError) {
 	// TODO: Implement Volumes
 	if r.Volume != nil {
 		errs = errs.Also(apis.ErrInvalidValue("Volume support is not implemented yet", "Volume"))
 	}
-	if old.Image != r.Image {
-		errs = errs.Also(apis.ErrInvalidValue("Image field cannot be changed once set", "Image"))
-	}
 
-	if old.ImagePushSecret != r.ImagePushSecret {
-		errs = errs.Also(apis.ErrInvalidValue("ImagePushSecret field cannot be changed once set", "ImagePushSecret"))
-	}
 	return errs
 }
 
