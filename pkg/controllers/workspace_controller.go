@@ -56,6 +56,7 @@ const (
 	nodePluginInstallTimeout = 60 * time.Second
 	WorkspaceHashAnnotation  = "workspace.kaito.io/hash"
 	WorkspaceNameLabel       = "workspace.kaito.io/name"
+	revisionHashSuffix       = 5
 )
 
 type WorkspaceReconciler struct {
@@ -243,7 +244,7 @@ func (c *WorkspaceReconciler) syncControllerRevision(ctx context.Context, wObj *
 	}
 	newRevision := &appsv1.ControllerRevision{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-%s", wObj.Name, currentHash[:5]),
+			Name:      fmt.Sprintf("%s-%s", wObj.Name, currentHash[:revisionHashSuffix]),
 			Namespace: wObj.Namespace,
 			Annotations: map[string]string{
 				WorkspaceHashAnnotation: currentHash,
