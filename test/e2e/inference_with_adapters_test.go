@@ -20,23 +20,42 @@ import (
 
 var DefaultStrength = "1.0"
 
-var imageName = "e2e-adapter"
-var fullImageName = utils.GetEnv("E2E_ACR_REGISTRY") + "/" + imageName + ":0.0.1"
+var imageName1 = "e2e-adapter"
+var fullImageName1 = utils.GetEnv("E2E_ACR_REGISTRY") + "/" + imageName1 + ":0.0.1"
+var imageName2 = "e2e-adapter2"
+var fullImageName2 = utils.GetEnv("E2E_ACR_REGISTRY") + "/" + imageName2 + ":0.0.1"
 
-var validAdapters = []kaitov1alpha1.AdapterSpec{
+var validAdapters1 = []kaitov1alpha1.AdapterSpec{
 	{
 		Source: &kaitov1alpha1.DataSource{
-			Name:  imageName,
-			Image: fullImageName,
+			Name:  imageName1,
+			Image: fullImageName1,
 		},
 		Strength: &DefaultStrength,
 	},
 }
 
-var expectedInitContainers = []corev1.Container{
+var validAdapters2 = []kaitov1alpha1.AdapterSpec{
 	{
-		Name:  imageName,
-		Image: fullImageName,
+		Source: &kaitov1alpha1.DataSource{
+			Name:  imageName2,
+			Image: fullImageName2,
+		},
+		Strength: &DefaultStrength,
+	},
+}
+
+var expectedInitContainers1 = []corev1.Container{
+	{
+		Name:  imageName1,
+		Image: fullImageName1,
+	},
+}
+
+var expectedInitContainers2 = []corev1.Container{
+	{
+		Name:  imageName2,
+		Image: fullImageName2,
 	},
 }
 
@@ -120,9 +139,9 @@ var _ = Describe("Workspace Preset", func() {
 		}
 	})
 
-	It("should create a falcon workspace with adapter", func() {
+	It("should create a falcon workspace with adapter, and update the workspace with another adapter", func() {
 		numOfNode := 1
-		workspaceObj := createCustomWorkspaceWithAdapter(numOfNode)
+		workspaceObj := createCustomWorkspaceWithAdapter(numOfNode, validAdapters1)
 
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
@@ -142,8 +161,25 @@ var _ = Describe("Workspace Preset", func() {
 
 		validateWorkspaceReadiness(workspaceObj)
 
-		validateInitContainers(workspaceObj, expectedInitContainers)
-		validateAdapterAdded(workspaceObj, workspaceObj.Name, imageName)
+		validateRevision(workspaceObj, "1")
+
+		validateInitContainers(workspaceObj, expectedInitContainers1)
+		validateAdapterAdded(workspaceObj, workspaceObj.Name, imageName1)
+
+		workspaceObj = updateCustomWorkspaceWithAdapter(workspaceObj, validAdapters2)
+		validateResourceStatus(workspaceObj)
+
+		time.Sleep(30 * time.Second)
+
+		validateAssociatedService(workspaceObj)
+
+		validateInferenceResource(workspaceObj, int32(numOfNode), false)
+
+		validateWorkspaceReadiness(workspaceObj)
+
+		validateRevision(workspaceObj, "2")
+		validateInitContainers(workspaceObj, expectedInitContainers2)
+		validateAdapterAdded(workspaceObj, workspaceObj.Name, imageName2)
 	})
 
 })

@@ -189,11 +189,19 @@ docker-build-kaito: docker-buildx
 .PHONY: docker-build-adapter
 docker-build-adapter: docker-buildx
 	docker buildx build \
-		--file ./docker/adapter/Dockerfile \
+		--build-arg ADAPTER_PATH=docker/adapters/adapter1 \
+		--file ./docker/adapters/Dockerfile \
 		--output=$(OUTPUT_TYPE) \
 		--platform="linux/$(ARCH)" \
 		--pull \
 		--tag $(REGISTRY)/e2e-adapter:0.0.1 .
+	docker buildx build \
+		--build-arg ADAPTER_PATH=docker/adapters/adapter2 \
+		--file ./docker/adapters/Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform="linux/$(ARCH)" \
+		--pull \
+		--tag $(REGISTRY)/e2e-adapter2:0.0.1 .
 
 .PHONY: docker-build-dataset
 docker-build-dataset: docker-buildx

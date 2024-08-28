@@ -80,7 +80,7 @@ When adapters are specified in the `inference` spec, the Kaito controller adds a
   <img src="../img/kaito-inference-adapter.png" width=40% title="Kaito inference adapter" alt="Kaito inference adapter">
 </div>
 
-If an image is specified as the adapter source, the corresponding initcontainer uses that image as its container image. These initcontainers ensure all adapter data is available locally before the inference service starts. The main container uses a supported model image, launching the [inference_api.py](https://github.com/Azure/kaito/presets/inference/text-generation/inference_api.py) script.
+If an image is specified as the adapter source, the corresponding initcontainer uses that image as its container image. These initcontainers ensure all adapter data is available locally before the inference service starts. The main container uses a supported model image, launching the [inference_api.py](../../presets/inference/text-generation/inference_api.py) script.
 
 All containers share local volumes by mounting the same `EmptyDir` volumes, avoiding file copies between containers.
 

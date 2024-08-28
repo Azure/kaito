@@ -33,6 +33,9 @@ const (
 	PresetMistral7BInstructModel = "mistral-7b-instruct"
 	PresetPhi2Model              = "phi-2"
 	PresetPhi3Mini128kModel      = "phi-3-mini-128k-instruct"
+	WorkspaceHashAnnotation      = "workspace.kaito.io/hash"
+	// WorkspaceRevisionAnnotation represents the revision number of the workload managed by the workspace
+	WorkspaceRevisionAnnotation = "workspace.kaito.io/revision"
 )
 
 var (
@@ -72,7 +75,7 @@ func loadModelVersions() {
 	}
 }
 
-func createCustomWorkspaceWithAdapter(numOfNode int) *kaitov1alpha1.Workspace {
+func createCustomWorkspaceWithAdapter(numOfNode int, validAdapters []kaitov1alpha1.AdapterSpec) *kaitov1alpha1.Workspace {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	By("Creating a workspace with adapter", func() {
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
@@ -82,6 +85,28 @@ func createCustomWorkspaceWithAdapter(numOfNode int) *kaitov1alpha1.Workspace {
 			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil, validAdapters)
 
 		createAndValidateWorkspace(workspaceObj)
+	})
+	return workspaceObj
+}
+
+func updateCustomWorkspaceWithAdapter(workspaceObj *kaitov1alpha1.Workspace, validAdapters []kaitov1alpha1.AdapterSpec) *kaitov1alpha1.Workspace {
+	By("Updating a workspace with adapter", func() {
+		workspaceObj.Inference.Adapters = validAdapters
+
+		By("Updating workspace", func() {
+			Eventually(func() error {
+				return utils.TestingCluster.KubeClient.Update(ctx, workspaceObj)
+			}, utils.PollTimeout, utils.PollInterval).
+				Should(Succeed(), "Failed to update workspace %s", workspaceObj.Name)
+
+			By("Validating workspace update", func() {
+				err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+					Namespace: workspaceObj.Namespace,
+					Name:      workspaceObj.Name,
+				}, workspaceObj, &client.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
 	})
 	return workspaceObj
 }
@@ -271,7 +296,7 @@ func copySecretToNamespace(secretName, targetNamespace string) error {
 	return nil
 }
 
-// Logic to validate resource status
+// validateResourceStatus validates resource status
 func validateResourceStatus(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Checking the resource status", func() {
 		Eventually(func() bool {
@@ -321,7 +346,7 @@ func validateAssociatedService(workspaceObj *kaitov1alpha1.Workspace) {
 	})
 }
 
-// Logic to validate inference deployment
+// validateInferenceResource validates inference deployment
 func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, expectedReplicas int32, isStatefulSet bool) {
 	By("Checking the inference resource", func() {
 		Eventually(func() bool {
@@ -364,13 +389,48 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, expectedRe
 				return true
 			}
 
-			// GinkgoWriter.Printf("Resource '%s' not ready. Ready replicas: %d\n", workspaceObj.Name, readyReplicas)
 			return false
 		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for inference resource to be ready")
 	})
 }
 
-// Logic to validate tuning deployment
+// validateRevision validates the annotations of the workspace and deployment, as well as the corresponding controller revision
+func validateRevision(workspaceObj *kaitov1alpha1.Workspace, revisionStr string) {
+	By("Checking the revisions of the resources", func() {
+		Eventually(func() bool {
+			dep := &appsv1.Deployment{}
+			err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: workspaceObj.Namespace,
+				Name:      workspaceObj.Name,
+			}, dep)
+			if err != nil {
+				GinkgoWriter.Printf("Error fetching resource: %v\n", err)
+				return false
+			}
+			workspaceObjHash := workspaceObj.Annotations[WorkspaceHashAnnotation]
+			revision := &appsv1.ControllerRevision{}
+			err = utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: workspaceObj.Namespace,
+				Name:      fmt.Sprintf("%s-%s", workspaceObj.Name, workspaceObjHash[:5]),
+			}, revision)
+
+			if err != nil {
+				GinkgoWriter.Printf("Error fetching resource: %v\n", err)
+				return false
+			}
+
+			revisionNum, _ := strconv.ParseInt(revisionStr, 10, 64)
+
+			isWorkspaceAnnotationCorrect := workspaceObj.Annotations[WorkspaceRevisionAnnotation] == revisionStr
+			isDeploymentAnnotationCorrect := dep.Annotations[WorkspaceRevisionAnnotation] == revisionStr
+			isRevisionCorrect := revision.Revision == revisionNum
+
+			return isWorkspaceAnnotationCorrect && isDeploymentAnnotationCorrect && isRevisionCorrect
+		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for correct revisions to be ready")
+	})
+}
+
+// validateTuningResource validates tuning deployment
 func validateTuningResource(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Checking the tuning resource", func() {
 		Eventually(func() bool {
@@ -438,7 +498,7 @@ func validateACRTuningResultsUploaded(workspaceObj *kaitov1alpha1.Workspace, job
 	}
 }
 
-// Logic to validate workspace readiness
+// validateWorkspaceReadiness validates workspace readiness
 func validateWorkspaceReadiness(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Checking the workspace status is ready", func() {
 		Eventually(func() bool {
