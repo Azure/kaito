@@ -704,11 +704,11 @@ func (c *WorkspaceReconciler) applyTuning(ctx context.Context, wObj *kaitov1alph
 
 			tuningParam := model.GetTuningParameters()
 			existingObj := &batchv1.Job{}
-			revisionStr := wObj.Annotations[kaitov1alpha1.WorkspaceRevisionAnnotation]
+			revisionNum := wObj.Annotations[kaitov1alpha1.WorkspaceRevisionAnnotation]
 			if err = resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err == nil {
 				klog.InfoS("A tuning workload already exists for workspace", "workspace", klog.KObj(wObj))
 
-				if existingObj.Annotations[kaitov1alpha1.WorkspaceRevisionAnnotation] != revisionStr {
+				if existingObj.Annotations[kaitov1alpha1.WorkspaceRevisionAnnotation] != revisionNum {
 					deletePolicy := metav1.DeletePropagationForeground
 					if err := c.Delete(ctx, existingObj, &client.DeleteOptions{
 						PropagationPolicy: &deletePolicy,
@@ -717,7 +717,7 @@ func (c *WorkspaceReconciler) applyTuning(ctx context.Context, wObj *kaitov1alph
 					}
 
 					var workloadObj client.Object
-					workloadObj, err = tuning.CreatePresetTuning(ctx, wObj, revisionStr, tuningParam, c.Client)
+					workloadObj, err = tuning.CreatePresetTuning(ctx, wObj, revisionNum, tuningParam, c.Client)
 					if err != nil {
 						return
 					}
@@ -730,7 +730,7 @@ func (c *WorkspaceReconciler) applyTuning(ctx context.Context, wObj *kaitov1alph
 			} else if apierrors.IsNotFound(err) {
 				var workloadObj client.Object
 				// Need to create a new workload
-				workloadObj, err = tuning.CreatePresetTuning(ctx, wObj, revisionStr, tuningParam, c.Client)
+				workloadObj, err = tuning.CreatePresetTuning(ctx, wObj, revisionNum, tuningParam, c.Client)
 				if err != nil {
 					return
 				}

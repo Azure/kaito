@@ -39,8 +39,10 @@ const (
 )
 
 var (
-	datasetImageName     = "e2e-dataset"
-	fullDatasetImageName = utils.GetEnv("E2E_ACR_REGISTRY") + "/" + datasetImageName + ":0.0.1"
+	datasetImageName1     = "e2e-dataset"
+	fullDatasetImageName1 = utils.GetEnv("E2E_ACR_REGISTRY") + "/" + datasetImageName1 + ":0.0.1"
+	datasetImageName2     = "e2e-dataset2"
+	fullDatasetImageName2 = utils.GetEnv("E2E_ACR_REGISTRY") + "/" + datasetImageName2 + ":0.0.1"
 )
 
 func loadTestEnvVars() {
@@ -245,7 +247,7 @@ func createPhi3TuningWorkspaceWithPresetPublicMode(configMapName string, numOfNo
 		uniqueID = fmt.Sprint("preset-", rand.Intn(1000))
 		outputRegistryUrl := fmt.Sprintf("%s.azurecr.io/%s:%s", azureClusterName, e2eOutputImageName, e2eOutputImageTag)
 		workspaceObj = utils.GenerateE2ETuningWorkspaceManifest(uniqueID, namespaceName, "",
-			fullDatasetImageName, outputRegistryUrl, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
+			fullDatasetImageName1, outputRegistryUrl, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-tuning-falcon"},
 			}, nil, PresetPhi3Mini128kModel, kaitov1alpha1.ModelImageAccessModePublic, []string{e2eACRSecret}, configMapName)
 
@@ -258,6 +260,40 @@ func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Creating workspace", func() {
 		Eventually(func() error {
 			return utils.TestingCluster.KubeClient.Create(ctx, workspaceObj, &client.CreateOptions{})
+		}, utils.PollTimeout, utils.PollInterval).
+			Should(Succeed(), "Failed to create workspace %s", workspaceObj.Name)
+
+		By("Validating workspace creation", func() {
+			err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: workspaceObj.Namespace,
+				Name:      workspaceObj.Name,
+			}, workspaceObj, &client.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+}
+
+func updatePhi3TuningWorkspaceWithPresetPublicMode(workspaceObj *kaitov1alpha1.Workspace, datasetImageName string) *kaitov1alpha1.Workspace {
+	e2eOutputImageName := fmt.Sprintf("adapter-%s-e2e-test2", PresetPhi3Mini128kModel)
+	e2eOutputImageTag := utils.GenerateRandomString()
+	By("Updating a workspace Tuning CR with Phi-3 preset public mode. The update includes the tuning input and output configurations for the workspace.", func() {
+		outputRegistryUrl := fmt.Sprintf("%s.azurecr.io/%s:%s", azureClusterName, e2eOutputImageName, e2eOutputImageTag)
+		workspaceObj.Tuning.Input = &kaitov1alpha1.DataSource{
+			Image: datasetImageName,
+		}
+		workspaceObj.Tuning.Output = &kaitov1alpha1.DataDestination{
+			Image:           outputRegistryUrl,
+			ImagePushSecret: e2eACRSecret,
+		}
+		updateAndValidateWorkspace(workspaceObj)
+	})
+	return workspaceObj
+}
+
+func updateAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
+	By("Creating workspace", func() {
+		Eventually(func() error {
+			return utils.TestingCluster.KubeClient.Update(ctx, workspaceObj)
 		}, utils.PollTimeout, utils.PollInterval).
 			Should(Succeed(), "Failed to create workspace %s", workspaceObj.Name)
 
@@ -394,22 +430,37 @@ func validateInferenceResource(workspaceObj *kaitov1alpha1.Workspace, expectedRe
 	})
 }
 
-// validateRevision validates the annotations of the workspace and deployment, as well as the corresponding controller revision
+// validateRevision validates the annotations of the workspace and the workload, as well as the corresponding controller revision
 func validateRevision(workspaceObj *kaitov1alpha1.Workspace, revisionStr string) {
 	By("Checking the revisions of the resources", func() {
 		Eventually(func() bool {
-			dep := &appsv1.Deployment{}
-			err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
-				Namespace: workspaceObj.Namespace,
-				Name:      workspaceObj.Name,
-			}, dep)
-			if err != nil {
-				GinkgoWriter.Printf("Error fetching resource: %v\n", err)
-				return false
+			var isWorkloadAnnotationCorrect bool
+			if workspaceObj.Inference != nil {
+				dep := &appsv1.Deployment{}
+				err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+					Namespace: workspaceObj.Namespace,
+					Name:      workspaceObj.Name,
+				}, dep)
+				if err != nil {
+					GinkgoWriter.Printf("Error fetching resource: %v\n", err)
+					return false
+				}
+				isWorkloadAnnotationCorrect = dep.Annotations[WorkspaceRevisionAnnotation] == revisionStr
+			} else if workspaceObj.Tuning != nil {
+				job := &batchv1.Job{}
+				err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+					Namespace: workspaceObj.Namespace,
+					Name:      workspaceObj.Name,
+				}, job)
+				if err != nil {
+					GinkgoWriter.Printf("Error fetching resource: %v\n", err)
+					return false
+				}
+				isWorkloadAnnotationCorrect = job.Annotations[WorkspaceRevisionAnnotation] == revisionStr
 			}
 			workspaceObjHash := workspaceObj.Annotations[WorkspaceHashAnnotation]
 			revision := &appsv1.ControllerRevision{}
-			err = utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+			err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      fmt.Sprintf("%s-%s", workspaceObj.Name, workspaceObjHash[:5]),
 			}, revision)
@@ -422,10 +473,9 @@ func validateRevision(workspaceObj *kaitov1alpha1.Workspace, revisionStr string)
 			revisionNum, _ := strconv.ParseInt(revisionStr, 10, 64)
 
 			isWorkspaceAnnotationCorrect := workspaceObj.Annotations[WorkspaceRevisionAnnotation] == revisionStr
-			isDeploymentAnnotationCorrect := dep.Annotations[WorkspaceRevisionAnnotation] == revisionStr
 			isRevisionCorrect := revision.Revision == revisionNum
 
-			return isWorkspaceAnnotationCorrect && isDeploymentAnnotationCorrect && isRevisionCorrect
+			return isWorkspaceAnnotationCorrect && isWorkloadAnnotationCorrect && isRevisionCorrect
 		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for correct revisions to be ready")
 	})
 }
@@ -723,7 +773,7 @@ var _ = Describe("Workspace Preset", func() {
 		validateWorkspaceReadiness(workspaceObj)
 	})
 
-	It("should create a workspace for tuning successfully", func() {
+	It("should create a workspace for tuning successfully, and update the workspace with another dataset and output image", func() {
 		numOfNode := 1
 		err := copySecretToNamespace(e2eACRSecret, namespaceName)
 		if err != nil {
@@ -744,6 +794,20 @@ var _ = Describe("Workspace Preset", func() {
 		validateACRTuningResultsUploaded(workspaceObj, jobName)
 
 		validateWorkspaceReadiness(workspaceObj)
+
+		validateRevision(workspaceObj, "1")
+
+		workspaceObj = updatePhi3TuningWorkspaceWithPresetPublicMode(workspaceObj, fullDatasetImageName2)
+		validateResourceStatus(workspaceObj)
+
+		time.Sleep(30 * time.Second)
+		validateTuningResource(workspaceObj)
+
+		validateACRTuningResultsUploaded(workspaceObj, jobName)
+
+		validateWorkspaceReadiness(workspaceObj)
+
+		validateRevision(workspaceObj, "2")
 	})
 
 })
