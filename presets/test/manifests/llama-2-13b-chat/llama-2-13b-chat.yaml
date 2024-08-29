@@ -69,4 +69,4 @@ spec:
           key: nvidia.com/gpu
           operator: Exists
       nodeSelector:
-        pool: lama213bchat
+        pool: llama213bcha

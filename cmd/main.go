@@ -11,11 +11,12 @@ import (
 	"syscall"
 	"time"
 
+	azurev1alpha2 "github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
+	awsv1beta1 "github.com/aws/karpenter-provider-aws/pkg/apis/v1beta1"
 	"github.com/azure/kaito/pkg/featuregates"
 	"github.com/azure/kaito/pkg/k8sclient"
 	"github.com/azure/kaito/pkg/nodeclaim"
 	"github.com/azure/kaito/pkg/utils/consts"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 
@@ -24,7 +25,6 @@ import (
 	"github.com/azure/kaito/pkg/webhooks"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/injection/sharedmain"
-	"knative.dev/pkg/signals"
 	"knative.dev/pkg/webhook"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -59,10 +59,12 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(kaitov1alpha1.AddToScheme(scheme))
 	utilruntime.Must(v1alpha5.SchemeBuilder.AddToScheme(scheme))
 	utilruntime.Must(v1beta1.SchemeBuilder.AddToScheme(scheme))
+	utilruntime.Must(azurev1alpha2.SchemeBuilder.AddToScheme(scheme))
+	utilruntime.Must(awsv1beta1.SchemeBuilder.AddToScheme(scheme))
+
 	//+kubebuilder:scaffold:scheme
 	klog.InitFlags(nil)
 }
@@ -88,6 +90,8 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	ctx := withShutdownSignal(context.Background())
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
@@ -117,8 +121,12 @@ func main() {
 	k8sclient.SetGlobalClient(mgr.GetClient())
 	kClient := k8sclient.GetGlobalClient()
 
-	workspaceReconciler := controllers.NewWorkspaceReconciler(k8sclient.GetGlobalClient(),
-		mgr.GetScheme(), log.Log.WithName("controllers").WithName("Workspace"), mgr.GetEventRecorderFor("KAITO-Workspace-controller"))
+	workspaceReconciler := controllers.NewWorkspaceReconciler(
+		kClient,
+		mgr.GetScheme(),
+		log.Log.WithName("controllers").WithName("Workspace"),
+		mgr.GetEventRecorderFor("KAITO-Workspace-controller"),
+	)
 
 	if err = workspaceReconciler.SetupWithManager(mgr); err != nil {
 		klog.ErrorS(err, "unable to create controller", "controller", "Workspace")
@@ -142,7 +150,7 @@ func main() {
 			klog.ErrorS(err, "unable to parse the webhook port number")
 			exitWithErrorFunc()
 		}
-		ctx := webhook.WithOptions(signals.NewContext(), webhook.Options{
+		ctx := webhook.WithOptions(ctx, webhook.Options{
 			ServiceName: os.Getenv(WebhookServiceName),
 			Port:        p,
 			SecretName:  "workspace-webhook-cert",
@@ -153,9 +161,16 @@ func main() {
 
 		// wait 2 seconds to allow reconciling webhookconfiguration and service endpoint.
 		time.Sleep(2 * time.Second)
+	}
 
-		if err = featuregates.ParseAndValidateFeatureGates(featureGates); err != nil {
-			klog.ErrorS(err, "unable to set `feature-gates` flag")
+	if err := featuregates.ParseAndValidateFeatureGates(featureGates); err != nil {
+		klog.ErrorS(err, "unable to set `feature-gates` flag")
+		exitWithErrorFunc()
+	}
+
+	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+		err = nodeclaim.CheckNodeClass(ctx, kClient)
+		if err != nil {
 			exitWithErrorFunc()
 		}
 	}
@@ -164,20 +179,6 @@ func main() {
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		klog.ErrorS(err, "problem running manager")
 		exitWithErrorFunc()
-	}
-	ctx := withShutdownSignal(context.Background())
-
-	// check if Karpenter NodeClass is available. If not, the controller will create it automatically.
-	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
-		cloud := GetCloudProviderName()
-		if !nodeclaim.IsNodeClassAvailable(ctx, cloud, kClient) {
-			klog.Infof("NodeClass is not available, creating NodeClass")
-			if err := nodeclaim.CreateKarpenterNodeClass(ctx, kClient); err != nil {
-				if client.IgnoreAlreadyExists(err) != nil {
-					exitWithErrorFunc()
-				}
-			}
-		}
 	}
 }
 
@@ -195,14 +196,4 @@ func withShutdownSignal(ctx context.Context) context.Context {
 		cancel()
 	}()
 	return nctx
-}
-
-// GetCloudProviderName returns the cloud provider name from the environment variable.
-// If the environment variable is not set, the controller will exit with an error.
-func GetCloudProviderName() string {
-	cloudProvider := os.Getenv("CLOUD_PROVIDER")
-	if cloudProvider == "" {
-		exitWithErrorFunc()
-	}
-	return cloudProvider
 }

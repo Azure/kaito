@@ -17,7 +17,7 @@ kind: Workspace
 metadata:
   name: workspace-tuning-falcon
 resource:
-  instanceType: "Standard_NC6s_v3"
+  instanceType: "Standard_NC24ads_A100_v4"
   labelSelector:
     matchLabels:
       app: tuning-falcon
@@ -35,7 +35,7 @@ tuning:
 
 ```
 
-The detailed `TuningSpec`API definitions can be found [here](https://github.com/Azure/kaito/blob/2ccc93daf9d5385649f3f219ff131ee7c9c47f3e/api/v1alpha1/workspace_types.go#L145).
+The detailed `TuningSpec` API definitions can be found [here](https://github.com/Azure/kaito/blob/2ccc93daf9d5385649f3f219ff131ee7c9c47f3e/api/v1alpha1/workspace_types.go#L145).
 
 ### Tuning configurations
 Kaito provides default tuning configurations for different tuning methods. They are managed by Kubernetes configmaps.
@@ -136,6 +136,6 @@ The training job can take a long time depending on the size of the input dataset
 ```
 total steps = number of epochs * (number of samples in dataset / batch size)
 ```
-where `number of epochs` and `batch size` can be customized in the tuning configmap. However, if the `max_steps` parameter is also specified in the configmap, training will stop after reaching the max steps, even if the specified epochs have not been completed.
+where `number of epochs` and `batch size` can be customized in the tuning configmap. However, if the `max_steps` parameter is also specified in the configmap, training will stop after reaching the max steps, even if the specified epochs have not been completed. Users can track the tuning progress in the job pod's log, reported by the number of steps completed out of the total.
 
 Please file issues if you experience abnormal slowness of the training job.

@@ -215,6 +215,7 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 		},
 	}, sidecarContainers...)
 
+	var numBackoff int32
 	return &batchv1.Job{
 		TypeMeta: v1.TypeMeta{
 			APIVersion: "batch/v1",
@@ -235,6 +236,7 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 			},
 		},
 		Spec: batchv1.JobSpec{
+			BackoffLimit: &numBackoff, // default is 6. A failed tuning job is unlikely to be self-recoverable, no need to recreate the pod.
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: v1.ObjectMeta{
 					Labels: labels,
@@ -252,7 +254,7 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 	}
 }
 
-func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imageName string,
+func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, revisionNum string, imageName string,
 	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements,
 	tolerations []corev1.Toleration, volumes []corev1.Volume, volumeMount []corev1.VolumeMount) *appsv1.Deployment {
@@ -291,9 +293,25 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 					Controller: &controller,
 				},
 			},
+			Annotations: map[string]string{
+				kaitov1alpha1.WorkspaceRevisionAnnotation: revisionNum,
+			},
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: lo.ToPtr(int32(replicas)),
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RollingUpdateDeploymentStrategyType,
+				RollingUpdate: &appsv1.RollingUpdateDeployment{
+					MaxSurge: &intstr.IntOrString{
+						Type:   intstr.Int,
+						IntVal: 0,
+					},
+					MaxUnavailable: &intstr.IntOrString{
+						Type:   intstr.Int,
+						IntVal: 1,
+					},
+				}, // Configuration for rolling updates: allows no extra pods during the update and permits at most one unavailable pod at a time。
+			},
 			Selector: labelselector,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: v1.ObjectMeta{

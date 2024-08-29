@@ -18,4 +18,7 @@ const (
 
 	// LabelWorkspaceName is the label for workspace namespace.
 	LabelWorkspaceNamespace = KAITOPrefix + "workspacenamespace"
+
+	// WorkspaceRevisionAnnotation is the Annotations for revision number
+	WorkspaceRevisionAnnotation = "workspace.kaito.io/revision"
 )

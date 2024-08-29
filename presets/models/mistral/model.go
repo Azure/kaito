@@ -27,11 +27,12 @@ var (
 	PresetMistral7BInstructModel = PresetMistral7BModel + "-instruct"
 
 	PresetMistralTagMap = map[string]string{
-		"Mistral7B":         "0.0.6",
-		"Mistral7BInstruct": "0.0.6",
+		"Mistral7B":         "0.0.7",
+		"Mistral7BInstruct": "0.0.7",
 	}
 
-	baseCommandPresetMistral = "accelerate launch"
+	baseCommandPresetMistralInference = "accelerate launch"
+	baseCommandPresetMistralTuning = "python3 metrics_server.py & accelerate launch"
 	mistralRunParams         = map[string]string{
 		"torch_dtype": "bfloat16",
 		"pipeline":    "text-generation",
@@ -53,7 +54,7 @@ func (*mistral7b) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            mistralRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetMistral,
+		BaseCommand:               baseCommandPresetMistralInference,
 		Tag:                       PresetMistralTagMap["Mistral7B"],
 	}
 
@@ -69,7 +70,7 @@ func (*mistral7b) GetTuningParameters() *model.PresetParam {
 		//TorchRunParams:            tuning.DefaultAccelerateParams,
 		//ModelRunParams:            mistralRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetMistral,
+		BaseCommand:      baseCommandPresetMistralTuning,
 		Tag:              PresetMistralTagMap["Mistral7B"],
 	}
 }
@@ -96,7 +97,7 @@ func (*mistral7bInst) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            mistralRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetMistral,
+		BaseCommand:               baseCommandPresetMistralInference,
 		Tag:                       PresetMistralTagMap["Mistral7BInstruct"],
 	}
 

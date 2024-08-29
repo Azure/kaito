@@ -28,5 +28,8 @@ COPY kaito/presets/tuning/${MODEL_TYPE}/fine_tuning.py /workspace/tfs/fine_tunin
 COPY kaito/presets/tuning/${MODEL_TYPE}/parser.py /workspace/tfs/parser.py
 COPY kaito/presets/tuning/${MODEL_TYPE}/dataset.py /workspace/tfs/dataset.py
 
+# Copy the metrics server
+COPY kaito/presets/tuning/${MODEL_TYPE}/metrics/metrics_server.py /workspace/tfs/metrics_server.py
+
 # Copy the entire model weights to the weights directory
 COPY ${WEIGHTS_PATH} /workspace/tfs/weights
