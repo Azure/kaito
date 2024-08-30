@@ -70,6 +70,13 @@ func CheckResourceStatus(obj client.Object, kubeClient client.Client, timeoutDur
 
 			switch k8sResource := obj.(type) {
 			case *appsv1.Deployment:
+				for _, condition := range k8sResource.Status.Conditions {
+					if condition.Type == appsv1.DeploymentProgressing && condition.Status == corev1.ConditionFalse {
+						klog.ErrorS(fmt.Errorf("deployment processing failed"), "deployment", k8sResource.Name, "reason", condition.Reason, "message", condition.Message)
+						return fmt.Errorf("deployment %s is not processing: %s", k8sResource.Name, condition.Message)
+					}
+				}
+
 				if k8sResource.Status.ReadyReplicas == *k8sResource.Spec.Replicas {
 					klog.InfoS("deployment status is ready", "deployment", k8sResource.Name)
 					return nil

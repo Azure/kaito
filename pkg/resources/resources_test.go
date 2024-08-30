@@ -5,9 +5,10 @@ package resources
 import (
 	"context"
 	"errors"
-	"github.com/azure/kaito/pkg/utils/test"
 	"testing"
 	"time"
+
+	"github.com/azure/kaito/pkg/utils/test"
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/apps/v1"
@@ -113,6 +114,29 @@ func TestCheckResourceStatus(t *testing.T) {
 		err := CheckResourceStatus(unsupportedResource, cl, 2*time.Second)
 		assert.Error(t, err)
 		assert.Equal(t, "unsupported resource type", err.Error())
+	})
+
+	t.Run("Should return error when DeploymentProcessing is False", func(t *testing.T) {
+		dep := &appsv1.Deployment{
+			Status: appsv1.DeploymentStatus{
+				ReadyReplicas: 3,
+				Conditions: []appsv1.DeploymentCondition{
+					{
+						Type:    appsv1.DeploymentProgressing,
+						Status:  corev1.ConditionFalse,
+						Reason:  "ProcessDeadlineExceeded",
+						Message: "Deployment exceeded its progress deadline",
+					},
+				},
+			},
+			Spec: appsv1.DeploymentSpec{
+				Replicas: int32Ptr(3),
+			},
+		}
+		cl := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(dep).Build()
+		err := CheckResourceStatus(dep, cl, 2*time.Second)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Deployment exceeded its progress deadline")
 	})
 }
 
