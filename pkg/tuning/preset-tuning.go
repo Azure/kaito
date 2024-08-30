@@ -436,7 +436,6 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 				echo "No URLs provided in DATA_URLS."
 				exit 1
 			fi
-			IFS=$'\n'
 			for url in $DATA_URLS; do
 				filename=$(basename "$url" | sed 's/[?=&]/_/g')
 				echo "Downloading $url to $DATA_VOLUME_PATH/$filename"
@@ -459,6 +458,7 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 					exit 1  # Exit with a non-zero status to indicate failure
 				fi
 			done
+			echo "All downloads completed successfully"
 		`},
 		VolumeMounts: []corev1.VolumeMount{
 			{
