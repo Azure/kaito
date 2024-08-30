@@ -206,11 +206,19 @@ docker-build-adapter: docker-buildx
 .PHONY: docker-build-dataset
 docker-build-dataset: docker-buildx
 	docker buildx build \
-		--file ./docker/dataset/Dockerfile \
+		--build-arg ADAPTER_PATH=docker/datasets/dataset1 \
+		--file ./docker/datasets/Dockerfile \
 		--output=$(OUTPUT_TYPE) \
 		--platform="linux/$(ARCH)" \
 		--pull \
 		--tag $(REGISTRY)/e2e-dataset:0.0.1 .
+	docker buildx build \
+		--build-arg ADAPTER_PATH=docker/datasets/dataset2 \
+		--file ./docker/datasets/Dockerfile \
+		--output=$(OUTPUT_TYPE) \
+		--platform="linux/$(ARCH)" \
+		--pull \
+		--tag $(REGISTRY)/e2e-dataset2:0.0.1 .
 
 ## --------------------------------------
 ## Kaito Installation
