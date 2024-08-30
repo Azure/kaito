@@ -437,13 +437,14 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 				echo "Downloading $url to $DATA_VOLUME_PATH/$filename"
 				retry_count=0
 				while [ $retry_count -lt 3 ]; do
-					curl -sSL $url -o $DATA_VOLUME_PATH/$filename
-					if [ $? -eq 0 ] && [ -s $DATA_VOLUME_PATH/$filename ]; then
+					http_status=$(curl -sSL -w "%{http_code}" -o $DATA_VOLUME_PATH/$filename "$url")
+					if [ "$http_status" -eq 200 ] && [ -s $DATA_VOLUME_PATH/$filename ]; then
 						echo "Successfully downloaded $url"
 						break
 					else
-						echo "Failed to download $url, retrying..."
+						echo "Failed to download $url, HTTP status code: $http_status, retrying..."
 						retry_count=$((retry_count + 1))
+						rm -f $DATA_VOLUME_PATH/$filename # Remove incomplete file
 						sleep 2
 					fi
 				done
