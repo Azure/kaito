@@ -348,6 +348,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 			Value: "k_proj,q_proj,v_proj,o_proj,gate_proj,down_proj,up_proj",
 		})
 	}
+	// Add Expandable Memory Feature to reduce Peak GPU Mem Usage
 	envVars = append(envVars, corev1.EnvVar{
 		Name:  "PYTORCH_CUDA_ALLOC_CONF",
 		Value: "expandable_segments:True",
