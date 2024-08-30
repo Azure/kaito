@@ -238,14 +238,14 @@ func createAndValidateConfigMap(configMap *v1.ConfigMap) {
 	})
 }
 
-func createPhi3TuningWorkspaceWithPresetPublicMode(configMapName string, numOfNode int) (*kaitov1alpha1.Workspace, string) {
+func createPhi3TuningWorkspaceWithPresetPublicMode(configMapName string, numOfNode int) (*kaitov1alpha1.Workspace, string, string) {
 	workspaceObj := &kaitov1alpha1.Workspace{}
 	e2eOutputImageName := fmt.Sprintf("adapter-%s-e2e-test", PresetPhi3Mini128kModel)
 	e2eOutputImageTag := utils.GenerateRandomString()
+	outputRegistryUrl := fmt.Sprintf("%s.azurecr.io/%s:%s", azureClusterName, e2eOutputImageName, e2eOutputImageTag)
 	var uniqueID string
 	By("Creating a workspace Tuning CR with Phi-3 preset public mode", func() {
 		uniqueID = fmt.Sprint("preset-", rand.Intn(1000))
-		outputRegistryUrl := fmt.Sprintf("%s.azurecr.io/%s:%s", azureClusterName, e2eOutputImageName, e2eOutputImageTag)
 		workspaceObj = utils.GenerateE2ETuningWorkspaceManifest(uniqueID, namespaceName, "",
 			fullDatasetImageName1, outputRegistryUrl, numOfNode, "Standard_NC6s_v3", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-tuning-falcon"},
@@ -253,7 +253,7 @@ func createPhi3TuningWorkspaceWithPresetPublicMode(configMapName string, numOfNo
 
 		createAndValidateWorkspace(workspaceObj)
 	})
-	return workspaceObj, uniqueID
+	return workspaceObj, uniqueID, outputRegistryUrl
 }
 
 func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
@@ -273,11 +273,11 @@ func createAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
 	})
 }
 
-func updatePhi3TuningWorkspaceWithPresetPublicMode(workspaceObj *kaitov1alpha1.Workspace, datasetImageName string) *kaitov1alpha1.Workspace {
+func updatePhi3TuningWorkspaceWithPresetPublicMode(workspaceObj *kaitov1alpha1.Workspace, datasetImageName string) (*kaitov1alpha1.Workspace, string) {
 	e2eOutputImageName := fmt.Sprintf("adapter-%s-e2e-test2", PresetPhi3Mini128kModel)
 	e2eOutputImageTag := utils.GenerateRandomString()
+	outputRegistryUrl := fmt.Sprintf("%s.azurecr.io/%s:%s", azureClusterName, e2eOutputImageName, e2eOutputImageTag)
 	By("Updating a workspace Tuning CR with Phi-3 preset public mode. The update includes the tuning input and output configurations for the workspace.", func() {
-		outputRegistryUrl := fmt.Sprintf("%s.azurecr.io/%s:%s", azureClusterName, e2eOutputImageName, e2eOutputImageTag)
 		workspaceObj.Tuning.Input = &kaitov1alpha1.DataSource{
 			Image: datasetImageName,
 		}
@@ -287,7 +287,7 @@ func updatePhi3TuningWorkspaceWithPresetPublicMode(workspaceObj *kaitov1alpha1.W
 		}
 		updateAndValidateWorkspace(workspaceObj)
 	})
-	return workspaceObj
+	return workspaceObj, outputRegistryUrl
 }
 
 func updateAndValidateWorkspace(workspaceObj *kaitov1alpha1.Workspace) {
@@ -517,6 +517,40 @@ func validateTuningResource(workspaceObj *kaitov1alpha1.Workspace) {
 
 			return false
 		}, 30*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for Tuning resource to be ready")
+	})
+}
+
+func validateTuningJobInputOutput(workspaceObj *kaitov1alpha1.Workspace, inputImage string, output string) {
+	By("Checking the tuning input and output", func() {
+		Eventually(func() bool {
+			var err error
+
+			job := &batchv1.Job{}
+			err = utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
+				Namespace: workspaceObj.Namespace,
+				Name:      workspaceObj.Name,
+			}, job)
+
+			if err != nil {
+				GinkgoWriter.Printf("Error fetching resource: %v\n", err)
+				return false
+			}
+
+			image := job.Spec.Template.Spec.InitContainers[0].Image
+
+			expectedString1 := "docker build -t " + output
+			expectedString2 := "if docker push " + output + "; then"
+
+			var sidecarContainer v1.Container
+
+			for _, container := range job.Spec.Template.Spec.Containers {
+				if container.Name == "docker-sidecar" {
+					sidecarContainer = container
+					break
+				}
+			}
+			return image == inputImage && strings.Contains(sidecarContainer.Args[0], expectedString1) && strings.Contains(sidecarContainer.Args[0], expectedString2)
+		}, 10*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for Tuning resource to be ready")
 	})
 }
 
@@ -780,7 +814,7 @@ var _ = Describe("Workspace Preset", func() {
 			log.Fatalf("Error copying secret: %v", err)
 		}
 		configMap := createCustomTuningConfigMapForE2E()
-		workspaceObj, jobName := createPhi3TuningWorkspaceWithPresetPublicMode(configMap.Name, numOfNode)
+		workspaceObj, jobName, outputRegistryUrl1 := createPhi3TuningWorkspaceWithPresetPublicMode(configMap.Name, numOfNode)
 
 		defer cleanupResources(workspaceObj)
 		time.Sleep(30 * time.Second)
@@ -795,9 +829,11 @@ var _ = Describe("Workspace Preset", func() {
 
 		validateWorkspaceReadiness(workspaceObj)
 
+		validateTuningJobInputOutput(workspaceObj, fullDatasetImageName1, outputRegistryUrl1)
+
 		validateRevision(workspaceObj, "1")
 
-		workspaceObj = updatePhi3TuningWorkspaceWithPresetPublicMode(workspaceObj, fullDatasetImageName2)
+		workspaceObj, outputRegistryUrl2 := updatePhi3TuningWorkspaceWithPresetPublicMode(workspaceObj, fullDatasetImageName2)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -806,6 +842,8 @@ var _ = Describe("Workspace Preset", func() {
 		validateACRTuningResultsUploaded(workspaceObj, jobName)
 
 		validateWorkspaceReadiness(workspaceObj)
+
+		validateTuningJobInputOutput(workspaceObj, fullDatasetImageName2, outputRegistryUrl2)
 
 		validateRevision(workspaceObj, "2")
 	})
