@@ -186,7 +186,7 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 	return ss
 }
 
-func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspace, imageName string,
+func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspace, revisionNum string, imageName string,
 	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements, tolerations []corev1.Toleration,
 	initContainers []corev1.Container, sidecarContainers []corev1.Container, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount,
@@ -225,6 +225,9 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 			Name:      wObj.Name,
 			Namespace: wObj.Namespace,
 			Labels:    labels,
+			Annotations: map[string]string{
+				kaitov1alpha1.WorkspaceRevisionAnnotation: revisionNum,
+			},
 			OwnerReferences: []v1.OwnerReference{
 				{
 					APIVersion: kaitov1alpha1.GroupVersion.String(),

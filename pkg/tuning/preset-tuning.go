@@ -284,7 +284,7 @@ func setupDefaultSharedVolumes(workspaceObj *kaitov1alpha1.Workspace, cmName str
 	return volumes, volumeMounts
 }
 
-func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
+func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, revisionNum string,
 	tuningObj *model.PresetParam, kubeClient client.Client) (client.Object, error) {
 	cm, err := EnsureTuningConfigMap(ctx, workspaceObj, kubeClient)
 	if err != nil {
@@ -353,7 +353,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		Name:  "PYTORCH_CUDA_ALLOC_CONF",
 		Value: "expandable_segments:True",
 	})
-	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, tuningImage, imagePullSecrets, *workspaceObj.Resource.Count, commands,
+	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, revisionNum, tuningImage, imagePullSecrets, *workspaceObj.Resource.Count, commands,
 		containerPorts, nil, nil, resourceReq, tolerations, initContainers, sidecarContainers, volumes, volumeMounts, envVars)
 
 	err = resources.CreateResource(ctx, jobObj, kubeClient)
@@ -437,25 +437,33 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 		Name:  "data-downloader",
 		Image: "curlimages/curl",
 		Command: []string{"sh", "-c", `
+			if [ -z "$DATA_URLS" ]; then
+				echo "No URLs provided in DATA_URLS."
+				exit 1
+			fi
 			for url in $DATA_URLS; do
 				filename=$(basename "$url" | sed 's/[?=&]/_/g')
 				echo "Downloading $url to $DATA_VOLUME_PATH/$filename"
 				retry_count=0
 				while [ $retry_count -lt 3 ]; do
-					curl -sSL $url -o $DATA_VOLUME_PATH/$filename
-					if [ $? -eq 0 ] && [ -s $DATA_VOLUME_PATH/$filename ]; then
+					http_status=$(curl -sSL -w "%{http_code}" -o "$DATA_VOLUME_PATH/$filename" "$url")
+					curl_exit_status=$?  # Save the exit status of curl immediately
+					if [ "$http_status" -eq 200 ] && [ -s "$DATA_VOLUME_PATH/$filename" ] && [ $curl_exit_status -eq 0 ]; then
 						echo "Successfully downloaded $url"
 						break
 					else
-						echo "Failed to download $url, retrying..."
+						echo "Failed to download $url, HTTP status code: $http_status, retrying..."
 						retry_count=$((retry_count + 1))
+						rm -f "$DATA_VOLUME_PATH/$filename" # Remove incomplete file
 						sleep 2
 					fi
 				done
 				if [ $retry_count -eq 3 ]; then
 					echo "Failed to download $url after 3 attempts"
+					exit 1  # Exit with a non-zero status to indicate failure
 				fi
 			done
+			echo "All downloads completed successfully"
 		`},
 		VolumeMounts: []corev1.VolumeMount{
 			{
