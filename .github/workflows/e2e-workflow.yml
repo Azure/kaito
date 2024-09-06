@@ -8,7 +8,7 @@ on:
         required: true
       node_provisioner:
         type: string
-        required: true
+        required: false
         default: gpuprovisioner
       tag:
         type: string
