@@ -9,6 +9,7 @@ on:
       node_provisioner:
         type: string
         required: true
+        default: gpuprovisioner
       tag:
         type: string
       isRelease:
