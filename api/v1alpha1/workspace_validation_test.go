@@ -204,7 +204,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		validateTuning      bool // To indicate if we are testing tuning validation
 	}{
 		{
-			name: "Valid resource",
+			name: "Valid Resource",
 			resourceSpec: &ResourceSpec{
 				InstanceType: "Standard_ND96asr_v4",
 				Count:        pointerToInt(1),
@@ -212,6 +212,20 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			modelGPUCount:       "8",
 			modelPerGPUMemory:   "19Gi",
 			modelTotalGPUMemory: "152Gi",
+			preset:              true,
+			errContent:          "",
+			expectErrs:          false,
+			validateTuning:      false,
+		},
+		{
+			name: "Valid Resource - SKU Capacity == Model Requirement",
+			resourceSpec: &ResourceSpec{
+				InstanceType: "Standard_NC12s_v3",
+				Count:        pointerToInt(1),
+			},
+			modelGPUCount:       "1",
+			modelPerGPUMemory:   "16Gi",
+			modelTotalGPUMemory: "16Gi",
 			preset:              true,
 			errContent:          "",
 			expectErrs:          false,
@@ -1054,6 +1068,28 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 			wantErr:   true,
 			errFields: []string{"Method"},
 		},
+		{
+			name: "Invalid Input Source Casing",
+			tuningSpec: &TuningSpec{
+				Input:  &DataSource{Name: "valid-input", Image: "AZURE_ACR.azurecr.io/INPUT:0.0.0"},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/output:0.0.0", ImagePushSecret: "secret"},
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method: TuningMethodLora,
+			},
+			wantErr:   true,
+			errFields: []string{"Image"},
+		},
+		{
+			name: "Invalid Output Destination Casing",
+			tuningSpec: &TuningSpec{
+				Input:  &DataSource{Name: "valid-input", Image: "AZURE_ACR.azurecr.io/input:0.0.0"},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/OUTPUT:0.0.0", ImagePushSecret: "secret"},
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method: TuningMethodLora,
+			},
+			wantErr:   true,
+			errFields: []string{"Image"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1266,39 +1302,6 @@ func TestDataSourceValidateUpdate(t *testing.T) {
 			wantErr:   true,
 			errFields: []string{"Name"},
 		},
-		{
-			name: "URLs changed",
-			oldSource: &DataSource{
-				URLs: []string{"http://example.com/old"},
-			},
-			newSource: &DataSource{
-				URLs: []string{"http://example.com/new"},
-			},
-			wantErr:   true,
-			errFields: []string{"URLs"},
-		},
-		{
-			name: "Image changed",
-			oldSource: &DataSource{
-				Image: "old-image:latest",
-			},
-			newSource: &DataSource{
-				Image: "new-image:latest",
-			},
-			wantErr:   true,
-			errFields: []string{"Image"},
-		},
-		{
-			name: "ImagePullSecrets changed",
-			oldSource: &DataSource{
-				ImagePullSecrets: []string{"old-secret"},
-			},
-			newSource: &DataSource{
-				ImagePullSecrets: []string{"new-secret"},
-			},
-			wantErr:   true,
-			errFields: []string{"ImagePullSecrets"},
-		},
 	}
 
 	for _, tt := range tests {
@@ -1414,33 +1417,11 @@ func TestDataDestinationValidateUpdate(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		{
-			name: "Image changed",
-			oldDest: &DataDestination{
-				Image: "old-image:latest",
-			},
-			newDest: &DataDestination{
-				Image: "new-image:latest",
-			},
-			wantErr:   true,
-			errFields: []string{"Image"},
-		},
-		{
-			name: "ImagePushSecret changed",
-			oldDest: &DataDestination{
-				ImagePushSecret: "old-secret",
-			},
-			newDest: &DataDestination{
-				ImagePushSecret: "new-secret",
-			},
-			wantErr:   true,
-			errFields: []string{"ImagePushSecret"},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.newDest.validateUpdate(tt.oldDest)
+			errs := tt.newDest.validateUpdate()
 			hasErrs := errs != nil
 
 			if hasErrs != tt.wantErr {

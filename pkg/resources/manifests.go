@@ -186,7 +186,7 @@ func GenerateStatefulSetManifest(ctx context.Context, workspaceObj *kaitov1alpha
 	return ss
 }
 
-func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspace, imageName string,
+func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspace, revisionNum string, imageName string,
 	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements, tolerations []corev1.Toleration,
 	initContainers []corev1.Container, sidecarContainers []corev1.Container, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount,
@@ -215,6 +215,7 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 		},
 	}, sidecarContainers...)
 
+	var numBackoff int32
 	return &batchv1.Job{
 		TypeMeta: v1.TypeMeta{
 			APIVersion: "batch/v1",
@@ -224,6 +225,9 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 			Name:      wObj.Name,
 			Namespace: wObj.Namespace,
 			Labels:    labels,
+			Annotations: map[string]string{
+				kaitov1alpha1.WorkspaceRevisionAnnotation: revisionNum,
+			},
 			OwnerReferences: []v1.OwnerReference{
 				{
 					APIVersion: kaitov1alpha1.GroupVersion.String(),
@@ -235,6 +239,7 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 			},
 		},
 		Spec: batchv1.JobSpec{
+			BackoffLimit: &numBackoff, // default is 6. A failed tuning job is unlikely to be self-recoverable, no need to recreate the pod.
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: v1.ObjectMeta{
 					Labels: labels,
@@ -252,7 +257,7 @@ func GenerateTuningJobManifest(ctx context.Context, wObj *kaitov1alpha1.Workspac
 	}
 }
 
-func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, imageName string,
+func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, revisionNum string, imageName string,
 	imagePullSecretRefs []corev1.LocalObjectReference, replicas int, commands []string, containerPorts []corev1.ContainerPort,
 	livenessProbe, readinessProbe *corev1.Probe, resourceRequirements corev1.ResourceRequirements,
 	tolerations []corev1.Toleration, volumes []corev1.Volume, volumeMount []corev1.VolumeMount) *appsv1.Deployment {
@@ -275,22 +280,7 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 	initContainers := []corev1.Container{}
 	envs := []corev1.EnvVar{}
 	if len(workspaceObj.Inference.Adapters) > 0 {
-		for _, adapter := range workspaceObj.Inference.Adapters {
-			// TODO: accept Volumes and url link to pull images
-			initContainer := corev1.Container{
-				Name:            adapter.Source.Name,
-				Image:           adapter.Source.Image,
-				Command:         []string{"/bin/sh", "-c", fmt.Sprintf("mkdir -p /mnt/adapter/%s && cp -r /data/* /mnt/adapter/%s", adapter.Source.Name, adapter.Source.Name)},
-				VolumeMounts:    volumeMount,
-				ImagePullPolicy: corev1.PullAlways,
-			}
-			initContainers = append(initContainers, initContainer)
-			env := corev1.EnvVar{
-				Name:  adapter.Source.Name,
-				Value: *adapter.Strength,
-			}
-			envs = append(envs, env)
-		}
+		initContainers, envs = GenerateInitContainers(workspaceObj, volumeMount)
 	}
 
 	return &appsv1.Deployment{
@@ -306,9 +296,25 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 					Controller: &controller,
 				},
 			},
+			Annotations: map[string]string{
+				kaitov1alpha1.WorkspaceRevisionAnnotation: revisionNum,
+			},
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: lo.ToPtr(int32(replicas)),
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RollingUpdateDeploymentStrategyType,
+				RollingUpdate: &appsv1.RollingUpdateDeployment{
+					MaxSurge: &intstr.IntOrString{
+						Type:   intstr.Int,
+						IntVal: 0,
+					},
+					MaxUnavailable: &intstr.IntOrString{
+						Type:   intstr.Int,
+						IntVal: 1,
+					},
+				}, // Configuration for rolling updates: allows no extra pods during the update and permits at most one unavailable pod at a time。
+			},
 			Selector: labelselector,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: v1.ObjectMeta{
@@ -347,6 +353,30 @@ func GenerateDeploymentManifest(ctx context.Context, workspaceObj *kaitov1alpha1
 			},
 		},
 	}
+}
+
+func GenerateInitContainers(wObj *kaitov1alpha1.Workspace, volumeMount []corev1.VolumeMount) ([]corev1.Container, []corev1.EnvVar) {
+	var initContainers []corev1.Container
+	var envs []corev1.EnvVar
+	if len(wObj.Inference.Adapters) > 0 {
+		for _, adapter := range wObj.Inference.Adapters {
+			initContainer := corev1.Container{
+				Name:            adapter.Source.Name,
+				Image:           adapter.Source.Image,
+				Command:         []string{"/bin/sh", "-c", fmt.Sprintf("mkdir -p /mnt/adapter/%s && cp -r /data/* /mnt/adapter/%s", adapter.Source.Name, adapter.Source.Name)},
+				VolumeMounts:    volumeMount,
+				ImagePullPolicy: corev1.PullAlways,
+			}
+			initContainers = append(initContainers, initContainer)
+			env := corev1.EnvVar{
+				Name:  adapter.Source.Name,
+				Value: *adapter.Strength,
+			}
+			envs = append(envs, env)
+		}
+
+	}
+	return initContainers, envs
 }
 
 func GenerateDeploymentManifestWithPodTemplate(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, tolerations []corev1.Toleration) *appsv1.Deployment {

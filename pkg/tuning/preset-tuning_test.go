@@ -382,7 +382,7 @@ func TestHandleURLDataSource(t *testing.T) {
 			},
 			expectedInitContainerName: "data-downloader",
 			expectedImage:             "curlimages/curl",
-			expectedCommands:          "curl -sSL $url -o $DATA_VOLUME_PATH/$filename",
+			expectedCommands:          "curl -sSL -w \"%{http_code}\" -o \"$DATA_VOLUME_PATH/$filename\" \"$url\"",
 			expectedVolumeName:        "data-volume",
 			expectedVolumeMountPath:   utils.DefaultDataVolumePath,
 		},
@@ -441,7 +441,7 @@ func TestPrepareTuningParameters(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			commands, resources := prepareTuningParameters(ctx, tc.workspaceObj, tc.modelCommand, tc.tuningObj)
+			commands, resources := prepareTuningParameters(ctx, tc.workspaceObj, tc.modelCommand, tc.tuningObj, "2")
 			assert.Equal(t, tc.expectedCommands, commands)
 			assert.Equal(t, tc.expectedRequirements.Requests, resources.Requests)
 			assert.Equal(t, tc.expectedRequirements.Limits, resources.Limits)

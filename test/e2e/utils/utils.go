@@ -86,6 +86,21 @@ func GetPodNameForJob(coreClient *kubernetes.Clientset, namespace, jobName strin
 	return podList.Items[0].Name, nil
 }
 
+func GetPodNameForDeployment(coreClient *kubernetes.Clientset, namespace, deploymentName string) (string, error) {
+	podList, err := coreClient.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("kaito.sh/workspace=%s", deploymentName),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if len(podList.Items) == 0 {
+		return "", fmt.Errorf("no pods found for job %s", deploymentName)
+	}
+
+	return podList.Items[0].Name, nil
+}
+
 func GetK8sConfig() (*kubernetes.Clientset, error) {
 	var config *rest.Config
 	var err error
@@ -271,7 +286,7 @@ func GenerateTuningWorkspaceManifest(name, namespace, imageName string, resource
 	return workspace
 }
 
-func GenerateE2ETuningWorkspaceManifest(name, namespace, imageName, outputRegistry string,
+func GenerateE2ETuningWorkspaceManifest(name, namespace, imageName, datasetImageName, outputRegistry string,
 	resourceCount int, instanceType string, labelSelector *metav1.LabelSelector,
 	preferredNodes []string, presetName kaitov1alpha1.ModelName, accessMode kaitov1alpha1.ModelImageAccessMode,
 	imagePullSecret []string, customConfigMapName string) *kaitov1alpha1.Workspace {
@@ -306,7 +321,7 @@ func GenerateE2ETuningWorkspaceManifest(name, namespace, imageName, outputRegist
 	workspace.Tuning = &workspaceTuning
 	workspace.Tuning.Method = kaitov1alpha1.TuningMethodQLora
 	workspace.Tuning.Input = &kaitov1alpha1.DataSource{
-		URLs: []string{ExampleDatasetURL},
+		Image: datasetImageName,
 	}
 	workspace.Tuning.Output = &kaitov1alpha1.DataDestination{
 		Image:           outputRegistry,

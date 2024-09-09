@@ -8,9 +8,10 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/azure/kaito/pkg/utils/consts"
 
 	"github.com/azure/kaito/pkg/utils"
 	"github.com/azure/kaito/pkg/utils/plugin"
@@ -182,7 +183,7 @@ func (r *TuningSpec) validateUpdate(old *TuningSpec) (errs *apis.FieldError) {
 	if r.Output == nil {
 		errs = errs.Also(apis.ErrMissingField("Output"))
 	} else {
-		errs = errs.Also(r.Output.validateUpdate(old.Output).ViaField("Output"))
+		errs = errs.Also(r.Output.validateUpdate().ViaField("Output"))
 	}
 	if !reflect.DeepEqual(old.Preset, r.Preset) {
 		errs = errs.Also(apis.ErrGeneric("Preset cannot be changed", "Preset"))
@@ -209,6 +210,12 @@ func (r *DataSource) validateCreate() (errs *apis.FieldError) {
 		re := regexp.MustCompile(`^(.+/[^:/]+):([^:/]+)$`)
 		if !re.MatchString(r.Image) {
 			errs = errs.Also(apis.ErrInvalidValue("Invalid image format, require full input image URL", "Image"))
+		} else {
+			// Executes if image is of correct format
+			err := utils.ExtractAndValidateRepoName(r.Image)
+			if err != nil {
+				errs = errs.Also(apis.ErrInvalidValue(err.Error(), "Image"))
+			}
 		}
 		sourcesSpecified++
 	}
@@ -228,33 +235,7 @@ func (r *DataSource) validateUpdate(old *DataSource, isTuning bool) (errs *apis.
 	if r.Volume != nil {
 		errs = errs.Also(apis.ErrInvalidValue("Volume support is not implemented yet", "Volume"))
 	}
-	oldURLs := make([]string, len(old.URLs))
-	copy(oldURLs, old.URLs)
-	sort.Strings(oldURLs)
 
-	newURLs := make([]string, len(r.URLs))
-	copy(newURLs, r.URLs)
-	sort.Strings(newURLs)
-
-	if !reflect.DeepEqual(oldURLs, newURLs) {
-		errs = errs.Also(apis.ErrInvalidValue("URLs field cannot be changed once set", "URLs"))
-	}
-	// TODO: check if the Volume is changed
-	if old.Image != r.Image {
-		errs = errs.Also(apis.ErrInvalidValue("Image field cannot be changed once set", "Image"))
-	}
-
-	oldSecrets := make([]string, len(old.ImagePullSecrets))
-	copy(oldSecrets, old.ImagePullSecrets)
-	sort.Strings(oldSecrets)
-
-	newSecrets := make([]string, len(r.ImagePullSecrets))
-	copy(newSecrets, r.ImagePullSecrets)
-	sort.Strings(newSecrets)
-
-	if !reflect.DeepEqual(oldSecrets, newSecrets) {
-		errs = errs.Also(apis.ErrInvalidValue("ImagePullSecrets field cannot be changed once set", "ImagePullSecrets"))
-	}
 	return errs
 }
 
@@ -270,6 +251,12 @@ func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 		re := regexp.MustCompile(`^(.+/[^:/]+):([^:/]+)$`)
 		if !re.MatchString(r.Image) {
 			errs = errs.Also(apis.ErrInvalidValue("Invalid image format, require full output image URL", "Image"))
+		} else {
+			// Executes if image is of correct format
+			err := utils.ExtractAndValidateRepoName(r.Image)
+			if err != nil {
+				errs = errs.Also(apis.ErrInvalidValue(err.Error(), "Image"))
+			}
 		}
 		// Cloud Provider requires credentials to push image
 		if r.ImagePushSecret == "" {
@@ -285,18 +272,12 @@ func (r *DataDestination) validateCreate() (errs *apis.FieldError) {
 	return errs
 }
 
-func (r *DataDestination) validateUpdate(old *DataDestination) (errs *apis.FieldError) {
+func (r *DataDestination) validateUpdate() (errs *apis.FieldError) {
 	// TODO: Implement Volumes
 	if r.Volume != nil {
 		errs = errs.Also(apis.ErrInvalidValue("Volume support is not implemented yet", "Volume"))
 	}
-	if old.Image != r.Image {
-		errs = errs.Also(apis.ErrInvalidValue("Image field cannot be changed once set", "Image"))
-	}
 
-	if old.ImagePushSecret != r.ImagePushSecret {
-		errs = errs.Also(apis.ErrInvalidValue("ImagePushSecret field cannot be changed once set", "ImagePushSecret"))
-	}
 	return errs
 }
 
@@ -318,25 +299,54 @@ func (r *ResourceSpec) validateCreateWithInference(inference *InferenceSpec) (er
 	if skuConfig, exists := SupportedGPUConfigs[instanceType]; exists {
 		if presetName != "" {
 			model := plugin.KaitoModelRegister.MustGet(presetName) // InferenceSpec has been validated so the name is valid.
-			// Validate GPU count for given SKU
+
 			machineCount := *r.Count
-			totalNumGPUs := machineCount * skuConfig.GPUCount
-			totalGPUMem := machineCount * skuConfig.GPUMem * skuConfig.GPUCount
+			machineTotalNumGPUs := resource.NewQuantity(int64(machineCount*skuConfig.GPUCount), resource.DecimalSI)
+			machinePerGPUMemory := resource.NewQuantity(int64(skuConfig.GPUMem/skuConfig.GPUCount)*consts.GiBToBytes, resource.BinarySI) // Ensure it's per GPU
+			machineTotalGPUMem := resource.NewQuantity(int64(machineCount*skuConfig.GPUMem)*consts.GiBToBytes, resource.BinarySI)        // Total GPU memory
 
 			modelGPUCount := resource.MustParse(model.GetInferenceParameters().GPUCountRequirement)
 			modelPerGPUMemory := resource.MustParse(model.GetInferenceParameters().PerGPUMemoryRequirement)
 			modelTotalGPUMemory := resource.MustParse(model.GetInferenceParameters().TotalGPUMemoryRequirement)
 
 			// Separate the checks for specific error messages
-			if int64(totalNumGPUs) < modelGPUCount.Value() {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient number of GPUs: Instance type %s provides %d, but preset %s requires at least %d", instanceType, totalNumGPUs, presetName, modelGPUCount.Value()), "instanceType"))
+			if machineTotalNumGPUs.Cmp(modelGPUCount) < 0 {
+				errs = errs.Also(apis.ErrInvalidValue(
+					fmt.Sprintf(
+						"Insufficient number of GPUs: Instance type %s provides %s, but preset %s requires at least %d",
+						instanceType,
+						machineTotalNumGPUs.String(),
+						presetName,
+						modelGPUCount.Value(),
+					),
+					"instanceType",
+				))
 			}
-			skuPerGPUMemory := skuConfig.GPUMem / skuConfig.GPUCount
-			if int64(skuPerGPUMemory) < modelPerGPUMemory.ScaledValue(resource.Giga) {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient per GPU memory: Instance type %s provides %d per GPU, but preset %s requires at least %d per GPU", instanceType, skuPerGPUMemory, presetName, modelPerGPUMemory.ScaledValue(resource.Giga)), "instanceType"))
+
+			if machinePerGPUMemory.Cmp(modelPerGPUMemory) < 0 {
+				errs = errs.Also(apis.ErrInvalidValue(
+					fmt.Sprintf(
+						"Insufficient per GPU memory: Instance type %s provides %s per GPU, but preset %s requires at least %s per GPU",
+						instanceType,
+						machinePerGPUMemory.String(),
+						presetName,
+						modelPerGPUMemory.String(),
+					),
+					"instanceType",
+				))
 			}
-			if int64(totalGPUMem) < modelTotalGPUMemory.ScaledValue(resource.Giga) {
-				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("Insufficient total GPU memory: Instance type %s has a total of %d, but preset %s requires at least %d", instanceType, totalGPUMem, presetName, modelTotalGPUMemory.ScaledValue(resource.Giga)), "instanceType"))
+
+			if machineTotalGPUMem.Cmp(modelTotalGPUMemory) < 0 {
+				errs = errs.Also(apis.ErrInvalidValue(
+					fmt.Sprintf(
+						"Insufficient total GPU memory: Instance type %s has a total of %s, but preset %s requires at least %s",
+						instanceType,
+						machineTotalGPUMem.String(),
+						presetName,
+						modelTotalGPUMemory.String(),
+					),
+					"instanceType",
+				))
 			}
 		}
 	} else {
