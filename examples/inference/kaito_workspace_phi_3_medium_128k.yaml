@@ -9,5 +9,4 @@ resource:
       apps: phi-3
 inference:
   preset:
-    name: phi-3-medium-4k-instruct
-    # Note: This configuration also works with the phi-3-medium-128k-instruct preset
+    name: phi-3-medium-128k-instruct
