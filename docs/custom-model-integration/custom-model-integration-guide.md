@@ -49,4 +49,4 @@ docker push <IMAGE_NAME>
 
 
 ### Step 4: Deploy
-Follow the [Custom Template](./custom-hf-model-guide.md)
+Follow the [Custom Template](./custom-deployment-template.yaml)
