@@ -33,20 +33,49 @@ curl -sSL https://huggingface.co/bigscience/bloom/resolve/main/config.json?downl
 More information on downloading models from HuggingFace can be found [here](https://huggingface.co/docs/hub/en/models-downloading).
 
 
-### Step 3: Build Docker Image with Private/Custom Weights
+### Step 3: Log In to Your Container Registry
 
-Navigate to the Kaito base directory and build the Docker image, including the weights directory in the build context:
+Before pushing the Docker image, ensure you’re logged into the appropriate container registry. Here are general login methods depending on the registry you use:
 
+1. GitHub Container Registry (ghcr.io):
+```sh
+echo $CR_PAT | docker login ghcr.io -u USERNAME --password-stdin
+```
+Replace CR_PAT with your GitHub Personal Access Token and USERNAME with your GitHub username. This token should have the write:packages and read:packages permissions.
+
+2. Azure Container Registry (ACR): If you're using ACR:
+
+```sh
+az acr login --name <REGISTRY_NAME>
+```
+Replace `<REGISTRY_NAME>` with your Azure Container Registry name.
+
+3. Docker Hub or Other Container Registries:
+```sh
+docker login <REGISTRY_URL>
+```
+Enter your username and password when prompted. Replace `<REGISTRY_URL>` with your registry URL, such as `docker.io` for Docker Hub.
+
+
+### Step 4: Build Docker Image with Private/Custom Weights
+
+1. Set Environment Variables
+
+Before building the Docker image, set the relevant environment variables for the image name, version, and weights path:
+```sh
+export IMAGE_NAME="modelsregistry.azurecr.io/phi-3-mini-4k-instruct:0.0.1"
+export VERSION="0.0.1"
+export WEIGHTS_PATH="kaito/phi-3-mini-4k-instruct/weights"
+```
+
+2. Build and Push the Docker Image
+
+Navigate to the Kaito base directory and build the Docker image, ensuring the weights directory is included in the build context:
 ```sh
 docker build -t <IMAGE_NAME> --file docker/presets/models/tfs/Dockerfile --build-arg WEIGHTS_PATH=<WEIGHTS_PATH> --build-arg MODEL_TYPE=text-generation --build-arg VERSION=<VERSION> .
 
 docker push <IMAGE_NAME>
 ```
 
-- Example Version: `0.0.1`
-- Example Image Name: `modelsregistry.azurecr.io/phi-3-mini-4k-instruct:0.0.1`
-- Example Weights Path: `kaito/phi-3-mini-4k-instruct/weights`
-
-
-### Step 4: Deploy
+### Step 5: Deploy
 Follow the [Custom Template](./custom-deployment-template.yaml)
