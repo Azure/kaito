@@ -14,7 +14,19 @@ inference:
       - name: custom-llm-container
         image: modelsregistry.azurecr.io/custom-llm:0.0.1 # Replace with the actual image name
         command: ["accelerate"]
-        args: ["launch", "--num_processes", "1", "--num_machines", "1", "--gpu_ids", "all", "inference_api.py", "--pipeline", "text-generation", "--torch_dtype", "bfloat16"]
+        args:
+          - "launch"
+          - "--num_processes"
+          - "1"
+          - "--num_machines"
+          - "1"
+          - "--gpu_ids"
+          - "all"
+          - "inference_api.py"
+          - "--pipeline"
+          - "text-generation"
+          - "--torch_dtype"
+          - "float16"  # Set to "float16" for compatibility with V100 GPUs; use "bfloat16" for A100, H100 or newer GPUs
         volumeMounts:
         - name: dshm
           mountPath: /dev/shm

@@ -1,7 +1,8 @@
 # Custom Model Integration Guide
 
 ## Option 1: Use Pre-Built Docker Image Without Model Weights
-If you prefer not to build a Docker image with model weights, you can use our pre-built reference image. This image dynamically downloads model weights from the HuggingFace website at runtime, reducing the need for custom images.
+If you prefer not to build a Docker image with model weights, you can use our pre-built reference image (`ghcr.io/azure/kaito/llm-reference-preset:latest`). This image, created with [Dockerfile.reference](./Dockerfile.reference), dynamically downloads model weights from HuggingFace at runtime, reducing the need for custom images.
+
 
 - **[Sample Deployment YAML](./reference-image-deployment.yaml)**
 
