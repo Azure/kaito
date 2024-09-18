@@ -220,6 +220,15 @@ docker-build-dataset: docker-buildx
 		--pull \
 		--tag $(REGISTRY)/e2e-dataset2:0.0.1 .
 
+.PHONY: docker-build-llm-reference-preset
+docker-build-llm-reference-preset: docker-buildx
+	docker buildx build \
+		-t ghcr.io/azure/kaito/llm-reference-preset:$(VERSION) \
+		-t ghcr.io/azure/kaito/llm-reference-preset:latest \
+		-f docs/custom-model-integration/Dockerfile.reference \
+		--build-arg MODEL_TYPE=text-generation \
+		--build-arg VERSION=$(VERSION) .
+
 ## --------------------------------------
 ## Kaito Installation
 ## --------------------------------------
