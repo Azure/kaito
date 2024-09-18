@@ -26,8 +26,8 @@ var (
 	}
 
 	baseCommandPresetPhiInference = "accelerate launch"
-	baseCommandPresetPhiTuning = "python3 metrics_server.py & accelerate launch"
-	phiRunParams         = map[string]string{
+	baseCommandPresetPhiTuning    = "python3 metrics_server.py & accelerate launch"
+	phiRunParams                  = map[string]string{
 		"torch_dtype": "float16",
 		"pipeline":    "text-generation",
 	}
