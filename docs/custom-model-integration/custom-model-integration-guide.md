@@ -36,7 +36,7 @@ More information on downloading models from HuggingFace can be found [here](http
 
 Navigate to the Kaito base directory and build the Docker image, including the weights directory in the build context:
 
-```
+```sh
 docker build -t <IMAGE_NAME> --file docker/presets/models/tfs/Dockerfile --build-arg WEIGHTS_PATH=<WEIGHTS_PATH> --build-arg MODEL_TYPE=text-generation --build-arg VERSION=0.0.1 .
 
 docker push <IMAGE_NAME>
