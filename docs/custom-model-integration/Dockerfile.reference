@@ -20,15 +20,3 @@ COPY presets/inference/${MODEL_TYPE}/requirements.txt /workspace/tfs/inference-r
 RUN pip install --no-cache-dir -r inference-requirements.txt
 
 COPY presets/inference/${MODEL_TYPE}/inference_api.py /workspace/tfs/inference_api.py
-
-# Fine Tuning
-COPY presets/tuning/${MODEL_TYPE}/requirements.txt /workspace/tfs/tuning-requirements.txt
-RUN pip install --no-cache-dir -r tuning-requirements.txt
-
-COPY presets/tuning/${MODEL_TYPE}/cli.py /workspace/tfs/cli.py
-COPY presets/tuning/${MODEL_TYPE}/fine_tuning.py /workspace/tfs/fine_tuning.py
-COPY presets/tuning/${MODEL_TYPE}/parser.py /workspace/tfs/parser.py
-COPY presets/tuning/${MODEL_TYPE}/dataset.py /workspace/tfs/dataset.py
-
-# Copy the metrics server
-COPY presets/tuning/${MODEL_TYPE}/metrics/metrics_server.py /workspace/tfs/metrics_server.py
