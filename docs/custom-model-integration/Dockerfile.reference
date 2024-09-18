@@ -3,7 +3,6 @@ FROM python:3.10-slim@sha256:684b1aaf96a7942b3c3af438d162e0baa3510aa7af25ad76d23
 # Specify the repository source URL for reference and access in Kaito packages.
 LABEL org.opencontainers.image.source=https://github.com/azure/kaito
 
-# ARG WEIGHTS_PATH
 ARG MODEL_TYPE
 ARG VERSION
 
@@ -33,7 +32,3 @@ COPY presets/tuning/${MODEL_TYPE}/dataset.py /workspace/tfs/dataset.py
 
 # Copy the metrics server
 COPY presets/tuning/${MODEL_TYPE}/metrics/metrics_server.py /workspace/tfs/metrics_server.py
-
-# Remove Weights Copying
-# Copy the entire model weights to the weights directory
-# COPY ${WEIGHTS_PATH} /workspace/tfs/weights
