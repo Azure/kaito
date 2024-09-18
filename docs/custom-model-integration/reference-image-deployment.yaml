@@ -1,0 +1,24 @@
+apiVersion: kaito.sh/v1alpha1
+kind: Workspace
+metadata:
+  name: workspace-custom-llm
+resource:
+  instanceType: "Standard_NC12s_v3" # Replace with the required VM SKU based on model requirements
+  labelSelector:
+    matchLabels:
+      apps: custom-llm
+inference:
+  template: 
+    spec:
+      containers:
+      - name: custom-llm-container
+        image: TODO
+        command: ["accelerate"]
+        args: ["launch", "--num_processes", "1", "--num_machines", "1", "--gpu_ids", "all", "inference_api.py", "--pipeline", "text-generation", "--torch_dtype", "bfloat16"]
+        volumeMounts:
+        - name: dshm
+          mountPath: /dev/shm
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
