@@ -1,4 +1,4 @@
-# KAITO Workspace Helm Chart
+# KAITO RAGEngine Helm Chart
 
 ## Install
 
@@ -8,7 +8,7 @@ export IMG_NAME=ragengine
 export IMG_TAG=0.0.1
 helm install ragengine ./charts/kaito/ragengine  \
 --set image.repository=${REGISTRY}/$(IMG_NAME) --set image.tag=$(IMG_TAG) \
---namespace kaito-ragengine --create-namespace
+--namespace ragengine --create-namespace
 ```
 
 ## Values
@@ -17,7 +17,7 @@ helm install ragengine ./charts/kaito/ragengine  \
 |------------------------------------------|--------|-----------------------------------------|---------------------------------------------------------------|
 | affinity                                 | object | `{}`                                    |                                                               |
 | image.pullPolicy                         | string | `"IfNotPresent"`                        |                                                               |
-| image.repository                         | string | `mcr.microsoft.com/aks/kaito/workspace` |                                                               |
+| image.repository                         | string | `mcr.microsoft.com/aks/kaito/ragengine` |                                                               |
 | image.tag                                | string | `"0.3.0"`                               |                                                               |
 | imagePullSecrets                         | list   | `[]`                                    |                                                               |
 | nodeSelector                             | object | `{}`                                    |                                                               |

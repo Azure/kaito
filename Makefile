@@ -325,8 +325,8 @@ $(LOCALBIN):
 build-ragengine: manifests generate fmt vet
 	go build -o bin/rag-engine-manager cmd/ragengine/*.go
 
-.PHONY: run
-run-regengine: manifests generate fmt vet
+.PHONY: run-ragengine
+run-ragengine: manifests generate fmt vet
 	go run ./cmd/ragengine/main.go
 
 ##@ Deployment
