@@ -186,6 +186,15 @@ docker-build-kaito: docker-buildx
 		--pull \
 		--tag $(REGISTRY)/$(IMG_NAME):$(IMG_TAG) .
 
+.PHONY: docker-build-ragengine
+docker-build-ragengine: docker-buildx
+	docker buildx build \
+                --file ./docker/ragengine/Dockerfile \
+                --output=$(OUTPUT_TYPE) \
+                --platform="linux/$(ARCH)" \
+                --pull \
+                --tag $(REGISTRY)/$(IMG_NAME):$(IMG_TAG) .
+
 .PHONY: docker-build-adapter
 docker-build-adapter: docker-buildx
 	docker buildx build \
@@ -308,6 +317,17 @@ run: manifests generate fmt vet ## Run a controller from your host.
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
+
+## --------------------------------------
+## RAGEngine
+## --------------------------------------
+.PHONY: build-ragengine
+build-ragengine: manifests generate fmt vet
+	go build -o bin/rag-engine-manager cmd/ragengine/*.go
+
+.PHONY: run
+run-regengine: manifests generate fmt vet
+	go run ./cmd/ragengine/main.go
 
 ##@ Deployment
 ifndef ignore-not-found

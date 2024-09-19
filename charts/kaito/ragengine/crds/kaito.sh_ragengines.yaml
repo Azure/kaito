@@ -133,7 +133,7 @@ spec:
                         type: string
                       modelID:
                         description: |-
-                          ModelID is the ID of the embedding model hosted by huggingface, e.g., BAAI/bge-small-en-v1.5.
+                          ModelID is the ID of the embedding model hosted by huggingface.
                           When this field is specified, the RAG engine will download the embedding model
                           from huggingface repository during startup. The embedding model will not persist in local storage.
                           Note that if Image is specified, ModelID should not be specified and vice versa.
@@ -161,7 +161,7 @@ spec:
                   IndexServiceName is the name of the service which exposes the endpoint for user to input the index data
                   to generate embeddings. If not specified, a default service name will be created by the RAG engine.
                 type: string
-              inferenceService:
+              inferencService:
                 properties:
                   accessSecret:
                     description: AccessSecret is the name of the secret that contains
@@ -182,12 +182,12 @@ spec:
               storage:
                 description: |-
                   Storage specifies how to access the vector database used to save the embedding vectors.
-                  If this field is not specified, by default, an in-memory vector DB will be used.
+                  If this field is not specified, by default, an in-memoty vector DB will be used.
                   The data will not be persisted.
                 type: object
             required:
             - embedding
-            - inferenceService
+            - inferencService
             type: object
           status:
             description: RAGEngineStatus defines the observed state of RAGEngine
