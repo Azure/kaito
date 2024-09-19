@@ -55,7 +55,10 @@ var (
 )
 
 func getInstanceGPUCount(sku string) int {
-	gpuConfig, exists := kaitov1alpha1.SupportedGPUConfigs[sku]
+	skuHandler, _ := utils.GetSKUHandler()
+	gpuConfigs := skuHandler.GetGPUConfigs()
+
+	gpuConfig, exists := gpuConfigs[sku]
 	if !exists {
 		return 1
 	}
