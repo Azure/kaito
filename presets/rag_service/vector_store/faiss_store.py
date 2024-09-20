@@ -3,7 +3,9 @@ from typing import Dict, List
 
 import faiss
 from llama_index.core import Document as LlamaDocument
-from llama_index.core import StorageContext, VectorStoreIndex
+from llama_index.core import (StorageContext, VectorStoreIndex,
+                              load_graph_from_storage, load_index_from_storage,
+                              load_indices_from_storage)
 from llama_index.vector_stores.faiss import FaissVectorStore
 from models import Document
 
@@ -97,8 +99,10 @@ class FaissVectorStoreManager(BaseVectorStore):
     def _load_index(self):
         """Loads the existing FAISS index from disk."""
         vector_store = FaissVectorStore.from_persist_dir(PERSIST_DIR)
-        storage_context = StorageContext.from_defaults(vector_store=vector_store, persist_dir=PERSIST_DIR)
-        return VectorStoreIndex.from_storage(storage_context)
+        storage_context = StorageContext.from_defaults(
+            vector_store=vector_store, persist_dir=PERSIST_DIR
+        )
+        return load_index_from_storage(storage_context=storage_context)
 
     def _persist(self):
         """Saves the existing FAISS index to disk."""
