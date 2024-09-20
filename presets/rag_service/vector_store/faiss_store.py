@@ -1,4 +1,5 @@
 import os
+from typing import Dict, List
 
 import faiss
 from llama_index.core import Document as LlamaDocument
@@ -18,44 +19,76 @@ class FaissVectorStoreManager(BaseVectorStore):
         self.faiss_index = faiss.IndexFlatL2(self.dimension)
         self.vector_store = FaissVectorStore(faiss_index=self.faiss_index)
         self.storage_context = StorageContext.from_defaults(vector_store=self.vector_store)
-        
+
         if not os.path.exists(PERSIST_DIR):
             os.makedirs(PERSIST_DIR)
 
     def index_documents(self, documents: List[Document]):
+        """Indexes new documents."""
         llama_docs = [LlamaDocument(text=doc.text, metadata=doc.metadata, id_=doc.doc_id) for doc in documents]
         index = VectorStoreIndex.from_documents(llama_docs, storage_context=self.storage_context, embed_model=self.embed_model)
         self.storage_context.persist(persist_dir=PERSIST_DIR)
-        return index
+        return [doc.doc_id for doc in documents]
+
+    def add_document(self, document: Document):
+        """Inserts a single document into the existing FAISS index."""
+        llama_doc = LlamaDocument(text=document.text, metadata=document.metadata, id_=document.doc_id)
+        index = self._load_index()
+        index.insert(llama_doc)
+        self.storage_context.persist(persist_dir=PERSIST_DIR)
 
     def query(self, query: str, top_k: int):
+        """Queries the FAISS vector store."""
         index = self._load_index()
         query_engine = index.as_query_engine(top_k=top_k)
         return query_engine.query(query)
-    
-    def add_document(self, document: Document): 
-        index = self._load_index()
-        index.insert(document)
 
     def delete_document(self, doc_id: str):
+        """Deletes a document from the FAISS vector store."""
         index = self._load_index()
         index.delete_ref_doc(doc_id, delete_from_docstore=True)
         self.storage_context.persist(persist_dir=PERSIST_DIR)
 
     def update_document(self, document: Document):
+        """Updates an existing document in the FAISS vector store."""
         index = self._load_index()
         llama_doc = LlamaDocument(text=document.text, metadata=document.metadata, id_=document.doc_id)
         index.update_ref_doc(llama_doc)
         self.storage_context.persist(persist_dir=PERSIST_DIR)
 
     def get_document(self, doc_id: str):
+        """Retrieves a document by its ID."""
         index = self._load_index()
         doc = index.docstore.get_document(doc_id)
         if not doc:
             raise ValueError(f"Document with ID {doc_id} not found.")
         return doc
 
+    def refresh_documents(self, documents: List[Document]) -> List[bool]:
+        """Updates existing documents and inserts new documents in the vector store."""
+        llama_docs = [LlamaDocument(text=doc.text, metadata=doc.metadata, id_=doc.doc_id) for doc in documents]
+        refresh_results = self.index.refresh_ref_docs(llama_docs)
+        self._persist()
+        # Returns a list of booleans indicating whether each document was successfully refreshed.
+        return refresh_results
+
+    def list_documents(self) -> Dict[str, Document]:
+        """Lists all documents in the vector store."""
+        index = self._load_index()
+        return {doc_id: Document(text=doc.text, metadata=doc.metadata, doc_id=doc_id) 
+                for doc_id, doc in index.docstore.docs.items()}
+
+    def document_exists(self, doc_id: str) -> bool:
+        """Checks if a document exists in the vector store."""
+        index = self._load_index()
+        return doc_id in index.docstore.docs
+
     def _load_index(self):
+        """Loads the existing FAISS index from disk."""
         vector_store = FaissVectorStore.from_persist_dir(PERSIST_DIR)
         storage_context = StorageContext.from_defaults(vector_store=vector_store, persist_dir=PERSIST_DIR)
         return VectorStoreIndex.from_storage(storage_context)
+
+    def _persist(self):
+        """Saves the existing FAISS index to disk."""
+        self.storage_context.persist(persist_dir=PERSIST_DIR)

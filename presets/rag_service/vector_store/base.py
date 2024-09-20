@@ -40,3 +40,11 @@ class BaseVectorStore(ABC):
     @abstractmethod
     def refresh_documents(self, documents: List[Document]) -> List[bool]:
         pass
+
+    @abstractmethod
+    def list_documents(self) -> Dict[str, Document]:
+        pass
+
+    @abstractmethod
+    def document_exists(self, doc_id: str) -> bool:
+        pass
