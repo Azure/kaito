@@ -22,15 +22,16 @@ class ChromaDBVectorStoreManager(BaseVectorStore):
         self.chroma_collection = self.chroma_client.create_collection(self.collection_name)
         self.vector_store = ChromaVectorStore(chroma_collection=self.chroma_collection)
         self.storage_context = StorageContext.from_defaults(vector_store=self.vector_store)
-        self.index = None  # Use to store the in-memory index # TODO: Multiple indexes via name (e.g. namespace)
+        self.indices = {}  # Use to store the in-memory index via namespace (e.g. namespace -> index)
 
         if not os.path.exists(PERSIST_DIR):
             os.makedirs(PERSIST_DIR)
 
-    def index_documents(self, documents: List[Document]):
-        """Recreates the entire ChromaDB index and vector store with new documents."""
+    def index_documents(self, documents: List[Document], index_name: str):
+        """Recreates the entire FAISS index and vector store with new documents."""
         llama_docs = [LlamaDocument(text=doc.text, metadata=doc.metadata, id_=doc.doc_id) for doc in documents]
-        self.index = VectorStoreIndex.from_documents(llama_docs, storage_context=self.storage_context, embed_model=self.embed_model)
+        # Creates the actual vector-based index using indexing method, vector store, storage method and embedding model specified above
+        self.indices[index_name] = VectorStoreIndex.from_documents(llama_docs, storage_context=self.storage_context, embed_model=self.embed_model) 
         self._persist()
         # Return the document IDs that were indexed
         return [doc.doc_id for doc in documents]

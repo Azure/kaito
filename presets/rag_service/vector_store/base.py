@@ -6,45 +6,45 @@ from models import Document
 
 class BaseVectorStore(ABC):
     @abstractmethod
-    def index_documents(self, documents: List[Document]) -> List[str]:
+    def index_documents(self, documents: List[Document], index_name: str) -> List[str]:
         pass
 
     @abstractmethod
-    def query(self, query: str, top_k: int):
+    def query(self, query: str, top_k: int, index_name: str):
         pass
 
     @abstractmethod
-    def add_document(self, document: Document): 
+    def add_document(self, document: Document, index_name: str): 
         pass
 
     @abstractmethod
-    def delete_document(self, doc_id: str):
+    def delete_document(self, doc_id: str, index_name: str):
         pass
 
     @abstractmethod
-    def update_document(self, document: Document) -> str:
+    def update_document(self, document: Document, index_name: str) -> str:
         pass
 
     @abstractmethod
-    def get_document(self, doc_id: str) -> Document:
+    def get_document(self, doc_id: str, index_name: str) -> Document:
         pass
 
     @abstractmethod
-    def list_documents(self) -> Dict[str, Document]:
+    def list_documents(self, index_name: str) -> Dict[str, Document]:
         pass
 
     @abstractmethod
-    def document_exists(self, doc_id: str) -> bool:
+    def document_exists(self, doc_id: str, index_name: str) -> bool:
         pass
 
     @abstractmethod
-    def refresh_documents(self, documents: List[Document]) -> List[bool]:
+    def refresh_documents(self, documents: List[Document], index_name: str) -> List[bool]:
         pass
 
     @abstractmethod
-    def list_documents(self) -> Dict[str, Document]:
+    def list_documents(self, index_name: str) -> Dict[str, Document]:
         pass
 
     @abstractmethod
-    def document_exists(self, doc_id: str) -> bool:
+    def document_exists(self, doc_id: str, index_name: str) -> bool:
         pass
