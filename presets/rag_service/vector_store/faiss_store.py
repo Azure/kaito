@@ -16,12 +16,12 @@ from .base import BaseVectorStore
 
 class FaissVectorStoreManager(BaseVectorStore):
     def __init__(self, dimension: int, embed_model):
-        self.dimension = dimension
+        self.dimension = dimension # TODO: Automatically needs to configure dim based on embed_model
         self.embed_model = embed_model
         self.faiss_index = faiss.IndexFlatL2(self.dimension)
         self.vector_store = FaissVectorStore(faiss_index=self.faiss_index)
         self.storage_context = StorageContext.from_defaults(vector_store=self.vector_store)
-        self.index = None # Use to store the in-memory index
+        self.index = None # Use to store the in-memory index # TODO: Multiple indexes via name (e.g. namespace)
 
         if not os.path.exists(PERSIST_DIR):
             os.makedirs(PERSIST_DIR)

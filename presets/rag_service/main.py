@@ -29,7 +29,7 @@ async def index_documents(request: IndexRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/query")
-async def query_index(request: QueryRequest):
+async def query_index(request: QueryRequest): # TODO: Research async/sync what to use (inference is calling)
     try:
         response = rag_ops.read(request.query, request.top_k)
         return {"response": str(response)}

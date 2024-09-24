@@ -42,5 +42,5 @@ class RAGOperations:
         return self.vector_store.list_documents()
 
     def refresh(self, documents: List[Document]) -> List[bool]:
-        """Dummy method for refresh, if needed."""
+        """Refresh Documents."""
         return self.vector_store.refresh_documents(documents)
