@@ -1,7 +1,7 @@
 from typing import Dict, List
 
 from crud.operations import RAGOperations
-from embedding import get_embedding_model
+from embedding.huggingface_local import LocalHuggingFaceEmbedding
 from fastapi import FastAPI, HTTPException
 from models import (DocumentResponse, IndexRequest, ListDocumentsResponse,
                     QueryRequest, RefreshRequest, UpdateRequest)
@@ -12,10 +12,10 @@ from config import ACCESS_SECRET, EMBEDDING_TYPE, MODEL_ID
 app = FastAPI()
 
 # Initialize embedding model
-embed_model = get_embedding_model(EMBEDDING_TYPE, MODEL_ID, ACCESS_SECRET)
+embed_model = LocalHuggingFaceEmbedding(MODEL_ID)
 
 # Initialize vector store
-vector_store = FaissVectorStoreManager(dimension=384, embed_model=embed_model)
+vector_store = FaissVectorStoreManager(embed_model=embed_model)
 
 # Initialize RAG operations
 rag_ops = RAGOperations(vector_store)

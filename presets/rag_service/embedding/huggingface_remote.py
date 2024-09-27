@@ -6,7 +6,7 @@ from .base import BaseEmbeddingModel
 
 class RemoteHuggingFaceEmbedding(BaseEmbeddingModel):
     def __init__(self, model_name: str, api_key: str):
-        self.model = HuggingFaceInferenceAPIEmbedding(model_name=model_name, api_key=api_key)
+        self.model = HuggingFaceInferenceAPIEmbedding(model_name=model_name, token=api_key)
 
     def get_text_embedding(self, text: str):
         """Returns the text embedding for a given input string."""
