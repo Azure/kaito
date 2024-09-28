@@ -15,9 +15,10 @@ from .base import BaseVectorStore
 
 
 class FaissVectorStoreManager(BaseVectorStore):
-    def __init__(self, embed_model):
-        self.embed_model = embed_model
-        self.dimension = self.embed_model.get_embedding_dimension()
+    def __init__(self, embedding_manager):
+        self.embedding_manager = embedding_manager
+        self.embed_model =  self.embedding_manager.model
+        self.dimension = self.embedding_manager.get_embedding_dimension()
         # TODO: Consider allowing user custom indexing method e.g.
         """
         # Choose the FAISS index type based on the provided index_method

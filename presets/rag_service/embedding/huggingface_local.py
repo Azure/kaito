@@ -16,5 +16,4 @@ class LocalHuggingFaceEmbedding(BaseEmbeddingModel):
         dummy_input = "This is a dummy sentence."
         embedding = self.get_text_embedding(dummy_input)
         
-        # TODO Assume embedding is a 1D array (needs to be tested); return its length (the dimension size)
         return len(embedding)
