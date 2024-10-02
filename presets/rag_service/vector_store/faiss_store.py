@@ -64,7 +64,7 @@ class FaissVectorStoreManager(BaseVectorStore):
         index.set_index_id(index_name) # https://github.com/run-llama/llama_index/blob/main/llama-index-core/llama_index/core/indices/base.py#L138-L154
         self.index_map[index_name] = index
         self.index_store.add_index_struct(index.index_struct)
-        self._persist(index_name) # TODO: Consider just persisting the index as opposed to shared index_store
+        self._persist(index_name)
         # Return the document IDs that were indexed
         return [doc.doc_id for doc in documents]
 
@@ -87,8 +87,17 @@ class FaissVectorStoreManager(BaseVectorStore):
         """Deletes a document from the FAISS vector store."""
         if index_name not in self.index_map:
             raise ValueError(f"No such index: '{index_name}' exists.")
-        self.index_map[index_name].delete_ref_doc(doc_id, delete_from_docstore=True)
-        self._persist(index_name)
+        if not self.document_exists(doc_id, index_name):
+            print(f"Document with ID {doc_id} not found in index '{index_name}'. Skipping.")
+            return
+        try:
+            self.index_map[index_name].delete_ref_doc(doc_id, delete_from_docstore=True)
+        except NotImplementedError as e:
+            print(f"Delete not yet implemented for Faiss index. Skipping document {doc_id}.")
+        except Exception as e:
+            print(f"Unable to Delete Document from the VectorStoreIndex. Skipping. Error: {e}")
+        finally:
+            self._persist(index_name)
 
     def update_document(self, document: Document, index_name: str):
         """Updates an existing document in the FAISS vector store."""
