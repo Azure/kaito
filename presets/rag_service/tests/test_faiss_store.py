@@ -176,3 +176,34 @@ def test_refresh_existing_documents(vector_store_manager, capsys):
     # Check if the NotImplementedError message was printed
     assert "Refresh not yet fully implemented for index" in captured.out
     assert not refresh_results
+
+def test_persist_and_load_index_store(vector_store_manager):
+    """Test that the index store is persisted and loaded correctly."""
+    # Add a document and persist the index
+    documents = [Document(doc_id="1", text="Test document", metadata={"type": "text"})]
+    vector_store_manager.index_documents(documents, index_name="test_index")
+    vector_store_manager._persist(index_name="test_index")
+
+    # Simulate a fresh load of the index store (clearing in-memory state)
+    vector_store_manager.index_store = None  # Clear current in-memory store
+    vector_store_manager._load_index_store()
+
+    # Verify that the store was reloaded and contains the expected index structure
+    assert vector_store_manager.index_store is not None
+    assert len(vector_store_manager.index_store.index_structs()) > 0
+
+# TODO: Prevent default re-indexing from load_index_from_storage
+# def test_persist_and_load_index(vector_store_manager):
+#     """Test that an index is persisted and then loaded correctly."""
+#     # Add a document and persist the index
+#     documents = [Document(doc_id="1", text="Test document", metadata={"type": "text"})]
+#     vector_store_manager.index_documents(documents, index_name="test_index")
+#     vector_store_manager._persist(index_name="test_index")
+#
+#     # Simulate a fresh load of the index (clearing in-memory state)
+#     vector_store_manager.index_map = {}  # Clear current in-memory index map
+#     loaded_index = vector_store_manager._load_index(index_name="test_index")
+#
+#     # Verify that the index was reloaded and contains the expected document
+#     assert loaded_index is not None
+#     assert vector_store_manager.document_exists("1", "test_index")

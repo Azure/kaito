@@ -2,6 +2,7 @@ from typing import Dict, List
 
 from crud.operations import RAGOperations
 from embedding.huggingface_local import LocalHuggingFaceEmbedding
+from embedding.huggingface_remote import RemoteHuggingFaceEmbedding
 from fastapi import FastAPI, HTTPException
 from models import (DocumentResponse, IndexRequest, ListDocumentsResponse,
                     QueryRequest, RefreshRequest, UpdateRequest)
@@ -12,10 +13,14 @@ from config import ACCESS_SECRET, EMBEDDING_TYPE, MODEL_ID
 app = FastAPI()
 
 # Initialize embedding model
-embed_model = LocalHuggingFaceEmbedding(MODEL_ID)
+if EMBEDDING_TYPE == "local":
+    embedding_manager = LocalHuggingFaceEmbedding(MODEL_ID)
+elif EMBEDDING_TYPE == "remote":
+    embedding_manager = RemoteHuggingFaceEmbedding(MODEL_ID)
 
 # Initialize vector store
-vector_store = FaissVectorStoreManager(embed_model=embed_model)
+# TODO: Dynamically set VectorStore from EnvVars (which ultimately comes from CRD StorageSpec)
+vector_store = FaissVectorStoreManager(embedding_manager)
 
 # Initialize RAG operations
 rag_ops = RAGOperations(vector_store)
