@@ -7,10 +7,11 @@ from llama_index.core import (StorageContext, VectorStoreIndex,
                               load_graph_from_storage, load_index_from_storage,
                               load_indices_from_storage)
 from llama_index.core.storage.index_store import SimpleIndexStore
-from llama_index.core.storage.docstore import RefDocInfo
+from llama_index.core.storage.docstore.types import RefDocInfo
 from llama_index.vector_stores.faiss import FaissVectorStore
-from llama_index.core.data_structs.data_structs import IndexStruct
+
 from models import Document
+from inference.custom_inference import CustomInference
 
 from config import PERSIST_DIR
 
@@ -39,6 +40,7 @@ class FaissVectorStoreManager(BaseVectorStore):
         """
         self.index_map = {} # Used to store the in-memory index via namespace (e.g. namespace -> index)
         self.index_store = SimpleIndexStore() # Use to store global index metadata
+        self.llm = CustomInference()
 
     def index_documents(self, documents: List[Document], index_name: str):
         """Recreates the entire FAISS index and vector store with new documents."""
@@ -78,7 +80,7 @@ class FaissVectorStoreManager(BaseVectorStore):
         """Queries the FAISS vector store."""
         if index_name not in self.index_map:
             raise ValueError(f"No such index: '{index_name}' exists.")
-        query_engine = self.index_map[index_name].as_query_engine(top_k=top_k)
+        query_engine = self.index_map[index_name].as_query_engine(llm=self.llm, similarity_top_k=top_k)
         return query_engine.query(query)
 
     def delete_document(self, doc_id: str, index_name: str):
