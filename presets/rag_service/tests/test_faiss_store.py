@@ -107,3 +107,72 @@ def test_add_and_delete_document(vector_store_manager, capsys):
 
     # Assert that the document still exists (since deletion wasn't implemented)
     assert vector_store_manager.document_exists("4", "test_index")
+
+
+def test_update_document_not_implemented(vector_store_manager, capsys):
+    """Test that updating a document raises a NotImplementedError and is handled properly."""
+    # Add a document to the index
+    documents = [Document(doc_id="1", text="First document", metadata={"type": "text"})]
+    vector_store_manager.index_documents(documents, index_name="test_index")
+
+    # Attempt to update the existing document
+    updated_document = Document(doc_id="1", text="Updated first document", metadata={"type": "text"})
+    vector_store_manager.update_document(updated_document, index_name="test_index")
+
+    # Capture the printed output (if any)
+    captured = capsys.readouterr()
+
+    # Check if the NotImplementedError message was printed
+    assert "Update is equivalent to deleting the document and then inserting it again." in captured.out
+    assert f"Update not yet implemented for Faiss index. Skipping document {updated_document.doc_id}." in captured.out
+
+    # Ensure the document remains unchanged
+    original_doc = vector_store_manager.get_document("1", index_name="test_index")
+    assert original_doc is not None
+
+
+def test_refresh_unchanged_documents(vector_store_manager, capsys):
+    """Test that refreshing documents does nothing on unchanged documents."""
+    # Add documents to the index
+    documents = [Document(doc_id="1", text="First document", metadata={"type": "text"}),
+                 Document(doc_id="2", text="Second document", metadata={"type": "text"})]
+    vector_store_manager.index_documents(documents, index_name="test_index")
+
+    refresh_results = vector_store_manager.refresh_documents(documents, index_name="test_index")
+
+    # Capture the printed output (if any)
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert refresh_results == [False, False]
+
+def test_refresh_new_documents(vector_store_manager):
+    """Test that refreshing new documents creates them."""
+    vector_store_manager.index_documents([], index_name="test_index")
+
+    # Add a document to the index
+    documents = [Document(doc_id="1", text="First document", metadata={"type": "text"}),
+                 Document(doc_id="2", text="Second document", metadata={"type": "text"})]
+
+    refresh_results = vector_store_manager.refresh_documents(documents, index_name="test_index")
+
+    inserted_documents = vector_store_manager.list_documents(index_name="test_index")
+
+    assert len(inserted_documents) == len(documents)
+    assert inserted_documents.keys() == {"1", "2"}
+    assert refresh_results == [True, True]
+
+def test_refresh_existing_documents(vector_store_manager, capsys):
+    """Test that refreshing existing documents prints error."""
+    original_documents = [Document(doc_id="1", text="First document", metadata={"type": "text"})]
+    vector_store_manager.index_documents(original_documents, index_name="test_index")
+
+    new_documents = [Document(doc_id="1", text="Updated document", metadata={"type": "text"}),
+                     Document(doc_id="2", text="Second document", metadata={"type": "text"})]
+
+    refresh_results = vector_store_manager.refresh_documents(new_documents, index_name="test_index")
+
+    captured = capsys.readouterr()
+
+    # Check if the NotImplementedError message was printed
+    assert "Refresh not yet fully implemented for index" in captured.out
+    assert not refresh_results

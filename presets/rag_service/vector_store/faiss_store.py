@@ -104,8 +104,15 @@ class FaissVectorStoreManager(BaseVectorStore):
         if index_name not in self.index_map:
             raise ValueError(f"No such index: '{index_name}' exists.")
         llama_doc = LlamaDocument(text=document.text, metadata=document.metadata, id_=document.doc_id)
-        self.index_map[index_name].update_ref_doc(llama_doc)
-        self._persist(index_name)
+        try:
+            self.index_map[index_name].update_ref_doc(llama_doc)
+        except NotImplementedError as e:
+            print("Update is equivalent to deleting the document and then inserting it again.")
+            print(f"Update not yet fully implemented for index. Skipping document {document.doc_id}. Error: {e}")
+        except Exception as e:
+            print(f"Unable to Update Document in the VectorStoreIndex. Skipping. Error: {e}")
+        finally:
+            self._persist(index_name)
 
     def get_document(self, doc_id: str, index_name: str):
         """Retrieves a document's RefDocInfo by its ID."""
@@ -136,11 +143,19 @@ class FaissVectorStoreManager(BaseVectorStore):
         """Updates existing documents and inserts new documents in the vector store."""
         if index_name not in self.index_map:
             raise ValueError(f"No such index: '{index_name}' exists.")
+
         llama_docs = [LlamaDocument(text=doc.text, metadata=doc.metadata, id_=doc.doc_id) for doc in documents]
-        refresh_results = self.index_map[index_name].refresh_ref_docs(llama_docs)
-        self._persist(index_name)
-        # Returns a list of booleans indicating whether each document was successfully refreshed.
-        return refresh_results
+        try:
+            refresh_results = self.index_map[index_name].refresh_ref_docs(llama_docs)
+            # Returns a list of booleans indicating whether each document was successfully refreshed.
+            return refresh_results
+        except NotImplementedError as e:
+            print(f"Refresh is equivalent to insertion and update, which is equivalent to deletion and insertion.")
+            print(f"Refresh not yet fully implemented for index '{index_name}'. Error: {e}")
+        except Exception as e:
+            print(f"Unable to Refresh Documents in the VectorStoreIndex for index '{index_name}'. Error: {e}")
+        finally:
+            self._persist(index_name)
 
     def list_documents(self, index_name: str) -> Dict[str, RefDocInfo]:
         """Lists all documents in the vector store."""
