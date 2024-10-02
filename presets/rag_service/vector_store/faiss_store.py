@@ -197,11 +197,12 @@ class FaissVectorStoreManager(BaseVectorStore):
         # Create a new StorageContext using the loaded vector store
         storage_context = StorageContext.from_defaults(
             vector_store=vector_store,
-            persist_dir=persist_dir  # Ensure it uses the correct directory for persistence
+            index_store = self.index_store,
+            persist_dir=persist_dir,  # Ensure it uses the correct directory for persistence
         )
 
         # Load the VectorStoreIndex using the storage context
-        loaded_index = load_index_from_storage(storage_context=storage_context)
+        loaded_index = load_index_from_storage(storage_context=storage_context, embed_model=self.embed_model)
 
         # Set the index_id for the loaded index to the current index_name
         loaded_index.set_index_id(index_name)

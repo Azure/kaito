@@ -193,17 +193,21 @@ def test_persist_and_load_index_store(vector_store_manager):
     assert len(vector_store_manager.index_store.index_structs()) > 0
 
 # TODO: Prevent default re-indexing from load_index_from_storage
-# def test_persist_and_load_index(vector_store_manager):
-#     """Test that an index is persisted and then loaded correctly."""
-#     # Add a document and persist the index
-#     documents = [Document(doc_id="1", text="Test document", metadata={"type": "text"})]
-#     vector_store_manager.index_documents(documents, index_name="test_index")
-#     vector_store_manager._persist(index_name="test_index")
-#
-#     # Simulate a fresh load of the index (clearing in-memory state)
-#     vector_store_manager.index_map = {}  # Clear current in-memory index map
-#     loaded_index = vector_store_manager._load_index(index_name="test_index")
-#
-#     # Verify that the index was reloaded and contains the expected document
-#     assert loaded_index is not None
-#     assert vector_store_manager.document_exists("1", "test_index")
+def test_persist_and_load_index(vector_store_manager):
+    """Test that an index is persisted and then loaded correctly."""
+    # Add a document and persist the index
+    documents = [Document(doc_id="1", text="Test document", metadata={"type": "text"})]
+    vector_store_manager.index_documents(documents, index_name="test_index")
+
+    documents = [Document(doc_id="1", text="Another Test document", metadata={"type": "text"})]
+    vector_store_manager.index_documents(documents, index_name="another_test_index")
+
+    vector_store_manager._persist(index_name="test_index")
+
+    # Simulate a fresh load of the index (clearing in-memory state)
+    vector_store_manager.index_map = {}  # Clear current in-memory index map
+    loaded_index = vector_store_manager._load_index(index_name="test_index")
+
+    # Verify that the index was reloaded and contains the expected document
+    assert loaded_index is not None
+    assert vector_store_manager.document_exists("1", "test_index")
