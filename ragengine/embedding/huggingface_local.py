@@ -5,7 +5,7 @@ from .base import BaseEmbeddingModel
 
 class LocalHuggingFaceEmbedding(BaseEmbeddingModel):
     def __init__(self, model_name: str):
-        self.model = HuggingFaceEmbedding(model_name=model_name)
+        self.model = HuggingFaceEmbedding(model_name=model_name) # TODO: Ensure/test loads on GPU (when available)
 
     def get_text_embedding(self, text: str):
         """Returns the text embedding for a given input string."""

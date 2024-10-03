@@ -41,6 +41,7 @@ async def query_index(request: QueryRequest): # TODO: Research async/sync what t
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+"""
 @app.put("/update", response_model=Dict[str, List[str]])
 async def update_documents(request: UpdateRequest):
     try:
@@ -56,7 +57,7 @@ async def refresh_documents(request: RefreshRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
+        
 @app.delete("/document/{doc_id}")
 async def delete_document(doc_id: str):
     try:
@@ -64,6 +65,7 @@ async def delete_document(doc_id: str):
         return {"message": "Document deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+"""
 
 @app.get("/document/{doc_id}", response_model=DocumentResponse)
 async def get_document(doc_id: str):

@@ -4,7 +4,7 @@ from models import Document
 from vector_store.base import BaseVectorStore
 
 
-class RAGOperations:
+class VectorStoreManager:
     def __init__(self, vector_store: BaseVectorStore):
         self.vector_store = vector_store
 
@@ -16,8 +16,9 @@ class RAGOperations:
         """Query the indexed documents."""
         return self.vector_store.query(query, top_k)
 
+    """
     def update(self, documents: List[Document]) -> Dict[str, List[str]]:
-        """Update existing documents, or insert new ones if they don’t exist."""
+        # Update existing documents, or insert new ones if they don’t exist.
         updated_docs = []
         new_docs = []
         for doc in documents:
@@ -30,8 +31,13 @@ class RAGOperations:
         return {"updated": updated_docs, "inserted": new_docs}
 
     def delete(self, doc_id: str):
-        """Delete a document by ID."""
+        # Delete a document by ID.
         return self.vector_store.delete_document(doc_id)
+    
+     def refresh(self, documents: List[Document]) -> List[bool]:
+        # Refresh Documents.
+        return self.vector_store.refresh_documents(documents)
+    """
 
     def get(self, doc_id: str) -> Document:
         """Retrieve a document by ID."""
@@ -41,6 +47,3 @@ class RAGOperations:
         """List all documents."""
         return self.vector_store.list_documents()
 
-    def refresh(self, documents: List[Document]) -> List[bool]:
-        """Refresh Documents."""
-        return self.vector_store.refresh_documents(documents)

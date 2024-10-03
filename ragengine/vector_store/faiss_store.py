@@ -23,7 +23,7 @@ class FaissVectorStoreManager(BaseVectorStore):
         self.embedding_manager = embedding_manager
         self.embed_model =  self.embedding_manager.model
         self.dimension = self.embedding_manager.get_embedding_dimension()
-        # TODO: Consider allowing user custom indexing method e.g.
+        # TODO: Consider allowing user custom indexing method (would require configmap?) e.g.
         """
         # Choose the FAISS index type based on the provided index_method
         if index_method == 'FlatL2':
@@ -38,7 +38,7 @@ class FaissVectorStoreManager(BaseVectorStore):
         else:
             raise ValueError(f"Unknown index method: {index_method}")
         """
-        self.index_map = {} # Used to store the in-memory index via namespace (e.g. namespace -> index)
+        self.index_map = {} # Used to store the in-memory index via namespace (e.g. index_name -> VectorStoreIndex)
         self.index_store = SimpleIndexStore() # Use to store global index metadata
         self.llm = CustomInference()
 
@@ -83,8 +83,23 @@ class FaissVectorStoreManager(BaseVectorStore):
         query_engine = self.index_map[index_name].as_query_engine(llm=self.llm, similarity_top_k=top_k)
         return query_engine.query(query)
 
+    def get_document(self, doc_id: str, index_name: str):
+        """Retrieves a document's RefDocInfo by its ID."""
+        if index_name not in self.index_map:
+            raise ValueError(f"No such index: '{index_name}' exists.")
+
+        # Try to retrieve the RefDocInfo associated with the doc_id
+        ref_doc_info = self.index_map[index_name].ref_doc_info.get(doc_id)
+
+        if ref_doc_info is None:
+            print(f"Document with ID {doc_id} not found in index '{index_name}'.")
+            return None
+
+        return ref_doc_info
+
+    """
     def delete_document(self, doc_id: str, index_name: str):
-        """Deletes a document from the FAISS vector store."""
+        # Deletes a document from the FAISS vector store.
         if index_name not in self.index_map:
             raise ValueError(f"No such index: '{index_name}' exists.")
         if not self.document_exists(doc_id, index_name):
@@ -100,7 +115,7 @@ class FaissVectorStoreManager(BaseVectorStore):
             self._persist(index_name)
 
     def update_document(self, document: Document, index_name: str):
-        """Updates an existing document in the FAISS vector store."""
+        # Updates an existing document in the FAISS vector store.
         if index_name not in self.index_map:
             raise ValueError(f"No such index: '{index_name}' exists.")
         llama_doc = LlamaDocument(text=document.text, metadata=document.metadata, id_=document.doc_id)
@@ -114,33 +129,8 @@ class FaissVectorStoreManager(BaseVectorStore):
         finally:
             self._persist(index_name)
 
-    def get_document(self, doc_id: str, index_name: str):
-        """Retrieves a document's RefDocInfo by its ID."""
-        if index_name not in self.index_map:
-            raise ValueError(f"No such index: '{index_name}' exists.")
-
-        # Try to retrieve the RefDocInfo associated with the doc_id
-        ref_doc_info = self.index_map[index_name].ref_doc_info.get(doc_id)
-
-        if ref_doc_info is None:
-            print(f"Document with ID {doc_id} not found in index '{index_name}'.")
-            return None
-
-        return ref_doc_info
-
-    def get_nodes_by_ref_doc_id(self, doc_id: str, index_name: str):
-        """Retrieve nodes associated with a given document's ref ID."""
-        if index_name not in self.index_map:
-            raise ValueError(f"No such index: '{index_name}' exists.")
-
-        ref_doc_info = self.get_document(doc_id, index_name)
-        if ref_doc_info is None:
-            return None
-
-        return ref_doc_info.node_ids
-
     def refresh_documents(self, documents: List[Document], index_name: str) -> List[bool]:
-        """Updates existing documents and inserts new documents in the vector store."""
+        # Updates existing documents and inserts new documents in the vector store.
         if index_name not in self.index_map:
             raise ValueError(f"No such index: '{index_name}' exists.")
 
@@ -156,6 +146,7 @@ class FaissVectorStoreManager(BaseVectorStore):
             print(f"Unable to Refresh Documents in the VectorStoreIndex for index '{index_name}'. Error: {e}")
         finally:
             self._persist(index_name)
+    """
 
     def list_documents(self, index_name: str) -> Dict[str, RefDocInfo]:
         """Lists all documents in the vector store."""
