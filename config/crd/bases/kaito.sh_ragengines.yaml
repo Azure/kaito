@@ -261,6 +261,12 @@ spec:
                   - type
                   type: object
                 type: array
+              workerNodes:
+                description: WorkerNodes is the list of nodes chosen to run the workload
+                  based on the RAGEngine resource requirement.
+                items:
+                  type: string
+                type: array
             type: object
         type: object
     served: true

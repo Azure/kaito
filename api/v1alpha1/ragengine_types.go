@@ -79,6 +79,10 @@ type RAGEngineSpec struct {
 
 // RAGEngineStatus defines the observed state of RAGEngine
 type RAGEngineStatus struct {
+	// WorkerNodes is the list of nodes chosen to run the workload based on the RAGEngine resource requirement.
+	// +optional
+	WorkerNodes []string `json:"workerNodes,omitempty"`
+
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
