@@ -3,7 +3,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import pytest
-from vector_store.faiss_store import FaissVectorStoreManager
+from vector_store.faiss_store import FaissVectorStoreHandler
 from models import Document
 from embedding.huggingface_local import LocalHuggingFaceEmbedding
 from config import MODEL_ID, INFERENCE_URL, INFERENCE_ACCESS_SECRET
@@ -18,7 +18,7 @@ def vector_store_manager(init_embed_manager):
         print(f"Saving Temporary Test Storage at: {temp_dir}")
         # Mock the persistence directory
         os.environ['PERSIST_DIR'] = temp_dir
-        yield FaissVectorStoreManager(init_embed_manager)
+        yield FaissVectorStoreHandler(init_embed_manager)
 
 
 def test_index_documents(vector_store_manager):
@@ -203,12 +203,21 @@ def test_persist_and_load_index(vector_store_manager):
     documents = [Document(doc_id="1", text="Another Test document", metadata={"type": "text"})]
     vector_store_manager.index_documents(documents, index_name="another_test_index")
 
-    vector_store_manager._persist(index_name="test_index")
+    vector_store_manager._persist_all()
 
     # Simulate a fresh load of the index (clearing in-memory state)
     vector_store_manager.index_map = {}  # Clear current in-memory index map
-    loaded_index = vector_store_manager._load_index(index_name="test_index")
+    loaded_indices = vector_store_manager._load_indices()
 
     # Verify that the index was reloaded and contains the expected document
+    assert loaded_indices is not None
+    assert vector_store_manager.document_exists("1", "test_index")
+    assert vector_store_manager.document_exists("1", "another_test_index")
+
+    vector_store_manager.index_map = {}  # Clear current in-memory index map
+    loaded_index = vector_store_manager._load_index(index_name="test_index")
+
     assert loaded_index is not None
     assert vector_store_manager.document_exists("1", "test_index")
+    assert not vector_store_manager.document_exists("1", "another_test_index") # Since we didn't load this index
+
