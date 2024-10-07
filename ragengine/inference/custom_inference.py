@@ -6,6 +6,13 @@ import requests
 from config import INFERENCE_URL, INFERENCE_ACCESS_SECRET, RESPONSE_FIELD
 
 class CustomInference(CustomLLM):
+    params: dict = {}
+
+    def set_params(self, params: dict) -> None:
+        self.params = params
+
+    def get_param(self, key, default=None):
+        return self.params.get(key, default)
 
     @llm_completion_callback()
     def stream_complete(self, prompt: str, **kwargs: Any) -> CompletionResponseGen:
@@ -13,10 +20,14 @@ class CustomInference(CustomLLM):
 
     @llm_completion_callback()
     def complete(self, prompt: str, **kwargs) -> CompletionResponse:
-        if "openai" in INFERENCE_URL:
-            return self._openai_complete(prompt, **kwargs)
-        else:
-            return self._custom_api_complete(prompt, **kwargs)
+        try:
+            if "openai" in INFERENCE_URL:
+                return self._openai_complete(prompt, **kwargs, **self.params)
+            else:
+                return self._custom_api_complete(prompt, **kwargs, **self.params)
+        finally:
+            # Clear params after the completion is done
+            self.params = {}
 
     def _openai_complete(self, prompt: str, **kwargs: Any) -> CompletionResponse:
         llm = OpenAI(

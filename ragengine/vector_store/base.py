@@ -10,7 +10,7 @@ class BaseVectorStore(ABC):
         pass
 
     @abstractmethod
-    def query(self, query: str, top_k: int, index_name: str):
+    def query(self, query: str, top_k: int, index_name: str, params: dict):
         pass
 
     @abstractmethod

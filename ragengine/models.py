@@ -14,6 +14,7 @@ class IndexRequest(BaseModel):
 class QueryRequest(BaseModel):
     query: str
     top_k: int = 10
+    params: Optional[Dict] = None  # Accept a dictionary for parameters
 
 class UpdateRequest(BaseModel):
     documents: List[Document]

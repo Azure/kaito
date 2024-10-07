@@ -12,9 +12,9 @@ class VectorStoreManager:
         """Index new documents."""
         return self.vector_store.index_documents(documents)
 
-    def read(self, query: str, top_k: int):
+    def read(self, query: str, top_k: int, params: dict):
         """Query the indexed documents."""
-        return self.vector_store.query(query, top_k)
+        return self.vector_store.query(query, top_k, params)
 
     """
     def update(self, documents: List[Document]) -> Dict[str, List[str]]:

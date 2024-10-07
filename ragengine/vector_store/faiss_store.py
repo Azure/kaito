@@ -76,10 +76,12 @@ class FaissVectorStoreHandler(BaseVectorStore):
         self.index_map[index_name].insert(llama_doc)
         self._persist(index_name)
 
-    def query(self, query: str, top_k: int, index_name: str):
+    def query(self, query: str, top_k: int, index_name: str, params: dict):
         """Queries the FAISS vector store."""
         if index_name not in self.index_map:
             raise ValueError(f"No such index: '{index_name}' exists.")
+        self.llm.set_params(params)
+
         query_engine = self.index_map[index_name].as_query_engine(llm=self.llm, similarity_top_k=top_k)
         return query_engine.query(query)
 
