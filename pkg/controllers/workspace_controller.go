@@ -40,6 +40,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
@@ -385,7 +386,7 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 		}
 	}
 
-	// Find all nodes that match the labelSelector and instanceType, they are not necessarily created by machines/nodeClaims.
+	// Find all nodes that meet the requirements, they are not necessarily created by machines/nodeClaims.
 	validNodes, err := c.getAllQualifiedNodes(ctx, wObj)
 	if err != nil {
 		return err
@@ -474,7 +475,6 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 	return nil
 }
 
-// getAllQualifiedNodes returns all nodes that match the labelSelector and instanceType.
 func (c *WorkspaceReconciler) getAllQualifiedNodes(ctx context.Context, wObj *kaitov1alpha1.Workspace) ([]*corev1.Node, error) {
 	var qualifiedNodes []*corev1.Node
 
@@ -488,33 +488,36 @@ func (c *WorkspaceReconciler) getAllQualifiedNodes(ctx context.Context, wObj *ka
 		return nil, nil
 	}
 
+	preferredNodeSet := sets.New(wObj.Resource.PreferredNodes...)
+
 	for index := range nodeList.Items {
 		nodeObj := nodeList.Items[index]
-		// Skip nodes that are being deleted
+		// skip nodes that are being deleted
 		if nodeObj.DeletionTimestamp != nil {
 			continue
 		}
-		foundInstanceType := c.validateNodeInstanceType(ctx, wObj, lo.ToPtr(nodeObj))
+
+		// skip nodes that are not ready
 		_, statusRunning := lo.Find(nodeObj.Status.Conditions, func(condition corev1.NodeCondition) bool {
 			return condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue
 		})
+		if !statusRunning {
+			continue
+		}
 
-		if foundInstanceType && statusRunning {
+		// match the preferred node
+		if preferredNodeSet.Has(nodeObj.Name) {
+			qualifiedNodes = append(qualifiedNodes, lo.ToPtr(nodeObj))
+			continue
+		}
+
+		// match the instanceType
+		if nodeObj.Labels[corev1.LabelInstanceTypeStable] == wObj.Resource.InstanceType {
 			qualifiedNodes = append(qualifiedNodes, lo.ToPtr(nodeObj))
 		}
 	}
 
 	return qualifiedNodes, nil
-}
-
-// check if node has the required instanceType
-func (c *WorkspaceReconciler) validateNodeInstanceType(ctx context.Context, wObj *kaitov1alpha1.Workspace, nodeObj *corev1.Node) bool {
-	if instanceTypeLabel, found := nodeObj.Labels[corev1.LabelInstanceTypeStable]; found {
-		if instanceTypeLabel != wObj.Resource.InstanceType {
-			return false
-		}
-	}
-	return true
 }
 
 // createAndValidateNode creates a new node and validates status.
