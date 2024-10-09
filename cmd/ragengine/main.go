@@ -11,11 +11,15 @@ import (
 	"syscall"
 	"time"
 
+	azurev1alpha2 "github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
+	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	awsv1beta1 "github.com/aws/karpenter-provider-aws/pkg/apis/v1beta1"
 	"github.com/azure/kaito/pkg/k8sclient"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/azure/kaito/pkg/controllers"
 	"github.com/azure/kaito/pkg/webhooks"
+	"k8s.io/api/apps/v1beta1"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/injection/sharedmain"
 	"knative.dev/pkg/webhook"
@@ -53,6 +57,10 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(kaitov1alpha1.AddToScheme(scheme))
+	utilruntime.Must(v1alpha5.SchemeBuilder.AddToScheme(scheme))
+	utilruntime.Must(v1beta1.SchemeBuilder.AddToScheme(scheme))
+	utilruntime.Must(azurev1alpha2.SchemeBuilder.AddToScheme(scheme))
+	utilruntime.Must(awsv1beta1.SchemeBuilder.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
 	klog.InitFlags(nil)
@@ -63,13 +71,15 @@ func main() {
 	var enableLeaderElection bool
 	var enableWebhook bool
 	var probeAddr string
+	var featureGates string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.BoolVar(&enableWebhook, "webhook", false,
-		"Enable webhook for controller manager. Default is false.")
+	flag.BoolVar(&enableWebhook, "webhook", true,
+		"Enable webhook for controller manager. Default is true.")
+	flag.StringVar(&featureGates, "feature-gates", "Karpenter=false", "Enable Kaito feature gates. Default,	Karpenter=false.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -116,7 +126,7 @@ func main() {
 	)
 
 	if err = ragengineReconciler.SetupWithManager(mgr); err != nil {
-		klog.ErrorS(err, "unable to create controller", "controller", "Workspace")
+		klog.ErrorS(err, "unable to create controller", "controller", "RAG Eingine")
 		exitWithErrorFunc()
 	}
 	//+kubebuilder:scaffold:builder
@@ -144,7 +154,7 @@ func main() {
 		})
 		ctx = sharedmain.WithHealthProbesDisabled(ctx)
 		ctx = sharedmain.WithHADisabled(ctx)
-		go sharedmain.MainWithConfig(ctx, "webhook", ctrl.GetConfigOrDie(), webhooks.NewWebhooks()...)
+		go sharedmain.MainWithConfig(ctx, "webhook", ctrl.GetConfigOrDie(), webhooks.NewRAGEngineWebhooks()...)
 
 		// wait 2 seconds to allow reconciling webhookconfiguration and service endpoint.
 		time.Sleep(2 * time.Second)
