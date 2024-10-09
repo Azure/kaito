@@ -302,12 +302,9 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			reconciler := &WorkspaceReconciler{
-				Scheme: test.NewTestScheme(),
-			}
 			featuregates.FeatureGates[consts.FeatureFlagKarpenter] = tc.karpenterFeatureGates
 
-			selectedNodes := reconciler.selectWorkspaceNodes(tc.qualified, tc.preferred, tc.previous, tc.count)
+			selectedNodes := selectNodes(tc.qualified, tc.preferred, tc.previous, tc.count)
 
 			selectedNodesArray := []string{}
 

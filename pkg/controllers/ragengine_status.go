@@ -5,8 +5,12 @@ package controllers
 
 import (
 	"context"
+	"reflect"
+	"sort"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/samber/lo"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -57,4 +61,17 @@ func (c *RAGEngineReconciler) updateStatusConditionIfNotMatch(ctx context.Contex
 		Message:            cMessage,
 	}
 	return c.updateRAGEngineStatus(ctx, &client.ObjectKey{Name: ragObj.Name, Namespace: ragObj.Namespace}, &cObj, nil)
+}
+
+func (c *RAGEngineReconciler) updateStatusNodeListIfNotMatch(ctx context.Context, ragObj *kaitov1alpha1.RAGEngine, validNodeList []*corev1.Node) error {
+	nodeNameList := lo.Map(validNodeList, func(v *corev1.Node, _ int) string {
+		return v.Name
+	})
+	sort.Strings(ragObj.Status.WorkerNodes)
+	sort.Strings(nodeNameList)
+	if reflect.DeepEqual(ragObj.Status.WorkerNodes, nodeNameList) {
+		return nil
+	}
+	klog.InfoS("updateStatusNodeList", "ragengine", klog.KObj(ragObj))
+	return c.updateRAGEngineStatus(ctx, &client.ObjectKey{Name: ragObj.Name, Namespace: ragObj.Namespace}, nil, nodeNameList)
 }
