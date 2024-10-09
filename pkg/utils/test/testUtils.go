@@ -73,6 +73,26 @@ var (
 )
 
 var (
+	MockRAGEngineDistributedModel = &v1alpha1.RAGEngine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testRAGEngine",
+			Namespace: "kaito",
+		},
+		Spec: &v1alpha1.RAGEngineSpec{
+			Compute: &v1alpha1.ResourceSpec{
+				Count:        &gpuNodeCount,
+				InstanceType: "Standard_NC12s_v3",
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"apps": "test",
+					},
+				},
+			},
+		},
+	}
+)
+
+var (
 	MockWorkspaceWithPreset = &v1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testWorkspace",

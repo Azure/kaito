@@ -37,25 +37,45 @@ var (
 	machineStatusTimeoutInterval = 240 * time.Second
 )
 
-// GenerateMachineManifest generates a machine object from the given workspace.
-func GenerateMachineManifest(ctx context.Context, storageRequirement string, workspaceObj *kaitov1alpha1.Workspace) *v1alpha5.Machine {
-	digest := sha256.Sum256([]byte(workspaceObj.Namespace + workspaceObj.Name + time.Now().Format("2006-01-02 15:04:05.000000000"))) // We make sure the machine name is not fixed to the a workspace
+// GenerateMachineManifest generates a machine object from the given workspace or RAGEngine.
+func GenerateMachineManifest(ctx context.Context, storageRequirement string, obj interface{}) *v1alpha5.Machine {
+	var instanceType string
+	var namespace, name string
+	var labelSelector *metav1.LabelSelector
+
+	// Determine the type of the input object and extract relevant fields
+	switch o := obj.(type) {
+	case *kaitov1alpha1.Workspace:
+		instanceType = o.Resource.InstanceType
+		namespace = o.Namespace
+		name = o.Name
+		labelSelector = o.Resource.LabelSelector
+	case *kaitov1alpha1.RAGEngine:
+		instanceType = o.Spec.Compute.InstanceType
+		namespace = o.Namespace
+		name = o.Name
+		labelSelector = o.Spec.Compute.LabelSelector
+	default:
+		klog.Error("unsupported object type", obj)
+		return nil
+	}
+
+	digest := sha256.Sum256([]byte(namespace + name + time.Now().Format("2006-01-02 15:04:05.000000000"))) // We make sure the nodeClaim name is not fixed to the object
 	machineName := "ws" + hex.EncodeToString(digest[0:])[0:9]
 	machineLabels := map[string]string{
 		LabelProvisionerName:                  ProvisionerName,
-		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
-		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
+		kaitov1alpha1.LabelWorkspaceName:      name,
+		kaitov1alpha1.LabelWorkspaceNamespace: namespace,
 	}
-	if workspaceObj.Resource.LabelSelector != nil &&
-		len(workspaceObj.Resource.LabelSelector.MatchLabels) != 0 {
-		machineLabels = lo.Assign(machineLabels, workspaceObj.Resource.LabelSelector.MatchLabels)
 
+	if labelSelector != nil && len(labelSelector.MatchLabels) != 0 {
+		machineLabels = lo.Assign(machineLabels, labelSelector.MatchLabels)
 	}
 
 	return &v1alpha5.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      machineName,
-			Namespace: workspaceObj.Namespace,
+			Namespace: namespace,
 			Labels:    machineLabels,
 		},
 		Spec: v1alpha5.MachineSpec{
@@ -66,7 +86,7 @@ func GenerateMachineManifest(ctx context.Context, storageRequirement string, wor
 				{
 					Key:      v1.LabelInstanceTypeStable,
 					Operator: v1.NodeSelectorOpIn,
-					Values:   []string{workspaceObj.Resource.InstanceType},
+					Values:   []string{instanceType},
 				},
 				{
 					Key:      LabelProvisionerName,
@@ -134,26 +154,38 @@ func CreateMachine(ctx context.Context, machineObj *v1alpha5.Machine, kubeClient
 }
 
 // WaitForPendingMachines checks if the there are any machines in provisioning condition. If so, wait until they are ready.
-func WaitForPendingMachines(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) error {
-	machines, err := ListMachinesByWorkspace(ctx, workspaceObj, kubeClient)
+func WaitForPendingMachines(ctx context.Context, obj interface{}, kubeClient client.Client) error {
+	var instanceType string
+
+	// Determine the type of the input object and retrieve the InstanceType
+	switch o := obj.(type) {
+	case *kaitov1alpha1.Workspace:
+		instanceType = o.Resource.InstanceType
+	case *kaitov1alpha1.RAGEngine:
+		instanceType = o.Spec.Compute.InstanceType
+	default:
+		return fmt.Errorf("unsupported object type: %T", obj)
+	}
+
+	machines, err := ListMachinesByWorkspace(ctx, obj, kubeClient)
 	if err != nil {
 		return err
 	}
 
 	for i := range machines.Items {
-		// check if the machine is being created has the requested workspace instance type.
+		// check if the machine is being created and has the requested instance type
 		_, machineInstanceType := lo.Find(machines.Items[i].Spec.Requirements, func(requirement v1.NodeSelectorRequirement) bool {
 			return requirement.Key == v1.LabelInstanceTypeStable &&
 				requirement.Operator == v1.NodeSelectorOpIn &&
-				lo.Contains(requirement.Values, workspaceObj.Resource.InstanceType)
+				lo.Contains(requirement.Values, instanceType)
 		})
 		if machineInstanceType {
 			_, found := lo.Find(machines.Items[i].GetConditions(), func(condition apis.Condition) bool {
 				return condition.Type == v1alpha5.MachineInitialized && condition.Status == v1.ConditionFalse
 			})
 
-			if found || machines.Items[i].GetConditions() == nil { // checking conditions==nil is a workaround for conditions delaying to set on the machine object.
-				//wait until machine is initialized.
+			if found || machines.Items[i].GetConditions() == nil { // Check if conditions==nil is a workaround for condition delays in setting the machine object
+				// wait until the machine is initialized
 				if err := CheckMachineStatus(ctx, &machines.Items[i], kubeClient); err != nil {
 					return err
 				}
@@ -163,13 +195,25 @@ func WaitForPendingMachines(ctx context.Context, workspaceObj *kaitov1alpha1.Wor
 	return nil
 }
 
-// ListMachinesByWorkspace list all machine objects in the cluster that are created by the workspace identified by the label.
-func ListMachinesByWorkspace(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) (*v1alpha5.MachineList, error) {
+// ListMachinesByWorkspace lists all machine objects in the cluster that are created by the given workspace or RAGEngine.
+func ListMachinesByWorkspace(ctx context.Context, obj interface{}, kubeClient client.Client) (*v1alpha5.MachineList, error) {
 	machineList := &v1alpha5.MachineList{}
 
-	ls := labels.Set{
-		kaitov1alpha1.LabelWorkspaceName:      workspaceObj.Name,
-		kaitov1alpha1.LabelWorkspaceNamespace: workspaceObj.Namespace,
+	var ls labels.Set
+
+	switch o := obj.(type) {
+	case *kaitov1alpha1.Workspace:
+		ls = labels.Set{
+			kaitov1alpha1.LabelWorkspaceName:      o.Name,
+			kaitov1alpha1.LabelWorkspaceNamespace: o.Namespace,
+		}
+	case *kaitov1alpha1.RAGEngine:
+		ls = labels.Set{
+			kaitov1alpha1.LabelRAGEngineName:      o.Name,
+			kaitov1alpha1.LabelRAGEngineNamespace: o.Namespace,
+		}
+	default:
+		return nil, fmt.Errorf("unsupported object type: %T", obj)
 	}
 
 	err := retry.OnError(retry.DefaultBackoff, func(err error) bool {
