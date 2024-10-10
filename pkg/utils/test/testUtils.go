@@ -47,6 +47,29 @@ var (
 			},
 		},
 	}
+	MockWorkspaceWithPreferredNodes = &v1alpha1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testWorkspace",
+			Namespace: "kaito",
+		},
+		Resource: v1alpha1.ResourceSpec{
+			Count:        &gpuNodeCount,
+			InstanceType: "Standard_NC12s_v3",
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"apps": "test",
+				},
+			},
+			PreferredNodes: []string{"node-p1", "node-p2"},
+		},
+		Inference: &v1alpha1.InferenceSpec{
+			Preset: &v1alpha1.PresetSpec{
+				PresetMeta: v1alpha1.PresetMeta{
+					Name: "test-distributed-model",
+				},
+			},
+		},
+	}
 )
 
 var (

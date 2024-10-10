@@ -22,7 +22,7 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 	klog.InfoS("garbageCollectWorkspace", "workspace", klog.KObj(wObj))
 
 	// Check if there are any machines associated with this workspace.
-	mList, err := machine.ListMachinesByWorkspace(ctx, wObj, c.Client)
+	mList, err := machine.ListMachines(ctx, wObj, c.Client)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -36,7 +36,7 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 
 	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 		// Check if there are any nodeClaims associated with this workspace.
-		ncList, err := nodeclaim.ListNodeClaimByWorkspace(ctx, wObj, c.Client)
+		ncList, err := nodeclaim.ListNodeClaim(ctx, wObj, c.Client)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
