@@ -3,9 +3,7 @@ from typing import Dict, List
 
 import faiss
 from llama_index.core import Document as LlamaDocument
-from llama_index.core import (StorageContext, VectorStoreIndex,
-                              load_graph_from_storage, load_index_from_storage,
-                              load_indices_from_storage)
+from llama_index.core import (StorageContext, VectorStoreIndex, load_index_from_storage)
 from llama_index.core.storage.index_store import SimpleIndexStore
 from llama_index.core.storage.docstore.types import RefDocInfo
 from llama_index.vector_stores.faiss import FaissVectorStore
@@ -42,7 +40,7 @@ class FaissVectorStoreHandler(BaseVectorStore):
         self.index_store = SimpleIndexStore() # Use to store global index metadata
         self.llm = CustomInference()
 
-    def index_documents(self, documents: List[Document], index_name: str):
+    def index_documents(self, index_name: str, documents: List[Document]):
         """Recreates the entire FAISS index and vector store with new documents."""
         if index_name in self.index_map:
             del self.index_map[index_name]
@@ -53,22 +51,27 @@ class FaissVectorStoreHandler(BaseVectorStore):
         vector_store = FaissVectorStore(faiss_index=faiss_index) # Specifies in-memory data structure for storing and retrieving document embeddings
         storage_context = StorageContext.from_defaults(vector_store=vector_store) # Used to persist the vector store and its underlying data across sessions
 
-        llama_docs = [LlamaDocument(text=doc.text, metadata=doc.metadata, id_=doc.doc_id) for doc in documents]
+        llama_docs = [
+            LlamaDocument(text=doc.text, metadata=doc.metadata, id_=doc.doc_id)
+            if doc.doc_id is not None
+            else LlamaDocument(text=doc.text, metadata=doc.metadata)
+            for doc in documents
+        ]
         # Creates the actual vector-based index using indexing method, vector store, storage method and embedding model specified above
         index = VectorStoreIndex.from_documents(
             llama_docs,
             storage_context=storage_context,
             embed_model=self.embed_model,
-            use_async=True # Indexing Process Performed Async
+            # use_async=True # TODO: Indexing Process Performed Async
         )
         index.set_index_id(index_name) # https://github.com/run-llama/llama_index/blob/main/llama-index-core/llama_index/core/indices/base.py#L138-L154
         self.index_map[index_name] = index
         self.index_store.add_index_struct(index.index_struct)
         self._persist(index_name)
         # Return the document IDs that were indexed
-        return [doc.doc_id for doc in documents]
+        return [doc.doc_id for doc in llama_docs]
 
-    def add_document(self, document: Document, index_name: str):
+    def add_document(self, index_name: str, document: Document):
         """Inserts a single document into the existing FAISS index."""
         if index_name not in self.index_map:
             raise ValueError(f"No such index: '{index_name}' exists.")
@@ -76,27 +79,22 @@ class FaissVectorStoreHandler(BaseVectorStore):
         self.index_map[index_name].insert(llama_doc)
         self._persist(index_name)
 
-    def query(self, query: str, top_k: int, index_name: str, params: dict):
+    def query(self, index_name: str, query: str, top_k: int, llm_params: dict):
         """Queries the FAISS vector store."""
         if index_name not in self.index_map:
             raise ValueError(f"No such index: '{index_name}' exists.")
-        self.llm.set_params(params)
+        self.llm.set_params(llm_params)
 
         query_engine = self.index_map[index_name].as_query_engine(llm=self.llm, similarity_top_k=top_k)
         return query_engine.query(query)
 
-    def get_document(self, doc_id: str, index_name: str):
+    def get_document(self, index_name: str, doc_id: str) -> RefDocInfo:
         """Retrieves a document's RefDocInfo by its ID."""
         if index_name not in self.index_map:
             raise ValueError(f"No such index: '{index_name}' exists.")
 
         # Try to retrieve the RefDocInfo associated with the doc_id
         ref_doc_info = self.index_map[index_name].ref_doc_info.get(doc_id)
-
-        if ref_doc_info is None:
-            print(f"Document with ID {doc_id} not found in index '{index_name}'.")
-            return None
-
         return ref_doc_info
 
     """
@@ -150,13 +148,11 @@ class FaissVectorStoreHandler(BaseVectorStore):
             self._persist(index_name)
     """
 
-    def list_documents(self, index_name: str) -> Dict[str, RefDocInfo]:
+    def list_all_indexed_documents(self) -> Dict[str, VectorStoreIndex]:
         """Lists all documents in the vector store."""
-        if index_name not in self.index_map:
-            raise ValueError(f"No such index: '{index_name}' exists.")
-        return self.index_map[index_name].ref_doc_info
+        return self.index_map
 
-    def document_exists(self, doc_id: str, index_name: str) -> bool:
+    def document_exists(self, index_name: str, doc_id: str) -> bool:
         """Checks if a document exists in the vector store."""
         if index_name not in self.index_map:
             print(f"No such index: '{index_name}' exists in vector store.")

@@ -2,29 +2,20 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
-
 class Document(BaseModel):
     text: str
     metadata: Optional[dict] = {}
     doc_id: Optional[str] = None
 
 class IndexRequest(BaseModel):
+    index_name: str
     documents: List[Document]
 
 class QueryRequest(BaseModel):
+    index_name: str
     query: str
     top_k: int = 10
-    params: Optional[Dict] = None  # Accept a dictionary for parameters
-
-class UpdateRequest(BaseModel):
-    documents: List[Document]
-
-class RefreshRequest(BaseModel):
-    documents: List[Document]
-
-class DocumentResponse(BaseModel):
-    doc_id: str
-    document: Document
+    llm_params: Optional[Dict] = None  # Accept a dictionary for parameters
 
 class ListDocumentsResponse(BaseModel):
-    documents: Dict[str, Document]
+    documents:Dict[str, Dict[str, Dict[str, str]]]

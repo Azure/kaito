@@ -3,18 +3,19 @@ from typing import Dict, List
 from models import Document
 from vector_store.base import BaseVectorStore
 
+from llama_index.core import VectorStoreIndex
 
 class VectorStoreManager:
     def __init__(self, vector_store: BaseVectorStore):
         self.vector_store = vector_store
 
-    def create(self, documents: List[Document]) -> List[str]:
+    def create(self, index_name: str, documents: List[Document]) -> List[str]:
         """Index new documents."""
-        return self.vector_store.index_documents(documents)
+        return self.vector_store.index_documents(index_name, documents)
 
-    def read(self, query: str, top_k: int, params: dict):
+    def read(self, index_name: str, query: str, top_k: int, llm_params: dict):
         """Query the indexed documents."""
-        return self.vector_store.query(query, top_k, params)
+        return self.vector_store.query(index_name, query, top_k, llm_params)
 
     """
     def update(self, documents: List[Document]) -> Dict[str, List[str]]:
@@ -39,11 +40,10 @@ class VectorStoreManager:
         return self.vector_store.refresh_documents(documents)
     """
 
-    def get(self, doc_id: str) -> Document:
+    def get(self, index_name: str, doc_id: str) -> Document:
         """Retrieve a document by ID."""
-        return self.vector_store.get_document(doc_id)
+        return self.vector_store.get_document(index_name, doc_id)
 
-    def list_all(self) -> Dict[str, Document]:
+    def list_all_indexed_documents(self) -> Dict[str, VectorStoreIndex]:
         """List all documents."""
-        return self.vector_store.list_documents()
-
+        return self.vector_store.list_all_indexed_documents()
