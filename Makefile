@@ -99,12 +99,12 @@ unit-test: ## Run unit tests.
 
 .PHONY: rag-service-test
 rag-service-test:
-    pip install -r presets/rag_service/requirements.txt
-    pytest -o log_cli=true -o log_cli_level=INFO presets/rag_service/tests
+	pip install -r presets/rag_service/requirements.txt
+	pytest -o log_cli=true -o log_cli_level=INFO presets/rag_service/tests
 
 .PHONY: tuning-metrics-server-test
 tuning-metrics-server-test:
-    pytest -o log_cli=true -o log_cli_level=INFO presets/tuning/text-generation/metrics
+	pytest -o log_cli=true -o log_cli_level=INFO presets/tuning/text-generation/metrics
 
 ## --------------------------------------
 ## E2E tests
