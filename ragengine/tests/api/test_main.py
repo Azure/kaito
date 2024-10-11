@@ -136,3 +136,35 @@ def test_list_all_indexed_documents_success():
     assert ({item["text"] for item in response_idx.values()}
             == {item["text"] for item in request_data["documents"]})
 
+
+"""
+Example of a live query test. This test is currently commented out as it requires a valid 
+INFERENCE_URL in config.py. To run the test, ensure that a valid INFERENCE_URL is provided. 
+Upon execution, RAG results should be observed.
+
+def test_live_query_test():
+    # Index
+    request_data = {
+        "index_name": "test_index",
+        "documents": [
+            {"text": "Polar bear – can lift 450Kg (approximately 0.7 times their body weight) \
+                Adult male polar bears can grow to be anywhere between 300 and 700kg"},
+            {"text": "Giraffes are the tallest mammals and are well-adapted to living in trees. \
+                They have few predators as adults."}
+        ]
+    }
+
+    response = client.post("/index", json=request_data)
+    assert response.status_code == 200
+
+    # Query
+    request_data = {
+        "index_name": "test_index",
+        "query": "What is the strongest bear?",
+        "top_k": 1,
+        "llm_params": {"temperature": 0.7}
+    }
+
+    response = client.post("/query", json=request_data)
+    assert response.status_code == 200
+"""
