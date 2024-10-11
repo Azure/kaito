@@ -3,7 +3,7 @@ from llama_index.core.llms import CustomLLM, CompletionResponse, LLMMetadata, Co
 from llama_index.llms.openai import OpenAI
 from llama_index.core.llms.callbacks import llm_completion_callback
 import requests
-from config import INFERENCE_URL, INFERENCE_ACCESS_SECRET, RESPONSE_FIELD
+from config import INFERENCE_URL, INFERENCE_ACCESS_SECRET #, RESPONSE_FIELD
 
 class CustomInference(CustomLLM):
     params: dict = {}
@@ -44,9 +44,8 @@ class CustomInference(CustomLLM):
         response_data = response.json()
 
         # Dynamically extract the field from the response based on the specified response_field
-        completion_text = response_data.get(RESPONSE_FIELD, "No response field found")
-
-        return CompletionResponse(text=completion_text)
+        # completion_text = response_data.get(RESPONSE_FIELD, "No response field found") # not necessary for now
+        return CompletionResponse(text=str(response_data))
 
     @property
     def metadata(self) -> LLMMetadata:
