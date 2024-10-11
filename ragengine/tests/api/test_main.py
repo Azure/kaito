@@ -136,5 +136,3 @@ def test_list_all_indexed_documents_success():
     assert ({item["text"] for item in response_idx.values()}
             == {item["text"] for item in request_data["documents"]})
 
-
-
