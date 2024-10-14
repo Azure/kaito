@@ -38,7 +38,7 @@ func TestUpdateWorkspaceStatus(t *testing.T) {
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(nil)
 		mockClient.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(nil)
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, "Workspace", &condition, workerNodes)
+		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, "workspace", &condition, workerNodes)
 		assert.Nil(t, err)
 	})
 
@@ -60,7 +60,7 @@ func TestUpdateWorkspaceStatus(t *testing.T) {
 
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(errors.New("Get operation failed"))
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, "Workspace", &condition, workerNodes)
+		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, "workspace", &condition, workerNodes)
 		assert.NotNil(t, err)
 	})
 
@@ -82,7 +82,7 @@ func TestUpdateWorkspaceStatus(t *testing.T) {
 
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(apierrors.NewNotFound(schema.GroupResource{}, "workspace"))
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, "Workspace", &condition, workerNodes)
+		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, "workspace", &condition, workerNodes)
 		assert.Nil(t, err)
 	})
 }
@@ -110,7 +110,8 @@ func TestUpdateStatusConditionIfNotMatch(t *testing.T) {
 			},
 		}
 
-		err := reconciler.updateStatusConditionIfNotMatch(ctx, workspace, conditionType, conditionStatus, conditionReason, conditionMessage)
+		err := updateStatusConditionIfNotMatch(ctx, workspace, reconciler, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace},
+			workspace.Status, conditionType, conditionStatus, "workspace", conditionReason, conditionMessage)
 		assert.Nil(t, err)
 	})
 
@@ -138,7 +139,8 @@ func TestUpdateStatusConditionIfNotMatch(t *testing.T) {
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(nil)
 		mockClient.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(nil)
 
-		err := reconciler.updateStatusConditionIfNotMatch(ctx, workspace, conditionType, conditionStatus, conditionReason, conditionMessage)
+		err := updateStatusConditionIfNotMatch(ctx, workspace, reconciler, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace},
+			workspace.Status, conditionType, conditionStatus, "workspace", conditionReason, conditionMessage)
 		assert.Nil(t, err)
 	})
 
@@ -166,7 +168,8 @@ func TestUpdateStatusConditionIfNotMatch(t *testing.T) {
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(nil)
 		mockClient.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(nil)
 
-		err := reconciler.updateStatusConditionIfNotMatch(ctx, workspace, conditionType, conditionStatus, conditionReason, conditionMessage)
+		err := updateStatusConditionIfNotMatch(ctx, workspace, reconciler, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace},
+			workspace.Status, conditionType, conditionStatus, "workspace", conditionReason, conditionMessage)
 		assert.Nil(t, err)
 	})
 }

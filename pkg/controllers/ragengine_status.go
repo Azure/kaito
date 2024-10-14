@@ -29,5 +29,5 @@ func (c *RAGEngineReconciler) updateStatusConditionIfNotMatch(ctx context.Contex
 		ObservedGeneration: ragObj.GetGeneration(),
 		Message:            cMessage,
 	}
-	return updateObjStatus(ctx, c.Client, &client.ObjectKey{Name: ragObj.Name, Namespace: ragObj.Namespace}, "RAGEngine", &cObj, nil)
+	return updateObjStatus(ctx, c.Client, &client.ObjectKey{Name: ragObj.Name, Namespace: ragObj.Namespace}, "ragengine", &cObj, nil)
 }
