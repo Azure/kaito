@@ -1,11 +1,11 @@
-from typing import Any, Optional
+from typing import Any
 from llama_index.core.llms import CustomLLM, CompletionResponse, LLMMetadata, CompletionResponseGen
 from llama_index.llms.openai import OpenAI
 from llama_index.core.llms.callbacks import llm_completion_callback
 import requests
 from config import INFERENCE_URL, INFERENCE_ACCESS_SECRET #, RESPONSE_FIELD
 
-class CustomInference(CustomLLM):
+class Inference(CustomLLM):
     params: dict = {}
 
     def set_params(self, params: dict) -> None:
