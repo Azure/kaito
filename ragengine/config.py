@@ -1,6 +1,6 @@
 # config.py
 
-# Variables are set via environment variables, typically from the RAGEngine CR
+# Variables are set via environment variables from the RAGEngine CR
 # and exposed to the pod. For example, InferenceURL is specified in the CR and 
 # passed to the pod via env variables.
 
