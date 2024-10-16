@@ -38,7 +38,7 @@ class FaissVectorStoreHandler(BaseVectorStore):
         """
         self.index_map = {} # Used to store the in-memory index via namespace (e.g. index_name -> VectorStoreIndex)
         self.index_store = SimpleIndexStore() # Use to store global index metadata
-        self.llm = CustomInference()
+        self.llm = Inference()
 
     def index_documents(self, index_name: str, documents: List[Document]):
         """Recreates the entire FAISS index and vector store with new documents."""
