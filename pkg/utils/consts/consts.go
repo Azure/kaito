@@ -15,4 +15,9 @@ const (
 	MaxRevisionHistoryLimit       = 10
 	GiBToBytes                    = 1024 * 1024 * 1024 // Conversion factor from GiB to bytes
 	NvidiaGPU                     = "nvidia.com/gpu"
+	WorkspaceString               = "workspace"
+	RAGEngineString               = "ragengine"
+	WorkspaceFailed               = "workspaceFailed"
+	WorkspaceSucceeded            = "workspaceSucceeded"
+	WorkspaceResourceStatusFailed = "workspaceResourceStatusFailed"
 )

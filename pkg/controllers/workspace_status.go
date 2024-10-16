@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/utils/consts"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -31,12 +32,12 @@ func updateObjStatus(ctx context.Context, c client.Client, name *client.ObjectKe
 			var conditions *[]metav1.Condition
 			var workerNodesField *[]string
 			switch objType {
-			case "workspace":
+			case consts.WorkspaceString:
 				ragObj := &kaitov1alpha1.Workspace{}
 				obj = ragObj
 				conditions = &ragObj.Status.Conditions
 				workerNodesField = &ragObj.Status.WorkerNodes
-			case "ragengine":
+			case consts.RAGEngineString:
 				wObj := &kaitov1alpha1.RAGEngine{}
 				obj = wObj
 				conditions = &wObj.Status.Conditions
@@ -91,5 +92,5 @@ func (c *WorkspaceReconciler) updateStatusNodeListIfNotMatch(ctx context.Context
 		return nil
 	}
 	klog.InfoS("updateStatusNodeList", "workspace", klog.KObj(wObj))
-	return updateObjStatus(ctx, c.Client, &client.ObjectKey{Name: wObj.Name, Namespace: wObj.Namespace}, "workspace", nil, nodeNameList)
+	return updateObjStatus(ctx, c.Client, &client.ObjectKey{Name: wObj.Name, Namespace: wObj.Namespace}, consts.WorkspaceString, nil, nodeNameList)
 }

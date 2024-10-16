@@ -7,6 +7,7 @@ import (
 	"context"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/utils/consts"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
@@ -29,5 +30,5 @@ func (c *RAGEngineReconciler) updateStatusConditionIfNotMatch(ctx context.Contex
 		ObservedGeneration: ragObj.GetGeneration(),
 		Message:            cMessage,
 	}
-	return updateObjStatus(ctx, c.Client, &client.ObjectKey{Name: ragObj.Name, Namespace: ragObj.Namespace}, "ragengine", &cObj, nil)
+	return updateObjStatus(ctx, c.Client, &client.ObjectKey{Name: ragObj.Name, Namespace: ragObj.Namespace}, consts.RAGEngineString, &cObj, nil)
 }

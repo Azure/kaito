@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/utils/consts"
 	"github.com/azure/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -38,7 +39,7 @@ func TestUpdateWorkspaceStatus(t *testing.T) {
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(nil)
 		mockClient.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(nil)
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, "workspace", &condition, workerNodes)
+		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, consts.WorkspaceString, &condition, workerNodes)
 		assert.Nil(t, err)
 	})
 
@@ -60,7 +61,7 @@ func TestUpdateWorkspaceStatus(t *testing.T) {
 
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(errors.New("Get operation failed"))
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, "workspace", &condition, workerNodes)
+		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, consts.WorkspaceString, &condition, workerNodes)
 		assert.NotNil(t, err)
 	})
 
@@ -80,9 +81,9 @@ func TestUpdateWorkspaceStatus(t *testing.T) {
 		}
 		workerNodes := []string{"node1", "node2"}
 
-		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(apierrors.NewNotFound(schema.GroupResource{}, "workspace"))
+		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(apierrors.NewNotFound(schema.GroupResource{}, consts.WorkspaceString))
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, "workspace", &condition, workerNodes)
+		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, consts.WorkspaceString, &condition, workerNodes)
 		assert.Nil(t, err)
 	})
 }
@@ -111,7 +112,7 @@ func TestUpdateStatusConditionIfNotMatch(t *testing.T) {
 		}
 
 		err := updateStatusConditionIfNotMatch(ctx, workspace, reconciler, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace},
-			workspace.Status, conditionType, conditionStatus, "workspace", conditionReason, conditionMessage)
+			workspace.Status, conditionType, conditionStatus, consts.WorkspaceString, conditionReason, conditionMessage)
 		assert.Nil(t, err)
 	})
 
@@ -140,7 +141,7 @@ func TestUpdateStatusConditionIfNotMatch(t *testing.T) {
 		mockClient.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(nil)
 
 		err := updateStatusConditionIfNotMatch(ctx, workspace, reconciler, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace},
-			workspace.Status, conditionType, conditionStatus, "workspace", conditionReason, conditionMessage)
+			workspace.Status, conditionType, conditionStatus, consts.WorkspaceString, conditionReason, conditionMessage)
 		assert.Nil(t, err)
 	})
 
@@ -169,7 +170,7 @@ func TestUpdateStatusConditionIfNotMatch(t *testing.T) {
 		mockClient.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(nil)
 
 		err := updateStatusConditionIfNotMatch(ctx, workspace, reconciler, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace},
-			workspace.Status, conditionType, conditionStatus, "workspace", conditionReason, conditionMessage)
+			workspace.Status, conditionType, conditionStatus, consts.WorkspaceString, conditionReason, conditionMessage)
 		assert.Nil(t, err)
 	})
 }
