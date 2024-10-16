@@ -88,66 +88,6 @@ class FaissVectorStoreHandler(BaseVectorStore):
         query_engine = self.index_map[index_name].as_query_engine(llm=self.llm, similarity_top_k=top_k)
         return query_engine.query(query)
 
-    def get_document(self, index_name: str, doc_id: str) -> RefDocInfo:
-        """Retrieves a document's RefDocInfo by its ID."""
-        if index_name not in self.index_map:
-            raise ValueError(f"No such index: '{index_name}' exists.")
-
-        # Try to retrieve the RefDocInfo associated with the doc_id
-        ref_doc_info = self.index_map[index_name].ref_doc_info.get(doc_id)
-        return ref_doc_info
-
-    """
-    def delete_document(self, doc_id: str, index_name: str):
-        # Deletes a document from the FAISS vector store.
-        if index_name not in self.index_map:
-            raise ValueError(f"No such index: '{index_name}' exists.")
-        if not self.document_exists(doc_id, index_name):
-            print(f"Document with ID {doc_id} not found in index '{index_name}'. Skipping.")
-            return
-        try:
-            self.index_map[index_name].delete_ref_doc(doc_id, delete_from_docstore=True)
-        except NotImplementedError as e:
-            print(f"Delete not yet implemented for Faiss index. Skipping document {doc_id}.")
-        except Exception as e:
-            print(f"Unable to Delete Document from the VectorStoreIndex. Skipping. Error: {e}")
-        finally:
-            self._persist(index_name)
-
-    def update_document(self, document: Document, index_name: str):
-        # Updates an existing document in the FAISS vector store.
-        if index_name not in self.index_map:
-            raise ValueError(f"No such index: '{index_name}' exists.")
-        llama_doc = LlamaDocument(text=document.text, metadata=document.metadata, id_=document.doc_id)
-        try:
-            self.index_map[index_name].update_ref_doc(llama_doc)
-        except NotImplementedError as e:
-            print("Update is equivalent to deleting the document and then inserting it again.")
-            print(f"Update not yet fully implemented for index. Skipping document {document.doc_id}. Error: {e}")
-        except Exception as e:
-            print(f"Unable to Update Document in the VectorStoreIndex. Skipping. Error: {e}")
-        finally:
-            self._persist(index_name)
-
-    def refresh_documents(self, documents: List[Document], index_name: str) -> List[bool]:
-        # Updates existing documents and inserts new documents in the vector store.
-        if index_name not in self.index_map:
-            raise ValueError(f"No such index: '{index_name}' exists.")
-
-        llama_docs = [LlamaDocument(text=doc.text, metadata=doc.metadata, id_=doc.doc_id) for doc in documents]
-        try:
-            refresh_results = self.index_map[index_name].refresh_ref_docs(llama_docs)
-            # Returns a list of booleans indicating whether each document was successfully refreshed.
-            return refresh_results
-        except NotImplementedError as e:
-            print(f"Refresh is equivalent to insertion and update, which is equivalent to deletion and insertion.")
-            print(f"Refresh not yet fully implemented for index '{index_name}'. Error: {e}")
-        except Exception as e:
-            print(f"Unable to Refresh Documents in the VectorStoreIndex for index '{index_name}'. Error: {e}")
-        finally:
-            self._persist(index_name)
-    """
-
     def list_all_indexed_documents(self) -> Dict[str, VectorStoreIndex]:
         """Lists all documents in the vector store."""
         return self.index_map
