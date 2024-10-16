@@ -3,7 +3,7 @@ from typing import Dict, List
 
 import faiss
 from llama_index.core import Document as LlamaDocument
-from llama_index.core import (StorageContext, VectorStoreIndex, load_index_from_storage)
+from llama_index.core import (StorageContext, VectorStoreIndex)
 from llama_index.core.storage.index_store import SimpleIndexStore
 from llama_index.core.storage.docstore.types import RefDocInfo
 from llama_index.vector_stores.faiss import FaissVectorStore
@@ -98,58 +98,6 @@ class FaissVectorStoreHandler(BaseVectorStore):
             print(f"No such index: '{index_name}' exists in vector store.")
             return False
         return doc_id in self.index_map[index_name].ref_doc_info
-
-    def _load_index_store(self):
-        """Loads the global SimpleIndexStore from disk."""
-        store_path = os.path.join(PERSIST_DIR, "store.json")
-
-        if not os.path.exists(store_path):
-            raise ValueError("No persisted index store found.")
-
-        # Load the global index store from the persisted JSON
-        self.index_store = SimpleIndexStore.from_persist_path(store_path)
-
-    def _load_indices(self):
-        """Loads the existing indices from disk."""
-        # Load the global index store if it hasn't been loaded yet
-        if not self.index_store or not self.index_store.index_structs():
-            self._load_index_store()
-
-        if not os.path.exists(PERSIST_DIR):
-            raise ValueError(f"No persisted index found in '{PERSIST_DIR}'")
-
-        for idx in self.index_store.index_structs():
-            self._load_index(idx.index_id)
-
-        return self.index_map
-
-    def _load_index(self, index_name: str):
-        """Loads the existing index from disk."""
-        # Load the global index store if it hasn't been loaded yet
-        if not self.index_store or not self.index_store.index_structs():
-            self._load_index_store()
-
-        # Now load the specific index
-        persist_dir = os.path.join(PERSIST_DIR, index_name)
-
-        if not os.path.exists(persist_dir):
-            raise ValueError(f"No persisted index found for '{index_name}'")
-
-        # Load the vector store from the persisted directory
-        vector_store = FaissVectorStore.from_persist_dir(persist_dir)
-
-        # Create a new StorageContext using the loaded vector store
-        storage_context = StorageContext.from_defaults(
-            vector_store=vector_store,
-            persist_dir=persist_dir,  # Ensure it uses the correct directory for persistence
-        )
-
-        # Load the VectorStoreIndex using the storage context
-        loaded_index = load_index_from_storage(storage_context=storage_context, embed_model=self.embed_model)
-
-        # Update the in-memory index map with the loaded index
-        self.index_map[index_name] = loaded_index
-        return self.index_map[index_name]
 
     def _persist_all(self):
         self.index_store.persist(os.path.join(PERSIST_DIR, "store.json")) # Persist global index store
