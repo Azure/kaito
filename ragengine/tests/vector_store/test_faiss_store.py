@@ -15,7 +15,7 @@ def init_embed_manager():
 @pytest.fixture
 def vector_store_manager(init_embed_manager):
     with TemporaryDirectory() as temp_dir:
-        print(f"Saving Temporary Test Storage at: {temp_dir}")
+        print(f"Saving temporary test storage at: {temp_dir}")
         # Mock the persistence directory
         os.environ['PERSIST_DIR'] = temp_dir
         yield FaissVectorStoreHandler(init_embed_manager)
