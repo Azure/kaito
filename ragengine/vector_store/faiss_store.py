@@ -9,7 +9,7 @@ from llama_index.core.storage.docstore.types import RefDocInfo
 from llama_index.vector_stores.faiss import FaissVectorStore
 
 from models import Document
-from inference.custom_inference import CustomInference
+from inference.inference import Inference
 
 from config import PERSIST_DIR
 
