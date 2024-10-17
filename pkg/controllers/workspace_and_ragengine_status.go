@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func updateObjStatus(ctx context.Context, c client.Client, name *client.ObjectKey, objType string, condition *metav1.Condition, workerNodes []string) error {
+func updateObjStatus(ctx context.Context, c client.Client, inputObj interface{}, name *client.ObjectKey, condition *metav1.Condition, workerNodes []string) error {
 	return retry.OnError(retry.DefaultRetry,
 		func(err error) bool {
 			return apierrors.IsServiceUnavailable(err) || apierrors.IsServerTimeout(err) || apierrors.IsTooManyRequests(err)
@@ -30,27 +30,30 @@ func updateObjStatus(ctx context.Context, c client.Client, name *client.ObjectKe
 			var obj client.Object
 			var conditions *[]metav1.Condition
 			var workerNodesField *[]string
-			switch objType {
-			case "workspace":
-				ragObj := &kaitov1alpha1.Workspace{}
-				obj = ragObj
-				conditions = &ragObj.Status.Conditions
-				workerNodesField = &ragObj.Status.WorkerNodes
-			case "ragengine":
-				wObj := &kaitov1alpha1.RAGEngine{}
+
+			switch inputObj.(type) {
+			case *kaitov1alpha1.Workspace:
+				wObj := &kaitov1alpha1.Workspace{}
 				obj = wObj
 				conditions = &wObj.Status.Conditions
 				workerNodesField = &wObj.Status.WorkerNodes
+			case *kaitov1alpha1.RAGEngine:
+				ragObj := &kaitov1alpha1.RAGEngine{}
+				obj = ragObj
+				conditions = &ragObj.Status.Conditions
+				workerNodesField = &ragObj.Status.WorkerNodes
 			default:
-				return fmt.Errorf("unsupported object type: %s", objType)
+				return fmt.Errorf("unsupported object type: %T", obj)
 			}
-
+			// After obj is fetched, *conditions and *workerNodesField will reflect the updated values
+			// because they are pointers to the corresponding fields in obj.
 			if err := c.Get(ctx, *name, obj); err != nil {
 				if !errors.IsNotFound(err) {
 					return err
 				}
 				return nil
 			}
+
 			if condition != nil {
 				meta.SetStatusCondition(conditions, *condition)
 			}
@@ -61,16 +64,16 @@ func updateObjStatus(ctx context.Context, c client.Client, name *client.ObjectKe
 		})
 }
 
-func updateStatusConditionIfNotMatch(ctx context.Context, obj client.Object, c *WorkspaceReconciler,
-	name *client.ObjectKey, currentStatus kaitov1alpha1.WorkspaceStatus, cType kaitov1alpha1.ConditionType,
-	cStatus metav1.ConditionStatus, objType string, cReason, cMessage string) error {
-	if curCondition := meta.FindStatusCondition(currentStatus.Conditions, string(cType)); curCondition != nil {
+func updateStatusConditionIfNotMatch(ctx context.Context, obj client.Object, inputObj interface{}, client client.Client,
+	name *client.ObjectKey, existingConditions []metav1.Condition, cType kaitov1alpha1.ConditionType,
+	cStatus metav1.ConditionStatus, cReason, cMessage string) error {
+	if curCondition := meta.FindStatusCondition(existingConditions, string(cType)); curCondition != nil {
 		if curCondition.Status == cStatus && curCondition.Reason == cReason && curCondition.Message == cMessage {
 			// Nonthing to change
 			return nil
 		}
 	}
-	klog.InfoS("updateStatusCondition", objType, klog.KObj(obj), "conditionType", cType, "status", cStatus, "reason", cReason, "message", cMessage)
+	klog.InfoS("updateStatusCondition", "object", klog.KObj(obj), "conditionType", cType, "status", cStatus, "reason", cReason, "message", cMessage)
 	cObj := metav1.Condition{
 		Type:               string(cType),
 		Status:             cStatus,
@@ -78,18 +81,19 @@ func updateStatusConditionIfNotMatch(ctx context.Context, obj client.Object, c *
 		ObservedGeneration: obj.GetGeneration(),
 		Message:            cMessage,
 	}
-	return updateObjStatus(ctx, c.Client, name, objType, &cObj, nil)
+	return updateObjStatus(ctx, client, inputObj, name, &cObj, nil)
 }
 
-func (c *WorkspaceReconciler) updateStatusNodeListIfNotMatch(ctx context.Context, wObj *kaitov1alpha1.Workspace, validNodeList []*corev1.Node) error {
+func updateStatusNodeListIfNotMatch(ctx context.Context, inputObj interface{}, client client.Client,
+	name *client.ObjectKey, validNodeList []*corev1.Node, workerNodes []string) error {
 	nodeNameList := lo.Map(validNodeList, func(v *corev1.Node, _ int) string {
 		return v.Name
 	})
-	sort.Strings(wObj.Status.WorkerNodes)
+	sort.Strings(workerNodes)
 	sort.Strings(nodeNameList)
-	if reflect.DeepEqual(wObj.Status.WorkerNodes, nodeNameList) {
+	if reflect.DeepEqual(workerNodes, nodeNameList) {
 		return nil
 	}
-	klog.InfoS("updateStatusNodeList", "workspace", klog.KObj(wObj))
-	return updateObjStatus(ctx, c.Client, &client.ObjectKey{Name: wObj.Name, Namespace: wObj.Namespace}, "workspace", nil, nodeNameList)
+	klog.InfoS("updateStatusNodeList", "object", name.String())
+	return updateObjStatus(ctx, client, inputObj, name, nil, nodeNameList)
 }
