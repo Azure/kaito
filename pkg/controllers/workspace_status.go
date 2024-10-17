@@ -31,12 +31,12 @@ func updateObjStatus(ctx context.Context, c client.Client, name *client.ObjectKe
 			var conditions *[]metav1.Condition
 			var workerNodesField *[]string
 			switch objType {
-			case "workspace":
+			case "Workspace":
 				ragObj := &kaitov1alpha1.Workspace{}
 				obj = ragObj
 				conditions = &ragObj.Status.Conditions
 				workerNodesField = &ragObj.Status.WorkerNodes
-			case "ragengine":
+			case "RAGEngine":
 				wObj := &kaitov1alpha1.RAGEngine{}
 				obj = wObj
 				conditions = &wObj.Status.Conditions
@@ -61,24 +61,23 @@ func updateObjStatus(ctx context.Context, c client.Client, name *client.ObjectKe
 		})
 }
 
-func updateStatusConditionIfNotMatch(ctx context.Context, obj client.Object, c *WorkspaceReconciler,
-	name *client.ObjectKey, currentStatus kaitov1alpha1.WorkspaceStatus, cType kaitov1alpha1.ConditionType,
-	cStatus metav1.ConditionStatus, objType string, cReason, cMessage string) error {
-	if curCondition := meta.FindStatusCondition(currentStatus.Conditions, string(cType)); curCondition != nil {
+func (c *WorkspaceReconciler) updateStatusConditionIfNotMatch(ctx context.Context, wObj *kaitov1alpha1.Workspace, cType kaitov1alpha1.ConditionType,
+	cStatus metav1.ConditionStatus, cReason, cMessage string) error {
+	if curCondition := meta.FindStatusCondition(wObj.Status.Conditions, string(cType)); curCondition != nil {
 		if curCondition.Status == cStatus && curCondition.Reason == cReason && curCondition.Message == cMessage {
 			// Nonthing to change
 			return nil
 		}
 	}
-	klog.InfoS("updateStatusCondition", objType, klog.KObj(obj), "conditionType", cType, "status", cStatus, "reason", cReason, "message", cMessage)
+	klog.InfoS("updateStatusCondition", "workspace", klog.KObj(wObj), "conditionType", cType, "status", cStatus, "reason", cReason, "message", cMessage)
 	cObj := metav1.Condition{
 		Type:               string(cType),
 		Status:             cStatus,
 		Reason:             cReason,
-		ObservedGeneration: obj.GetGeneration(),
+		ObservedGeneration: wObj.GetGeneration(),
 		Message:            cMessage,
 	}
-	return updateObjStatus(ctx, c.Client, name, objType, &cObj, nil)
+	return updateObjStatus(ctx, c.Client, &client.ObjectKey{Name: wObj.Name, Namespace: wObj.Namespace}, "Workspace", &cObj, nil)
 }
 
 func (c *WorkspaceReconciler) updateStatusNodeListIfNotMatch(ctx context.Context, wObj *kaitov1alpha1.Workspace, validNodeList []*corev1.Node) error {
@@ -91,5 +90,5 @@ func (c *WorkspaceReconciler) updateStatusNodeListIfNotMatch(ctx context.Context
 		return nil
 	}
 	klog.InfoS("updateStatusNodeList", "workspace", klog.KObj(wObj))
-	return updateObjStatus(ctx, c.Client, &client.ObjectKey{Name: wObj.Name, Namespace: wObj.Namespace}, "workspace", nil, nodeNameList)
+	return updateObjStatus(ctx, c.Client, &client.ObjectKey{Name: wObj.Name, Namespace: wObj.Namespace}, "Workspace", nil, nodeNameList)
 }

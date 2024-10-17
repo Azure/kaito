@@ -38,7 +38,7 @@ func TestUpdateRAGEngineStatus(t *testing.T) {
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.RAGEngine{}), mock.Anything).Return(nil)
 		mockClient.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&kaitov1alpha1.RAGEngine{}), mock.Anything).Return(nil)
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: ragengine.Name, Namespace: ragengine.Namespace}, "ragengine", &condition, workerNodes)
+		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: ragengine.Name, Namespace: ragengine.Namespace}, "RAGEngine", &condition, workerNodes)
 		assert.Nil(t, err)
 	})
 
@@ -60,7 +60,7 @@ func TestUpdateRAGEngineStatus(t *testing.T) {
 
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.RAGEngine{}), mock.Anything).Return(errors.New("Get operation failed"))
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: ragengine.Name, Namespace: ragengine.Namespace}, "ragengine", &condition, workerNodes)
+		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: ragengine.Name, Namespace: ragengine.Namespace}, "RAGEngine", &condition, workerNodes)
 		assert.NotNil(t, err)
 	})
 
@@ -82,7 +82,7 @@ func TestUpdateRAGEngineStatus(t *testing.T) {
 
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.RAGEngine{}), mock.Anything).Return(apierrors.NewNotFound(schema.GroupResource{}, "ragengine"))
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: ragengine.Name, Namespace: ragengine.Namespace}, "ragengine", &condition, workerNodes)
+		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: ragengine.Name, Namespace: ragengine.Namespace}, "RAGEngine", &condition, workerNodes)
 		assert.Nil(t, err)
 	})
 }
