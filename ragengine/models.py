@@ -5,7 +5,6 @@ from pydantic import BaseModel
 class Document(BaseModel):
     text: str
     metadata: Optional[dict] = {}
-    doc_id: Optional[str] = None
 
 class IndexRequest(BaseModel):
     index_name: str

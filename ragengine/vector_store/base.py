@@ -3,9 +3,14 @@ from typing import Dict, List
 
 from ragengine.models import Document
 from llama_index.core import VectorStoreIndex
+import hashlib
 
 
 class BaseVectorStore(ABC):
+    def generate_doc_id(text: str) -> str:
+        """Generates a unique document ID based on the hash of the document text."""
+        return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
     @abstractmethod
     def index_documents(self, index_name: str, documents: List[Document]) -> List[str]:
         pass
