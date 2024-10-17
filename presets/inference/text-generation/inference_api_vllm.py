@@ -1,0 +1,98 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+import logging
+import os
+import asyncio
+
+import uvloop
+from pydantic import BaseModel, Field
+from fastapi import Request, HTTPException
+
+from vllm.utils import FlexibleArgumentParser
+import vllm.entrypoints.openai.api_server as api_server
+
+# Initialize logger
+logger = logging.getLogger(__name__)
+debug_mode = os.environ.get('DEBUG_MODE', 'false').lower() == 'true'
+logging.basicConfig(level=logging.DEBUG if debug_mode else logging.INFO)
+
+class HealthStatus(BaseModel):
+    status: str = Field(..., example="Healthy")
+
+@api_server.router.get("/healthz",
+                       response_model=HealthStatus,
+                       summary="Health Check Endpoint",
+                       responses={
+                           200: {
+                               "description": "Successful Response",
+                               "content": {
+                                   "application/json": {
+                                       "example": {
+                                           "status": "Healthy"
+                                       }
+                                   }
+                               }
+                           },
+                           500: {
+                               "description": "Error Response",
+                               "content": {
+                                   "application/json": {
+                                       "examples": {
+                                           "model_uninitialized": {
+                                               "summary":
+                                               "Model not initialized",
+                                               "value": {
+                                                   "detail":
+                                                   "Model not initialized"
+                                               }
+                                           }
+                                       }
+                                   }
+                               }
+                           }
+                       })
+async def health_check(raw_request: Request) -> HealthStatus:
+    """Health check."""
+    try:
+        await asyncio.wait_for(api_server.engine_client(raw_request).check_health(), timeout=1.0)
+        return {"status": "Healthy"}
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=500, detail="Model not initialized")
+
+
+def make_arg_parser(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:
+    local_rank = int(os.environ.get("LOCAL_RANK",
+                                    0))  # Default to 0 if not set
+    port = 5000 + local_rank  # Adjust port based on local rank
+
+    server_default_args = {
+        "disable-frontend-multiprocessing": False,
+        "port": port
+    }
+    parser.set_defaults(**server_default_args)
+
+    # See https://docs.vllm.ai/en/latest/models/engine_args.html for more args
+    engine_default_args = {
+        "model": "/workspace/tfs/weights",
+        "dtype": "float16",
+        "cpu-offload-gb": 0,
+        "gpu-memory-utilization": 0.9,
+        "swap-space": 4,
+        "disable_log_stats": False,
+    }
+    parser.set_defaults(**engine_default_args)
+
+    return parser
+
+
+if __name__ == "__main__":
+    parser = FlexibleArgumentParser(description='vLLM serving server')
+    parser = api_server.make_arg_parser(parser)
+    parser = make_arg_parser(parser)
+    args = parser.parse_args()
+
+    # Run the serving server
+    logger.info(f"Starting server on port {args.port}")
+    # See https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html for more
+    # details about serving server
+    uvloop.run(api_server.run_server(args))
