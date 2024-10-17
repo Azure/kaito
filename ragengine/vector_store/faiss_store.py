@@ -8,16 +8,17 @@ from llama_index.core.storage.index_store import SimpleIndexStore
 from llama_index.core.storage.docstore.types import RefDocInfo
 from llama_index.vector_stores.faiss import FaissVectorStore
 
-from models import Document
-from inference.inference import Inference
+from ragengine.models import Document
+from ragengine.inference.inference import Inference
 
 from config import PERSIST_DIR
 
 from .base import BaseVectorStore
+from ragengine.embedding.base import BaseEmbeddingModel
 
 
 class FaissVectorStoreHandler(BaseVectorStore):
-    def __init__(self, embedding_manager):
+    def __init__(self, embedding_manager: BaseEmbeddingModel):
         self.embedding_manager = embedding_manager
         self.embed_model =  self.embedding_manager.model
         self.dimension = self.embedding_manager.get_embedding_dimension()

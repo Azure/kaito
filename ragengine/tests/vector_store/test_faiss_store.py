@@ -3,10 +3,10 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import pytest
-from vector_store.faiss_store import FaissVectorStoreHandler
-from models import Document
-from embedding.huggingface_local import LocalHuggingFaceEmbedding
-from config import MODEL_ID, INFERENCE_URL, INFERENCE_ACCESS_SECRET
+from ragengine.vector_store.faiss_store import FaissVectorStoreHandler
+from ragengine.models import Document
+from ragengine.embedding.huggingface_local import LocalHuggingFaceEmbedding
+from ragengine.config import MODEL_ID, INFERENCE_URL, INFERENCE_ACCESS_SECRET
 
 @pytest.fixture(scope='session')
 def init_embed_manager():

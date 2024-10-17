@@ -1,7 +1,7 @@
 from typing import Dict, List
 
-from models import Document
-from vector_store.base import BaseVectorStore
+from ragengine.models import Document
+from ragengine.vector_store.base import BaseVectorStore
 
 from llama_index.core import VectorStoreIndex
 
