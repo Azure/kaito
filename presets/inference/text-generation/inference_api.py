@@ -99,6 +99,8 @@ combination_type = model_args.pop('combination_type')
 
 app = FastAPI()
 tokenizer = AutoTokenizer.from_pretrained(**model_args)
+# The conversational pipeline has been removed since transformers 4.42. Must provide a
+# chat template here. See https://huggingface.co/docs/transformers/chat_templating.
 if tokenizer.chat_template is None:
     chat_template = ("{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') %}"
     "{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}"
