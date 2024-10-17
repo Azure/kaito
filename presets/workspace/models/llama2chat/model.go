@@ -46,12 +46,17 @@ func (*llama2Chat7b) GetInferenceParameters() *model.PresetParam {
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
 		PerGPUMemoryRequirement:   "14Gi", // We run llama2 using tensor parallelism, the memory of each GPU needs to be bigger than the tensor shard size.
-		TorchRunParams:            inference.DefaultTorchRunParams,
-		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
-		ModelRunParams:            llamaRunParams,
-		ReadinessTimeout:          time.Duration(10) * time.Minute,
-		BaseCommand:               baseCommandPresetLlama,
-		WorldSize:                 1,
+		RuntimeParam: model.RuntimeParam{
+			Transformers: model.HuggingfaceTransformersParam{
+				BaseCommand:        baseCommandPresetLlama,
+				TorchRunParams:     inference.DefaultTorchRunParams,
+				TorchRunRdzvParams: inference.DefaultTorchRunRdzvParams,
+				InferenceMainFile:  "inference_api.py",
+				ModelRunParams:     llamaRunParams,
+			},
+		},
+		ReadinessTimeout: time.Duration(10) * time.Minute,
+		WorldSize:        1,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
 }
@@ -77,12 +82,18 @@ func (*llama2Chat13b) GetInferenceParameters() *model.PresetParam {
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "30Gi",
 		PerGPUMemoryRequirement:   "15Gi", // We run llama2 using tensor parallelism, the memory of each GPU needs to be bigger than the tensor shard size.
-		TorchRunParams:            inference.DefaultTorchRunParams,
-		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
-		ModelRunParams:            llamaRunParams,
-		ReadinessTimeout:          time.Duration(20) * time.Minute,
-		BaseCommand:               baseCommandPresetLlama,
-		WorldSize:                 2,
+		RuntimeParam: model.RuntimeParam{
+			Transformers: model.HuggingfaceTransformersParam{
+				BaseCommand:        baseCommandPresetLlama,
+				TorchRunParams:     inference.DefaultTorchRunParams,
+				TorchRunRdzvParams: inference.DefaultTorchRunRdzvParams,
+				InferenceMainFile:  "inference_api.py",
+				ModelRunParams:     llamaRunParams,
+			},
+		},
+		ReadinessTimeout: time.Duration(20) * time.Minute,
+
+		WorldSize: 2,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
 }
@@ -108,12 +119,17 @@ func (*llama2Chat70b) GetInferenceParameters() *model.PresetParam {
 		GPUCountRequirement:       "8",
 		TotalGPUMemoryRequirement: "192Gi",
 		PerGPUMemoryRequirement:   "19Gi", // We run llama2 using tensor parallelism, the memory of each GPU needs to be bigger than the tensor shard size.
-		TorchRunParams:            inference.DefaultTorchRunParams,
-		TorchRunRdzvParams:        inference.DefaultTorchRunRdzvParams,
-		ModelRunParams:            llamaRunParams,
-		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetLlama,
-		WorldSize:                 8,
+		RuntimeParam: model.RuntimeParam{
+			Transformers: model.HuggingfaceTransformersParam{
+				BaseCommand:        baseCommandPresetLlama,
+				TorchRunParams:     inference.DefaultTorchRunParams,
+				TorchRunRdzvParams: inference.DefaultTorchRunRdzvParams,
+				InferenceMainFile:  "inference_api.py",
+				ModelRunParams:     llamaRunParams,
+			},
+		},
+		ReadinessTimeout: time.Duration(30) * time.Minute,
+		WorldSize:        8,
 		// Tag:  llama has private image access mode. The image tag is determined by the user.
 	}
 }

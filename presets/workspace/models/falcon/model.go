@@ -38,17 +38,22 @@ var (
 	PresetFalcon40BInstructModel = PresetFalcon40BModel + "-instruct"
 
 	PresetFalconTagMap = map[string]string{
-		"Falcon7B":          "0.0.6",
-		"Falcon7BInstruct":  "0.0.6",
-		"Falcon40B":         "0.0.7",
-		"Falcon40BInstruct": "0.0.7",
+		"Falcon7B":          "0.0.7",
+		"Falcon7BInstruct":  "0.0.7",
+		"Falcon40B":         "0.0.8",
+		"Falcon40BInstruct": "0.0.8",
 	}
 
 	baseCommandPresetFalconInference = "accelerate launch"
-	baseCommandPresetFalconTuning    = "python3 metrics_server.py & accelerate launch"
+	baseCommandPresetFalconTuning    = "cd /workspace/tfs/ && python3 metrics_server.py & accelerate launch"
 	falconRunParams                  = map[string]string{
-		"torch_dtype": "bfloat16",
-		"pipeline":    "text-generation",
+		"torch_dtype":   "bfloat16",
+		"pipeline":      "text-generation",
+		"chat_template": "/workspace/chat_templates/falcon-instruct.jinja",
+	}
+	falconRunParamsVLLM = map[string]string{
+		"dtype":         "float16",
+		"chat-template": "/workspace/chat_templates/falcon-instruct.jinja",
 	}
 )
 
@@ -64,11 +69,21 @@ func (*falcon7b) GetInferenceParameters() *model.PresetParam {
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "14Gi",
 		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
-		TorchRunParams:            inference.DefaultAccelerateParams,
-		ModelRunParams:            falconRunParams,
-		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetFalconInference,
-		Tag:                       PresetFalconTagMap["Falcon7B"],
+		RuntimeParam: model.RuntimeParam{
+			Transformers: model.HuggingfaceTransformersParam{
+				BaseCommand:       baseCommandPresetFalconInference,
+				TorchRunParams:    inference.DefaultAccelerateParams,
+				InferenceMainFile: inference.DefautTransformersMainFile,
+				ModelRunParams:    falconRunParams,
+			},
+			VLLM: model.VLLMParam{
+				BaseCommand:    inference.DefaultVLLMCommand,
+				ModelName:      "falcon-7b",
+				ModelRunParams: falconRunParamsVLLM,
+			},
+		},
+		ReadinessTimeout: time.Duration(30) * time.Minute,
+		Tag:              PresetFalconTagMap["Falcon7B"],
 	}
 }
 func (*falcon7b) GetTuningParameters() *model.PresetParam {
@@ -79,10 +94,14 @@ func (*falcon7b) GetTuningParameters() *model.PresetParam {
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
 		PerGPUMemoryRequirement:   "16Gi",
-		TorchRunParams:            tuning.DefaultAccelerateParams,
-		//ModelRunPrams:             falconRunTuningParams, // TODO
+		RuntimeParam: model.RuntimeParam{
+			Transformers: model.HuggingfaceTransformersParam{
+				BaseCommand:    baseCommandPresetFalconTuning,
+				TorchRunParams: tuning.DefaultAccelerateParams,
+				//ModelRunPrams:             falconRunTuningParams, // TODO
+			},
+		},
 		ReadinessTimeout:              time.Duration(30) * time.Minute,
-		BaseCommand:                   baseCommandPresetFalconTuning,
 		Tag:                           PresetFalconTagMap["Falcon7B"],
 		TuningPerGPUMemoryRequirement: map[string]int{"qlora": 16},
 	}
@@ -107,11 +126,21 @@ func (*falcon7bInst) GetInferenceParameters() *model.PresetParam {
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "14Gi",
 		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
-		TorchRunParams:            inference.DefaultAccelerateParams,
-		ModelRunParams:            falconRunParams,
-		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetFalconInference,
-		Tag:                       PresetFalconTagMap["Falcon7BInstruct"],
+		RuntimeParam: model.RuntimeParam{
+			Transformers: model.HuggingfaceTransformersParam{
+				BaseCommand:       baseCommandPresetFalconInference,
+				TorchRunParams:    inference.DefaultAccelerateParams,
+				InferenceMainFile: inference.DefautTransformersMainFile,
+				ModelRunParams:    falconRunParams,
+			},
+			VLLM: model.VLLMParam{
+				BaseCommand:    inference.DefaultVLLMCommand,
+				ModelName:      "falcon-7b-instruct",
+				ModelRunParams: falconRunParamsVLLM,
+			},
+		},
+		ReadinessTimeout: time.Duration(30) * time.Minute,
+		Tag:              PresetFalconTagMap["Falcon7BInstruct"],
 	}
 
 }
@@ -137,13 +166,22 @@ func (*falcon40b) GetInferenceParameters() *model.PresetParam {
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "90Gi",
 		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
-		TorchRunParams:            inference.DefaultAccelerateParams,
-		ModelRunParams:            falconRunParams,
-		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetFalconInference,
-		Tag:                       PresetFalconTagMap["Falcon40B"],
+		RuntimeParam: model.RuntimeParam{
+			Transformers: model.HuggingfaceTransformersParam{
+				BaseCommand:       baseCommandPresetFalconInference,
+				TorchRunParams:    inference.DefaultAccelerateParams,
+				InferenceMainFile: inference.DefautTransformersMainFile,
+				ModelRunParams:    falconRunParams,
+			},
+			VLLM: model.VLLMParam{
+				BaseCommand:    inference.DefaultVLLMCommand,
+				ModelName:      "falcon-40b",
+				ModelRunParams: falconRunParamsVLLM,
+			},
+		},
+		ReadinessTimeout: time.Duration(30) * time.Minute,
+		Tag:              PresetFalconTagMap["Falcon40B"],
 	}
-
 }
 func (*falcon40b) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
@@ -153,10 +191,14 @@ func (*falcon40b) GetTuningParameters() *model.PresetParam {
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "90Gi",
 		PerGPUMemoryRequirement:   "16Gi",
-		TorchRunParams:            tuning.DefaultAccelerateParams,
-		//ModelRunPrams:             falconRunTuningParams, // TODO
+		RuntimeParam: model.RuntimeParam{
+			Transformers: model.HuggingfaceTransformersParam{
+				BaseCommand:    baseCommandPresetFalconTuning,
+				TorchRunParams: tuning.DefaultAccelerateParams,
+				//ModelRunPrams:             falconRunTuningParams, // TODO
+			},
+		},
 		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetFalconTuning,
 		Tag:              PresetFalconTagMap["Falcon40B"],
 	}
 }
@@ -179,11 +221,21 @@ func (*falcon40bInst) GetInferenceParameters() *model.PresetParam {
 		GPUCountRequirement:       "2",
 		TotalGPUMemoryRequirement: "90Gi",
 		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
-		TorchRunParams:            inference.DefaultAccelerateParams,
-		ModelRunParams:            falconRunParams,
-		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetFalconInference,
-		Tag:                       PresetFalconTagMap["Falcon40BInstruct"],
+		RuntimeParam: model.RuntimeParam{
+			Transformers: model.HuggingfaceTransformersParam{
+				BaseCommand:       baseCommandPresetFalconInference,
+				TorchRunParams:    inference.DefaultAccelerateParams,
+				InferenceMainFile: inference.DefautTransformersMainFile,
+				ModelRunParams:    falconRunParams,
+			},
+			VLLM: model.VLLMParam{
+				BaseCommand:    inference.DefaultVLLMCommand,
+				ModelName:      "falcon-40b-instruct",
+				ModelRunParams: falconRunParamsVLLM,
+			},
+		},
+		ReadinessTimeout: time.Duration(30) * time.Minute,
+		Tag:              PresetFalconTagMap["Falcon40BInstruct"],
 	}
 }
 func (*falcon40bInst) GetTuningParameters() *model.PresetParam {

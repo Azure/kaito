@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/model"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
@@ -259,6 +260,20 @@ func GenerateInferenceWorkspaceManifest(name, namespace, imageName string, resou
 
 	workspace.Inference = &workspaceInference
 
+	return workspace
+}
+
+func GenerateInferenceWorkspaceManifestWithVLLM(name, namespace, imageName string, resourceCount int, instanceType string,
+	labelSelector *metav1.LabelSelector, preferredNodes []string, presetName kaitov1alpha1.ModelName,
+	accessMode kaitov1alpha1.ModelImageAccessMode, imagePullSecret []string,
+	podTemplate *corev1.PodTemplateSpec, adapters []kaitov1alpha1.AdapterSpec) *kaitov1alpha1.Workspace {
+	workspace := GenerateInferenceWorkspaceManifest(name, namespace, imageName, resourceCount, instanceType,
+		labelSelector, preferredNodes, presetName, accessMode, imagePullSecret, podTemplate, adapters)
+
+	if workspace.Annotations == nil {
+		workspace.Annotations = make(map[string]string)
+	}
+	workspace.Annotations[kaitov1alpha1.AnnotationWorkspaceRuntime] = string(model.RuntimeNameVLLM)
 	return workspace
 }
 
