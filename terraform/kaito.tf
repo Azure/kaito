@@ -66,7 +66,8 @@ resource "kubernetes_secret" "example" {
       auths = {
         "${azurerm_container_registry.example.login_server}" = {
           "username" = azurerm_container_registry_token.example.name
-          "password" = azurerm_container_registry_token_password.example.password1
+          "password" = azurerm_container_registry_token_password.example.password1[0].value
+          "auth"     = base64encode("${azurerm_container_registry_token.example.name}:${azurerm_container_registry_token_password.example.password1[0].value}")
         }
       }
     })

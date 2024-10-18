@@ -39,18 +39,22 @@ Initialize the Terraform providers.
 terraform init
 ```
 
-> [!NOTE]
-> The following variables in the [variables.tf](./variables.tf) file are available for customization:
->
-> - `location` - The Azure region to deploy the resources. Be sure you have the necessary quota in the region.
-> - `kaito_gpu_provisioner_version` - The version of the KAITO GPU Provisioner.
-> - `kaito_workspace_version` - The version of the KAITO Workspace.
+## Deploy
+
+Before you deploy, review the following variables in the [variables.tf](./variables.tf) file which are available for customization:
+
+- `location` - The Azure region to deploy the resources. Be sure you have the necessary quota in the region.
+- `kaito_gpu_provisioner_version` - The version of the KAITO GPU Provisioner.
+- `kaito_workspace_version` - The version of the KAITO Workspace.
+- `registry_repository_name` - The name of the output image when running a sample fine-tuning job.
 
 Run the Terraform apply command and enter `yes` when prompted to deploy the Azure resources.
 
 ```bash
 terraform apply
 ```
+
+## Verify
 
 Log into the AKS cluster.
 
@@ -71,6 +75,10 @@ Check status of the KAITO pods.
 kubectl get po -n gpu-provisioner
 kubectl get po -n kaito-workspace
 ```
+
+## Use
+
+KAITO is now installed on the AKS cluster but no workspaces have been created. To use the KAITO workspaces, please refer to the YAML manifests found in the [examples](../examples/) directory or KAITO [docs](../docs/).
 
 ## Cleanup
 
