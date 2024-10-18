@@ -34,8 +34,7 @@ type ResourceSpec struct {
 	LabelSelector *metav1.LabelSelector `json:"labelSelector"`
 
 	// PreferredNodes is an optional node list specified by the user.
-	// If a node in the list does not have the required labels or
-	// the required instanceType, it will be ignored.
+	// If a node in the list does not have the required labels, it will be ignored.
 	// +optional
 	PreferredNodes []string `json:"preferredNodes,omitempty"`
 }
@@ -179,7 +178,8 @@ type WorkspaceStatus struct {
 // +kubebuilder:printcolumn:name="Instance",type="string",JSONPath=".resource.instanceType",description=""
 // +kubebuilder:printcolumn:name="ResourceReady",type="string",JSONPath=".status.conditions[?(@.type==\"ResourceReady\")].status",description=""
 // +kubebuilder:printcolumn:name="InferenceReady",type="string",JSONPath=".status.conditions[?(@.type==\"InferenceReady\")].status",description=""
-// +kubebuilder:printcolumn:name="WorkspaceReady",type="string",JSONPath=".status.conditions[?(@.type==\"WorkspaceReady\")].status",description=""
+// +kubebuilder:printcolumn:name="JobStarted",type="string",JSONPath=".status.conditions[?(@.type==\"JobStarted\")].status",description=""
+// +kubebuilder:printcolumn:name="WorkspaceSucceeded",type="string",JSONPath=".status.conditions[?(@.type==\"WorkspaceSucceeded\")].status",description=""
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description=""
 type Workspace struct {
 	metav1.TypeMeta   `json:",inline"`

@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import logging
 import os
 import subprocess
 from dataclasses import asdict, dataclass, field
@@ -17,7 +18,13 @@ from pydantic import BaseModel, Extra, Field, validator
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
 
+# Initialize logger
+logger = logging.getLogger(__name__)
+debug_mode = os.environ.get('DEBUG_MODE', 'false').lower() == 'true'
+logging.basicConfig(level=logging.DEBUG if debug_mode else logging.INFO)
+
 ADAPTERS_DIR = '/mnt/adapter'
+
 @dataclass
 class ModelConfig:
     """
@@ -128,12 +135,14 @@ else:
         
         active_adapters = model.active_adapters
         if len(active_adapters) != 1 or active_adapters[0] != "combined_adapter":
-            raise ValueError(f"Adpaters is input but not merged correctlly")
+            raise ValueError(f"Adapters not merged correctly")
+        logger.info("Adapter added: %s", ', '.join(sorted(adapter_names)))
     else:
-        print("Warning: Did not find any valid adapters mounted, using base model")
+        logger.warning("Did not find any valid adapters mounted, using base model")
         model = base_model
 
-print("Model:", model)
+logger.info("Model loaded successfully")
+logger.info("Model: %s", model)
 
 pipeline_kwargs = {
     "trust_remote_code": args.trust_remote_code,
@@ -205,8 +214,10 @@ class HealthStatus(BaseModel):
 )
 def health_check():
     if not model:
+        logger.error("Model not initialized")
         raise HTTPException(status_code=500, detail="Model not initialized")
     if not pipeline:
+        logger.error("Pipeline not initialized")
         raise HTTPException(status_code=500, detail="Pipeline not initialized")
     return {"status": "Healthy"}
 
@@ -350,6 +361,7 @@ def generate_text(
 
     if args.pipeline == "text-generation":
         if not request_model.prompt:
+            logger.error("Text generation parameter prompt required")
             raise HTTPException(status_code=400, detail="Text generation parameter prompt required")
         sequences = pipeline(
             request_model.prompt,
@@ -364,13 +376,14 @@ def generate_text(
 
         result = ""
         for seq in sequences:
-            print(f"Result: {seq['generated_text']}")
+            logger.debug(f"Result: {seq['generated_text']}")
             result += seq['generated_text']
 
         return {"Result": result}
 
     elif args.pipeline == "conversational":
         if not request_model.messages:
+            logger.error("Conversational parameter messages required")
             raise HTTPException(status_code=400, detail="Conversational parameter messages required")
 
         response = pipeline(
@@ -381,6 +394,7 @@ def generate_text(
         return {"Result": str(response[-1])}
 
     else:
+        logger.error("Invalid pipeline type")
         raise HTTPException(status_code=400, detail="Invalid pipeline type")
 
 class MemoryInfo(BaseModel):
@@ -475,9 +489,11 @@ def get_metrics():
             )
             return MetricsResponse(cpu_info=cpu_info)
     except Exception as e:
+        logger.error(f"Error fetching metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     local_rank = int(os.environ.get("LOCAL_RANK", 0)) # Default to 0 if not set
     port = 5000 + local_rank # Adjust port based on local rank
+    logger.info(f"Starting server on port {port}")
     uvicorn.run(app=app, host='0.0.0.0', port=port)

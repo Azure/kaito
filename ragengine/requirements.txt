@@ -1,0 +1,7 @@
+# RAG Library Requirements
+llama-index
+llama-index-embeddings-huggingface
+fastapi
+faiss-cpu
+llama-index-vector-stores-faiss
+uvicorn

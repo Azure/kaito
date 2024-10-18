@@ -7,8 +7,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"reflect"
-	"sort"
 	"strings"
 	"testing"
 
@@ -204,7 +202,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		validateTuning      bool // To indicate if we are testing tuning validation
 	}{
 		{
-			name: "Valid resource",
+			name: "Valid Resource",
 			resourceSpec: &ResourceSpec{
 				InstanceType: "Standard_ND96asr_v4",
 				Count:        pointerToInt(1),
@@ -218,9 +216,23 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			validateTuning:      false,
 		},
 		{
+			name: "Valid Resource - SKU Capacity == Model Requirement",
+			resourceSpec: &ResourceSpec{
+				InstanceType: "Standard_NC12s_v3",
+				Count:        pointerToInt(1),
+			},
+			modelGPUCount:       "1",
+			modelPerGPUMemory:   "16Gi",
+			modelTotalGPUMemory: "16Gi",
+			preset:              true,
+			errContent:          "",
+			expectErrs:          false,
+			validateTuning:      false,
+		},
+		{
 			name: "Insufficient total GPU memory",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NC6",
+				InstanceType: "Standard_NV6",
 				Count:        pointerToInt(1),
 			},
 			modelGPUCount:       "1",
@@ -249,7 +261,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Insufficient per GPU memory",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NC6",
+				InstanceType: "Standard_NV6",
 				Count:        pointerToInt(2),
 			},
 			modelGPUCount:       "1",
@@ -306,7 +318,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Tuning validation with single node",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NC6",
+				InstanceType: "Standard_NC6s_v3",
 				Count:        pointerToInt(1),
 			},
 			errContent:     "",
@@ -316,7 +328,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Tuning validation with multinode",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NC6",
+				InstanceType: "Standard_NC6s_v3",
 				Count:        pointerToInt(2),
 			},
 			errContent:     "Tuning does not currently support multinode configurations",
@@ -324,6 +336,8 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			validateTuning: true,
 		},
 	}
+
+	os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1054,6 +1068,28 @@ func TestTuningSpecValidateCreate(t *testing.T) {
 			wantErr:   true,
 			errFields: []string{"Method"},
 		},
+		{
+			name: "Invalid Input Source Casing",
+			tuningSpec: &TuningSpec{
+				Input:  &DataSource{Name: "valid-input", Image: "AZURE_ACR.azurecr.io/INPUT:0.0.0"},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/output:0.0.0", ImagePushSecret: "secret"},
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method: TuningMethodLora,
+			},
+			wantErr:   true,
+			errFields: []string{"Image"},
+		},
+		{
+			name: "Invalid Output Destination Casing",
+			tuningSpec: &TuningSpec{
+				Input:  &DataSource{Name: "valid-input", Image: "AZURE_ACR.azurecr.io/input:0.0.0"},
+				Output: &DataDestination{Image: "AZURE_ACR.azurecr.io/OUTPUT:0.0.0", ImagePushSecret: "secret"},
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("test-validation")}},
+				Method: TuningMethodLora,
+			},
+			wantErr:   true,
+			errFields: []string{"Image"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1267,39 +1303,6 @@ func TestDataSourceValidateUpdate(t *testing.T) {
 			wantErr:   true,
 			errFields: []string{"Name"},
 		},
-		{
-			name: "URLs changed",
-			oldSource: &DataSource{
-				URLs: []string{"http://example.com/old"},
-			},
-			newSource: &DataSource{
-				URLs: []string{"http://example.com/new"},
-			},
-			wantErr:   true,
-			errFields: []string{"URLs"},
-		},
-		{
-			name: "Image changed",
-			oldSource: &DataSource{
-				Image: "old-image:latest",
-			},
-			newSource: &DataSource{
-				Image: "new-image:latest",
-			},
-			wantErr:   true,
-			errFields: []string{"Image"},
-		},
-		{
-			name: "ImagePullSecrets changed",
-			oldSource: &DataSource{
-				ImagePullSecrets: []string{"old-secret"},
-			},
-			newSource: &DataSource{
-				ImagePullSecrets: []string{"new-secret"},
-			},
-			wantErr:   true,
-			errFields: []string{"ImagePullSecrets"},
-		},
 	}
 
 	for _, tt := range tests {
@@ -1415,33 +1418,11 @@ func TestDataDestinationValidateUpdate(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		{
-			name: "Image changed",
-			oldDest: &DataDestination{
-				Image: "old-image:latest",
-			},
-			newDest: &DataDestination{
-				Image: "new-image:latest",
-			},
-			wantErr:   true,
-			errFields: []string{"Image"},
-		},
-		{
-			name: "ImagePushSecret changed",
-			oldDest: &DataDestination{
-				ImagePushSecret: "old-secret",
-			},
-			newDest: &DataDestination{
-				ImagePushSecret: "new-secret",
-			},
-			wantErr:   true,
-			errFields: []string{"ImagePushSecret"},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := tt.newDest.validateUpdate(tt.oldDest)
+			errs := tt.newDest.validateUpdate()
 			hasErrs := errs != nil
 
 			if hasErrs != tt.wantErr {
@@ -1454,52 +1435,6 @@ func TestDataDestinationValidateUpdate(t *testing.T) {
 						t.Errorf("validateUpdate() expected errors to contain field %s, but got %s", field, errs.Error())
 					}
 				}
-			}
-		})
-	}
-}
-
-func TestGetSupportedSKUs(t *testing.T) {
-	tests := []struct {
-		name           string
-		gpuConfigs     map[string]GPUConfig
-		expectedResult []string // changed to a slice for deterministic ordering
-	}{
-		{
-			name:           "no SKUs supported",
-			gpuConfigs:     map[string]GPUConfig{},
-			expectedResult: []string{""},
-		},
-		{
-			name: "one SKU supported",
-			gpuConfigs: map[string]GPUConfig{
-				"Standard_NC6": {SKU: "Standard_NC6"},
-			},
-			expectedResult: []string{"Standard_NC6"},
-		},
-		{
-			name: "multiple SKUs supported",
-			gpuConfigs: map[string]GPUConfig{
-				"Standard_NC6":  {SKU: "Standard_NC6"},
-				"Standard_NC12": {SKU: "Standard_NC12"},
-			},
-			expectedResult: []string{"Standard_NC6", "Standard_NC12"},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			SupportedGPUConfigs = tc.gpuConfigs
-
-			resultSlice := strings.Split(getSupportedSKUs(), ", ")
-			sort.Strings(resultSlice)
-
-			// Sort the expectedResult for comparison
-			expectedResultSlice := tc.expectedResult
-			sort.Strings(expectedResultSlice)
-
-			if !reflect.DeepEqual(resultSlice, expectedResultSlice) {
-				t.Errorf("getSupportedSKUs() = %v, want %v", resultSlice, expectedResultSlice)
 			}
 		})
 	}

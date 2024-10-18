@@ -22,11 +22,12 @@ var (
 	PresetPhi2Model = "phi-2"
 
 	PresetPhiTagMap = map[string]string{
-		"Phi2": "0.0.4",
+		"Phi2": "0.0.5",
 	}
 
-	baseCommandPresetPhi = "accelerate launch"
-	phiRunParams         = map[string]string{
+	baseCommandPresetPhiInference = "accelerate launch"
+	baseCommandPresetPhiTuning    = "python3 metrics_server.py & accelerate launch"
+	phiRunParams                  = map[string]string{
 		"torch_dtype": "float16",
 		"pipeline":    "text-generation",
 	}
@@ -47,7 +48,7 @@ func (*phi2) GetInferenceParameters() *model.PresetParam {
 		TorchRunParams:            inference.DefaultAccelerateParams,
 		ModelRunParams:            phiRunParams,
 		ReadinessTimeout:          time.Duration(30) * time.Minute,
-		BaseCommand:               baseCommandPresetPhi,
+		BaseCommand:               baseCommandPresetPhiInference,
 		Tag:                       PresetPhiTagMap["Phi2"],
 	}
 }
@@ -58,11 +59,11 @@ func (*phi2) GetTuningParameters() *model.PresetParam {
 		DiskStorageRequirement:    "50Gi",
 		GPUCountRequirement:       "1",
 		TotalGPUMemoryRequirement: "16Gi",
-		PerGPUMemoryRequirement:   "16Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		PerGPUMemoryRequirement:   "16Gi",
 		// TorchRunParams:            inference.DefaultAccelerateParams,
 		// ModelRunParams:            phiRunParams,
 		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetPhi,
+		BaseCommand:      baseCommandPresetPhiTuning,
 		Tag:              PresetPhiTagMap["Phi2"],
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/azure/kaito/pkg/utils/consts"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	"knative.dev/pkg/apis"
@@ -43,18 +44,21 @@ var (
 		{
 			Effect:   corev1.TaintEffectNoSchedule,
 			Operator: corev1.TolerationOpEqual,
-			Key:      utils.GPUString,
+			Key:      consts.GPUString,
 		},
 		{
 			Effect: corev1.TaintEffectNoSchedule,
-			Value:  utils.GPUString,
-			Key:    utils.SKUString,
+			Value:  consts.GPUString,
+			Key:    consts.SKUString,
 		},
 	}
 )
 
 func getInstanceGPUCount(sku string) int {
-	gpuConfig, exists := kaitov1alpha1.SupportedGPUConfigs[sku]
+	skuHandler, _ := utils.GetSKUHandler()
+	gpuConfigs := skuHandler.GetGPUConfigs()
+
+	gpuConfig, exists := gpuConfigs[sku]
 	if !exists {
 		return 1
 	}
@@ -153,34 +157,50 @@ while ! docker info > /dev/null 2>&1; do
 done
 echo 'Docker daemon started'
 
+PUSH_SUCCEEDED=false
+
 while true; do
   FILE_PATH=$(find %s -name 'fine_tuning_completed.txt')
   if [ ! -z "$FILE_PATH" ]; then
-    echo "FOUND TRAINING COMPLETED FILE at $FILE_PATH"
+    if [ "$PUSH_SUCCEEDED" = false ]; then
+      echo "FOUND TRAINING COMPLETED FILE at $FILE_PATH"
 
-    PARENT_DIR=$(dirname "$FILE_PATH")
-    echo "Parent directory is $PARENT_DIR"
+      PARENT_DIR=$(dirname "$FILE_PATH")
+      echo "Parent directory is $PARENT_DIR"
 
-    TEMP_CONTEXT=$(mktemp -d)
-    cp "$PARENT_DIR/adapter_config.json" "$TEMP_CONTEXT/adapter_config.json"
-    cp -r "$PARENT_DIR/adapter_model.safetensors" "$TEMP_CONTEXT/adapter_model.safetensors"
+      TEMP_CONTEXT=$(mktemp -d)
+      cp "$PARENT_DIR/adapter_config.json" "$TEMP_CONTEXT/adapter_config.json"
+      cp -r "$PARENT_DIR/adapter_model.safetensors" "$TEMP_CONTEXT/adapter_model.safetensors"
 
-    # Create a minimal Dockerfile
-    echo 'FROM busybox:latest
-    RUN mkdir -p /data
-    ADD adapter_config.json /data/
-    ADD adapter_model.safetensors /data/' > "$TEMP_CONTEXT/Dockerfile"
+      # Create a minimal Dockerfile
+      echo 'FROM busybox:latest
+      RUN mkdir -p /data
+      ADD adapter_config.json /data/
+      ADD adapter_model.safetensors /data/' > "$TEMP_CONTEXT/Dockerfile"
 
-    docker build -t %s "$TEMP_CONTEXT"
-    docker push %s
+	  # Add symbolic link to read-only mounted config.json
+      mkdir -p /root/.docker
+	  ln -s /tmp/.docker/config/config.json /root/.docker/config.json
 
-    # Cleanup: Remove the temporary directory
-    rm -rf "$TEMP_CONTEXT"
-
-    # Remove the file to prevent repeated builds
-    rm "$FILE_PATH"
-    echo "Upload complete"
-    exit 0
+      docker build -t %s "$TEMP_CONTEXT"
+      
+      while true; do
+        if docker push %s; then
+          echo "Upload complete"
+          # Cleanup: Remove the temporary directory
+          rm -rf "$TEMP_CONTEXT"
+          # Remove the file to prevent repeated builds
+          rm "$FILE_PATH"
+          PUSH_SUCCEEDED=true
+          # Signal completion
+          touch /tmp/upload_complete
+          exit 0
+        else
+          echo "Push failed, retrying in 30 seconds..."
+          sleep 30
+        fi
+      done
+    fi
   fi
   sleep 10  # Check every 10 seconds
 done`, outputDir, image, image)
@@ -267,7 +287,7 @@ func setupDefaultSharedVolumes(workspaceObj *kaitov1alpha1.Workspace, cmName str
 	return volumes, volumeMounts
 }
 
-func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
+func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, revisionNum string,
 	tuningObj *model.PresetParam, kubeClient client.Client) (client.Object, error) {
 	cm, err := EnsureTuningConfigMap(ctx, workspaceObj, kubeClient)
 	if err != nil {
@@ -309,7 +329,14 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 	if err != nil {
 		return nil, err
 	}
-	commands, resourceReq := prepareTuningParameters(ctx, workspaceObj, modelCommand, tuningObj)
+
+	skuNumGPUs, err := utils.GetSKUNumGPUs(ctx, kubeClient, workspaceObj.Status.WorkerNodes,
+		workspaceObj.Resource.InstanceType, tuningObj.GPUCountRequirement)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get SKU num GPUs: %v", err)
+	}
+
+	commands, resourceReq := prepareTuningParameters(ctx, workspaceObj, modelCommand, tuningObj, skuNumGPUs)
 	tuningImage, tuningImagePullSecrets := GetTuningImageInfo(ctx, workspaceObj, tuningObj)
 	if tuningImagePullSecrets != nil {
 		imagePullSecrets = append(imagePullSecrets, tuningImagePullSecrets...)
@@ -324,7 +351,12 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 			Value: "k_proj,q_proj,v_proj,o_proj,gate_proj,down_proj,up_proj",
 		})
 	}
-	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, tuningImage, imagePullSecrets, *workspaceObj.Resource.Count, commands,
+	// Add Expandable Memory Feature to reduce Peak GPU Mem Usage
+	envVars = append(envVars, corev1.EnvVar{
+		Name:  "PYTORCH_CUDA_ALLOC_CONF",
+		Value: "expandable_segments:True",
+	})
+	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, revisionNum, tuningImage, imagePullSecrets, *workspaceObj.Resource.Count, commands,
 		containerPorts, nil, nil, resourceReq, tolerations, initContainers, sidecarContainers, volumes, volumeMounts, envVars)
 
 	err = resources.CreateResource(ctx, jobObj, kubeClient)
@@ -361,7 +393,6 @@ func handleImageDataDestination(ctx context.Context, outputDir, image, imagePush
 		Command: []string{"/bin/sh", "-c"},
 		Args:    []string{dockerSidecarScriptPushImage(outputDir, image)},
 	}
-
 	volume, volumeMount := utils.ConfigImagePushSecretVolume(imagePushSecret)
 	return sidecarContainer, volume, volumeMount
 }
@@ -409,25 +440,33 @@ func handleURLDataSource(ctx context.Context, workspaceObj *kaitov1alpha1.Worksp
 		Name:  "data-downloader",
 		Image: "curlimages/curl",
 		Command: []string{"sh", "-c", `
+			if [ -z "$DATA_URLS" ]; then
+				echo "No URLs provided in DATA_URLS."
+				exit 1
+			fi
 			for url in $DATA_URLS; do
 				filename=$(basename "$url" | sed 's/[?=&]/_/g')
 				echo "Downloading $url to $DATA_VOLUME_PATH/$filename"
 				retry_count=0
 				while [ $retry_count -lt 3 ]; do
-					curl -sSL $url -o $DATA_VOLUME_PATH/$filename
-					if [ $? -eq 0 ] && [ -s $DATA_VOLUME_PATH/$filename ]; then
+					http_status=$(curl -sSL -w "%{http_code}" -o "$DATA_VOLUME_PATH/$filename" "$url")
+					curl_exit_status=$?  # Save the exit status of curl immediately
+					if [ "$http_status" -eq 200 ] && [ -s "$DATA_VOLUME_PATH/$filename" ] && [ $curl_exit_status -eq 0 ]; then
 						echo "Successfully downloaded $url"
 						break
 					else
-						echo "Failed to download $url, retrying..."
+						echo "Failed to download $url, HTTP status code: $http_status, retrying..."
 						retry_count=$((retry_count + 1))
+						rm -f "$DATA_VOLUME_PATH/$filename" # Remove incomplete file
 						sleep 2
 					fi
 				done
 				if [ $retry_count -eq 3 ]; then
 					echo "Failed to download $url after 3 attempts"
+					exit 1  # Exit with a non-zero status to indicate failure
 				fi
 			done
+			echo "All downloads completed successfully"
 		`},
 		VolumeMounts: []corev1.VolumeMount{
 			{
@@ -459,7 +498,8 @@ func prepareModelRunParameters(ctx context.Context, tuningObj *model.PresetParam
 // accelerate launch <TORCH_PARAMS> baseCommand <MODEL_PARAMS>
 // and sets the GPU resources required for tuning.
 // Returns the command and resource configuration.
-func prepareTuningParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, modelCommand string, tuningObj *model.PresetParam) ([]string, corev1.ResourceRequirements) {
+func prepareTuningParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace, modelCommand string,
+	tuningObj *model.PresetParam, skuNumGPUs string) ([]string, corev1.ResourceRequirements) {
 	if tuningObj.TorchRunParams == nil {
 		tuningObj.TorchRunParams = make(map[string]string)
 	}
@@ -472,10 +512,10 @@ func prepareTuningParameters(ctx context.Context, wObj *kaitov1alpha1.Workspace,
 
 	resourceRequirements := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(tuningObj.GPUCountRequirement),
+			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(skuNumGPUs),
 		},
 		Limits: corev1.ResourceList{
-			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(tuningObj.GPUCountRequirement),
+			corev1.ResourceName(resources.CapacityNvidiaGPU): resource.MustParse(skuNumGPUs),
 		},
 	}
 

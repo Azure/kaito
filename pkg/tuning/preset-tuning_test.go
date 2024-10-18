@@ -24,13 +24,6 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-// Mocking the SupportedGPUConfigs to be used in test scenarios.
-var mockSupportedGPUConfigs = map[string]kaitov1alpha1.GPUConfig{
-	"sku1": {GPUCount: 2},
-	"sku2": {GPUCount: 4},
-	"sku3": {GPUCount: 0},
-}
-
 func normalize(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
@@ -54,18 +47,19 @@ func saveEnv(key string) func() {
 }
 
 func TestGetInstanceGPUCount(t *testing.T) {
-	kaitov1alpha1.SupportedGPUConfigs = mockSupportedGPUConfigs
+	os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
+
 	testcases := map[string]struct {
 		sku              string
 		expectedGPUCount int
 	}{
 		"SKU Exists With Multiple GPUs": {
-			sku:              "sku1",
-			expectedGPUCount: 2,
+			sku:              "Standard_NC24s_v3",
+			expectedGPUCount: 4,
 		},
-		"SKU Exists With Zero GPUs": {
-			sku:              "sku3",
-			expectedGPUCount: 0,
+		"SKU Exists With One GPU": {
+			sku:              "Standard_NC6s_v3",
+			expectedGPUCount: 1,
 		},
 		"SKU Does Not Exist": {
 			sku:              "sku_unknown",
@@ -382,7 +376,7 @@ func TestHandleURLDataSource(t *testing.T) {
 			},
 			expectedInitContainerName: "data-downloader",
 			expectedImage:             "curlimages/curl",
-			expectedCommands:          "curl -sSL $url -o $DATA_VOLUME_PATH/$filename",
+			expectedCommands:          "curl -sSL -w \"%{http_code}\" -o \"$DATA_VOLUME_PATH/$filename\" \"$url\"",
 			expectedVolumeName:        "data-volume",
 			expectedVolumeMountPath:   utils.DefaultDataVolumePath,
 		},
@@ -441,7 +435,7 @@ func TestPrepareTuningParameters(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			commands, resources := prepareTuningParameters(ctx, tc.workspaceObj, tc.modelCommand, tc.tuningObj)
+			commands, resources := prepareTuningParameters(ctx, tc.workspaceObj, tc.modelCommand, tc.tuningObj, "2")
 			assert.Equal(t, tc.expectedCommands, commands)
 			assert.Equal(t, tc.expectedRequirements.Requests, resources.Requests)
 			assert.Equal(t, tc.expectedRequirements.Limits, resources.Limits)

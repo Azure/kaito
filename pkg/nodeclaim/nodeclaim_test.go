@@ -8,8 +8,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
+	azurev1alpha2 "github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
+	awsv1beta1 "github.com/aws/karpenter-provider-aws/pkg/apis/v1beta1"
 	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	"github.com/azure/kaito/pkg/utils/consts"
 	"github.com/azure/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/mock"
 	"gotest.tools/assert"
@@ -28,12 +30,17 @@ func TestCreateNodeClaim(t *testing.T) {
 	}{
 		"NodeClaim creation fails": {
 			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&azurev1alpha2.AKSNodeClass{}), mock.Anything).Return(nil)
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&azurev1alpha2.AKSNodeClass{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(errors.New("failed to create nodeClaim"))
 			},
 			expectedError: errors.New("failed to create nodeClaim"),
 		},
 		"NodeClaim creation fails because SKU is not available": {
 			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&azurev1alpha2.AKSNodeClass{}), mock.Anything).Return(nil)
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&azurev1alpha2.AKSNodeClass{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 			},
@@ -48,6 +55,8 @@ func TestCreateNodeClaim(t *testing.T) {
 		},
 		"A nodeClaim is successfully created": {
 			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&azurev1alpha2.AKSNodeClass{}), mock.Anything).Return(nil)
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&azurev1alpha2.AKSNodeClass{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1beta1.NodeClaim{}), mock.Anything).Return(nil)
 			},
@@ -68,7 +77,7 @@ func TestCreateNodeClaim(t *testing.T) {
 
 			mockNodeClaim := &test.MockNodeClaim
 			mockNodeClaim.Status.Conditions = tc.nodeClaimConditions
-
+			os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
 			err := CreateNodeClaim(context.Background(), mockNodeClaim, mockClient)
 			if tc.expectedError == nil {
 				assert.Check(t, err == nil, "Not expected to return error")
@@ -169,7 +178,7 @@ func TestWaitForPendingNodeClaims(t *testing.T) {
 func TestGenerateNodeClaimManifest(t *testing.T) {
 	t.Run("Should generate a nodeClaim object from the given workspace when cloud provider set to azure", func(t *testing.T) {
 		mockWorkspace := test.MockWorkspaceWithPreset
-		os.Setenv("CLOUD_PROVIDER", "azure")
+		os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
 		nodeClaim := GenerateNodeClaimManifest(context.Background(), "0", mockWorkspace)
 
 		assert.Check(t, nodeClaim != nil, "NodeClaim must not be nil")
@@ -178,9 +187,9 @@ func TestGenerateNodeClaimManifest(t *testing.T) {
 		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceNamespace], mockWorkspace.Namespace, "label must have same workspace namespace as workspace")
 		assert.Equal(t, nodeClaim.Labels[LabelNodePool], KaitoNodePoolName, "label must have same labels as workspace label selector")
 		assert.Equal(t, nodeClaim.Annotations[v1beta1.DoNotDisruptAnnotationKey], "true", "label must have do not disrupt annotation")
-		assert.Equal(t, len(nodeClaim.Spec.Requirements), 3, " NodeClaim must have 3 NodeSelector Requirements")
-		assert.Equal(t, nodeClaim.Spec.Requirements[2].NodeSelectorRequirement.Key, v1alpha2.LabelSKUName, "NodeClaim must have same instance type as workspace")
-		assert.Equal(t, nodeClaim.Spec.Requirements[2].NodeSelectorRequirement.Values[0], mockWorkspace.Resource.InstanceType, "NodeClaim must have same instance type as workspace")
+		assert.Equal(t, len(nodeClaim.Spec.Requirements), 4, " NodeClaim must have 4 NodeSelector Requirements")
+		assert.Equal(t, nodeClaim.Spec.Requirements[1].NodeSelectorRequirement.Values[0], mockWorkspace.Resource.InstanceType, "NodeClaim must have same instance type as workspace")
+		assert.Equal(t, nodeClaim.Spec.Requirements[2].NodeSelectorRequirement.Key, corev1.LabelOSStable, "NodeClaim must have OS label")
 		assert.Check(t, nodeClaim.Spec.NodeClassRef != nil, "NodeClaim must have NodeClassRef")
 		assert.Equal(t, nodeClaim.Spec.NodeClassRef.Kind, "AKSNodeClass", "NodeClaim must have 'AKSNodeClass' kind")
 	})
@@ -196,8 +205,108 @@ func TestGenerateNodeClaimManifest(t *testing.T) {
 		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceNamespace], mockWorkspace.Namespace, "label must have same workspace namespace as workspace")
 		assert.Equal(t, nodeClaim.Labels[LabelNodePool], KaitoNodePoolName, "label must have same labels as workspace label selector")
 		assert.Equal(t, nodeClaim.Annotations[v1beta1.DoNotDisruptAnnotationKey], "true", "label must have do not disrupt annotation")
-		assert.Equal(t, len(nodeClaim.Spec.Requirements), 2, " NodeClaim must have 2 NodeSelector Requirements")
+		assert.Equal(t, len(nodeClaim.Spec.Requirements), 3, " NodeClaim must have 3 NodeSelector Requirements")
 		assert.Check(t, nodeClaim.Spec.NodeClassRef != nil, "NodeClaim must have NodeClassRef")
 		assert.Equal(t, nodeClaim.Spec.NodeClassRef.Kind, "EC2NodeClass", "NodeClaim must have 'EC2NodeClass' kind")
+	})
+}
+
+func TestGenerateAKSNodeClassManifest(t *testing.T) {
+	t.Run("Should generate a valid AKSNodeClass object with correct name and annotations", func(t *testing.T) {
+		nodeClass := GenerateAKSNodeClassManifest(context.Background())
+
+		assert.Check(t, nodeClass != nil, "AKSNodeClass must not be nil")
+		assert.Equal(t, nodeClass.Name, NodeClassName, "AKSNodeClass must have the correct name")
+		assert.Equal(t, nodeClass.Annotations["kubernetes.io/description"], "General purpose AKSNodeClass for running Ubuntu 22.04 nodes", "AKSNodeClass must have the correct description annotation")
+		assert.Equal(t, *nodeClass.Spec.ImageFamily, "Ubuntu2204", "AKSNodeClass must have the correct image family")
+	})
+
+	t.Run("Should generate a valid AKSNodeClass object with empty annotations if not provided", func(t *testing.T) {
+		nodeClass := GenerateAKSNodeClassManifest(context.Background())
+
+		assert.Check(t, nodeClass != nil, "AKSNodeClass must not be nil")
+		assert.Equal(t, nodeClass.Name, NodeClassName, "AKSNodeClass must have the correct name")
+		assert.Check(t, nodeClass.Annotations != nil, "AKSNodeClass must have annotations")
+		assert.Equal(t, *nodeClass.Spec.ImageFamily, "Ubuntu2204", "AKSNodeClass must have the correct image family")
+	})
+
+	t.Run("Should generate a valid AKSNodeClass object with correct spec", func(t *testing.T) {
+		nodeClass := GenerateAKSNodeClassManifest(context.Background())
+
+		assert.Check(t, nodeClass != nil, "AKSNodeClass must not be nil")
+		assert.Equal(t, nodeClass.Name, NodeClassName, "AKSNodeClass must have the correct name")
+		assert.Equal(t, *nodeClass.Spec.ImageFamily, "Ubuntu2204", "AKSNodeClass must have the correct image family")
+	})
+}
+
+func TestGenerateEC2NodeClassManifest(t *testing.T) {
+	t.Run("Should generate a valid EC2NodeClass object with correct name and annotations", func(t *testing.T) {
+		os.Setenv("CLUSTER_NAME", "test-cluster")
+		nodeClass := GenerateEC2NodeClassManifest(context.Background())
+
+		assert.Check(t, nodeClass != nil, "EC2NodeClass must not be nil")
+		assert.Equal(t, nodeClass.Name, NodeClassName, "EC2NodeClass must have the correct name")
+		assert.Equal(t, nodeClass.Annotations["kubernetes.io/description"], "General purpose EC2NodeClass for running Amazon Linux 2 nodes", "EC2NodeClass must have the correct description annotation")
+		assert.Equal(t, *nodeClass.Spec.AMIFamily, awsv1beta1.AMIFamilyAL2, "EC2NodeClass must have the correct AMI family")
+		assert.Equal(t, nodeClass.Spec.Role, "KarpenterNodeRole-test-cluster", "EC2NodeClass must have the correct role")
+	})
+
+	t.Run("Should generate a valid EC2NodeClass object with correct subnet and security group selectors", func(t *testing.T) {
+		os.Setenv("CLUSTER_NAME", "test-cluster")
+		nodeClass := GenerateEC2NodeClassManifest(context.Background())
+
+		assert.Check(t, nodeClass != nil, "EC2NodeClass must not be nil")
+		assert.Equal(t, nodeClass.Spec.SubnetSelectorTerms[0].Tags["karpenter.sh/discovery"], "test-cluster", "EC2NodeClass must have the correct subnet selector")
+		assert.Equal(t, nodeClass.Spec.SecurityGroupSelectorTerms[0].Tags["karpenter.sh/discovery"], "test-cluster", "EC2NodeClass must have the correct security group selector")
+	})
+
+	t.Run("Should handle missing CLUSTER_NAME environment variable", func(t *testing.T) {
+		os.Unsetenv("CLUSTER_NAME")
+		nodeClass := GenerateEC2NodeClassManifest(context.Background())
+
+		assert.Check(t, nodeClass != nil, "EC2NodeClass must not be nil")
+		assert.Equal(t, nodeClass.Spec.Role, "KarpenterNodeRole-", "EC2NodeClass must handle missing cluster name")
+		assert.Equal(t, nodeClass.Spec.SubnetSelectorTerms[0].Tags["karpenter.sh/discovery"], "", "EC2NodeClass must handle missing cluster name in subnet selector")
+		assert.Equal(t, nodeClass.Spec.SecurityGroupSelectorTerms[0].Tags["karpenter.sh/discovery"], "", "EC2NodeClass must handle missing cluster name in security group selector")
+	})
+}
+
+func TestCreateKarpenterNodeClass(t *testing.T) {
+	t.Run("Should create AKSNodeClass when cloud provider is Azure", func(t *testing.T) {
+		os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
+		mockClient := test.NewClient()
+		mockClient.On("Create", mock.IsType(context.Background()), mock.IsType(&azurev1alpha2.AKSNodeClass{}), mock.Anything).Return(nil)
+
+		err := CreateKarpenterNodeClass(context.Background(), mockClient)
+		assert.Check(t, err == nil, "Not expected to return error")
+		mockClient.AssertCalled(t, "Create", mock.IsType(context.Background()), mock.IsType(&azurev1alpha2.AKSNodeClass{}), mock.Anything)
+	})
+
+	t.Run("Should create EC2NodeClass when cloud provider is AWS", func(t *testing.T) {
+		os.Setenv("CLOUD_PROVIDER", consts.AWSCloudName)
+		os.Setenv("CLUSTER_NAME", "test-cluster")
+		mockClient := test.NewClient()
+		mockClient.On("Create", mock.IsType(context.Background()), mock.IsType(&awsv1beta1.EC2NodeClass{}), mock.Anything).Return(nil)
+
+		err := CreateKarpenterNodeClass(context.Background(), mockClient)
+		assert.Check(t, err == nil, "Not expected to return error")
+		mockClient.AssertCalled(t, "Create", mock.IsType(context.Background()), mock.IsType(&awsv1beta1.EC2NodeClass{}), mock.Anything)
+	})
+
+	t.Run("Should return error when cloud provider is unsupported", func(t *testing.T) {
+		os.Setenv("CLOUD_PROVIDER", "unsupported")
+		mockClient := test.NewClient()
+
+		err := CreateKarpenterNodeClass(context.Background(), mockClient)
+		assert.Error(t, err, "unsupported cloud provider unsupported")
+	})
+
+	t.Run("Should return error when Create call fails", func(t *testing.T) {
+		os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
+		mockClient := test.NewClient()
+		mockClient.On("Create", mock.IsType(context.Background()), mock.IsType(&azurev1alpha2.AKSNodeClass{}), mock.Anything).Return(errors.New("create failed"))
+
+		err := CreateKarpenterNodeClass(context.Background(), mockClient)
+		assert.Error(t, err, "create failed")
 	})
 }

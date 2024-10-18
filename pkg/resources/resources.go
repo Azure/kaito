@@ -70,6 +70,14 @@ func CheckResourceStatus(obj client.Object, kubeClient client.Client, timeoutDur
 
 			switch k8sResource := obj.(type) {
 			case *appsv1.Deployment:
+				for _, condition := range k8sResource.Status.Conditions {
+					if condition.Type == appsv1.DeploymentProgressing && condition.Status == corev1.ConditionFalse {
+						errorMessage := fmt.Sprintf("deployment %s is not progressing: %s", k8sResource.Name, condition.Message)
+						klog.ErrorS(fmt.Errorf(errorMessage), "deployment", k8sResource.Name, "reason", condition.Reason, "message", condition.Message)
+						return fmt.Errorf(errorMessage)
+					}
+				}
+
 				if k8sResource.Status.ReadyReplicas == *k8sResource.Spec.Replicas {
 					klog.InfoS("deployment status is ready", "deployment", k8sResource.Name)
 					return nil
@@ -80,8 +88,12 @@ func CheckResourceStatus(obj client.Object, kubeClient client.Client, timeoutDur
 					return nil
 				}
 			case *batchv1.Job:
-				klog.InfoS("checking job status", "name", k8sResource.Name, "namespace", k8sResource.Namespace, "succeeded", k8sResource.Status.Succeeded, "active", k8sResource.Status.Active, "failed", k8sResource.Status.Failed)
-				if k8sResource.Status.Failed == 0 {
+				if k8sResource.Status.Failed > 0 {
+					klog.ErrorS(fmt.Errorf("job failed"), "name", k8sResource.Name, "failed count", k8sResource.Status.Failed)
+					return fmt.Errorf("job %s has failed %d pods", k8sResource.Name, k8sResource.Status.Failed)
+				}
+				if k8sResource.Status.Succeeded > 0 || (k8sResource.Status.Ready != nil && *k8sResource.Status.Ready > 0) {
+					klog.InfoS("job status is active/succeeded", "name", k8sResource.Name)
 					return nil
 				}
 			default:

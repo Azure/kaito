@@ -119,7 +119,7 @@ jobs:
         run: echo "MODEL_IS_OSS=${{ matrix.model.OSS }}" >> $GITHUB_ENV
 
       - name: 'Az CLI login'
-        uses: azure/login@v2.1.1
+        uses: azure/login@v2.2.0
         with:
             client-id: ${{ secrets.AZURE_CLIENT_ID }}
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -237,7 +237,13 @@ jobs:
       - name: Wait for Resource to be ready
         run: |
             kubectl rollout status ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} --timeout=1800s
-        
+    
+      - name: Check Adapter Loading from Logs
+        if: matrix.model.loads_adapter == true
+        run: |
+            POD_NAME=$(kubectl get pods -l app=${{ matrix.model.name }} -o jsonpath="{.items[0].metadata.name}")
+            kubectl logs $POD_NAME | grep "Adapter added:" | grep "${{ matrix.model.expected_adapter }}" || (echo "Adapter not loaded or incorrect adapter loaded" && exit 1)
+          
       - name: Test home endpoint
         run: |
             curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/

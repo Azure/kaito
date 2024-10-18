@@ -3,6 +3,7 @@
 package utils
 
 import (
+	"github.com/azure/kaito/pkg/utils/plugin"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -31,12 +32,20 @@ func ConfigImagePushSecretVolume(imagePushSecret string) (corev1.Volume, corev1.
 	volume := corev1.Volume{
 		Name: "docker-config",
 		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName: imagePushSecret,
-				Items: []corev1.KeyToPath{
+			Projected: &corev1.ProjectedVolumeSource{
+				Sources: []corev1.VolumeProjection{
 					{
-						Key:  ".dockerconfigjson",
-						Path: "config.json",
+						Secret: &corev1.SecretProjection{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: imagePushSecret,
+							},
+							Items: []corev1.KeyToPath{
+								{
+									Key:  ".dockerconfigjson",
+									Path: "config.json",
+								},
+							},
+						},
 					},
 				},
 			},
@@ -45,8 +54,7 @@ func ConfigImagePushSecretVolume(imagePushSecret string) (corev1.Volume, corev1.
 
 	volumeMount := corev1.VolumeMount{
 		Name:      "docker-config",
-		MountPath: "/root/.docker/config.json",
-		SubPath:   "config.json", // Mount only the config.json file
+		MountPath: "/tmp/.docker/config",
 	}
 
 	return volume, volumeMount
@@ -141,4 +149,8 @@ func ConfigAdapterVolume() (corev1.Volume, corev1.VolumeMount) {
 		MountPath: DefaultAdapterVolumePath,
 	}
 	return volume, volumeMount
+}
+
+func IsValidPreset(preset string) bool {
+	return plugin.KaitoModelRegister.Has(preset)
 }
