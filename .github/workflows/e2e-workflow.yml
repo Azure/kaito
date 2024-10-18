@@ -91,6 +91,15 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION  }}
 
+      - name: Install Azure CLI latest
+        run: |
+          if ! which az > /dev/null; then
+            echo "Azure CLI not found. Installing..."
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          else
+            echo "Azure CLI already installed."
+          fi
+
       - name: Az login
         uses: azure/login@v2.2.0
         with:
