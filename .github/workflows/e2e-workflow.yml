@@ -90,9 +90,9 @@ jobs:
       - name: Az login
         uses: azure/login@v2.2.0
         with:
-          client-id: ${{ env.E2E_CLIENT_ID }}
-          tenant-id: ${{ env.E2E_TENANT_ID }}
-          subscription-id: ${{ env.E2E_SUBSCRIPTION_ID }}
+          client-id: $E2E_CLIENT_ID
+          tenant-id: $E2E_TENANT_ID
+          subscription-id: $E2E_SUBSCRIPTION_ID
 
       - uses: azure/setup-helm@v4
         with:
