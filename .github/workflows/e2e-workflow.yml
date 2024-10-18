@@ -83,8 +83,12 @@ jobs:
           if ! which az > /dev/null; then
             echo "Azure CLI not found. Installing..."
             curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+            echo $E2E_ACR_AMRT_USERNAME
+            echo ${{env.E2E_ACR_AMRT_USERNAME}}
           else
             echo "Azure CLI already installed."
+            echo $E2E_ACR_AMRT_USERNAME
+            echo ${{env.E2E_ACR_AMRT_USERNAME}}
           fi
 
       - name: Az login
