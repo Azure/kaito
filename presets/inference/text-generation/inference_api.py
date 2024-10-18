@@ -99,6 +99,14 @@ combination_type = model_args.pop('combination_type')
 
 app = FastAPI()
 tokenizer = AutoTokenizer.from_pretrained(**model_args)
+# The conversational pipeline has been removed since transformers 4.42. Must provide a
+# chat template here. See https://huggingface.co/docs/transformers/chat_templating.
+if tokenizer.chat_template is None:
+    chat_template = ("{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') %}"
+    "{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}"
+    "{% elif (message['role'] == 'assistant') %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}")
+    tokenizer.chat_template = chat_template
+
 base_model = AutoModelForCausalLM.from_pretrained(**model_args)
 
 if not os.path.exists(ADAPTERS_DIR):
@@ -153,7 +161,7 @@ if args.torch_dtype:
     pipeline_kwargs["torch_dtype"] = args.torch_dtype
 
 pipeline = transformers.pipeline(
-    model_pipeline,
+    task="text-generation",
     model=model,
     tokenizer=tokenizer,
     **pipeline_kwargs
@@ -461,7 +469,7 @@ def get_metrics():
         if torch.cuda.is_available():
             gpus = GPUtil.getGPUs()
             gpu_info = [GPUInfo(
-                id=gpu.id,
+                id=str(gpu.id),
                 name=gpu.name,
                 load=f"{gpu.load * 100:.2f}%",
                 temperature=f"{gpu.temperature} C",
