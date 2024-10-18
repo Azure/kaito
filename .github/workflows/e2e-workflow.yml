@@ -23,19 +23,6 @@ on:
         default: "eastus"
       k8s_version:
         type: string
-    secrets:
-      E2E_CLIENT_ID:
-        required: true
-      E2E_TENANT_ID:
-        required: true
-      E2E_SUBSCRIPTION_ID:
-        required: true
-      E2E_AMRT_SECRET_NAME:
-        required: true
-      E2E_ACR_AMRT_USERNAME:
-        required: true
-      E2E_ACR_AMRT_PASSWORD:
-        required: true
 
 jobs:
   e2e-tests:
