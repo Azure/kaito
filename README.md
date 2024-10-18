@@ -36,7 +36,7 @@ The above figure presents the Kaito architecture overview. Its major components 
 
 ## Installation
 
-Please check the installation guidance [here](./docs/installation.md).
+Please check the installation guidance [here](./docs/installation.md) for deployment using Azure CLI and [here](./terraform/README.md) for deployment using Terraform.
 
 ## Quick start
 

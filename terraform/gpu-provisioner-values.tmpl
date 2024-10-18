@@ -1,0 +1,20 @@
+controller:
+  env:
+  - name: ARM_SUBSCRIPTION_ID
+    value: ${AZURE_SUBSCRIPTION_ID}
+  - name: LOCATION
+    value: ${LOCATION}
+  - name: AZURE_CLUSTER_NAME
+    value: ${AKS_NAME}
+  - name: AZURE_NODE_RESOURCE_GROUP
+    value: ${AKS_NRG_NAME}
+  - name: ARM_RESOURCE_GROUP
+    value: ${RG_NAME}
+  - name: LEADER_ELECT
+    value: "false"
+workloadIdentity:
+  clientId: ${KAITO_IDENTITY_CLIENT_ID}
+  tenantId: ${AZURE_TENANT_ID}
+settings:
+  azure:
+    clusterName: ${AKS_NAME}
