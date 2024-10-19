@@ -82,9 +82,6 @@ jobs:
           whoami
           echo $E2E_ACR_AMRT_USERNAME
 
-      - name: 'Set subscription'
-        run: az account set --subscription $E2E_SUBSCRIPTION_ID
-
       - name: Azure CLI Login
         run: |
           az login --identity
@@ -156,9 +153,6 @@ jobs:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           AZURE_LOCATION: ${{ inputs.region }}
           AKS_K8S_VERSION: ${{ inputs.k8s_version }}
-
-      - name: 'Set subscription'
-        run: az account set --subscription $E2E_SUBSCRIPTION_ID
   
       - name: Azure CLI Login
         run: |
