@@ -88,6 +88,7 @@ jobs:
           whoami
           echo $TEST
           echo $E2E_ACR_AMRT_USERNAME
+          echo ${{env.E2E_ACR_AMRT_USERNAME}}
           # printenv
 
       - name: Az login
