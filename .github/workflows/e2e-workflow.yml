@@ -80,21 +80,15 @@ jobs:
             echo "Azure CLI already installed."
           fi
           whoami
-          echo $TEST
           echo $E2E_ACR_AMRT_USERNAME
-          echo ${{env.E2E_ACR_AMRT_USERNAME}}
-          # printenv
 
-      - name: Az login
-        uses: azure/login@v2.2.0
-        with:
-          client-id: ${{ env.E2E_CLIENT_ID }}
-          tenant-id: ${{ env.E2E_TENANT_ID }}
-          subscription-id: ${{ env.E2E_SUBSCRIPTION_ID }}
-        env:
-          E2E_CLIENT_ID: $E2E_CLIENT_ID
-          E2E_TENANT_ID: $E2E_TENANT_ID
-          E2E_SUBSCRIPTION_ID: $E2E_SUBSCRIPTION_ID
+      - name: Azure CLI Login using Service Principal
+        run: |
+          echo "Logging into Azure CLI..."
+          az login --service-principal \
+            --username $E2E_CLIENT_ID \
+            --password $E2E_CLIENT_SECRET \
+            --tenant $E2E_TENANT_ID
 
       - uses: azure/setup-helm@v4
         with:
