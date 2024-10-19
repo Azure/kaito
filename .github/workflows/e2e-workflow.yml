@@ -84,13 +84,15 @@ jobs:
           if ! which az > /dev/null; then
             echo "Azure CLI not found. Installing..."
             curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-            echo $E2E_ACR_AMRT_USERNAME
-            echo ${{env.E2E_ACR_AMRT_USERNAME}}
           else
             echo "Azure CLI already installed."
-            echo $E2E_ACR_AMRT_USERNAME
-            echo ${{env.E2E_ACR_AMRT_USERNAME}}
           fi
+      
+          # Echo the environment variables correctly
+          echo "E2E_ACR_AMRT_USERNAME in GitHub Actions is: ${{ env.E2E_ACR_AMRT_USERNAME }}"
+          echo "E2E_ACR_AMRT_USERNAME in bash shell is: $E2E_ACR_AMRT_USERNAME"
+        env:
+          E2E_ACR_AMRT_USERNAME: ${{ secrets.E2E_ACR_AMRT_USERNAME }}
 
       - name: Az login
         uses: azure/login@v2.2.0
