@@ -36,6 +36,13 @@ jobs:
       GO_VERSION: "1.22"
       KARPENTER_NAMESPACE: "karpenter"
       GPU_PROVISIONER_NAMESPACE: "gpu-provisioner"
+      E2E_CLIENT_ID: $E2E_CLIENT_ID
+      E2E_TENANT_ID: $E2E_TENANT_ID
+      E2E_SUBSCRIPTION_ID: $E2E_SUBSCRIPTION_ID
+      E2E_AMRT_SECRET_NAME: $E2E_AMRT_SECRET_NAME
+      E2E_ACR_AMRT_USERNAME: $E2E_ACR_AMRT_USERNAME
+      E2E_ACR_AMRT_PASSWORD: $E2E_ACR_AMRT_PASSWORD
+
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@5c7944e73c4c2a096b17a9cb74d65b6c2bbafbde # v2.9.1
@@ -85,7 +92,7 @@ jobs:
           echo "E2E_ACR_AMRT_USERNAME in GitHub Actions is: ${{ env.E2E_ACR_AMRT_USERNAME }}"
           echo "E2E_ACR_AMRT_USERNAME in bash shell is: $E2E_ACR_AMRT_USERNAME"
         env:
-          E2E_ACR_AMRT_USERNAME: ${{ secrets.E2E_ACR_AMRT_USERNAME }}
+          E2E_ACR_AMRT_USERNAME: ${{ env.E2E_ACR_AMRT_USERNAME }}
 
       - name: Az login
         uses: azure/login@v2.2.0
