@@ -31,7 +31,6 @@ jobs:
     permissions:
       contents: read
       id-token: write # This is required for requesting the JWT
-    environment: e2e-test
     env:
       GO_VERSION: "1.22"
       KARPENTER_NAMESPACE: "karpenter"
