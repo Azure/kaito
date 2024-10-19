@@ -87,7 +87,7 @@ jobs:
           fi
           whoami
           echo $TEST
-          echo ${{env.TEST}}
+          printenv
 
       - name: Az login
         uses: azure/login@v2.2.0
