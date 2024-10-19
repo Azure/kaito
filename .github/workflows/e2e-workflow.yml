@@ -87,8 +87,8 @@ jobs:
             echo "Azure CLI already installed."
           fi
           whoami
-          echo $E2E_AMRT_SECRET_NAME
-          echo ${{env.E2E_AMRT_SECRET_NAME}}
+          echo $LANG
+          echo ${{env.LANG}}
 
       - name: Az login
         uses: azure/login@v2.2.0
