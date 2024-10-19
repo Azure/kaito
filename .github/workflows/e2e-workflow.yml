@@ -26,7 +26,7 @@ on:
 
 jobs:
   e2e-tests:
-    runs-on: ubuntu-latest
+    runs-on: [ "self-hosted", "hostname:kaito-e2e-github-runner" ]
     name: e2e-tests-${{ inputs.node_provisioner }}
     permissions:
       contents: read
