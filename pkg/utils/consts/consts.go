@@ -10,6 +10,7 @@ const (
 	FeatureFlagKarpenter          = "Karpenter"
 	AzureCloudName                = "azure"
 	AWSCloudName                  = "aws"
+	AksArcCloudName               = "aksarc"
 	GPUString                     = "gpu"
 	SKUString                     = "sku"
 	MaxRevisionHistoryLimit       = 10
