@@ -51,46 +51,6 @@ async def query_index(request: QueryRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-"""
-@app.put("/update", response_model=Dict[str, List[str]])
-async def update_documents(request: UpdateRequest):
-    try:
-        result = rag_ops.update(request.documents)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/refresh", response_model=List[bool])
-async def refresh_documents(request: RefreshRequest):
-    try:
-        result = rag_ops.refresh(request.documents)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-        
-@app.delete("/document/{doc_id}")
-async def delete_document(doc_id: str):
-    try:
-        rag_ops.delete(doc_id)
-        return {"message": "Document deleted successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-"""
-
-@app.get("/document/{index_name}/{doc_id}", response_model=RefDocInfo)
-async def get_document(index_name: str, doc_id: str):
-    try:
-        document = rag_ops.get(index_name, doc_id)
-        if document:
-            return document
-        else:
-            raise HTTPException(status_code=404, detail=f"Document with ID {doc_id} "
-                                                        f"not found in index '{index_name}'.")
-    except ValueError as ve:
-        raise HTTPException(status_code=404, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/indexed-documents", response_model=ListDocumentsResponse)
 async def list_all_indexed_documents():
     try:
