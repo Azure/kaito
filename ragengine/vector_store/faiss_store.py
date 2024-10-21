@@ -41,54 +41,89 @@ class FaissVectorStoreHandler(BaseVectorStore):
         self.index_store = SimpleIndexStore() # Use to store global index metadata
         self.llm = Inference()
 
-    def index_documents(self, index_name: str, documents: List[Document]):
-        """Recreates the entire FAISS index and vector store with new documents."""
+    def index_documents(self, index_name: str, documents: List[Document]) -> List[str]:
+        """
+        Called by the /index endpoint to index documents into the specified index.
+
+        If the index already exists, appends new documents to it.
+        Otherwise, creates a new index with the provided documents.
+
+        Args:
+            index_name (str): The name of the index to update or create.
+            documents (List[Document]): A list of documents to index.
+
+        Returns:
+            List[str]: A list of document IDs that were successfully indexed.
+        """
+        if index_name in self.index_map:
+            return self._append_documents_to_index(index_name, documents)
+        else:
+            return self._create_new_index(index_name, documents)
+
+    def _append_documents_to_index(self, index_name: str, documents: List[Document]) -> List[str]:
+        """
+        Appends documents to an existing index.
+
+        Args:
+            index_name (str): The name of the existing index.
+            documents (List[Document]): A list of documents to append.
+
+        Returns:
+            List[str]: A list of document IDs that were successfully indexed.
+        """
+        print(f"Index {index_name} already exists. Appending documents to existing index.")
         indexed_doc_ids = set()
 
-        if index_name in self.index_map:
-            print(f"Index {index_name} already exists. Appending documents to existing index.")
-            for doc in documents:
-                doc.doc_id = self.generate_doc_id(doc.text)
-                if not self.document_exists(index_name, doc.doc_id):
-                    self.add_document(index_name, doc)
-                    indexed_doc_ids.add(doc.doc_id)
-                else:
-                    print(f"Document {doc.doc_id} already exists in index {index_name}. Skipping.")
-            if indexed_doc_ids: 
-                self._persist(index_name)
-            return list(indexed_doc_ids)  # Return only the IDs of newly indexed documents
-
-        faiss_index = faiss.IndexFlatL2(self.dimension) # Specifies FAISS indexing method (https://github.com/facebookresearch/faiss/wiki/Faiss-indexes)
-        vector_store = FaissVectorStore(faiss_index=faiss_index) # Specifies in-memory data structure for storing and retrieving document embeddings
-        storage_context = StorageContext.from_defaults(vector_store=vector_store) # Used to persist the vector store and its underlying data across sessions
-
-        llama_docs = []
         for doc in documents:
             doc.doc_id = self.generate_doc_id(doc.text)
-            # Check for duplicates before indexing
-            if doc.doc_id not in indexed_doc_ids:
-                llama_doc = LlamaDocument(id_=doc.doc_id, text=doc.text, metadata=doc.metadata)
-                llama_docs.append(llama_doc)
+            if not self.document_exists(index_name, doc.doc_id):
+                self.add_document_to_index(index_name, doc)
                 indexed_doc_ids.add(doc.doc_id)
             else:
                 print(f"Document {doc.doc_id} already exists in index {index_name}. Skipping.")
 
+        if indexed_doc_ids:
+            self._persist(index_name)
+        return list(indexed_doc_ids)
+
+    def _create_new_index(self, index_name: str, documents: List[Document]) -> List[str]:
+        """
+        Creates a new index with the provided documents.
+
+        Args:
+            index_name (str): The name of the new index to create.
+            documents (List[Document]): A list of documents to index.
+
+        Returns:
+            List[str]: A list of document IDs that were successfully indexed.
+        """
+        faiss_index = faiss.IndexFlatL2(self.dimension)
+        vector_store = FaissVectorStore(faiss_index=faiss_index)
+        storage_context = StorageContext.from_defaults(vector_store=vector_store)
+
+        llama_docs = []
+        indexed_doc_ids = set()
+
+        for doc in documents:
+            doc.doc_id = self.generate_doc_id(doc.text)
+            llama_doc = LlamaDocument(id_=doc.doc_id, text=doc.text, metadata=doc.metadata)
+            llama_docs.append(llama_doc)
+            indexed_doc_ids.add(doc.doc_id)
+
         if llama_docs:
-            # Creates the actual vector-based index using indexing method, vector store, storage method and embedding model specified above
             index = VectorStoreIndex.from_documents(
                 llama_docs,
                 storage_context=storage_context,
                 embed_model=self.embed_model,
-                # use_async=True # TODO: Indexing Process Performed Async
+                # use_async=True  # TODO: Indexing Process Performed Async
             )
-            index.set_index_id(index_name) # https://github.com/run-llama/llama_index/blob/main/llama-index-core/llama_index/core/indices/base.py#L138-L154
+            index.set_index_id(index_name)
             self.index_map[index_name] = index
             self.index_store.add_index_struct(index.index_struct)
             self._persist(index_name)
-        # Return the document IDs that were successfully indexed
         return list(indexed_doc_ids)
 
-    def add_document(self, index_name: str, document: Document):
+    def add_document_to_index(self, index_name: str, document: Document):
         """Inserts a single document into the existing FAISS index."""
         if index_name not in self.index_map:
             raise ValueError(f"No such index: '{index_name}' exists.")
