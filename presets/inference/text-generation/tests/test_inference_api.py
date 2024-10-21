@@ -286,3 +286,72 @@ def test_generation_with_min_length(configured_app):
 
     assert min_new_tokens <= new_tokens <= max_new_tokens, "Response should generate at least min_new_tokens and at most max_new_tokens new tokens"
     assert len(total_tokens) <= max_length, "Total # of tokens has to be less than or equal to max_length"
+
+@pytest.fixture(params=[
+    {"model_path": "stanford-crfm/alias-gpt2-small-x21", "device": "cpu"},
+])
+def inference_app(request):
+    original_argv = sys.argv.copy()
+    # Use request.param to set correct test arguments for each configuration
+    test_args = [
+        'program_name',
+        '--pretrained_model_name_or_path', request.param['model_path'],
+        '--device_map', request.param['device'],
+        '--allow_remote_files', 'True'
+    ]
+    sys.argv = test_args
+
+    import inference_api
+    importlib.reload(inference_api) # Reload to prevent module caching
+    from inference_api import app
+
+    # Attach the request params to the app instance for access in tests
+    app.test_config = request.param
+    yield app
+
+    sys.argv = original_argv
+
+
+def test_completions_api(inference_app):
+    client = TestClient(inference_app)
+
+    request_data = {
+        "model": "stanford-crfm/alias-gpt2-small-x21",
+        "prompt": "Say this is a test",
+        "max_tokens": 7,
+        "temperature": 0.5,
+        "n": 2
+    }
+
+    response = client.post("/v1/completions", json=request_data)
+    data = response.json()
+    assert "choices" in data, "The response should contain a 'choices' key"
+    assert len(data["choices"]) == 2, "The response should contain two completion"
+
+    for choice in data["choices"]:
+        assert "text" in choice, "Each choice should contain a 'text' key"
+        assert len(choice["text"]) > 0, "The completion text should not be empty"
+
+def test_chat_completions_api(inference_app):
+    client = TestClient(inference_app)
+
+    request_data = {
+        "model": "stanford-crfm/alias-gpt2-small-x21",
+        "messages": [
+            {"role": "user", "content": "Hello!"},
+            {"role": "assistant", "content": "Hi there! How can I help you today?"}
+        ],
+        "max_tokens": 7,
+        "temperature": 0.5,
+        "n": 2
+    }
+
+    response = client.post("/v1/chat/completions", json=request_data)
+    data = response.json()
+    assert "choices" in data, "The response should contain a 'choices' key"
+    assert len(data["choices"]) == 2, "The response should contain two completion"
+
+    for choice in data["choices"]:
+        assert "message" in choice, "Each choice should contain a 'message' key"
+        assert "content" in choice["message"], "Each message should contain a 'content' key"
+        assert len(choice["message"]["content"]) > 0, "The completion text should not be empty"

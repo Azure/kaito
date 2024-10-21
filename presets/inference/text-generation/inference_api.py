@@ -2,7 +2,8 @@
 # Licensed under the MIT license.
 import logging
 import os
-import subprocess
+import sys
+import signal
 from dataclasses import asdict, dataclass, field
 from typing import Annotated, Any, Dict, List, Optional
 
@@ -11,12 +12,13 @@ import psutil
 import torch
 import transformers
 import uvicorn
-from fastapi import Body, FastAPI, HTTPException
-from fastapi.responses import Response
+from fastapi import Body, FastAPI, HTTPException, Request
 from peft import PeftModel
-from pydantic import BaseModel, Extra, Field, validator
+from pydantic import BaseModel, Field
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           GenerationConfig, HfArgumentParser)
+from openai.types import CompletionCreateParams
+from openai.types.chat import CompletionCreateParams as ChatCompletionCreateParams
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -30,7 +32,7 @@ class ModelConfig:
     """
     Transformers Model Configuration Parameters
     """
-    pipeline: str = field(metadata={"help": "The model pipeline for the pre-trained model"})
+    pipeline: Optional[str] = field(default="text-generation", metadata={"help": "The model pipeline for the pre-trained model"})
     pretrained_model_name_or_path: Optional[str] = field(default="/workspace/tfs/weights", metadata={"help": "Path to the pretrained model or model identifier from huggingface.co/models"})
     combination_type: Optional[str]=field(default="svd", metadata={"help": "The combination type of multi adapters"})
     state_dict: Optional[Dict[str, Any]] = field(default=None, metadata={"help": "State dictionary for the model"})
@@ -99,6 +101,14 @@ combination_type = model_args.pop('combination_type')
 
 app = FastAPI()
 tokenizer = AutoTokenizer.from_pretrained(**model_args)
+# The conversational pipeline has been removed since transformers 4.42. Must provide a
+# chat template here. See https://huggingface.co/docs/transformers/chat_templating.
+if tokenizer.chat_template is None:
+    chat_template = ("{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') %}"
+    "{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}"
+    "{% elif (message['role'] == 'assistant') %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}")
+    tokenizer.chat_template = chat_template
+
 base_model = AutoModelForCausalLM.from_pretrained(**model_args)
 
 if not os.path.exists(ADAPTERS_DIR):
@@ -153,7 +163,7 @@ if args.torch_dtype:
     pipeline_kwargs["torch_dtype"] = args.torch_dtype
 
 pipeline = transformers.pipeline(
-    model_pipeline,
+    task="text-generation",
     model=model,
     tokenizer=tokenizer,
     **pipeline_kwargs
@@ -180,38 +190,7 @@ def home():
 
 class HealthStatus(BaseModel):
     status: str = Field(..., example="Healthy")
-@app.get(
-    "/healthz",
-    response_model=HealthStatus,
-    summary="Health Check Endpoint",
-    responses={
-        200: {
-            "description": "Successful Response",
-            "content": {
-                "application/json": {
-                    "example": {"status": "Healthy"}
-                }
-            }
-        },
-        500: {
-            "description": "Error Response",
-            "content": {
-                "application/json": {
-                    "examples": {
-                        "model_uninitialized": {
-                            "summary": "Model not initialized",
-                            "value": {"detail": "Model not initialized"}
-                        },
-                        "pipeline_uninitialized": {
-                            "summary": "Pipeline not initialized",
-                            "value": {"detail": "Pipeline not initialized"}
-                        }
-                    }
-                }
-            }
-        }
-    }
-)
+@app.get("/healthz")
 def health_check():
     if not model:
         logger.error("Model not initialized")
@@ -219,7 +198,144 @@ def health_check():
     if not pipeline:
         logger.error("Pipeline not initialized")
         raise HTTPException(status_code=500, detail="Pipeline not initialized")
-    return {"status": "Healthy"}
+    return HealthStatus(status="Healthy")
+
+def generateargs_from_completion_request(request: CompletionCreateParams):
+    generate_args = GenerateKwargs().model_dump()
+    if request.get("max_tokens") is not None:
+        generate_args["max_new_tokens"] = request.get("max_tokens")
+        del generate_args["max_length"]
+    if request.get("temperature") is not None:
+        if request.get("temperature") <= 0:
+            generate_args["do_sample"] = False
+            del generate_args["top_k"]
+            del generate_args["temperature"]
+        else:
+            generate_args["temperature"] = request.get("temperature")
+    if request.get("top_p") is not None:
+        generate_args["top_p"] = request.get("top_p")
+
+    generate_args["pad_token_id"] = tokenizer.eos_token_id
+
+    return generate_args
+
+@app.post("/v1/completions")
+def create_completion(request: CompletionCreateParams, raw_request: Request):
+    """Completion API similar to OpenAI's API.
+
+    See https://platform.openai.com/docs/api-reference/completions/create
+    for the API specification. This API mimics the OpenAI Completion API.
+
+    NOTE: Currently we do not support the following feature:
+        - best_of
+        - frequency_penalty
+        - logit_bias
+        - presence_penalty
+        - seed
+        - stop
+        - stream
+        - suffix
+    """
+    generate_args = generateargs_from_completion_request(request)
+
+    prompts = request.get("prompt")
+    if isinstance(prompts, str):
+        prompts = [prompts]
+
+    n = request.get("n") if request.get("n") else 1
+    echo = request.get("echo")
+
+    inputs = []
+    prompt_tokens_count = 0
+    for prompt in prompts:
+        input = tokenizer(prompt, return_tensors="pt").input_ids
+        input = input.to(model.device)
+        prompt_tokens_count += input.size(1)
+        inputs.append(input)
+
+    choices = []
+    completion_tokens_count = 0
+    for i in range(0, len(inputs)):
+        for _ in range(0, n):
+            input = inputs[i]
+            input_tokens = input.size(1)
+
+            output = model.generate(input, **generate_args)[0]
+
+            completion_tokens_count += len(output) - input_tokens
+            text = tokenizer.decode(output[input_tokens:])
+
+            if echo:
+                text = prompts[i] + text
+            choices.append({
+                'index': i,
+                'text': text
+            })
+
+    return {
+        'choices': choices,
+        'usage': {
+            'prompt_tokens': prompt_tokens_count,
+            'completion_tokens': completion_tokens_count,
+            'total_tokens': prompt_tokens_count + completion_tokens_count
+        }
+    }
+
+@app.post("/v1/chat/completions")
+async def create_chat_completion(request: ChatCompletionCreateParams,
+                                 raw_request: Request):
+    """Completion API similar to OpenAI's API.
+
+    See https://platform.openai.com/docs/api-reference/chat/create
+    for the API specification. This API mimics the OpenAI
+    ChatCompletion API.
+
+    NOTE: Currently we do not support the following feature:
+        - frequency_penalty
+        - logit_bias
+        - logprobs
+        - max_completion_tokens
+        - presence_penalty
+        - response_format
+        - seed
+        - stop
+        - stream
+    """
+    generate_args = generateargs_from_completion_request(request)
+
+    tokenized_chat = tokenizer.apply_chat_template(request.get("messages"),
+                                    tokenize=True, add_generation_prompt=True, return_tensors="pt")
+    tokenized_chat = tokenized_chat.to(model.device)
+
+    n = request.get("n") if request.get("n") else 1
+
+    prompt_tokens_count = tokenized_chat.size(1)
+
+    choices = []
+    completion_tokens_count = 0
+
+    for i in range(0, n):
+        output = model.generate(tokenized_chat, **generate_args)[0]
+
+        completion_tokens_count += len(output) - prompt_tokens_count
+        text = tokenizer.decode(output[prompt_tokens_count:])
+
+        choices.append({
+            "index": i,
+            "message": {
+                "role": "assistant",
+                "content": text
+            }
+        })
+
+    return {
+        "choices": choices,
+        "usage": {
+            "prompt_tokens": prompt_tokens_count,
+            "completion_tokens": completion_tokens_count,
+            "total_tokens": prompt_tokens_count + completion_tokens_count
+        }
+    }
 
 class GenerateKwargs(BaseModel):
     max_length: int = 200 # Length of input prompt+max_new_tokens
@@ -268,6 +384,7 @@ class ErrorResponse(BaseModel):
 
 @app.post(
     "/chat",
+    deprecated=True,
     summary="Chat Endpoint",
     responses={
         200: {
@@ -461,7 +578,7 @@ def get_metrics():
         if torch.cuda.is_available():
             gpus = GPUtil.getGPUs()
             gpu_info = [GPUInfo(
-                id=gpu.id,
+                id=str(gpu.id),
                 name=gpu.name,
                 load=f"{gpu.load * 100:.2f}%",
                 temperature=f"{gpu.temperature} C",
@@ -492,7 +609,12 @@ def get_metrics():
         logger.error(f"Error fetching metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+def shutdown_handler(sig, frame):
+    sys.exit(0)
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, shutdown_handler)
+
     local_rank = int(os.environ.get("LOCAL_RANK", 0)) # Default to 0 if not set
     port = 5000 + local_rank # Adjust port based on local rank
     logger.info(f"Starting server on port {port}")
