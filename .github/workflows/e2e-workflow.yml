@@ -85,8 +85,6 @@ jobs:
           az login --identity
 
       - uses: azure/setup-helm@v4
-        with:
-          token: ${{ env.GITHUB_TOKEN }}
         id: install
 
       - name: Create Resource Group
