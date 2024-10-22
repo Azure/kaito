@@ -20,9 +20,12 @@ CHAT_TEMPLATE = ("{{ bos_token }}{% for message in messages %}{% if (message['ro
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_server(request):
+    if os.getenv("DEVICE") == "cpu":
+        pytest.skip("Skipping test")
     print("\n>>> Doing setup")
     port = find_available_port()
     global TEST_PORT
+    TEST_PORT = port
 
     args = [
         "python3",
@@ -35,12 +38,12 @@ def setup_server(request):
     process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     def fin():
+        process.terminate()
+        process.wait()
         stderr = process.stderr.read().decode()
         print(f">>> Server stderr: {stderr}")
         stdout = process.stdout.read().decode()
         print(f">>> Server stdout: {stdout}")
-        process.terminate()
-        process.wait()
         print ("\n>>> Doing teardown")
 
     if not is_port_open("localhost", TEST_PORT):
