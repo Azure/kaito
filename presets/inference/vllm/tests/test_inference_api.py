@@ -20,10 +20,9 @@ CHAT_TEMPLATE = ("{{ bos_token }}{% for message in messages %}{% if (message['ro
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_server(request):
-    print("\nDoing setup")
+    print("\n>>> Doing setup")
     port = find_available_port()
     global TEST_PORT
-    TEST_PORT = port
 
     args = [
         "python3",
@@ -32,16 +31,22 @@ def setup_server(request):
         "--chat-template", CHAT_TEMPLATE,
         "--port", str(TEST_PORT)
     ]
-    print(f"Starting server on port {TEST_PORT}")
+    print(f">>> Starting server on port {TEST_PORT}")
     process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    def fin():
+        stderr = process.stderr.read().decode()
+        print(f">>> Server stderr: {stderr}")
+        stdout = process.stdout.read().decode()
+        print(f">>> Server stdout: {stdout}")
+        process.terminate()
+        process.wait()
+        print ("\n>>> Doing teardown")
+
     if not is_port_open("localhost", TEST_PORT):
         fin()
         pytest.fail("failed to launch vllm server")
 
-    def fin():
-        process.terminate()
-        process.wait()
-        print ("\nDoing teardown")
     request.addfinalizer(fin)
 
 def is_port_open(host, port, timeout=60):

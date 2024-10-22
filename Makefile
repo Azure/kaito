@@ -103,8 +103,8 @@ unit-test: ## Run unit tests.
 
 inference-api-e2e:
 	pip install virtualenv
-	./hack/run-pytest-in-venv.sh presets/inference/text-generation presets/inference/text-generation/requirements.txt
 	./hack/run-pytest-in-venv.sh presets/inference/vllm presets/inference/vllm/requirements.txt
+	./hack/run-pytest-in-venv.sh presets/inference/text-generation presets/inference/text-generation/requirements.txt
 
 # Ginkgo configurations
 GINKGO_FOCUS ?=
