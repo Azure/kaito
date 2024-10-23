@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -ex
+
 if [ "$#" -ne 2 ]; then
     echo "Usage: $0 <test_dir> <requirements.txt>"
     exit 1
