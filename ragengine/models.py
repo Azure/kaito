@@ -24,7 +24,7 @@ class QueryRequest(BaseModel):
 class ListDocumentsResponse(BaseModel):
     documents: Dict[str, Dict[str, Dict[str, str]]]
 
-# Define models for TextNode, NodeWithScore, and the main Response
+# Define models for NodeWithScore, and QueryResponse
 class NodeWithScore(BaseModel):
     node_id: str
     text: str
