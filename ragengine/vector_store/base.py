@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from typing import Dict, List
 
 from ragengine.models import Document
-from llama_index.core import VectorStoreIndex
 import hashlib
 
 

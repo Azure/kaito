@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import List
 from vector_store_manager.manager import VectorStoreManager
 from embedding.huggingface_local import LocalHuggingFaceEmbedding
 from embedding.huggingface_remote import RemoteHuggingFaceEmbedding

@@ -7,7 +7,7 @@ from llama_index.core import (StorageContext, VectorStoreIndex)
 from llama_index.core.storage.index_store import SimpleIndexStore
 from llama_index.vector_stores.faiss import FaissVectorStore
 
-from ragengine.models import Document, NodeWithScore
+from ragengine.models import Document
 from ragengine.inference.inference import Inference
 
 from ragengine.config import PERSIST_DIR
