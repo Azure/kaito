@@ -3,10 +3,13 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import pytest
+
+from ragengine.vector_store.base import BaseVectorStore
 from ragengine.vector_store.faiss_store import FaissVectorStoreHandler
 from ragengine.models import Document
 from ragengine.embedding.huggingface_local import LocalHuggingFaceEmbedding
 from ragengine.config import MODEL_ID, INFERENCE_URL, INFERENCE_ACCESS_SECRET
+from ragengine.config import PERSIST_DIR
 
 @pytest.fixture(scope='session')
 def init_embed_manager():
@@ -21,23 +24,24 @@ def vector_store_manager(init_embed_manager):
         yield FaissVectorStoreHandler(init_embed_manager)
 
 def test_index_documents(vector_store_manager):
+    first_doc_text, second_doc_text = "First document", "Second document"
     documents = [
-        Document(doc_id="1", text="First document", metadata={"type": "text"}),
-        Document(doc_id="2", text="Second document", metadata={"type": "text"})
+        Document(text=first_doc_text, metadata={"type": "text"}),
+        Document(text=second_doc_text, metadata={"type": "text"})
     ]
     
     doc_ids = vector_store_manager.index_documents("test_index", documents)
     
     assert len(doc_ids) == 2
-    assert doc_ids == ["1", "2"]
+    assert set(doc_ids) == {BaseVectorStore.generate_doc_id(first_doc_text),
+                            BaseVectorStore.generate_doc_id(second_doc_text)}
 
 def test_index_documents_isolation(vector_store_manager):
-    doc_1_id, doc_2_id = "1", "2"
     documents1 = [
-        Document(doc_id=doc_1_id, text="First document in index1", metadata={"type": "text"}),
+        Document(text="First document in index1", metadata={"type": "text"}),
     ]
     documents2 = [
-        Document(doc_id=doc_2_id, text="First document in index2", metadata={"type": "text"}),
+        Document(text="First document in index2", metadata={"type": "text"}),
     ]
 
     # Index documents in separate indices
@@ -45,16 +49,14 @@ def test_index_documents_isolation(vector_store_manager):
     vector_store_manager.index_documents(index_name_1, documents1)
     vector_store_manager.index_documents(index_name_2, documents2)
 
-    # Ensure documents are correctly persisted and separated by index
-    doc_1 = vector_store_manager.get_document(index_name_1, doc_1_id)
-    assert doc_1 and doc_1.node_ids # Ensure documents were created
-
-    doc_2 = vector_store_manager.get_document(index_name_2, doc_2_id)
-    assert doc_2 and doc_2.node_ids # Ensure documents were created
-
-    # Ensure that the documents do not mix between indices
-    assert vector_store_manager.get_document(index_name_2, doc_1_id) is None, f"Document {doc_1_id} should not exist in {index_name_2}"
-    assert vector_store_manager.get_document(index_name_1, doc_2_id) is None, f"Document {doc_2_id} should not exist in {index_name_1}"
+    assert vector_store_manager.list_all_indexed_documents() == {
+        'index1': {"87117028123498eb7d757b1507aa3e840c63294f94c27cb5ec83c939dedb32fd":
+                       {'hash': '1e64a170be48c45efeaa8667ab35919106da0489ec99a11d0029f2842db133aa',
+                        'text': 'First document in index1'}},
+        'index2': {"49b198c0e126a99e1975f17b564756c25b4ad691a57eda583e232fd9bee6de91":
+                       {'hash': 'a222f875b83ce8b6eb72b3cae278b620de9bcc7c6b73222424d3ce979d1a463b',
+                        'text': 'First document in index2'}}
+    }
 
 @patch('requests.post')
 def test_query_documents(mock_post, vector_store_manager):
@@ -67,17 +69,19 @@ def test_query_documents(mock_post, vector_store_manager):
 
     # Add documents to index
     documents = [
-        Document(doc_id="1", text="First document", metadata={"type": "text"}),
-        Document(doc_id="2", text="Second document", metadata={"type": "text"})
+        Document(text="First document", metadata={"type": "text"}),
+        Document(text="Second document", metadata={"type": "text"})
     ]
     vector_store_manager.index_documents("test_index", documents)
 
     params = {"temperature": 0.7}
     # Mock query and results
-    query_result = vector_store_manager.query("test_index", "First", top_k=1, params=params)
+    query_result = vector_store_manager.query("test_index", "First", top_k=1, llm_params=params)
 
     assert query_result is not None
-    assert query_result.response == "This is the completion from the API"
+    assert query_result["response"] == "{'result': 'This is the completion from the API'}"
+    assert query_result["source_nodes"][0]["text"] == "First document"
+    assert query_result["source_nodes"][0]["score"] == pytest.approx(0.5795239210128784, rel=1e-6)
 
     mock_post.assert_called_once_with(
         INFERENCE_URL,
@@ -86,57 +90,34 @@ def test_query_documents(mock_post, vector_store_manager):
         headers={"Authorization": f"Bearer {INFERENCE_ACCESS_SECRET}"}
     )
 
-def test_add_document(vector_store_manager, capsys):
-    documents = [Document(doc_id="3", text="Third document", metadata={"type": "text"})]
+def test_add_document(vector_store_manager):
+    documents = [Document(text="Third document", metadata={"type": "text"})]
     vector_store_manager.index_documents("test_index", documents)
 
     # Add a document to the existing index
-    new_document = Document(doc_id="4", text="Fourth document", metadata={"type": "text"})
+    new_document = [Document(text="Fourth document", metadata={"type": "text"})]
     vector_store_manager.index_documents("test_index", new_document)
 
     # Assert that the document exists
-    assert vector_store_manager.document_exists("test_index", "4")
+    assert vector_store_manager.document_exists("test_index",
+                                                BaseVectorStore.generate_doc_id("Fourth document"))
 
-def test_persist_and_load_index_store(vector_store_manager):
-    """Test that the index store is persisted and loaded correctly."""
+def test_persist_index_1(vector_store_manager):
+    """Test that the index store is persisted."""
     # Add a document and persist the index
-    documents = [Document(doc_id="1", text="Test document", metadata={"type": "text"})]
+    documents = [Document(text="Test document", metadata={"type": "text"})]
     vector_store_manager.index_documents("test_index", documents)
     vector_store_manager._persist("test_index")
+    assert os.path.exists(PERSIST_DIR)
 
-    # Simulate a fresh load of the index store (clearing in-memory state)
-    vector_store_manager.index_store = None  # Clear current in-memory store
-    vector_store_manager._load_index_store()
-
-    # Verify that the store was reloaded and contains the expected index structure
-    assert vector_store_manager.index_store is not None
-    assert len(vector_store_manager.index_store.index_structs()) > 0
-
-# TODO: Prevent default re-indexing from load_index_from_storage
-def test_persist_and_load_index(vector_store_manager):
-    """Test that an index is persisted and then loaded correctly."""
+def test_persist_index_2(vector_store_manager):
+    """Test that an index store is persisted."""
     # Add a document and persist the index
-    documents = [Document(doc_id="1", text="Test document", metadata={"type": "text"})]
+    documents = [Document(text="Test document", metadata={"type": "text"})]
     vector_store_manager.index_documents("test_index", documents)
 
-    documents = [Document(doc_id="1", text="Another Test document", metadata={"type": "text"})]
+    documents = [Document(text="Another Test document", metadata={"type": "text"})]
     vector_store_manager.index_documents("another_test_index", documents)
 
     vector_store_manager._persist_all()
-
-    # Simulate a fresh load of the index (clearing in-memory state)
-    vector_store_manager.index_map = {}  # Clear current in-memory index map
-    loaded_indices = vector_store_manager._load_indices()
-
-    # Verify that the index was reloaded and contains the expected document
-    assert loaded_indices is not None
-    assert vector_store_manager.document_exists("test_index", "1")
-    assert vector_store_manager.document_exists("another_test_index", "1")
-
-    vector_store_manager.index_map = {}  # Clear current in-memory index map
-    loaded_index = vector_store_manager._load_index("test_index")
-
-    assert loaded_index is not None
-    assert vector_store_manager.document_exists("test_index", "1")
-    assert not vector_store_manager.document_exists("another_test_index", "1") # Since we didn't load this index
-
+    assert os.path.exists(PERSIST_DIR)

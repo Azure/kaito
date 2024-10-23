@@ -45,8 +45,10 @@ jobs:
       - name: Run unit tests & Generate coverage
         run: |
           make unit-test
+          make rag-service-test
+          make tuning-metrics-server-test
 
-      - name: Run inference api unit tests
+      - name: Run inference api e2e tests
         run: |
           DEVICE=cpu make inference-api-e2e
 
