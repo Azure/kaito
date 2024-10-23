@@ -346,7 +346,7 @@ func validateResourceStatus(workspaceObj *kaitov1alpha1.Workspace) {
 			}
 
 			_, conditionFound := lo.Find(workspaceObj.Status.Conditions, func(condition metav1.Condition) bool {
-				return condition.Type == string(kaitov1alpha1.WorkspaceConditionTypeResourceStatus) &&
+				return condition.Type == string(kaitov1alpha1.ConditionTypeResourceStatus) &&
 					condition.Status == metav1.ConditionTrue
 			})
 			return conditionFound
