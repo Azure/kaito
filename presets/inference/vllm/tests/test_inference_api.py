@@ -21,7 +21,7 @@ CHAT_TEMPLATE = ("{{ bos_token }}{% for message in messages %}{% if (message['ro
 @pytest.fixture(scope="module", autouse=True)
 def setup_server(request):
     if os.getenv("DEVICE") == "cpu":
-        pytest.skip("Skipping test")
+        pytest.skip("Skipping test on cpu device")
     print("\n>>> Doing setup")
     port = find_available_port()
     global TEST_PORT
