@@ -86,6 +86,7 @@ func main() {
 	opts := zap.Options{
 		Development: true,
 	}
+	_ = opts
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
