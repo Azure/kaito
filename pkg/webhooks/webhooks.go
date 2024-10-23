@@ -48,7 +48,7 @@ func NewRAGEngineCRDValidationWebhook(ctx context.Context, _ configmap.Watcher) 
 	return validation.NewAdmissionController(ctx,
 		"validation.ragengine.kaito.sh",
 		"/validate/ragengine.kaito.sh",
-		WorkspaceResources,
+		RAGEngineResources,
 		func(ctx context.Context) context.Context { return ctx },
 		true,
 	)
