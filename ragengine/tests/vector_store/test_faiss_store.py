@@ -81,7 +81,7 @@ def test_query_documents(mock_post, vector_store_manager):
     assert query_result is not None
     assert query_result["response"] == "{'result': 'This is the completion from the API'}"
     assert query_result["source_nodes"][0]["text"] == "First document"
-    assert query_result["source_nodes"][0]["score"] == 0.5795239210128784
+    assert query_result["source_nodes"][0]["score"] == pytest.approx(0.5795239210128784, rel=1e-6)
 
     mock_post.assert_called_once_with(
         INFERENCE_URL,

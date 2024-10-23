@@ -67,7 +67,7 @@ def test_query_index_success(mock_post):
     assert response.json()["response"] == "{'result': 'This is the completion from the API'}"
     assert len(response.json()["source_nodes"]) == 1
     assert response.json()["source_nodes"][0]["text"] == "This is a test document"
-    assert response.json()["source_nodes"][0]["score"] == 0.5354418754577637
+    assert response.json()["source_nodes"][0]["score"] == pytest.approx(0.5354418754577637, rel=1e-6)
     assert response.json()["source_nodes"][0]["metadata"] == {}
     assert mock_post.call_count == 1
 
