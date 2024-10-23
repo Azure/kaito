@@ -91,6 +91,9 @@ type RAGEngineStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=ragengines,scope=Namespaced,categories=ragengine
 // +kubebuilder:storageversion
+// +kubebuilder:printcolumn:name="Instance",type="string",JSONPath=".spec.compute.instanceType",description=""
+// +kubebuilder:printcolumn:name="ResourceReady",type="string",JSONPath=".status.conditions[?(@.type==\"ResourceReady\")].status",description=""
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description=""
 type RAGEngine struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
