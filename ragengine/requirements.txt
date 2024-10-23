@@ -5,3 +5,5 @@ fastapi
 faiss-cpu
 llama-index-vector-stores-faiss
 uvicorn
+# For UTs
+pytest
