@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from typing import Dict, List
 
 from ragengine.models import Document
-from llama_index.core import VectorStoreIndex
 import hashlib
 
 
@@ -20,11 +19,11 @@ class BaseVectorStore(ABC):
         pass
 
     @abstractmethod
-    def add_document(self, index_name: str, document: Document):
+    def add_document_to_index(self, index_name: str, document: Document, doc_id: str):
         pass
 
     @abstractmethod
-    def list_all_indexed_documents(self) -> Dict[str, VectorStoreIndex]:
+    def list_all_indexed_documents(self) -> Dict[str, Dict[str, Dict[str, str]]]:
         pass
 
     @abstractmethod
