@@ -29,7 +29,7 @@ rag_ops = VectorStoreManager(vector_store_handler)
 @app.post("/index", response_model=List[DocumentResponse])
 async def index_documents(request: IndexRequest): # TODO: Research async/sync what to use (inference is calling)
     try:
-        doc_ids = rag_ops.create(request.index_name, request.documents)
+        doc_ids = rag_ops.index(request.index_name, request.documents)
         documents = [
             DocumentResponse(doc_id=doc_id, text=doc.text, metadata=doc.metadata)
             for doc_id, doc in zip(doc_ids, request.documents)
@@ -42,7 +42,7 @@ async def index_documents(request: IndexRequest): # TODO: Research async/sync wh
 async def query_index(request: QueryRequest):
     try:
         llm_params = request.llm_params or {} # Default to empty dict if no params provided
-        return rag_ops.read(request.index_name, request.query, request.top_k, llm_params)
+        return rag_ops.query(request.index_name, request.query, request.top_k, llm_params)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
