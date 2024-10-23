@@ -15,7 +15,6 @@ import (
 	"github.com/azure/kaito/api/v1alpha1"
 	"github.com/azure/kaito/pkg/utils/test"
 
-	"github.com/azure/kaito/pkg/model"
 	"github.com/azure/kaito/pkg/utils/plugin"
 	"github.com/stretchr/testify/mock"
 	appsv1 "k8s.io/api/apps/v1"
@@ -46,7 +45,7 @@ func TestCreatePresetInference(t *testing.T) {
 			workload: "Deployment",
 			// No BaseCommand, TorchRunParams, TorchRunRdzvParams, or ModelRunParams
 			// So expected cmd consists of shell command and inference file
-			expectedCmd: "/bin/sh -c  inference_api.py",
+			expectedCmd: "/bin/sh -c  inference_api_vllm.py",
 			hasAdapters: false,
 		},
 
@@ -58,7 +57,7 @@ func TestCreatePresetInference(t *testing.T) {
 				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil)
 			},
 			workload:    "StatefulSet",
-			expectedCmd: "/bin/sh -c  inference_api.py",
+			expectedCmd: "/bin/sh -c  inference_api_vllm.py",
 			hasAdapters: false,
 		},
 
@@ -69,7 +68,7 @@ func TestCreatePresetInference(t *testing.T) {
 				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 			},
 			workload:       "Deployment",
-			expectedCmd:    "/bin/sh -c  inference_api.py",
+			expectedCmd:    "/bin/sh -c  inference_api_vllm.py",
 			hasAdapters:    true,
 			expectedVolume: "adapter-volume",
 		},
@@ -96,15 +95,8 @@ func TestCreatePresetInference(t *testing.T) {
 				}
 			}
 
-			useHeadlessSvc := false
-
-			var inferenceObj *model.PresetParam
 			model := plugin.KaitoModelRegister.MustGet(tc.modelName)
-			inferenceObj = model.GetInferenceParameters()
 
-			if strings.Contains(tc.modelName, "distributed") {
-				useHeadlessSvc = true
-			}
 			svc := &corev1.Service{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      workspace.Name,
@@ -116,7 +108,7 @@ func TestCreatePresetInference(t *testing.T) {
 			}
 			mockClient.CreateOrUpdateObjectInMap(svc)
 
-			createdObject, _ := CreatePresetInference(context.TODO(), workspace, test.MockWorkspaceWithPresetHash, inferenceObj, useHeadlessSvc, mockClient)
+			createdObject, _ := CreatePresetInference(context.TODO(), workspace, test.MockWorkspaceWithPresetHash, model, mockClient)
 			createdWorkload := ""
 			switch createdObject.(type) {
 			case *appsv1.Deployment:
