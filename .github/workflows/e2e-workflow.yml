@@ -39,7 +39,7 @@ on:
 
 jobs:
   e2e-tests:
-    runs-on: [self-hosted, 'hostname:kaito-e2e-github-runner']
+    runs-on: ubuntu-latest
     name: e2e-tests-${{ inputs.node_provisioner }}
     permissions:
       contents: read
@@ -49,13 +49,6 @@ jobs:
       GO_VERSION: "1.22"
       KARPENTER_NAMESPACE: "karpenter"
       GPU_PROVISIONER_NAMESPACE: "gpu-provisioner"
-      E2E_CLIENT_ID: $E2E_CLIENT_ID
-      E2E_TENANT_ID: $E2E_TENANT_ID
-      E2E_SUBSCRIPTION_ID: $E2E_SUBSCRIPTION_ID
-      E2E_AMRT_SECRET_NAME: $E2E_AMRT_SECRET_NAME
-      E2E_ACR_AMRT_USERNAME: $E2E_ACR_AMRT_USERNAME
-      E2E_ACR_AMRT_PASSWORD: $E2E_ACR_AMRT_PASSWORD
-
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@5c7944e73c4c2a096b17a9cb74d65b6c2bbafbde # v2.9.1
@@ -94,13 +87,13 @@ jobs:
       - name: Az login
         uses: azure/login@v2.2.0
         with:
-          client-id: ${{ env.E2E_CLIENT_ID }}
-          tenant-id: ${{ env.E2E_TENANT_ID }}
-          subscription-id: ${{ env.E2E_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.E2E_CLIENT_ID }}
+          tenant-id: ${{ secrets.E2E_TENANT_ID }}
+          subscription-id: ${{ secrets.E2E_SUBSCRIPTION_ID }}
 
       - uses: azure/setup-helm@v4
         with:
-          token: ${{ env.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
         id: install
 
       - name: Create Resource Group
@@ -169,9 +162,9 @@ jobs:
       - name: Az login
         uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
         with:
-          client-id: ${{ env.E2E_CLIENT_ID }}
-          tenant-id: ${{ env.E2E_TENANT_ID }}
-          subscription-id: ${{ env.E2E_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.E2E_CLIENT_ID }}
+          tenant-id: ${{ secrets.E2E_TENANT_ID }}
+          subscription-id: ${{ secrets.E2E_SUBSCRIPTION_ID }}
 
       - name: Create Identities and Permissions for ${{ inputs.node_provisioner }}
         shell: bash
@@ -181,7 +174,7 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           TEST_SUITE: ${{ inputs.node_provisioner }}
-          AZURE_SUBSCRIPTION_ID: ${{ env.E2E_SUBSCRIPTION_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_SUBSCRIPTION_ID }}
 
       - name: Install gpu-provisioner helm chart
         if: ${{ inputs.node_provisioner == 'gpuprovisioner' }}
@@ -191,8 +184,8 @@ jobs:
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
-          AZURE_TENANT_ID: ${{ env.E2E_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ env.E2E_SUBSCRIPTION_ID }}
+          AZURE_TENANT_ID: ${{ secrets.E2E_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_SUBSCRIPTION_ID }}
           GPU_PROVISIONER_VERSION: ${{ vars.GPU_PROVISIONER_VERSION }}
 
       - name: Install karpenter Azure provider helm chart
@@ -203,16 +196,16 @@ jobs:
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
-          AZURE_TENANT_ID: ${{ env.E2E_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ env.E2E_SUBSCRIPTION_ID }}
+          AZURE_TENANT_ID: ${{ secrets.E2E_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_SUBSCRIPTION_ID }}
           KARPENTER_VERSION: ${{ vars.KARPENTER_VERSION }}
           KARPENTER_NAMESPACE: ${{ env.KARPENTER_NAMESPACE }}
 
       - uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
         with:
-          client-id: ${{ env.E2E_CLIENT_ID }}
-          tenant-id: ${{ env.E2E_TENANT_ID }}
-          subscription-id: ${{ env.E2E_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.E2E_CLIENT_ID }}
+          tenant-id: ${{ secrets.E2E_TENANT_ID }}
+          subscription-id: ${{ secrets.E2E_SUBSCRIPTION_ID }}
 
       - name: build KAITO image
         if: ${{ !inputs.isRelease }}
@@ -258,10 +251,10 @@ jobs:
       # Add Private-Hosted ACR secret for private models like llama
       - name: Add Private-Hosted ACR Secret Credentials
         run: |
-          kubectl create secret docker-registry ${{ env.E2E_AMRT_SECRET_NAME }} \
-          --docker-server=${{ env.E2E_ACR_AMRT_USERNAME }}.azurecr.io \
-          --docker-username=${{ env.E2E_ACR_AMRT_USERNAME }} \
-          --docker-password=${{ env.E2E_ACR_AMRT_PASSWORD }}
+          kubectl create secret docker-registry ${{ secrets.E2E_AMRT_SECRET_NAME }} \
+          --docker-server=${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io \
+          --docker-username=${{ secrets.E2E_ACR_AMRT_USERNAME }} \
+          --docker-password=${{ secrets.E2E_ACR_AMRT_PASSWORD }}
 
       - name: Log ${{ inputs.node_provisioner }}
         run: |
@@ -282,8 +275,8 @@ jobs:
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
           RUN_LLAMA_13B: ${{ env.RUN_LLAMA_13B }}
           REGISTRY: ${{ env.REGISTRY }}
-          AI_MODELS_REGISTRY: ${{ env.E2E_ACR_AMRT_USERNAME }}.azurecr.io
-          AI_MODELS_REGISTRY_SECRET: ${{ env.E2E_AMRT_SECRET_NAME }}
+          AI_MODELS_REGISTRY: ${{ secrets.E2E_ACR_AMRT_USERNAME }}.azurecr.io
+          AI_MODELS_REGISTRY_SECRET: ${{ secrets.E2E_AMRT_SECRET_NAME }}
           TEST_SUITE: ${{ inputs.node_provisioner }}
           E2E_ACR_REGISTRY: ${{ env.CLUSTER_NAME }}.azurecr.io
           E2E_ACR_REGISTRY_SECRET: ${{ env.CLUSTER_NAME }}-acr-secret

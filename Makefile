@@ -103,7 +103,7 @@ unit-test: ## Run unit tests.
 
 inference-api-e2e: 
 	pip install -r presets/inference/text-generation/requirements.txt
-	pytest -o log_cli=true -o log_cli_level=INFO .
+	pytest -o log_cli=true -o log_cli_level=INFO presets/inference/text-generation/tests
 
 # Ginkgo configurations
 GINKGO_FOCUS ?=
