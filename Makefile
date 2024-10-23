@@ -99,13 +99,17 @@ unit-test: ## Run unit tests.
 
 .PHONY: rag-service-test
 rag-service-test:
-	pip install -r ragengine/requirements.txt
-	pytest -o log_cli=true -o log_cli_level=INFO ragengine/tests
+	python -m venv .venv
+	. .venv/bin/activate && pip install -r ragengine/requirements.txt
+	. .venv/bin/activate && pytest -o log_cli=true -o log_cli_level=INFO ragengine/tests
+	rm -rf .venv
 
 .PHONY: tuning-metrics-server-test
 tuning-metrics-server-test:
-	pip install -r presets/inference/text-generation/requirements.txt
-	pytest -o log_cli=true -o log_cli_level=INFO presets/tuning/text-generation/metrics
+	python -m venv .venv
+	. .venv/bin/activate && pip install -r presets/inference/text-generation/requirements.txt
+	. .venv/bin/activate && pytest -o log_cli=true -o log_cli_level=INFO presets/tuning/text-generation/metrics
+	rm -rf .venv
 
 ## --------------------------------------
 ## E2E tests
@@ -113,8 +117,10 @@ tuning-metrics-server-test:
 
 .PHONY: inference-api-e2e
 inference-api-e2e:
-	pip install -r presets/inference/text-generation/requirements.txt
-	pytest -o log_cli=true -o log_cli_level=INFO presets/inference/text-generation/tests
+	python -m venv .venv
+	. .venv/bin/activate && pip install -r presets/inference/text-generation/requirements.txt
+	. .venv/bin/activate && pytest -o log_cli=true -o log_cli_level=INFO presets/inference/text-generation/tests
+	rm -rf .venv
 
 # Ginkgo configurations
 GINKGO_FOCUS ?=
