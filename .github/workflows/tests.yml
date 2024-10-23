@@ -22,7 +22,6 @@ env:
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
-    environment: unit-tests
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@5c7944e73c4c2a096b17a9cb74d65b6c2bbafbde # v2.9.1
