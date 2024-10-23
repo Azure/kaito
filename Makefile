@@ -104,6 +104,7 @@ rag-service-test:
 
 .PHONY: tuning-metrics-server-test
 tuning-metrics-server-test:
+	pip install -r presets/inference/text-generation/requirements.txt
 	pytest -o log_cli=true -o log_cli_level=INFO presets/tuning/text-generation/metrics
 
 ## --------------------------------------
