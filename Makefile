@@ -97,15 +97,17 @@ unit-test: ## Run unit tests.
 	-race -coverprofile=coverage.txt -covermode=atomic
 	go tool cover -func=coverage.txt
 
+.PHONY: virtualenv
+virtualenv:
+	pip install virtualenv
+
 .PHONY: rag-service-test
-rag-service-test:
-	pip install -r ragengine/requirements.txt
-	pytest -o log_cli=true -o log_cli_level=INFO ragengine/tests
+rag-service-test: virtualenv
+	./hack/run-pytest-in-venv.sh ragengine/tests ragengine/requirements.txt
 
 .PHONY: tuning-metrics-server-test
-tuning-metrics-server-test:
-	pip install -r presets/inference/text-generation/requirements.txt
-	pytest -o log_cli=true -o log_cli_level=INFO presets/tuning/text-generation/metrics
+tuning-metrics-server-test: virtualenv
+	./hack/run-pytest-in-venv.sh presets/tuning/text-generation/metrics presets/tuning/text-generation/metrics/requirements.txt
 
 ## --------------------------------------
 ## E2E tests
