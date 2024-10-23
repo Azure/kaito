@@ -6,6 +6,11 @@ class Document(BaseModel):
     text: str
     metadata: Optional[dict] = {}
 
+class DocumentResponse(BaseModel):
+    doc_id: str
+    text: str
+    metadata: Optional[dict] = None
+
 class IndexRequest(BaseModel):
     index_name: str
     documents: List[Document]
@@ -17,4 +22,16 @@ class QueryRequest(BaseModel):
     llm_params: Optional[Dict] = None  # Accept a dictionary for parameters
 
 class ListDocumentsResponse(BaseModel):
-    documents:Dict[str, Dict[str, Dict[str, str]]]
+    documents: Dict[str, Dict[str, Dict[str, str]]]
+
+# Define models for TextNode, NodeWithScore, and the main Response
+class NodeWithScore(BaseModel):
+    node_id: str
+    text: str
+    score: float
+    metadata: Optional[dict] = None
+
+class QueryResponse(BaseModel):
+    response: str
+    source_nodes: List[NodeWithScore]
+    metadata: Optional[dict] = None

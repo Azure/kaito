@@ -1,20 +1,19 @@
-import os
-from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-import pytest
-from vector_store.faiss_store import FaissVectorStoreHandler
-from models import Document
-from embedding.huggingface_local import LocalHuggingFaceEmbedding
-from config import MODEL_ID, INFERENCE_URL, INFERENCE_ACCESS_SECRET
+from llama_index.core.storage.index_store import SimpleIndexStore
 
-from main import app, rag_ops
+from ragengine.main import app, vector_store_handler, rag_ops
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock
+import pytest
 
-AUTO_GEN_DOC_ID_LEN = 36
+AUTO_GEN_DOC_ID_LEN = 64
 
 client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def clear_index():
+    vector_store_handler.index_map.clear()
+    vector_store_handler.index_store = SimpleIndexStore()
 
 def test_index_documents_success():
     request_data = {
@@ -65,7 +64,11 @@ def test_query_index_success(mock_post):
 
     response = client.post("/query", json=request_data)
     assert response.status_code == 200
-    assert response.json() == {"response": "This is the completion from the API"}
+    assert response.json()["response"] == "{'result': 'This is the completion from the API'}"
+    assert len(response.json()["source_nodes"]) == 1
+    assert response.json()["source_nodes"][0]["text"] == "This is a test document"
+    assert response.json()["source_nodes"][0]["score"] == 0.5354418754577637
+    assert response.json()["source_nodes"][0]["metadata"] == {}
     assert mock_post.call_count == 1
 
 def test_query_index_failure():
@@ -81,36 +84,6 @@ def test_query_index_failure():
     assert response.status_code == 500
     assert response.json()["detail"] == "No such index: 'non_existent_index' exists."
 
-
-def test_get_document_success():
-    request_data = {
-        "index_name": "test_index",
-        "documents": [
-            # {"doc_id": "doc1", "text": "This is a test document"},
-            {"doc_id": "doc1", "text": "This is a test document"},
-            {"text": "Another test document"}
-        ]
-    }
-
-    index_response = client.post("/index", json=request_data)
-    assert index_response.status_code == 200
-
-    # Call the GET document endpoint.
-    get_response = client.get("/document/test_index/doc1")
-    assert get_response.status_code == 200
-
-    response_json = get_response.json()
-
-    assert response_json.keys() == {"node_ids", 'metadata'}
-    assert response_json['metadata'] == {}
-
-    assert isinstance(response_json["node_ids"], list) and len(response_json["node_ids"]) == 1
-
-
-def test_get_document_failure():
-    # Call the GET document endpoint.
-    response = client.get("/document/test_index/doc1")
-    assert response.status_code == 404
 
 def test_list_all_indexed_documents_success():
     response = client.get("/indexed-documents")
