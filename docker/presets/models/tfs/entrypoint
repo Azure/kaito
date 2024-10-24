@@ -1,0 +1,43 @@
+#!/bin/bash
+
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: $0 [backend] -- [command]"
+    echo "Available backends:"
+    echo "  vllm           Use the vllm backend"
+    echo "  transformers   Use the huggingface/transformers backend"
+    echo "Options:"
+    echo "  -h, --help     Show this help message and exit"
+    exit 0
+fi
+
+backend="$1"
+while [[ $# -gt 0 && "$1" != "--" ]]; do
+    shift
+done
+if [[ $# -gt 0 ]]; then
+    shift
+fi
+if [[ $# -eq 0 ]]; then
+    echo "No command provided"
+    exit 1
+fi
+
+case "$backend" in
+    "vllm")
+        backend="vllm"
+        ;;
+    "transformers")
+        backend="tfs"
+        ;;
+    *)
+        echo "Unknown backend: $backend"
+        exit 1
+        ;;
+esac
+
+echo "Switch to backend: $backend"
+. "$backend"/bin/activate
+cd "$backend"
+
+# Evaluate the command after "--"
+eval "$@"
