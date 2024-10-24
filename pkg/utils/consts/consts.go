@@ -5,7 +5,9 @@ package consts
 
 const (
 	// WorkspaceFinalizer is used to make sure that workspace controller handles garbage collection.
-	WorkspaceFinalizer            = "workspace.finalizer.kaito.sh"
+	WorkspaceFinalizer = "workspace.finalizer.kaito.sh"
+	// RAGEngineFinalizer is used to make sure that ragengine controller handles garbage collection.
+	RAGEngineFinalizer            = "ragengine.finalizer.kaito.sh"
 	DefaultReleaseNamespaceEnvVar = "RELEASE_NAMESPACE"
 	FeatureFlagKarpenter          = "Karpenter"
 	AzureCloudName                = "azure"
