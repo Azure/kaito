@@ -143,8 +143,13 @@ class BaseVectorStore(ABC):
 
     def _persist(self, index_name: str):
         """Common persistence logic for individual index."""
-        logger.info(f"Persisting index {index_name}.")
-        self.index_store.persist(os.path.join(PERSIST_DIR, "store.json"))
-        assert index_name in self.index_map, f"No such index: '{index_name}' exists."
-        storage_context = self.index_map[index_name].storage_context
-        storage_context.persist(persist_dir=os.path.join(PERSIST_DIR, index_name))
+        try:
+            logger.info(f"Persisting index {index_name}.")
+            self.index_store.persist(os.path.join(PERSIST_DIR, "store.json"))
+            assert index_name in self.index_map, f"No such index: '{index_name}' exists."
+            storage_context = self.index_map[index_name].storage_context
+            # Persist the specific index
+            storage_context.persist(persist_dir=os.path.join(PERSIST_DIR, index_name))
+            logger.info(f"Successfully persisted index {index_name}.")
+        except Exception as e:
+            logger.error(f"Failed to persist index {index_name}. Error: {str(e)}")
