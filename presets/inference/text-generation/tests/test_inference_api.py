@@ -108,7 +108,7 @@ def test_read_main(configured_app):
 
 def test_health_check(configured_app):
     client = TestClient(configured_app)
-    response = client.get("/healthz")
+    response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "Healthy"}
 

@@ -50,7 +50,7 @@ jobs:
 
       - name: Run inference api e2e tests
         run: |
-          make inference-api-e2e
+          DEVICE=cpu make inference-api-e2e
 
       - name: Upload Codecov report
         uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v4.5.0
