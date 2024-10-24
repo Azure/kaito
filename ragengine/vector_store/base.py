@@ -1,3 +1,4 @@
+import logging
 from abc import ABC, abstractmethod
 from typing import Dict, List
 import hashlib
@@ -11,6 +12,10 @@ from ragengine.models import Document
 from ragengine.embedding.base import BaseEmbeddingModel
 from ragengine.inference.inference import Inference
 from ragengine.config import PERSIST_DIR
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class BaseVectorStore(ABC):
     def __init__(self, embedding_manager: BaseEmbeddingModel):
@@ -34,7 +39,7 @@ class BaseVectorStore(ABC):
 
     def _append_documents_to_index(self, index_name: str, documents: List[Document]) -> List[str]:
         """Common logic for appending documents to existing index."""
-        print(f"Index {index_name} already exists. Appending documents to existing index.")
+        logger.info(f"Index {index_name} already exists. Appending documents to existing index.")
         indexed_doc_ids = set()
 
         for doc in documents:
@@ -43,7 +48,7 @@ class BaseVectorStore(ABC):
                 self.add_document_to_index(index_name, doc, doc_id)
                 indexed_doc_ids.add(doc_id)
             else:
-                print(f"Document {doc_id} already exists in index {index_name}. Skipping.")
+                logger.info(f"Document {doc_id} already exists in index {index_name}. Skipping.")
 
         if indexed_doc_ids:
             self._persist(index_name)
@@ -117,7 +122,7 @@ class BaseVectorStore(ABC):
                 doc_info.ref_doc_id: {
                     "text": doc_info.text, 
                     "hash": doc_info.hash
-                } for doc_name, doc_info in vector_store_index.docstore.docs.items()
+                } for _, doc_info in vector_store_index.docstore.docs.items()
             }
             for index_name, vector_store_index in self.index_map.items()
         }
@@ -125,18 +130,20 @@ class BaseVectorStore(ABC):
     def document_exists(self, index_name: str, doc_id: str) -> bool:
         """Common logic for checking document existence."""
         if index_name not in self.index_map:
-            print(f"No such index: '{index_name}' exists in vector store.")
+            logger.warning(f"No such index: '{index_name}' exists in vector store.")
             return False
         return doc_id in self.index_map[index_name].ref_doc_info
 
     def _persist_all(self):
         """Common persistence logic."""
+        logger.info("Persisting all indexes.")
         self.index_store.persist(os.path.join(PERSIST_DIR, "store.json"))
         for idx in self.index_store.index_structs():
             self._persist(idx.index_id)
 
     def _persist(self, index_name: str):
         """Common persistence logic for individual index."""
+        logger.info(f"Persisting index {index_name}.")
         self.index_store.persist(os.path.join(PERSIST_DIR, "store.json"))
         assert index_name in self.index_map, f"No such index: '{index_name}' exists."
         storage_context = self.index_map[index_name].storage_context
