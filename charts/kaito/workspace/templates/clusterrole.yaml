@@ -52,3 +52,4 @@ rules:
     resources: ["validatingwebhookconfigurations"]
     verbs: ["update"]
     resourceNames: ["validation.workspace.kaito.sh"]
+
