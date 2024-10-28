@@ -50,15 +50,15 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 		}
 	}
 
-	staleWObj := wObj.DeepCopy()
-	staleWObj.SetFinalizers(nil)
-	if updateErr := c.Update(ctx, staleWObj, &client.UpdateOptions{}); updateErr != nil {
-		klog.ErrorS(updateErr, "failed to remove the finalizer from the workspace",
-			"workspace", klog.KObj(wObj), "workspace", klog.KObj(staleWObj))
-		return ctrl.Result{}, updateErr
+	if controllerutil.RemoveFinalizer(wObj, consts.WorkspaceFinalizer) {
+		if updateErr := c.Update(ctx, wObj, &client.UpdateOptions{}); updateErr != nil {
+			klog.ErrorS(updateErr, "failed to remove the finalizer from the workspace",
+				"workspace", klog.KObj(wObj))
+			return ctrl.Result{}, updateErr
+		}
 	}
+
 	klog.InfoS("successfully removed the workspace finalizers",
 		"workspace", klog.KObj(wObj))
-	controllerutil.RemoveFinalizer(wObj, consts.WorkspaceFinalizer)
 	return ctrl.Result{}, nil
 }

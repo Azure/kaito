@@ -50,15 +50,15 @@ func (c *RAGEngineReconciler) garbageCollectRAGEngine(ctx context.Context, ragEn
 		}
 	}
 
-	staleWObj := ragEngineObj.DeepCopy()
-	staleWObj.SetFinalizers(nil)
-	if updateErr := c.Update(ctx, staleWObj, &client.UpdateOptions{}); updateErr != nil {
-		klog.ErrorS(updateErr, "failed to remove the finalizer from the ragengine",
-			"ragengine", klog.KObj(ragEngineObj), "ragengine", klog.KObj(staleWObj))
-		return ctrl.Result{}, updateErr
+	if controllerutil.RemoveFinalizer(ragEngineObj, consts.RAGEngineFinalizer) {
+		if updateErr := c.Update(ctx, ragEngineObj, &client.UpdateOptions{}); updateErr != nil {
+			klog.ErrorS(updateErr, "failed to remove the finalizer from the ragengine",
+				"ragengine", klog.KObj(ragEngineObj))
+			return ctrl.Result{}, updateErr
+		}
 	}
+
 	klog.InfoS("successfully removed the ragengine finalizers",
 		"ragengine", klog.KObj(ragEngineObj))
-	controllerutil.RemoveFinalizer(ragEngineObj, consts.RAGEngineFinalizer)
 	return ctrl.Result{}, nil
 }
