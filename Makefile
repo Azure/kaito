@@ -114,8 +114,7 @@ tuning-metrics-server-test: virtualenv
 ## --------------------------------------
 
 inference-api-e2e: virtualenv
-	./hack/run-pytest-in-venv.sh presets/inference/vllm presets/inference/vllm/requirements.txt
-	./hack/run-pytest-in-venv.sh presets/inference/text-generation presets/inference/text-generation/requirements.txt
+	./hack/run-pytest-in-venv.sh presets/inference presets/requirement/requirements-test.txt
 
 # Ginkgo configurations
 GINKGO_FOCUS ?=

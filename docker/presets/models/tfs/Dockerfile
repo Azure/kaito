@@ -7,13 +7,9 @@ ARG VERSION
 # Set the working directory
 WORKDIR /workspace
 
-COPY kaito/presets/inference/${MODEL_TYPE}/requirements.txt /workspace/tfs/inference-requirements.txt
-COPY kaito/presets/tuning/${MODEL_TYPE}/requirements.txt /workspace/tfs/tuning-requirements.txt
-COPY kaito/presets/inference/vllm/requirements.txt /workspace/vllm/inference-requirements.txt
+COPY kaito/presets/requirement/requirements.txt /workspace/requirements.txt
 
-RUN pip install --no-cache-dir -r /workspace/tfs/inference-requirements.txt && \
-    pip install --no-cache-dir -r /workspace/tfs/tuning-requirements.txt && \
-    pip install --no-cache-dir -r /workspace/vllm/inference-requirements.txt
+RUN pip install --no-cache-dir -r /workspace/requirements.txt
 
 # 1. Huggingface transformers
 COPY kaito/presets/inference/${MODEL_TYPE}/inference_api.py \
