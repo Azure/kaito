@@ -97,13 +97,25 @@ unit-test: ## Run unit tests.
 	-race -coverprofile=coverage.txt -covermode=atomic
 	go tool cover -func=coverage.txt
 
+.PHONY: virtualenv
+virtualenv:
+	pip install virtualenv
+
+.PHONY: rag-service-test
+rag-service-test: virtualenv
+	./hack/run-pytest-in-venv.sh ragengine/tests ragengine/requirements.txt
+
+.PHONY: tuning-metrics-server-test
+tuning-metrics-server-test: virtualenv
+	./hack/run-pytest-in-venv.sh presets/tuning/text-generation/metrics presets/tuning/text-generation/requirements.txt
+
 ## --------------------------------------
 ## E2E tests
 ## --------------------------------------
 
-inference-api-e2e: 
-	pip install -r presets/inference/text-generation/requirements.txt
-	pytest -o log_cli=true -o log_cli_level=INFO presets/inference/text-generation/tests
+inference-api-e2e: virtualenv
+	./hack/run-pytest-in-venv.sh presets/inference/vllm presets/inference/vllm/requirements.txt
+	./hack/run-pytest-in-venv.sh presets/inference/text-generation presets/inference/text-generation/requirements.txt
 
 # Ginkgo configurations
 GINKGO_FOCUS ?=

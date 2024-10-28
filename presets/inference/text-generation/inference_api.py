@@ -181,7 +181,7 @@ def home():
 class HealthStatus(BaseModel):
     status: str = Field(..., example="Healthy")
 @app.get(
-    "/healthz",
+    "/health",
     response_model=HealthStatus,
     summary="Health Check Endpoint",
     responses={
@@ -461,7 +461,7 @@ def get_metrics():
         if torch.cuda.is_available():
             gpus = GPUtil.getGPUs()
             gpu_info = [GPUInfo(
-                id=gpu.id,
+                id=str(gpu.id),
                 name=gpu.name,
                 load=f"{gpu.load * 100:.2f}%",
                 temperature=f"{gpu.temperature} C",
