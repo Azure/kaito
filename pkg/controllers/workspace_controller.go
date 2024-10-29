@@ -818,6 +818,13 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 						spec.Template.Spec.Containers[0].VolumeMounts = volumeMounts
 						deployment.Annotations[kaitov1alpha1.WorkspaceRevisionAnnotation] = revisionStr
 						spec.Template.Spec.Volumes = volumes
+						if len(wObj.Inference.Adapters) > 0 {
+							for _, adapter := range wObj.Inference.Adapters {
+								for _, secretName := range adapter.Source.ImagePullSecrets {
+									spec.Template.Spec.ImagePullSecrets = append(spec.Template.Spec.ImagePullSecrets, corev1.LocalObjectReference{Name: secretName})
+								}
+							}
+						}
 
 						if err := c.Update(ctx, deployment); err != nil {
 							return
