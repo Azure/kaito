@@ -22,6 +22,9 @@ const (
 	// WorkspaceConditionTypeTuningJobStatus is the state when the tuning job starts normally.
 	WorkspaceConditionTypeTuningJobStatus ConditionType = ConditionType("JobStarted")
 
+	//RAGEngineConditionTypeDeleting is the RAGEngine state when starts to get deleted.
+	RAGEngineConditionTypeDeleting = ConditionType("RAGEngineDeleting")
+
 	//WorkspaceConditionTypeDeleting is the Workspace state when starts to get deleted.
 	WorkspaceConditionTypeDeleting = ConditionType("WorkspaceDeleting")
 

@@ -17,16 +17,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-// garbageCollectWorkspace remove finalizer associated with workspace object.
-func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace) (ctrl.Result, error) {
-	klog.InfoS("garbageCollectWorkspace", "workspace", klog.KObj(wObj))
+// garbageCollectRAGEngine remove finalizer associated with ragengine object.
+func (c *RAGEngineReconciler) garbageCollectRAGEngine(ctx context.Context, ragEngineObj *kaitov1alpha1.RAGEngine) (ctrl.Result, error) {
+	klog.InfoS("garbageCollectRAGEngine", "ragengine", klog.KObj(ragEngineObj))
 
-	// Check if there are any machines associated with this workspace.
-	mList, err := machine.ListMachines(ctx, wObj, c.Client)
+	// Check if there are any machines associated with this ragengine.
+	mList, err := machine.ListMachines(ctx, ragEngineObj, c.Client)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	// We should delete all the machines that are created by this workspace
+	// We should delete all the machines that are created by this ragengine
 	for i := range mList.Items {
 		if deleteErr := c.Delete(ctx, &mList.Items[i], &client.DeleteOptions{}); deleteErr != nil {
 			klog.ErrorS(deleteErr, "failed to delete the machine", "machine", klog.KObj(&mList.Items[i]))
@@ -35,13 +35,13 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 	}
 
 	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
-		// Check if there are any nodeClaims associated with this workspace.
-		ncList, err := nodeclaim.ListNodeClaim(ctx, wObj, c.Client)
+		// Check if there are any nodeClaims associated with this ragengine.
+		ncList, err := nodeclaim.ListNodeClaim(ctx, ragEngineObj, c.Client)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 
-		// We should delete all the nodeClaims that are created by this workspace
+		// We should delete all the nodeClaims that are created by this ragengine
 		for i := range ncList.Items {
 			if deleteErr := c.Delete(ctx, &ncList.Items[i], &client.DeleteOptions{}); deleteErr != nil {
 				klog.ErrorS(deleteErr, "failed to delete the nodeClaim", "nodeClaim", klog.KObj(&ncList.Items[i]))
@@ -50,15 +50,15 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 		}
 	}
 
-	if controllerutil.RemoveFinalizer(wObj, consts.WorkspaceFinalizer) {
-		if updateErr := c.Update(ctx, wObj, &client.UpdateOptions{}); updateErr != nil {
-			klog.ErrorS(updateErr, "failed to remove the finalizer from the workspace",
-				"workspace", klog.KObj(wObj))
+	if controllerutil.RemoveFinalizer(ragEngineObj, consts.RAGEngineFinalizer) {
+		if updateErr := c.Update(ctx, ragEngineObj, &client.UpdateOptions{}); updateErr != nil {
+			klog.ErrorS(updateErr, "failed to remove the finalizer from the ragengine",
+				"ragengine", klog.KObj(ragEngineObj))
 			return ctrl.Result{}, updateErr
 		}
 	}
 
-	klog.InfoS("successfully removed the workspace finalizers",
-		"workspace", klog.KObj(wObj))
+	klog.InfoS("successfully removed the ragengine finalizers",
+		"ragengine", klog.KObj(ragEngineObj))
 	return ctrl.Result{}, nil
 }
