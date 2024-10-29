@@ -7,7 +7,7 @@ ARG VERSION
 # Set the working directory
 WORKDIR /workspace
 
-COPY kaito/presets/requirement/requirements.txt /workspace/requirements.txt
+COPY kaito/presets/dependencies/requirements.txt /workspace/requirements.txt
 
 RUN pip install --no-cache-dir -r /workspace/requirements.txt
 
