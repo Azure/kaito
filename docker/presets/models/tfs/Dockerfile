@@ -24,13 +24,7 @@ COPY kaito/presets/inference/${MODEL_TYPE}/inference_api.py \
 COPY kaito/presets/inference/vllm/inference_api.py /workspace/vllm/inference_api.py
 
 # Chat template
-RUN apt update && apt install -y git && \
-    rm /var/lib/apt/lists/* -r
-RUN git clone https://github.com/chujiezheng/chat_templates /tmp/chat_templates && \
-    cd /tmp/chat_templates && \
-    git reset --hard 670a2eb && \
-    cp -r ./chat_templates/ /workspace/ && \
-    rm -rf /tmp/chat_templates
+ADD kaito/presets/inference/chat_templates /workspace/chat_templates
 
 # Model weights
 COPY ${WEIGHTS_PATH} /workspace/weights
