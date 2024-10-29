@@ -112,7 +112,6 @@ func GetInferenceImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		if len(workspaceObj.Inference.Adapters) > 0 {
 			for _, adapter := range workspaceObj.Inference.Adapters {
 				for _, secretName := range adapter.Source.ImagePullSecrets {
-					klog.InfoS("Adding image pull secret to deployment", "secretName", secretName)
 					imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
 				}
 			}
