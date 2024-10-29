@@ -29,17 +29,23 @@ func init() {
 		Name:     PresetFalcon40BInstructModel,
 		Instance: &falconD,
 	})
+	plugin.KaitoModelRegister.Register(&plugin.Registration{
+		Name:     PresetFalcon11BModel,
+		Instance: &falconE,
+	})
 }
 
 var (
 	PresetFalcon7BModel          = "falcon-7b"
 	PresetFalcon40BModel         = "falcon-40b"
+	PresetFalcon11BModel 		 = "falcon-11b"
 	PresetFalcon7BInstructModel  = PresetFalcon7BModel + "-instruct"
 	PresetFalcon40BInstructModel = PresetFalcon40BModel + "-instruct"
 
 	PresetFalconTagMap = map[string]string{
 		"Falcon7B":          "0.0.6",
 		"Falcon7BInstruct":  "0.0.6",
+		"Falcon11B": 		 "0.0.1",
 		"Falcon40B":         "0.0.7",
 		"Falcon40BInstruct": "0.0.7",
 	}
@@ -123,6 +129,47 @@ func (*falcon7bInst) SupportDistributedInference() bool {
 }
 func (*falcon7bInst) SupportTuning() bool {
 	return false
+}
+
+var falconE falcon11b
+
+type falcon11b struct{}
+
+func (*falcon11b) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
+		ModelFamilyName:           "Falcon",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
+		DiskStorageRequirement:    "50Gi",
+		GPUCountRequirement:       "1",
+		TotalGPUMemoryRequirement: "20Gi",
+		PerGPUMemoryRequirement:   "0Gi", // We run Falcon using native vertical model parallel, no per GPU memory requirement.
+		TorchRunParams:            inference.DefaultAccelerateParams,
+		ModelRunParams:            falconRunParams,
+		ReadinessTimeout:          time.Duration(30) * time.Minute,
+		BaseCommand:               baseCommandPresetFalconInference,
+		Tag:                       PresetFalconTagMap["Falcon11B"],
+	}
+
+}
+func (*falcon11b) GetTuningParameters() *model.PresetParam {
+	return &model.PresetParam{
+		ModelFamilyName:           "Falcon",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
+		DiskStorageRequirement:    "50Gi",
+		GPUCountRequirement:       "1",
+		TotalGPUMemoryRequirement: "20Gi",
+		PerGPUMemoryRequirement:   "16Gi",
+		TorchRunParams:            tuning.DefaultAccelerateParams,
+		ReadinessTimeout: time.Duration(30) * time.Minute,
+		BaseCommand:      baseCommandPresetFalconTuning,
+		Tag:              PresetFalconTagMap["Falcon11B"],
+	}
+}
+func (*falcon11b) SupportDistributedInference() bool {
+	return false
+}
+func (*falcon11b) SupportTuning() bool {
+	return true
 }
 
 var falconC falcon40b
