@@ -41,7 +41,7 @@ var validAdapters2 = []kaitov1alpha1.AdapterSpec{
 			Name:  imageName2,
 			Image: fullImageName2,
 			ImagePullSecrets: []string{
-				utils.GetEnv("AI_MODELS_REGISTRY_SECRET"),
+				aiModelsRegistrySecret,
 			},
 		},
 		Strength: &DefaultStrength,
