@@ -40,6 +40,9 @@ var validAdapters2 = []kaitov1alpha1.AdapterSpec{
 		Source: &kaitov1alpha1.DataSource{
 			Name:  imageName2,
 			Image: fullImageName2,
+			ImagePullSecrets: []string{
+				aiModelsRegistrySecret,
+			},
 		},
 		Strength: &DefaultStrength,
 	},
@@ -82,6 +85,9 @@ func validateInitContainers(workspaceObj *kaitov1alpha1.Workspace, expectedInitC
 				return false
 			}
 
+			if dep.Spec.Template.Spec.ImagePullSecrets == nil || len(dep.Spec.Template.Spec.ImagePullSecrets) == 0 {
+				return false
+			}
 			if len(initContainers) != len(expectedInitContainers) {
 				for _, initContainer := range initContainers {
 					GinkgoWriter.Printf("initContainer Name: %s\n", initContainer.Name)
