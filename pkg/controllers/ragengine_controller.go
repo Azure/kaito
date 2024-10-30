@@ -32,6 +32,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
@@ -64,6 +65,15 @@ func (c *RAGEngineReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 
 	klog.InfoS("Reconciling", "RAG Engine", req.NamespacedName)
 
+	if err := c.ensureFinalizer(ctx, ragEngineObj); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// Handle deleting ragengine, garbage collect all the resources.
+	if !ragEngineObj.DeletionTimestamp.IsZero() {
+		return c.deleteRAGEngine(ctx, ragEngineObj)
+	}
+
 	result, err := c.addRAGEngine(ctx, ragEngineObj)
 	if err != nil {
 		return result, err
@@ -72,12 +82,35 @@ func (c *RAGEngineReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	return result, nil
 }
 
+func (c *RAGEngineReconciler) ensureFinalizer(ctx context.Context, ragEngineObj *kaitov1alpha1.RAGEngine) error {
+	if !controllerutil.ContainsFinalizer(ragEngineObj, consts.RAGEngineFinalizer) {
+		patch := client.MergeFrom(ragEngineObj.DeepCopy())
+		controllerutil.AddFinalizer(ragEngineObj, consts.RAGEngineFinalizer)
+		if err := c.Client.Patch(ctx, ragEngineObj, patch); err != nil {
+			klog.ErrorS(err, "failed to ensure the finalizer to the ragengine", "ragengine", klog.KObj(ragEngineObj))
+			return err
+		}
+	}
+	return nil
+}
+
 func (c *RAGEngineReconciler) addRAGEngine(ctx context.Context, ragEngineObj *kaitov1alpha1.RAGEngine) (reconcile.Result, error) {
 	err := c.applyRAGEngineResource(ctx, ragEngineObj)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
+}
+
+func (c *RAGEngineReconciler) deleteRAGEngine(ctx context.Context, ragEngineObj *kaitov1alpha1.RAGEngine) (reconcile.Result, error) {
+	klog.InfoS("deleteRAGEngine", "ragengine", klog.KObj(ragEngineObj))
+	err := c.updateStatusConditionIfNotMatch(ctx, ragEngineObj, kaitov1alpha1.RAGEngineConditionTypeDeleting, metav1.ConditionTrue, "ragengineDeleted", "ragengine is being deleted")
+	if err != nil {
+		klog.ErrorS(err, "failed to update ragengine status", "ragengine", klog.KObj(ragEngineObj))
+		return reconcile.Result{}, err
+	}
+
+	return c.garbageCollectRAGEngine(ctx, ragEngineObj)
 }
 
 // applyRAGEngineResource applies RAGEngine resource spec.

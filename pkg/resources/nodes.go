@@ -90,18 +90,23 @@ func CheckNvidiaPlugin(ctx context.Context, nodeObj *corev1.Node) bool {
 	return false
 }
 
-func ExtractObjFields(obj interface{}) (instanceType, namespace, name string, labelSelector *metav1.LabelSelector, err error) {
+func ExtractObjFields(obj interface{}) (instanceType, namespace, name string, labelSelector *metav1.LabelSelector,
+	nameLabel, namespaceLabel string, err error) {
 	switch o := obj.(type) {
 	case *kaitov1alpha1.Workspace:
 		instanceType = o.Resource.InstanceType
 		namespace = o.Namespace
 		name = o.Name
 		labelSelector = o.Resource.LabelSelector
+		nameLabel = kaitov1alpha1.LabelWorkspaceName
+		namespaceLabel = kaitov1alpha1.LabelWorkspaceNamespace
 	case *kaitov1alpha1.RAGEngine:
 		instanceType = o.Spec.Compute.InstanceType
 		namespace = o.Namespace
 		name = o.Name
 		labelSelector = o.Spec.Compute.LabelSelector
+		nameLabel = kaitov1alpha1.LabelRAGEngineName
+		namespaceLabel = kaitov1alpha1.LabelRAGEngineNamespace
 	default:
 		err = fmt.Errorf("unsupported object type: %T", obj)
 	}

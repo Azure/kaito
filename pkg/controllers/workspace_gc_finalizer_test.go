@@ -253,6 +253,7 @@ func TestGarbageCollectWorkspace(t *testing.T) {
 			ctx := context.Background()
 
 			featuregates.FeatureGates[consts.FeatureFlagKarpenter] = tc.karpenterFeatureGates
+			test.MockWorkspaceDistributedModel.SetFinalizers([]string{consts.WorkspaceFinalizer})
 
 			_, err := reconciler.garbageCollectWorkspace(ctx, test.MockWorkspaceDistributedModel)
 			if tc.expectedError == nil {
