@@ -83,13 +83,14 @@ func TestCreatePresetInference(t *testing.T) {
 
 			workspace := test.MockWorkspaceWithPreset
 			workspace.Resource.Count = &tc.nodeCount
-
+			expectedSecrets := []string{"fake-secret"}
 			if tc.hasAdapters {
 				workspace.Inference.Adapters = []v1alpha1.AdapterSpec{
 					{
 						Source: &v1alpha1.DataSource{
-							Name:  "Adapter-1",
-							Image: "fake.kaito.com/kaito-image:0.0.1",
+							Name:             "Adapter-1",
+							Image:            "fake.kaito.com/kaito-image:0.0.1",
+							ImagePullSecrets: expectedSecrets,
 						},
 						Strength: &ValidStrength,
 					},
@@ -151,6 +152,19 @@ func TestCreatePresetInference(t *testing.T) {
 
 			// Check for adapter volume
 			if tc.hasAdapters {
+				var actualSecrets []string
+				if tc.workload == "Deployment" {
+					for _, secret := range createdObject.(*appsv1.Deployment).Spec.Template.Spec.ImagePullSecrets {
+						actualSecrets = append(actualSecrets, secret.Name)
+					}
+				} else {
+					for _, secret := range createdObject.(*appsv1.StatefulSet).Spec.Template.Spec.ImagePullSecrets {
+						actualSecrets = append(actualSecrets, secret.Name)
+					}
+				}
+				if !reflect.DeepEqual(expectedSecrets, actualSecrets) {
+					t.Errorf("%s: ImagePullSecrets are not expected, got %v, expect %v", k, actualSecrets, expectedSecrets)
+				}
 				found := false
 				for _, volume := range createdObject.(*appsv1.Deployment).Spec.Template.Spec.Volumes {
 					if volume.Name == tc.expectedVolume {
