@@ -170,7 +170,6 @@ jobs:
         env:
           AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
           AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
-          GPU_PROVISIONER_VERSION: ${{ vars.GPU_PROVISIONER_VERSION }}
 
       - name: Install karpenter Azure provider helm chart
         if: ${{ inputs.node_provisioner == 'azkarpenter' }}
