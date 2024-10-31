@@ -31,15 +31,19 @@ resources:
     cpu: 10m
     memory: 128Mi
 livenessProbe:
-  exec:
-    command:
-      - pgrep
-      - chainlit
+  tcpSocket:
+    port: 8000
+  failureThreshold: 12
+  periodSeconds: 10
+  successThreshold: 1
+  timeoutSeconds: 1
 readinessProbe:
-  exec:
-    command:
-      - pgrep
-      - chainlit
+  tcpSocket:
+    port: 8000
+  failureThreshold: 12
+  periodSeconds: 10
+  successThreshold: 1
+  timeoutSeconds: 1
 nodeSelector: {}
 tolerations: []
 affinity: {}

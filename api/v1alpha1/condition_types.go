@@ -7,20 +7,23 @@ package v1alpha1
 type ConditionType string
 
 const (
-	// WorkspaceConditionTypeMachineStatus is the state when checking machine status.
-	WorkspaceConditionTypeMachineStatus = ConditionType("MachineReady")
+	// ConditionTypeMachineStatus is the state when checking machine status.
+	ConditionTypeMachineStatus = ConditionType("MachineReady")
 
-	// WorkspaceConditionTypeNodeClaimStatus is the state when checking nodeClaim status.
-	WorkspaceConditionTypeNodeClaimStatus = ConditionType("NodeClaimReady")
+	// ConditionTypeNodeClaimStatus is the state when checking nodeClaim status.
+	ConditionTypeNodeClaimStatus = ConditionType("NodeClaimReady")
 
-	// WorkspaceConditionTypeResourceStatus is the state when Resource has been created.
-	WorkspaceConditionTypeResourceStatus = ConditionType("ResourceReady")
+	// ConditionTypeResourceStatus is the state when Resource has been created.
+	ConditionTypeResourceStatus = ConditionType("ResourceReady")
 
 	// WorkspaceConditionTypeInferenceStatus is the state when Inference service has been ready.
 	WorkspaceConditionTypeInferenceStatus = ConditionType("InferenceReady")
 
 	// WorkspaceConditionTypeTuningJobStatus is the state when the tuning job starts normally.
 	WorkspaceConditionTypeTuningJobStatus ConditionType = ConditionType("JobStarted")
+
+	//RAGEngineConditionTypeDeleting is the RAGEngine state when starts to get deleted.
+	RAGEngineConditionTypeDeleting = ConditionType("RAGEngineDeleting")
 
 	//WorkspaceConditionTypeDeleting is the Workspace state when starts to get deleted.
 	WorkspaceConditionTypeDeleting = ConditionType("WorkspaceDeleting")
