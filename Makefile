@@ -243,8 +243,8 @@ docker-build-dataset: docker-buildx
 .PHONY: docker-build-llm-reference-preset
 docker-build-llm-reference-preset: docker-buildx
 	docker buildx build \
-		-t ghcr.io/azure/kaito/llm-reference-preset:$(VERSION) \
-		-t ghcr.io/azure/kaito/llm-reference-preset:latest \
+		-t ghcr.io/kaito-repo/kaito/llm-reference-preset:$(VERSION) \
+		-t ghcr.io/kaito-repo/kaito/llm-reference-preset:latest \
 		-f docs/custom-model-integration/Dockerfile.reference \
 		--build-arg MODEL_TYPE=text-generation \
 		--build-arg VERSION=$(VERSION) .
