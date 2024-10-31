@@ -71,6 +71,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION  }}
 
+      - name: Get Versions
+        run: |
+          yq --version
+          jq --version
+
       - name: Install Azure CLI latest
         run: |
           if ! which az > /dev/null; then
