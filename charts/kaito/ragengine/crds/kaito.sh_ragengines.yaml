@@ -16,7 +16,17 @@ spec:
     singular: ragengine
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.compute.instanceType
+      name: Instance
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="ResourceReady")].status
+      name: ResourceReady
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: RAGEngine is the Schema for the ragengine API
@@ -104,8 +114,7 @@ spec:
                   preferredNodes:
                     description: |-
                       PreferredNodes is an optional node list specified by the user.
-                      If a node in the list does not have the required labels or
-                      the required instanceType, it will be ignored.
+                      If a node in the list does not have the required labels, it will be ignored.
                     items:
                       type: string
                     type: array
