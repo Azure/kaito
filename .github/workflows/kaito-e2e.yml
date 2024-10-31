@@ -37,3 +37,4 @@ jobs:
       E2E_AMRT_SECRET_NAME: ${{ secrets.AMRT_SECRET_NAME }}
       E2E_ACR_AMRT_USERNAME: ${{ secrets.ACR_AMRT_USERNAME }}
       E2E_ACR_AMRT_PASSWORD: ${{ secrets.ACR_AMRT_PASSWORD }}
+
