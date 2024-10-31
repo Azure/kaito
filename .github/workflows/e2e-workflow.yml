@@ -228,10 +228,15 @@ jobs:
       # Add Private-Hosted ACR secret for private models like llama
       - name: Add Private-Hosted ACR Secret Credentials
         run: |
-          kubectl create secret docker-registry $E2E_AMRT_SECRET_NAME \
-          --docker-server=$E2E_ACR_AMRT_USERNAME.azurecr.io \
-          --docker-username=$E2E_ACR_AMRT_USERNAME \
-          --docker-password=$E2E_ACR_AMRT_PASSWORD
+          if kubectl get secret $E2E_AMRT_SECRET_NAME >/dev/null 2>&1; then
+            echo "Secret $E2E_AMRT_SECRET_NAME already exists. Skipping creation."
+          else
+            kubectl create secret docker-registry $E2E_AMRT_SECRET_NAME \
+              --docker-server=$E2E_ACR_AMRT_USERNAME.azurecr.io \
+              --docker-username=$E2E_ACR_AMRT_USERNAME \
+              --docker-password=$E2E_ACR_AMRT_PASSWORD
+            echo "Secret $E2E_AMRT_SECRET_NAME created successfully."
+          fi
 
       - name: Log ${{ inputs.node_provisioner }}
         run: |
