@@ -3,7 +3,7 @@
 REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
 VERSION ?= v0.3.1
-GPU_PROVISIONER_VERSION ?= 0.2.0
+GPU_PROVISIONER_VERSION ?= 0.2.1
 IMG_TAG ?= $(subst v,,$(VERSION))
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
