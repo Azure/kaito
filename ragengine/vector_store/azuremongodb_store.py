@@ -69,7 +69,7 @@ class AzureCosmosDBMongoDBVectorStoreHandler(BaseVectorStore):
         if index_name not in self.index_map:
             logger.warning(f"No such index: '{index_name}' exists in vector store.")
             return False
-        return doc.text in [elm["text"] for elm in list(self.mongodb_client[self.db_name][self.collection_name].find({f"{index_name}_embedding": {"$exists": True}}))]
+        return doc.text in [doc["text"] for doc in list(self.mongodb_client[self.db_name][self.collection_name].find({f"{index_name}_embedding": {"$exists": True}}))]
 
     def _clear_collection_and_indexes(self):
         """Clears all documents and drops all indexes in the collection.
