@@ -44,7 +44,7 @@ class BaseVectorStore(ABC):
 
         for doc in documents:
             doc_id = self.generate_doc_id(doc.text)
-            if not self.document_exists(index_name, doc_id):
+            if not self.document_exists(index_name, doc, doc_id):
                 self.add_document_to_index(index_name, doc, doc_id)
                 indexed_doc_ids.add(doc_id)
             else:
@@ -127,7 +127,7 @@ class BaseVectorStore(ABC):
             for index_name, vector_store_index in self.index_map.items()
         }
 
-    def document_exists(self, index_name: str, doc_id: str) -> bool:
+    def document_exists(self, index_name: str, doc: Document, doc_id: str) -> bool:
         """Common logic for checking document existence."""
         if index_name not in self.index_map:
             logger.warning(f"No such index: '{index_name}' exists in vector store.")
