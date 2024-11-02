@@ -1,4 +1,4 @@
-name: unit-tests
+name: unit-tests-ragengine
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -35,27 +35,6 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
-        with:
-          go-version: ${{ env.GO_VERSION  }}
-      - name: Generate APIs
+      - name: Run unit tests
         run: |
-          make generate
-      - name: Run unit tests & Generate coverage
-        run: |
-          make unit-test
           make rag-service-test
-          make tuning-metrics-server-test
-
-      - name: Run inference api e2e tests
-        run: |
-          DEVICE=cpu make inference-api-e2e
-
-      - name: Upload Codecov report
-        uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v4.5.0
-        with:
-          ## Comma-separated list of files to upload
-          files: ./coverage.txt
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
