@@ -30,6 +30,9 @@ var validAdapters1 = []kaitov1alpha1.AdapterSpec{
 		Source: &kaitov1alpha1.DataSource{
 			Name:  imageName1,
 			Image: fullImageName1,
+			ImagePullSecrets: []string{
+				aiModelsRegistrySecret,
+			},
 		},
 		Strength: &DefaultStrength,
 	},
@@ -40,9 +43,6 @@ var validAdapters2 = []kaitov1alpha1.AdapterSpec{
 		Source: &kaitov1alpha1.DataSource{
 			Name:  imageName2,
 			Image: fullImageName2,
-			ImagePullSecrets: []string{
-				aiModelsRegistrySecret,
-			},
 		},
 		Strength: &DefaultStrength,
 	},
@@ -85,9 +85,6 @@ func validateInitContainers(workspaceObj *kaitov1alpha1.Workspace, expectedInitC
 				return false
 			}
 
-			if dep.Spec.Template.Spec.ImagePullSecrets == nil || len(dep.Spec.Template.Spec.ImagePullSecrets) == 0 {
-				return false
-			}
 			if len(initContainers) != len(expectedInitContainers) {
 				for _, initContainer := range initContainers {
 					GinkgoWriter.Printf("initContainer Name: %s\n", initContainer.Name)
@@ -99,6 +96,11 @@ func validateInitContainers(workspaceObj *kaitov1alpha1.Workspace, expectedInitC
 			}
 
 			initContainer, expectedInitContainer := initContainers[0], expectedInitContainers[0]
+			if expectedInitContainer.Name == imageName1 { //only the first adapter need to check imagePullSecrets
+				if dep.Spec.Template.Spec.ImagePullSecrets == nil || len(dep.Spec.Template.Spec.ImagePullSecrets) == 0 {
+					return false
+				}
+			}
 
 			GinkgoWriter.Printf("initContainer Image: %s, expectedInitContainer Image: %s", initContainer.Image, expectedInitContainer.Image)
 			GinkgoWriter.Printf("initContainer Name: %s, expectedInitContainer Name: %s", initContainer.Name, expectedInitContainer.Name)
