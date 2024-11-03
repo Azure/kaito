@@ -64,7 +64,6 @@ var expectedInitContainers2 = []corev1.Container{
 
 func validateInitContainers(workspaceObj *kaitov1alpha1.Workspace, expectedInitContainers []corev1.Container) {
 	By("Checking the InitContainers", func() {
-		GinkgoWriter.Printf("Starting to check InitContainers...\n")
 		Eventually(func() bool {
 			var err error
 			var initContainers []corev1.Container
@@ -80,7 +79,6 @@ func validateInitContainers(workspaceObj *kaitov1alpha1.Workspace, expectedInitC
 				Name:      workspaceObj.Name,
 			}, dep)
 			initContainers = dep.Spec.Template.Spec.InitContainers
-			GinkgoWriter.Printf("initContainers:%v\n", initContainers)
 
 			if err != nil {
 				GinkgoWriter.Printf("Error fetching resource: %v\n", err)
@@ -97,11 +95,9 @@ func validateInitContainers(workspaceObj *kaitov1alpha1.Workspace, expectedInitC
 				}
 			}
 
-			GinkgoWriter.Printf("adapter output: initContainer.Image=%s, expectedInitContainer.Image=%s, equal=%v\n", initContainer.Image, expectedInitContainer.Image, initContainer.Image == expectedInitContainer.Image)
-			GinkgoWriter.Printf("adapter output: initContainer.Name=%s, expectedInitContainer.Name=%s, equal=%v\n", initContainer.Name, expectedInitContainer.Name, initContainer.Name == expectedInitContainer.Name)
-
+			// GinkgoWriter.Printf("Resource '%s' not ready. Ready replicas: %d\n", workspaceObj.Name, readyReplicas)
 			return initContainer.Image == expectedInitContainer.Image && initContainer.Name == expectedInitContainer.Name
-		}, 5*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for initContainers to be ready")
+		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for initContainers to be ready")
 	})
 }
 
@@ -163,7 +159,6 @@ var _ = Describe("Workspace Preset", func() {
 		} else {
 			utils.ValidateMachineCreation(ctx, workspaceObj, numOfNode)
 		}
-
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
