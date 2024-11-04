@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/azure/kaito/test/e2e/utils"
+	"github.com/kaito-project/kaito/test/e2e/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
@@ -25,8 +25,12 @@ var (
 	nodeProvisionerName = os.Getenv("TEST_SUITE")
 )
 
-var _ = SynchronizedBeforeSuite(func() []byte {
+var _ = BeforeSuite(func() {
 	utils.GetClusterClient(utils.TestingCluster)
+
+	namespaceName = fmt.Sprintf("%s-%d", namespaceName, GinkgoParallelProcess())
+	GinkgoWriter.Printf("Namespace %q for e2e tests\n", namespaceName)
+
 	kaitoNamespace := os.Getenv("KAITO_NAMESPACE")
 
 	if nodeProvisionerName == "azkarpenter" {
@@ -89,11 +93,9 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 		},
 	})
 	Expect(err).NotTo(HaveOccurred())
+})
 
-	return nil
-}, func(data []byte) {})
-
-var _ = SynchronizedAfterSuite(func() {
+var _ = AfterSuite(func() {
 	// delete testing namespace
 	Eventually(func() error {
 		return utils.TestingCluster.KubeClient.Delete(ctx, &corev1.Namespace{
@@ -103,7 +105,7 @@ var _ = SynchronizedAfterSuite(func() {
 		}, &client.DeleteOptions{})
 	}, utils.PollTimeout, utils.PollInterval).Should(Succeed(), "Failed to delete namespace for e2e")
 
-}, func() {})
+})
 
 func RunE2ETests(t *testing.T) {
 	RegisterFailHandler(Fail)
