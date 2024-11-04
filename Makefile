@@ -169,6 +169,7 @@ OUTPUT_TYPE ?= type=registry
 QEMU_VERSION ?= 7.2.0-1
 ARCH ?= amd64,arm64
 
+
 .PHONY: docker-buildx
 docker-buildx: ## Build and push docker image for the manager for cross-platform support
 	@if ! docker buildx ls | grep $(BUILDX_BUILDER_NAME); then \
@@ -177,10 +178,10 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 		docker buildx inspect $(BUILDX_BUILDER_NAME) --bootstrap; \
 	fi
 
-.PHONY: docker-build-kaito
-docker-build-kaito: docker-buildx
+.PHONY: docker-build-workspace
+docker-build-workspace: docker-buildx
 	docker buildx build \
-		--file ./docker/kaito/Dockerfile \
+		--file ./docker/workspace/Dockerfile \
 		--output=$(OUTPUT_TYPE) \
 		--platform="linux/$(ARCH)" \
 		--pull \
@@ -287,12 +288,12 @@ azure-karpenter-helm:  ## Update Azure client env vars and settings in helm valu
 	kubectl wait --for=condition=available deploy "karpenter" -n karpenter --timeout=300s
 
 ##@ Build
-.PHONY: build
-build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/*.go
+.PHONY: build-workspace
+build-workspace: manifests generate fmt vet ## Build manager binary.
+	go build -o bin/workspace-manager cmd/*.go
 
-.PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
+.PHONY: run-workspace
+run-workspace: manifests generate fmt vet ## Run a controller from your host.
 	go run ./cmd/main.go
 
 ##@ Build Dependencies

@@ -41,7 +41,7 @@ jobs:
       - name: 'Build and Publish to MCR'
         id: Publish
         run: |
-          OUTPUT_TYPE=type=registry make docker-build-kaito
+          OUTPUT_TYPE=type=registry make docker-build-workspace
         env:
           VERSION: ${{ needs.get-tag.outputs.release-tag }}
           REGISTRY: ${{ secrets.KAITO_MCR_REGISTRY }}/public/aks/kaito

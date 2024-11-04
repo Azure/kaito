@@ -95,7 +95,7 @@ jobs:
 
       - name: Build image
         run: |
-          OUTPUT_TYPE=type=registry make docker-build-kaito
+          OUTPUT_TYPE=type=registry make docker-build-workspace
         env:
           VERSION: ${{ needs.check-tag.outputs.tag }}
           REGISTRY: ${{ steps.get-registry.outputs.registry_repository }}
