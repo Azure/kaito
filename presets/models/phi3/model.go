@@ -5,10 +5,10 @@ package phi3
 import (
 	"time"
 
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/inference"
-	"github.com/azure/kaito/pkg/model"
-	"github.com/azure/kaito/pkg/utils/plugin"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/inference"
+	"github.com/kaito-project/kaito/pkg/model"
+	"github.com/kaito-project/kaito/pkg/utils/plugin"
 )
 
 func init() {
@@ -44,8 +44,8 @@ var (
 	}
 
 	baseCommandPresetPhiInference = "accelerate launch"
-	baseCommandPresetPhiTuning = "python3 metrics_server.py & accelerate launch"
-	phiRunParams         = map[string]string{
+	baseCommandPresetPhiTuning    = "python3 metrics_server.py & accelerate launch"
+	phiRunParams                  = map[string]string{
 		"torch_dtype":       "auto",
 		"pipeline":          "text-generation",
 		"trust_remote_code": "",

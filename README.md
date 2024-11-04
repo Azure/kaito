@@ -1,13 +1,13 @@
 # Kubernetes AI Toolchain Operator (Kaito)
 
 ![GitHub Release](https://img.shields.io/github/v/release/Azure/kaito)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Azure/kaito)](https://goreportcard.com/report/github.com/Azure/kaito)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kaito-project/kaito)](https://goreportcard.com/report/github.com/kaito-project/kaito)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/Azure/kaito)
 [![codecov](https://codecov.io/gh/Azure/kaito/graph/badge.svg?token=XAQLLPB2AR)](https://codecov.io/gh/Azure/kaito)
 
 | ![notification](docs/img/bell.svg) What is NEW! |
 |-------------------------------------------------|
-| Latest Release: July 12th, 2024. Kaito v0.3.0.  |
+| Latest Release: Sep 9th, 2024. Kaito v0.3.1.    |
 | First Release: Nov 15th, 2023. Kaito v0.1.0.    |
 
 Kaito is an operator that automates the AI/ML model inference or tuning workload in a Kubernetes cluster.
@@ -36,7 +36,7 @@ The above figure presents the Kaito architecture overview. Its major components 
 
 ## Installation
 
-Please check the installation guidance [here](./docs/installation.md).
+Please check the installation guidance [here](./docs/installation.md) for deployment using Azure CLI and [here](./terraform/README.md) for deployment using Terraform.
 
 ## Quick start
 

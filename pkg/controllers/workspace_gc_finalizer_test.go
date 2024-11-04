@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	"github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/featuregates"
-	"github.com/azure/kaito/pkg/utils/consts"
-	"github.com/azure/kaito/pkg/utils/test"
+	"github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/featuregates"
+	"github.com/kaito-project/kaito/pkg/utils/consts"
+	"github.com/kaito-project/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/mock"
 	"gotest.tools/assert"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -253,6 +253,7 @@ func TestGarbageCollectWorkspace(t *testing.T) {
 			ctx := context.Background()
 
 			featuregates.FeatureGates[consts.FeatureFlagKarpenter] = tc.karpenterFeatureGates
+			test.MockWorkspaceDistributedModel.SetFinalizers([]string{consts.WorkspaceFinalizer})
 
 			_, err := reconciler.garbageCollectWorkspace(ctx, test.MockWorkspaceDistributedModel)
 			if tc.expectedError == nil {

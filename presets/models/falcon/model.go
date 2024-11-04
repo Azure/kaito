@@ -3,13 +3,13 @@
 package falcon
 
 import (
-	"github.com/azure/kaito/pkg/tuning"
+	"github.com/kaito-project/kaito/pkg/tuning"
 	"time"
 
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/inference"
-	"github.com/azure/kaito/pkg/model"
-	"github.com/azure/kaito/pkg/utils/plugin"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/inference"
+	"github.com/kaito-project/kaito/pkg/model"
+	"github.com/kaito-project/kaito/pkg/utils/plugin"
 )
 
 func init() {
@@ -45,8 +45,8 @@ var (
 	}
 
 	baseCommandPresetFalconInference = "accelerate launch"
-	baseCommandPresetFalconTuning = "python3 metrics_server.py & accelerate launch"
-	falconRunParams         = map[string]string{
+	baseCommandPresetFalconTuning    = "python3 metrics_server.py & accelerate launch"
+	falconRunParams                  = map[string]string{
 		"torch_dtype": "bfloat16",
 		"pipeline":    "text-generation",
 	}

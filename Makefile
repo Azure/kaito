@@ -3,7 +3,7 @@
 REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
 VERSION ?= v0.3.1
-GPU_PROVISIONER_VERSION ?= 0.2.0
+GPU_PROVISIONER_VERSION ?= 0.2.1
 IMG_TAG ?= $(subst v,,$(VERSION))
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -81,6 +81,7 @@ SHELL = /usr/bin/env bash -o pipefail
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	cp config/crd/bases/kaito.sh_workspaces.yaml charts/kaito/workspace/crds/
+	cp config/crd/bases/kaito.sh_ragengines.yaml charts/kaito/ragengine/crds/
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -96,20 +97,30 @@ unit-test: ## Run unit tests.
 	-race -coverprofile=coverage.txt -covermode=atomic
 	go tool cover -func=coverage.txt
 
+.PHONY: rag-service-test
+rag-service-test:
+	pip install -r ragengine/requirements.txt
+	pytest -o log_cli=true -o log_cli_level=INFO ragengine/tests
+
+.PHONY: tuning-metrics-server-test
+tuning-metrics-server-test:
+	pip install -r ./presets/dependencies/requirements-test.txt
+	pytest -o log_cli=true -o log_cli_level=INFO presets/tuning/text-generation/metrics
+
 ## --------------------------------------
 ## E2E tests
 ## --------------------------------------
 
-inference-api-e2e: 
-	pip install -r presets/inference/text-generation/requirements.txt
-	pytest -o log_cli=true -o log_cli_level=INFO .
+inference-api-e2e:
+	pip install -r ./presets/dependencies/requirements-test.txt
+	pytest -o log_cli=true -o log_cli_level=INFO presets/inference
 
 # Ginkgo configurations
 GINKGO_FOCUS ?=
 GINKGO_SKIP ?=
-GINKGO_NODES ?= 1
+GINKGO_NODES ?= 2
 GINKGO_NO_COLOR ?= false
-GINKGO_TIMEOUT ?= 120m
+GINKGO_TIMEOUT ?= 180m
 GINKGO_ARGS ?= -focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" -nodes=$(GINKGO_NODES) -no-color=$(GINKGO_NO_COLOR) -timeout=$(GINKGO_TIMEOUT)
 
 $(E2E_TEST):
@@ -186,6 +197,15 @@ docker-build-kaito: docker-buildx
 		--pull \
 		--tag $(REGISTRY)/$(IMG_NAME):$(IMG_TAG) .
 
+.PHONY: docker-build-ragengine
+docker-build-ragengine: docker-buildx
+	docker buildx build \
+                --file ./docker/ragengine/Dockerfile \
+                --output=$(OUTPUT_TYPE) \
+                --platform="linux/$(ARCH)" \
+                --pull \
+                --tag $(REGISTRY)/$(IMG_NAME):$(IMG_TAG) .
+
 .PHONY: docker-build-adapter
 docker-build-adapter: docker-buildx
 	docker buildx build \
@@ -219,6 +239,15 @@ docker-build-dataset: docker-buildx
 		--platform="linux/$(ARCH)" \
 		--pull \
 		--tag $(REGISTRY)/e2e-dataset2:0.0.1 .
+
+.PHONY: docker-build-llm-reference-preset
+docker-build-llm-reference-preset: docker-buildx
+	docker buildx build \
+		-t ghcr.io/kaito-repo/kaito/llm-reference-preset:$(VERSION) \
+		-t ghcr.io/kaito-repo/kaito/llm-reference-preset:latest \
+		-f docs/custom-model-integration/Dockerfile.reference \
+		--build-arg MODEL_TYPE=text-generation \
+		--build-arg VERSION=$(VERSION) .
 
 ## --------------------------------------
 ## Kaito Installation
@@ -262,6 +291,7 @@ gpu-provisioner-helm:  ## Update Azure client env vars and settings in helm valu
 	helm install $(GPU_PROVISIONER_NAMESPACE) \
 	--values gpu-provisioner-values.yaml \
 	--set settings.azure.clusterName=$(AZURE_CLUSTER_NAME) \
+	--namespace $(GPU_PROVISIONER_NAMESPACE) --create-namespace \
 	https://github.com/Azure/gpu-provisioner/raw/gh-pages/charts/gpu-provisioner-$(GPU_PROVISIONER_VERSION).tgz
 
 	kubectl wait --for=condition=available deploy "gpu-provisioner" -n gpu-provisioner --timeout=300s
@@ -299,6 +329,17 @@ run: manifests generate fmt vet ## Run a controller from your host.
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
+
+## --------------------------------------
+## RAGEngine
+## --------------------------------------
+.PHONY: build-ragengine
+build-ragengine: manifests generate fmt vet
+	go build -o bin/rag-engine-manager cmd/ragengine/*.go
+
+.PHONY: run-ragengine
+run-ragengine: manifests generate fmt vet
+	go run ./cmd/ragengine/main.go
 
 ##@ Deployment
 ifndef ignore-not-found

@@ -7,8 +7,10 @@ import (
 	"context"
 	"fmt"
 
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -86,4 +88,27 @@ func CheckNvidiaPlugin(ctx context.Context, nodeObj *corev1.Node) bool {
 		return true
 	}
 	return false
+}
+
+func ExtractObjFields(obj interface{}) (instanceType, namespace, name string, labelSelector *metav1.LabelSelector,
+	nameLabel, namespaceLabel string, err error) {
+	switch o := obj.(type) {
+	case *kaitov1alpha1.Workspace:
+		instanceType = o.Resource.InstanceType
+		namespace = o.Namespace
+		name = o.Name
+		labelSelector = o.Resource.LabelSelector
+		nameLabel = kaitov1alpha1.LabelWorkspaceName
+		namespaceLabel = kaitov1alpha1.LabelWorkspaceNamespace
+	case *kaitov1alpha1.RAGEngine:
+		instanceType = o.Spec.Compute.InstanceType
+		namespace = o.Namespace
+		name = o.Name
+		labelSelector = o.Spec.Compute.LabelSelector
+		nameLabel = kaitov1alpha1.LabelRAGEngineName
+		namespaceLabel = kaitov1alpha1.LabelRAGEngineNamespace
+	default:
+		err = fmt.Errorf("unsupported object type: %T", obj)
+	}
+	return
 }
