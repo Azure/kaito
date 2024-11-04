@@ -28,7 +28,7 @@ class AzureCosmosDBMongoDBVectorStoreHandler(BaseVectorStore):
         try:
             self.mongodb_client = pymongo.MongoClient(self.connection_string)
             self.mongodb_client.admin.command('ping') # Test the connection
-        except pymongo.errors.ConnectionError as e:
+        except Exception as e:
             raise Exception(f"Failed to connect to MongoDB: {e}")
         # Ensure collection exists
         try:
