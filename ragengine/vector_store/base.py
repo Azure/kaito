@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 import logging
 from abc import ABC, abstractmethod
 from typing import Dict, List

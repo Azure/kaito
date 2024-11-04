@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 from typing import List
 from vector_store_manager.manager import VectorStoreManager
 from embedding.huggingface_local import LocalHuggingFaceEmbedding

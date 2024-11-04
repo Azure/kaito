@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 import os
 from tempfile import TemporaryDirectory
 from unittest.mock import patch

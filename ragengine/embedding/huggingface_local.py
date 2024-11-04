@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 
 from .base import BaseEmbeddingModel
