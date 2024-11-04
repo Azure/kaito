@@ -14,9 +14,9 @@ import (
 
 	azurev1alpha2 "github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
 	awsv1beta1 "github.com/aws/karpenter-provider-aws/pkg/apis/v1beta1"
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/resources"
-	"github.com/azure/kaito/pkg/utils/consts"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/resources"
+	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -47,7 +47,7 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, o
 	klog.InfoS("GenerateNodeClaimManifest", "object", obj)
 
 	// Determine the type of the input object and extract relevant fields
-	instanceType, namespace, name, labelSelector, err := resources.ExtractObjFields(obj)
+	instanceType, namespace, name, labelSelector, nameLabel, namespaceLabel, err := resources.ExtractObjFields(obj)
 	if err != nil {
 		klog.Error(err)
 		return nil
@@ -56,9 +56,9 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, o
 	nodeClaimName := GenerateNodeClaimName(obj)
 
 	nodeClaimLabels := map[string]string{
-		LabelNodePool:                         KaitoNodePoolName, // Fake nodepool name to prevent Karpenter from scaling up.
-		kaitov1alpha1.LabelWorkspaceName:      name,
-		kaitov1alpha1.LabelWorkspaceNamespace: namespace,
+		LabelNodePool:  KaitoNodePoolName, // Fake nodepool name to prevent Karpenter from scaling up.
+		nameLabel:      name,
+		namespaceLabel: namespace,
 	}
 	if labelSelector != nil && len(labelSelector.MatchLabels) != 0 {
 		nodeClaimLabels = lo.Assign(nodeClaimLabels, labelSelector.MatchLabels)
@@ -143,7 +143,7 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, o
 // GenerateNodeClaimName generates a nodeClaim name from the given workspace or RAGEngine.
 func GenerateNodeClaimName(obj interface{}) string {
 	// Determine the type of the input object and extract relevant fields
-	_, namespace, name, _, err := resources.ExtractObjFields(obj)
+	_, namespace, name, _, _, _, err := resources.ExtractObjFields(obj)
 	if err != nil {
 		return ""
 	}
@@ -250,7 +250,7 @@ func CreateKarpenterNodeClass(ctx context.Context, kubeClient client.Client) err
 func WaitForPendingNodeClaims(ctx context.Context, obj interface{}, kubeClient client.Client) error {
 
 	// Determine the type of the input object and retrieve the InstanceType
-	instanceType, _, _, _, err := resources.ExtractObjFields(obj)
+	instanceType, _, _, _, _, _, err := resources.ExtractObjFields(obj)
 	if err != nil {
 		return err
 	}

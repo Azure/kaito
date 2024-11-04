@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import numpy
 import pytest
 from fastapi.testclient import TestClient
 from transformers import AutoTokenizer
@@ -12,6 +11,10 @@ from transformers import AutoTokenizer
 parent_dir = str(Path(__file__).resolve().parent.parent)
 # Add the parent directory to sys.path
 sys.path.append(parent_dir)
+
+CHAT_TEMPLATE = ("{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') %}"
+    "{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}"
+    "{% elif (message['role'] == 'assistant') %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}")
 
 @pytest.fixture(params=[
     {"pipeline": "text-generation", "model_path": "stanford-crfm/alias-gpt2-small-x21", "device": "cpu"},
@@ -25,7 +28,8 @@ def configured_app(request):
         '--pipeline', request.param['pipeline'],
         '--pretrained_model_name_or_path', request.param['model_path'],
         '--device_map', request.param['device'],
-        '--allow_remote_files', 'True'
+        '--allow_remote_files', 'True',
+        '--chat_template', CHAT_TEMPLATE
     ]
     sys.argv = test_args
 
@@ -108,7 +112,7 @@ def test_read_main(configured_app):
 
 def test_health_check(configured_app):
     client = TestClient(configured_app)
-    response = client.get("/healthz")
+    response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "Healthy"}
 

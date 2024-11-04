@@ -5,11 +5,10 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"sort"
 
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -21,43 +20,27 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func updateObjStatus(ctx context.Context, c client.Client, name *client.ObjectKey, objType string, condition *metav1.Condition, workerNodes []string) error {
+func (c *WorkspaceReconciler) updateWorkspaceStatus(ctx context.Context, name *client.ObjectKey, condition *metav1.Condition, workerNodes []string) error {
 	return retry.OnError(retry.DefaultRetry,
 		func(err error) bool {
 			return apierrors.IsServiceUnavailable(err) || apierrors.IsServerTimeout(err) || apierrors.IsTooManyRequests(err)
 		},
 		func() error {
-			var obj client.Object
-			var conditions *[]metav1.Condition
-			var workerNodesField *[]string
-			switch objType {
-			case "Workspace":
-				ragObj := &kaitov1alpha1.Workspace{}
-				obj = ragObj
-				conditions = &ragObj.Status.Conditions
-				workerNodesField = &ragObj.Status.WorkerNodes
-			case "RAGEngine":
-				wObj := &kaitov1alpha1.RAGEngine{}
-				obj = wObj
-				conditions = &wObj.Status.Conditions
-				workerNodesField = &wObj.Status.WorkerNodes
-			default:
-				return fmt.Errorf("unsupported object type: %s", objType)
-			}
-
-			if err := c.Get(ctx, *name, obj); err != nil {
+			// Read the latest version to avoid update conflict.
+			wObj := &kaitov1alpha1.Workspace{}
+			if err := c.Client.Get(ctx, *name, wObj); err != nil {
 				if !errors.IsNotFound(err) {
 					return err
 				}
 				return nil
 			}
 			if condition != nil {
-				meta.SetStatusCondition(conditions, *condition)
+				meta.SetStatusCondition(&wObj.Status.Conditions, *condition)
 			}
 			if workerNodes != nil {
-				*workerNodesField = workerNodes
+				wObj.Status.WorkerNodes = workerNodes
 			}
-			return c.Status().Update(ctx, obj)
+			return c.Client.Status().Update(ctx, wObj)
 		})
 }
 
@@ -77,7 +60,7 @@ func (c *WorkspaceReconciler) updateStatusConditionIfNotMatch(ctx context.Contex
 		ObservedGeneration: wObj.GetGeneration(),
 		Message:            cMessage,
 	}
-	return updateObjStatus(ctx, c.Client, &client.ObjectKey{Name: wObj.Name, Namespace: wObj.Namespace}, "Workspace", &cObj, nil)
+	return c.updateWorkspaceStatus(ctx, &client.ObjectKey{Name: wObj.Name, Namespace: wObj.Namespace}, &cObj, nil)
 }
 
 func (c *WorkspaceReconciler) updateStatusNodeListIfNotMatch(ctx context.Context, wObj *kaitov1alpha1.Workspace, validNodeList []*corev1.Node) error {
@@ -90,5 +73,5 @@ func (c *WorkspaceReconciler) updateStatusNodeListIfNotMatch(ctx context.Context
 		return nil
 	}
 	klog.InfoS("updateStatusNodeList", "workspace", klog.KObj(wObj))
-	return updateObjStatus(ctx, c.Client, &client.ObjectKey{Name: wObj.Name, Namespace: wObj.Namespace}, "Workspace", nil, nodeNameList)
+	return c.updateWorkspaceStatus(ctx, &client.ObjectKey{Name: wObj.Name, Namespace: wObj.Namespace}, nil, nodeNameList)
 }

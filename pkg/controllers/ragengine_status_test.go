@@ -8,8 +8,8 @@ import (
 	"errors"
 	"testing"
 
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/utils/test"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -38,7 +38,7 @@ func TestUpdateRAGEngineStatus(t *testing.T) {
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.RAGEngine{}), mock.Anything).Return(nil)
 		mockClient.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&kaitov1alpha1.RAGEngine{}), mock.Anything).Return(nil)
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: ragengine.Name, Namespace: ragengine.Namespace}, "RAGEngine", &condition, workerNodes)
+		err := reconciler.updateRAGEngineStatus(ctx, &client.ObjectKey{Name: ragengine.Name, Namespace: ragengine.Namespace}, &condition, workerNodes)
 		assert.Nil(t, err)
 	})
 
@@ -60,7 +60,7 @@ func TestUpdateRAGEngineStatus(t *testing.T) {
 
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.RAGEngine{}), mock.Anything).Return(errors.New("Get operation failed"))
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: ragengine.Name, Namespace: ragengine.Namespace}, "RAGEngine", &condition, workerNodes)
+		err := reconciler.updateRAGEngineStatus(ctx, &client.ObjectKey{Name: ragengine.Name, Namespace: ragengine.Namespace}, &condition, workerNodes)
 		assert.NotNil(t, err)
 	})
 
@@ -82,7 +82,7 @@ func TestUpdateRAGEngineStatus(t *testing.T) {
 
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.RAGEngine{}), mock.Anything).Return(apierrors.NewNotFound(schema.GroupResource{}, "ragengine"))
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: ragengine.Name, Namespace: ragengine.Namespace}, "RAGEngine", &condition, workerNodes)
+		err := reconciler.updateRAGEngineStatus(ctx, &client.ObjectKey{Name: ragengine.Name, Namespace: ragengine.Namespace}, &condition, workerNodes)
 		assert.Nil(t, err)
 	})
 }

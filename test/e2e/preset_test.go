@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/test/e2e/utils"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/test/e2e/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/samber/lo"
@@ -83,7 +83,7 @@ func createCustomWorkspaceWithAdapter(numOfNode int, validAdapters []kaitov1alph
 		uniqueID := fmt.Sprint("preset-", rand.Intn(1000))
 		workspaceObj = utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, "", numOfNode, "Standard_NC12s_v3",
 			&metav1.LabelSelector{
-				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-falcon"},
+				MatchLabels: map[string]string{"kaito-workspace": "custom-preset-e2e-test-falcon"},
 			}, nil, PresetFalcon7BModel, kaitov1alpha1.ModelImageAccessModePublic, nil, nil, validAdapters)
 
 		createAndValidateWorkspace(workspaceObj)
@@ -346,7 +346,7 @@ func validateResourceStatus(workspaceObj *kaitov1alpha1.Workspace) {
 			}
 
 			_, conditionFound := lo.Find(workspaceObj.Status.Conditions, func(condition metav1.Condition) bool {
-				return condition.Type == string(kaitov1alpha1.WorkspaceConditionTypeResourceStatus) &&
+				return condition.Type == string(kaitov1alpha1.ConditionTypeResourceStatus) &&
 					condition.Status == metav1.ConditionTrue
 			})
 			return conditionFound

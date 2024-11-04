@@ -24,7 +24,7 @@
                 }
             }
         },
-        "/healthz": {
+        "/health": {
             "get": {
                 "summary": "Health Check Endpoint",
                 "operationId": "health_check_healthz_get",

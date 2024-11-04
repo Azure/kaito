@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/resources"
-	"github.com/azure/kaito/pkg/utils/consts"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/resources"
+	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -42,7 +42,7 @@ var (
 func GenerateMachineManifest(ctx context.Context, storageRequirement string, obj interface{}) *v1alpha5.Machine {
 
 	// Determine the type of the input object and extract relevant fields
-	instanceType, namespace, name, labelSelector, err := resources.ExtractObjFields(obj)
+	instanceType, namespace, name, labelSelector, nameLabel, namespaceLabel, err := resources.ExtractObjFields(obj)
 	if err != nil {
 		klog.Error(err)
 		return nil
@@ -51,9 +51,9 @@ func GenerateMachineManifest(ctx context.Context, storageRequirement string, obj
 	digest := sha256.Sum256([]byte(namespace + name + time.Now().Format("2006-01-02 15:04:05.000000000"))) // We make sure the nodeClaim name is not fixed to the object
 	machineName := "ws" + hex.EncodeToString(digest[0:])[0:9]
 	machineLabels := map[string]string{
-		LabelProvisionerName:                  ProvisionerName,
-		kaitov1alpha1.LabelWorkspaceName:      name,
-		kaitov1alpha1.LabelWorkspaceNamespace: namespace,
+		LabelProvisionerName: ProvisionerName,
+		nameLabel:            name,
+		namespaceLabel:       namespace,
 	}
 
 	if labelSelector != nil && len(labelSelector.MatchLabels) != 0 {
@@ -146,7 +146,7 @@ func WaitForPendingMachines(ctx context.Context, obj interface{}, kubeClient cli
 	var instanceType string
 
 	// Determine the type of the input object and retrieve the InstanceType
-	instanceType, _, _, _, err := resources.ExtractObjFields(obj)
+	instanceType, _, _, _, _, _, err := resources.ExtractObjFields(obj)
 	if err != nil {
 		return err
 	}

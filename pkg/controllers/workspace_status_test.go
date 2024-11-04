@@ -8,8 +8,8 @@ import (
 	"errors"
 	"testing"
 
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/utils/test"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -38,7 +38,7 @@ func TestUpdateWorkspaceStatus(t *testing.T) {
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(nil)
 		mockClient.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(nil)
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, "Workspace", &condition, workerNodes)
+		err := reconciler.updateWorkspaceStatus(ctx, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, &condition, workerNodes)
 		assert.Nil(t, err)
 	})
 
@@ -60,7 +60,7 @@ func TestUpdateWorkspaceStatus(t *testing.T) {
 
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(errors.New("Get operation failed"))
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, "Workspace", &condition, workerNodes)
+		err := reconciler.updateWorkspaceStatus(ctx, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, &condition, workerNodes)
 		assert.NotNil(t, err)
 	})
 
@@ -82,7 +82,7 @@ func TestUpdateWorkspaceStatus(t *testing.T) {
 
 		mockClient.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&kaitov1alpha1.Workspace{}), mock.Anything).Return(apierrors.NewNotFound(schema.GroupResource{}, "workspace"))
 
-		err := updateObjStatus(ctx, reconciler.Client, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, "Workspace", &condition, workerNodes)
+		err := reconciler.updateWorkspaceStatus(ctx, &client.ObjectKey{Name: workspace.Name, Namespace: workspace.Namespace}, &condition, workerNodes)
 		assert.Nil(t, err)
 	})
 }

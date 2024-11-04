@@ -13,7 +13,7 @@ import (
 	"knative.dev/pkg/webhook/resourcesemantics"
 	"knative.dev/pkg/webhook/resourcesemantics/validation"
 
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 )
 
 func NewWorkspaceWebhooks() []knativeinjection.ControllerConstructor {
@@ -48,7 +48,7 @@ func NewRAGEngineCRDValidationWebhook(ctx context.Context, _ configmap.Watcher) 
 	return validation.NewAdmissionController(ctx,
 		"validation.ragengine.kaito.sh",
 		"/validate/ragengine.kaito.sh",
-		WorkspaceResources,
+		RAGEngineResources,
 		func(ctx context.Context) context.Context { return ctx },
 		true,
 	)
