@@ -125,7 +125,7 @@ jobs:
         if: ${{ !inputs.isRelease }}
         shell: bash
         run: |
-          make docker-build-kaito
+          make docker-build-workspace
         env:
           REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
@@ -211,7 +211,7 @@ jobs:
         if: ${{ !inputs.isRelease }}
         shell: bash
         run: |
-          make docker-build-kaito
+          make docker-build-workspace
         env:
           REGISTRY: ${{ env.REGISTRY }}
           VERSION: ${{ env.VERSION }}
