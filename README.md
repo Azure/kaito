@@ -160,7 +160,7 @@ Linux Foundation ID group through the [Linux Foundation Support website](https:/
 
 ## License
 
-See [Apache 2.0 License](LICENSE).
+See [MIT License](LICENSE).
 
 ## Code of Conduct
 
