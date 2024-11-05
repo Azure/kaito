@@ -11,10 +11,10 @@ from llama_index.core import Document as LlamaDocument
 from llama_index.core.storage.index_store import SimpleIndexStore
 from llama_index.core import (StorageContext, VectorStoreIndex)
 
-from ragengine.models import Document
-from ragengine.embedding.base import BaseEmbeddingModel
-from ragengine.inference.inference import Inference
-from ragengine.config import PERSIST_DIR
+from services.models import Document
+from services.embedding.base import BaseEmbeddingModel
+from services.inference.inference import Inference
+from services.config import PERSIST_DIR
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

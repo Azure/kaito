@@ -4,7 +4,7 @@
 import logging
 from typing import List, Dict
 import os
-from ragengine.models import Document
+from services.models import Document
 
 import pymongo
 import json

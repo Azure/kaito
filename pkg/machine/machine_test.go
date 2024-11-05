@@ -7,6 +7,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/kaito-project/kaito/pkg/utils/test"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -39,10 +40,10 @@ func TestCreateMachine(t *testing.T) {
 				{
 					Type:    v1alpha5.MachineLaunched,
 					Status:  corev1.ConditionFalse,
-					Message: ErrorInstanceTypesUnavailable,
+					Message: consts.ErrorInstanceTypesUnavailable,
 				},
 			},
-			expectedError: errors.New(ErrorInstanceTypesUnavailable),
+			expectedError: errors.New(consts.ErrorInstanceTypesUnavailable),
 		},
 		"A machine is successfully created": {
 			callMocks: func(c *test.MockClient) {

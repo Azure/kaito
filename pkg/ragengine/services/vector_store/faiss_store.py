@@ -2,11 +2,12 @@
 # Licensed under the MIT license.
 
 from typing import List
-from ragengine.models import Document
 
 import faiss
 from llama_index.vector_stores.faiss import FaissVectorStore
+from services.models import Document
 from .base import BaseVectorStore
+
 
 class FaissVectorStoreHandler(BaseVectorStore):
     def __init__(self, embedding_manager):

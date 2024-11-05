@@ -7,12 +7,12 @@ from unittest.mock import patch
 
 import pytest
 
-from ragengine.vector_store.base import BaseVectorStore
-from ragengine.vector_store.azuremongodb_store import AzureCosmosDBMongoDBVectorStoreHandler
-from ragengine.models import Document
-from ragengine.embedding.huggingface_local import LocalHuggingFaceEmbedding
-from ragengine.config import MODEL_ID, INFERENCE_URL, INFERENCE_ACCESS_SECRET
-from ragengine.config import PERSIST_DIR
+from services.vector_store.base import BaseVectorStore
+from services.vector_store.azuremongodb_store import AzureCosmosDBMongoDBVectorStoreHandler
+from services.models import Document
+from services.embedding.huggingface_local import LocalHuggingFaceEmbedding
+from services.config import MODEL_ID, INFERENCE_URL, INFERENCE_ACCESS_SECRET
+from services.config import PERSIST_DIR
 
 @pytest.fixture(scope='session')
 def init_embed_manager():
