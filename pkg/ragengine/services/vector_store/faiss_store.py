@@ -13,7 +13,7 @@ from ragengine.inference.inference import Inference
 from ragengine.config import PERSIST_DIR
 
 from .base import BaseVectorStore
-from ragengine.embedding.base import BaseEmbeddingModel
+from services.embedding.base import BaseEmbeddingModel
 
 
 class FaissVectorStoreHandler(BaseVectorStore):
