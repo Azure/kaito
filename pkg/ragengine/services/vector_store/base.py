@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
-from ragengine.models import Document
+from services.models import Document
 import hashlib
 
 
