@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from typing import List
-from ragengine.models import Document
+from services.models import Document
 
 import chromadb
 from llama_index.vector_stores.chroma import ChromaVectorStore
