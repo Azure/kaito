@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"strings"
 
+	"github.com/kaito-project/kaito/pkg/featuregates"
 	"github.com/kaito-project/kaito/pkg/sku"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"gopkg.in/yaml.v2"
@@ -188,4 +190,52 @@ func ExtractAndValidateRepoName(image string) error {
 	}
 
 	return nil
+}
+
+func SelectNodes(qualified []*v1.Node, preferred []string, previous []string, count int) []*v1.Node {
+
+	sort.Slice(qualified, func(i, j int) bool {
+		iPreferred := Contains(preferred, qualified[i].Name)
+		jPreferred := Contains(preferred, qualified[j].Name)
+
+		if iPreferred && !jPreferred {
+			return true
+		} else if !iPreferred && jPreferred {
+			return false
+		} else { // either all are preferred, or none is preferred
+			iPrevious := Contains(previous, qualified[i].Name)
+			jPrevious := Contains(previous, qualified[j].Name)
+
+			if iPrevious && !jPrevious {
+				return true
+			} else if !iPrevious && jPrevious {
+				return false
+			} else { // either all are previous, or none is previous
+				var iCreatedByGPUProvisioner, jCreatedByGPUProvisioner bool
+				_, iCreatedByGPUProvisioner = qualified[i].Labels[consts.LabelGPUProvisionerCustom]
+				_, jCreatedByGPUProvisioner = qualified[j].Labels[consts.LabelGPUProvisionerCustom]
+				// Choose node created by gpu-provisioner and karpenter since it is more likely to be empty to use.
+				var iCreatedByKarpenter, jCreatedByKarpenter bool
+				if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
+					_, iCreatedByKarpenter = qualified[i].Labels[consts.LabelNodePool]
+					_, jCreatedByKarpenter = qualified[j].Labels[consts.LabelNodePool]
+				}
+				if (iCreatedByGPUProvisioner && !jCreatedByGPUProvisioner) ||
+					(iCreatedByKarpenter && !jCreatedByKarpenter) {
+					return true
+				} else if (!iCreatedByGPUProvisioner && jCreatedByGPUProvisioner) ||
+					(!iCreatedByKarpenter && jCreatedByKarpenter) {
+					return false
+				} else {
+					return qualified[i].Name < qualified[j].Name
+				}
+			}
+		}
+	})
+
+	if len(qualified) <= count {
+		return qualified
+	}
+
+	return qualified[0:count]
 }

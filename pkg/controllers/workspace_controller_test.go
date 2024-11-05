@@ -20,8 +20,7 @@ import (
 	"github.com/kaito-project/kaito/api/v1alpha1"
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	"github.com/kaito-project/kaito/pkg/featuregates"
-	"github.com/kaito-project/kaito/pkg/machine"
-	"github.com/kaito-project/kaito/pkg/nodeclaim"
+	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/kaito-project/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/mock"
@@ -178,7 +177,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: consts.GPUString,
+							consts.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -204,7 +203,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: consts.GPUString,
+							consts.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -230,7 +229,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: consts.GPUString,
+							consts.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -252,7 +251,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node2",
 						Labels: map[string]string{
-							nodeclaim.LabelNodePool: nodeclaim.KaitoNodePoolName,
+							consts.LabelNodePool: consts.KaitoNodePoolName,
 						},
 					},
 				},
@@ -260,7 +259,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: consts.GPUString,
+							consts.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -287,7 +286,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							nodeclaim.LabelNodePool: nodeclaim.KaitoNodePoolName,
+							consts.LabelNodePool: consts.KaitoNodePoolName,
 						},
 					},
 				},
@@ -304,7 +303,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 		t.Run(k, func(t *testing.T) {
 			featuregates.FeatureGates[consts.FeatureFlagKarpenter] = tc.karpenterFeatureGates
 
-			selectedNodes := selectNodes(tc.qualified, tc.preferred, tc.previous, tc.count)
+			selectedNodes := utils.SelectNodes(tc.qualified, tc.preferred, tc.previous, tc.count)
 
 			selectedNodesArray := []string{}
 
@@ -342,11 +341,11 @@ func TestCreateAndValidateMachineNode(t *testing.T) {
 				{
 					Type:    v1alpha5.MachineLaunched,
 					Status:  corev1.ConditionFalse,
-					Message: machine.ErrorInstanceTypesUnavailable,
+					Message: consts.ErrorInstanceTypesUnavailable,
 				},
 			},
 			workspace:     *test.MockWorkspaceWithPreset,
-			expectedError: errors.New(machine.ErrorInstanceTypesUnavailable),
+			expectedError: errors.New(consts.ErrorInstanceTypesUnavailable),
 		},
 		"A machine is successfully created": {
 			callMocks: func(c *test.MockClient) {
@@ -415,12 +414,12 @@ func TestCreateAndValidateMachineNode(t *testing.T) {
 				{
 					Type:    v1beta1.Launched,
 					Status:  corev1.ConditionFalse,
-					Message: nodeclaim.ErrorInstanceTypesUnavailable,
+					Message: consts.ErrorInstanceTypesUnavailable,
 				},
 			},
 			workspace:             *test.MockWorkspaceWithPreset,
 			karpenterFeatureGates: true,
-			expectedError:         errors.New(nodeclaim.ErrorInstanceTypesUnavailable),
+			expectedError:         errors.New(consts.ErrorInstanceTypesUnavailable),
 		},
 	}
 
@@ -486,11 +485,11 @@ func TestCreateAndValidateNodeClaimNode(t *testing.T) {
 				{
 					Type:    v1beta1.Launched,
 					Status:  corev1.ConditionFalse,
-					Message: nodeclaim.ErrorInstanceTypesUnavailable,
+					Message: consts.ErrorInstanceTypesUnavailable,
 				},
 			},
 			workspace:     *test.MockWorkspaceWithPreset,
-			expectedError: errors.New(nodeclaim.ErrorInstanceTypesUnavailable),
+			expectedError: errors.New(consts.ErrorInstanceTypesUnavailable),
 		},
 		"A nodeClaim is successfully created": {
 			callMocks: func(c *test.MockClient) {
