@@ -1,9 +1,9 @@
-# Microsoft Open Source Code of Conduct
+# KAITO Code of Conduct
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+This project has adopted the [Cloud Native Compute Foundation Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md).
 
 Resources:
 
-- [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/)
-- [Microsoft Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/)
-- Contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with questions or concerns
+- [Jurisdiction Policy](https://github.com/cncf/foundation/blob/main/code-of-conduct/coc-committee-jurisdiction-policy.md)
+- For detailed instructions on how to submit a report, including how to submit a report anonymously, please see the [Incident Resolution Procedures](https://github.com/cncf/foundation/blob/main/code-of-conduct/coc-incident-resolution-procedures.md).
+- For incidents occurring in the Kubernetes community, please contact the [Kubernetes Code of Conduct Committee](https://git.k8s.io/community/committee-code-of-conduct) via <conduct@kubernetes.io>.
