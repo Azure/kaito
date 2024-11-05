@@ -516,7 +516,7 @@ func validateTuningResource(workspaceObj *kaitov1alpha1.Workspace) {
 			}
 
 			return false
-		}, 30*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for Tuning resource to be ready")
+		}, 10*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for Tuning resource to be ready")
 	})
 }
 
@@ -606,9 +606,13 @@ func validateWorkspaceReadiness(workspaceObj *kaitov1alpha1.Workspace) {
 
 func cleanupResources(workspaceObj *kaitov1alpha1.Workspace) {
 	By("Cleaning up resources", func() {
-		// delete workspace
-		err := deleteWorkspace(workspaceObj)
-		Expect(err).NotTo(HaveOccurred(), "Failed to delete workspace")
+		if !CurrentSpecReport().Failed() {
+			// delete workspace
+			err := deleteWorkspace(workspaceObj)
+			Expect(err).NotTo(HaveOccurred(), "Failed to delete workspace")
+		} else {
+			GinkgoWriter.Printf("test failed, keep %s \n", workspaceObj.Name)
+		}
 	})
 }
 

@@ -1,7 +1,7 @@
 from typing import Dict, List
 
-from ragengine.models import Document
-from ragengine.vector_store.base import BaseVectorStore
+from services.models import Document
+from services.vector_store.base import BaseVectorStore
 
 class VectorStoreManager:
     def __init__(self, vector_store: BaseVectorStore):

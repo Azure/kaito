@@ -48,10 +48,10 @@ func TestCreateNodeClaim(t *testing.T) {
 				{
 					Type:    v1beta1.Launched,
 					Status:  corev1.ConditionFalse,
-					Message: ErrorInstanceTypesUnavailable,
+					Message: consts.ErrorInstanceTypesUnavailable,
 				},
 			},
-			expectedError: errors.New(ErrorInstanceTypesUnavailable),
+			expectedError: errors.New(consts.ErrorInstanceTypesUnavailable),
 		},
 		"A nodeClaim is successfully created": {
 			callMocks: func(c *test.MockClient) {
@@ -185,7 +185,7 @@ func TestGenerateNodeClaimManifest(t *testing.T) {
 		assert.Equal(t, nodeClaim.Namespace, mockWorkspace.Namespace, "NodeClaim must have same namespace as workspace")
 		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceName], mockWorkspace.Name, "label must have same workspace name as workspace")
 		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceNamespace], mockWorkspace.Namespace, "label must have same workspace namespace as workspace")
-		assert.Equal(t, nodeClaim.Labels[LabelNodePool], KaitoNodePoolName, "label must have same labels as workspace label selector")
+		assert.Equal(t, nodeClaim.Labels[consts.LabelNodePool], consts.KaitoNodePoolName, "label must have same labels as workspace label selector")
 		assert.Equal(t, nodeClaim.Annotations[v1beta1.DoNotDisruptAnnotationKey], "true", "label must have do not disrupt annotation")
 		assert.Equal(t, len(nodeClaim.Spec.Requirements), 4, " NodeClaim must have 4 NodeSelector Requirements")
 		assert.Equal(t, nodeClaim.Spec.Requirements[1].NodeSelectorRequirement.Values[0], mockWorkspace.Resource.InstanceType, "NodeClaim must have same instance type as workspace")
@@ -203,7 +203,7 @@ func TestGenerateNodeClaimManifest(t *testing.T) {
 		assert.Equal(t, nodeClaim.Namespace, mockWorkspace.Namespace, "NodeClaim must have same namespace as workspace")
 		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceName], mockWorkspace.Name, "label must have same workspace name as workspace")
 		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceNamespace], mockWorkspace.Namespace, "label must have same workspace namespace as workspace")
-		assert.Equal(t, nodeClaim.Labels[LabelNodePool], KaitoNodePoolName, "label must have same labels as workspace label selector")
+		assert.Equal(t, nodeClaim.Labels[consts.LabelNodePool], consts.KaitoNodePoolName, "label must have same labels as workspace label selector")
 		assert.Equal(t, nodeClaim.Annotations[v1beta1.DoNotDisruptAnnotationKey], "true", "label must have do not disrupt annotation")
 		assert.Equal(t, len(nodeClaim.Spec.Requirements), 3, " NodeClaim must have 3 NodeSelector Requirements")
 		assert.Check(t, nodeClaim.Spec.NodeClassRef != nil, "NodeClaim must have NodeClassRef")
@@ -216,7 +216,7 @@ func TestGenerateAKSNodeClassManifest(t *testing.T) {
 		nodeClass := GenerateAKSNodeClassManifest(context.Background())
 
 		assert.Check(t, nodeClass != nil, "AKSNodeClass must not be nil")
-		assert.Equal(t, nodeClass.Name, NodeClassName, "AKSNodeClass must have the correct name")
+		assert.Equal(t, nodeClass.Name, consts.NodeClassName, "AKSNodeClass must have the correct name")
 		assert.Equal(t, nodeClass.Annotations["kubernetes.io/description"], "General purpose AKSNodeClass for running Ubuntu 22.04 nodes", "AKSNodeClass must have the correct description annotation")
 		assert.Equal(t, *nodeClass.Spec.ImageFamily, "Ubuntu2204", "AKSNodeClass must have the correct image family")
 	})
@@ -225,7 +225,7 @@ func TestGenerateAKSNodeClassManifest(t *testing.T) {
 		nodeClass := GenerateAKSNodeClassManifest(context.Background())
 
 		assert.Check(t, nodeClass != nil, "AKSNodeClass must not be nil")
-		assert.Equal(t, nodeClass.Name, NodeClassName, "AKSNodeClass must have the correct name")
+		assert.Equal(t, nodeClass.Name, consts.NodeClassName, "AKSNodeClass must have the correct name")
 		assert.Check(t, nodeClass.Annotations != nil, "AKSNodeClass must have annotations")
 		assert.Equal(t, *nodeClass.Spec.ImageFamily, "Ubuntu2204", "AKSNodeClass must have the correct image family")
 	})
@@ -234,7 +234,7 @@ func TestGenerateAKSNodeClassManifest(t *testing.T) {
 		nodeClass := GenerateAKSNodeClassManifest(context.Background())
 
 		assert.Check(t, nodeClass != nil, "AKSNodeClass must not be nil")
-		assert.Equal(t, nodeClass.Name, NodeClassName, "AKSNodeClass must have the correct name")
+		assert.Equal(t, nodeClass.Name, consts.NodeClassName, "AKSNodeClass must have the correct name")
 		assert.Equal(t, *nodeClass.Spec.ImageFamily, "Ubuntu2204", "AKSNodeClass must have the correct image family")
 	})
 }
@@ -245,7 +245,7 @@ func TestGenerateEC2NodeClassManifest(t *testing.T) {
 		nodeClass := GenerateEC2NodeClassManifest(context.Background())
 
 		assert.Check(t, nodeClass != nil, "EC2NodeClass must not be nil")
-		assert.Equal(t, nodeClass.Name, NodeClassName, "EC2NodeClass must have the correct name")
+		assert.Equal(t, nodeClass.Name, consts.NodeClassName, "EC2NodeClass must have the correct name")
 		assert.Equal(t, nodeClass.Annotations["kubernetes.io/description"], "General purpose EC2NodeClass for running Amazon Linux 2 nodes", "EC2NodeClass must have the correct description annotation")
 		assert.Equal(t, *nodeClass.Spec.AMIFamily, awsv1beta1.AMIFamilyAL2, "EC2NodeClass must have the correct AMI family")
 		assert.Equal(t, nodeClass.Spec.Role, "KarpenterNodeRole-test-cluster", "EC2NodeClass must have the correct role")
