@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 # config.py
 
 # Variables are set via environment variables from the RAGEngine CR

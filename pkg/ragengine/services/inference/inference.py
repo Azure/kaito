@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 from typing import Any
 from llama_index.core.llms import CustomLLM, CompletionResponse, LLMMetadata, CompletionResponseGen
 from llama_index.llms.openai import OpenAI

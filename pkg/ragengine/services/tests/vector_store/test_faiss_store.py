@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 import os
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -99,7 +102,7 @@ def test_add_document(vector_store_manager):
     vector_store_manager.index_documents("test_index", new_document)
 
     # Assert that the document exists
-    assert vector_store_manager.document_exists("test_index",
+    assert vector_store_manager.document_exists("test_index", new_document[0],
                                                 BaseVectorStore.generate_doc_id("Fourth document"))
 
 def test_persist_index_1(vector_store_manager):

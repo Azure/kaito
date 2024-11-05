@@ -1,4 +1,6 @@
-# test_metrics_server.py
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 import os
 from unittest.mock import MagicMock, patch
 
