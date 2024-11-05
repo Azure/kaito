@@ -8,12 +8,7 @@ their responsibilities.
 The following are current KAITO maintainers:
 
 * Fei Guo @Fei-Guo
-* Ishaan Sehgal @ishaansehgal99
 * Sachi Desai @sdesai345
-* Heba Elayoty @helayoty
-* Bangqi Zhu @bangqipropel
-* Smriti Dahal @smritidahal653
-* Qinghui Zhuang @zhuangqh
 
 ## Maintainer Responsibilities
 
