@@ -9,12 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/azure/kaito/pkg/utils"
-	"github.com/azure/kaito/pkg/utils/consts"
+	"github.com/kaito-project/kaito/pkg/utils"
+	"github.com/kaito-project/kaito/pkg/utils/consts"
 
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/model"
-	"github.com/azure/kaito/pkg/utils/test"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/model"
+	"github.com/kaito-project/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
@@ -23,13 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/pointer"
 )
-
-// Mocking the SupportedGPUConfigs to be used in test scenarios.
-var mockSupportedGPUConfigs = map[string]kaitov1alpha1.GPUConfig{
-	"sku1": {GPUCount: 2},
-	"sku2": {GPUCount: 4},
-	"sku3": {GPUCount: 0},
-}
 
 func normalize(s string) string {
 	return strings.Join(strings.Fields(s), " ")
@@ -54,18 +47,19 @@ func saveEnv(key string) func() {
 }
 
 func TestGetInstanceGPUCount(t *testing.T) {
-	kaitov1alpha1.SupportedGPUConfigs = mockSupportedGPUConfigs
+	os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
+
 	testcases := map[string]struct {
 		sku              string
 		expectedGPUCount int
 	}{
 		"SKU Exists With Multiple GPUs": {
-			sku:              "sku1",
-			expectedGPUCount: 2,
+			sku:              "Standard_NC24s_v3",
+			expectedGPUCount: 4,
 		},
-		"SKU Exists With Zero GPUs": {
-			sku:              "sku3",
-			expectedGPUCount: 0,
+		"SKU Exists With One GPU": {
+			sku:              "Standard_NC6s_v3",
+			expectedGPUCount: 1,
 		},
 		"SKU Does Not Exist": {
 			sku:              "sku_unknown",

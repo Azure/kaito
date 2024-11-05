@@ -13,26 +13,47 @@ import (
 	"knative.dev/pkg/webhook/resourcesemantics"
 	"knative.dev/pkg/webhook/resourcesemantics/validation"
 
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 )
 
-func NewWebhooks() []knativeinjection.ControllerConstructor {
+func NewWorkspaceWebhooks() []knativeinjection.ControllerConstructor {
 	return []knativeinjection.ControllerConstructor{
 		certificates.NewController,
-		NewCRDValidationWebhook,
+		NewWorkspaceCRDValidationWebhook,
 	}
 }
 
-func NewCRDValidationWebhook(ctx context.Context, _ configmap.Watcher) *controller.Impl {
+func NewWorkspaceCRDValidationWebhook(ctx context.Context, _ configmap.Watcher) *controller.Impl {
 	return validation.NewAdmissionController(ctx,
 		"validation.workspace.kaito.sh",
 		"/validate/workspace.kaito.sh",
-		Resources,
+		WorkspaceResources,
 		func(ctx context.Context) context.Context { return ctx },
 		true,
 	)
 }
 
-var Resources = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
+var WorkspaceResources = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
 	kaitov1alpha1.GroupVersion.WithKind("Workspace"): &kaitov1alpha1.Workspace{},
+}
+
+func NewRAGEngineWebhooks() []knativeinjection.ControllerConstructor {
+	return []knativeinjection.ControllerConstructor{
+		certificates.NewController,
+		NewRAGEngineCRDValidationWebhook,
+	}
+}
+
+func NewRAGEngineCRDValidationWebhook(ctx context.Context, _ configmap.Watcher) *controller.Impl {
+	return validation.NewAdmissionController(ctx,
+		"validation.ragengine.kaito.sh",
+		"/validate/ragengine.kaito.sh",
+		RAGEngineResources,
+		func(ctx context.Context) context.Context { return ctx },
+		true,
+	)
+}
+
+var RAGEngineResources = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
+	kaitov1alpha1.GroupVersion.WithKind("RAGEngine"): &kaitov1alpha1.RAGEngine{},
 }

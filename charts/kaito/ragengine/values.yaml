@@ -1,0 +1,30 @@
+# Default values for kaito.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+fullnameOverride: ragengine
+replicaCount: 1
+image:
+  repository: mcr.microsoft.com/aks/kaito/ragengine
+  pullPolicy: IfNotPresent
+  tag: 0.0.1
+imagePullSecrets: []
+podAnnotations: {}
+podSecurityContext:
+  runAsNonRoot: true
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - "ALL"
+webhook:
+  port: 9443
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+nodeSelector: {}
+tolerations: []
+affinity: {}

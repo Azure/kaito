@@ -6,11 +6,11 @@ package controllers
 import (
 	"context"
 
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/featuregates"
-	"github.com/azure/kaito/pkg/machine"
-	"github.com/azure/kaito/pkg/nodeclaim"
-	"github.com/azure/kaito/pkg/utils/consts"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/featuregates"
+	"github.com/kaito-project/kaito/pkg/machine"
+	"github.com/kaito-project/kaito/pkg/nodeclaim"
+	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -22,7 +22,7 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 	klog.InfoS("garbageCollectWorkspace", "workspace", klog.KObj(wObj))
 
 	// Check if there are any machines associated with this workspace.
-	mList, err := machine.ListMachinesByWorkspace(ctx, wObj, c.Client)
+	mList, err := machine.ListMachines(ctx, wObj, c.Client)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -36,7 +36,7 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 
 	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 		// Check if there are any nodeClaims associated with this workspace.
-		ncList, err := nodeclaim.ListNodeClaimByWorkspace(ctx, wObj, c.Client)
+		ncList, err := nodeclaim.ListNodeClaim(ctx, wObj, c.Client)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -50,15 +50,15 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 		}
 	}
 
-	staleWObj := wObj.DeepCopy()
-	staleWObj.SetFinalizers(nil)
-	if updateErr := c.Update(ctx, staleWObj, &client.UpdateOptions{}); updateErr != nil {
-		klog.ErrorS(updateErr, "failed to remove the finalizer from the workspace",
-			"workspace", klog.KObj(wObj), "workspace", klog.KObj(staleWObj))
-		return ctrl.Result{}, updateErr
+	if controllerutil.RemoveFinalizer(wObj, consts.WorkspaceFinalizer) {
+		if updateErr := c.Update(ctx, wObj, &client.UpdateOptions{}); updateErr != nil {
+			klog.ErrorS(updateErr, "failed to remove the finalizer from the workspace",
+				"workspace", klog.KObj(wObj))
+			return ctrl.Result{}, updateErr
+		}
 	}
+
 	klog.InfoS("successfully removed the workspace finalizers",
 		"workspace", klog.KObj(wObj))
-	controllerutil.RemoveFinalizer(wObj, consts.WorkspaceFinalizer)
 	return ctrl.Result{}, nil
 }

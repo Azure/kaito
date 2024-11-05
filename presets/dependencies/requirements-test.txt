@@ -1,0 +1,8 @@
+# Common dependencies
+-r requirements.txt
+
+# Test dependencies
+pytest
+httpx
+peft
+requests

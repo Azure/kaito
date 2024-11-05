@@ -17,13 +17,12 @@ import (
 	azurev1alpha2 "github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	awsv1beta1 "github.com/aws/karpenter-provider-aws/pkg/apis/v1beta1"
-	"github.com/azure/kaito/api/v1alpha1"
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/featuregates"
-	"github.com/azure/kaito/pkg/machine"
-	"github.com/azure/kaito/pkg/nodeclaim"
-	"github.com/azure/kaito/pkg/utils/consts"
-	"github.com/azure/kaito/pkg/utils/test"
+	"github.com/kaito-project/kaito/api/v1alpha1"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/featuregates"
+	"github.com/kaito-project/kaito/pkg/utils"
+	"github.com/kaito-project/kaito/pkg/utils/consts"
+	"github.com/kaito-project/kaito/pkg/utils/test"
 	"github.com/stretchr/testify/mock"
 	"gotest.tools/assert"
 	appsv1 "k8s.io/api/apps/v1"
@@ -178,7 +177,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: consts.GPUString,
+							consts.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -204,7 +203,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: consts.GPUString,
+							consts.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -230,7 +229,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: consts.GPUString,
+							consts.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -252,7 +251,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node2",
 						Labels: map[string]string{
-							nodeclaim.LabelNodePool: nodeclaim.KaitoNodePoolName,
+							consts.LabelNodePool: consts.KaitoNodePoolName,
 						},
 					},
 				},
@@ -260,7 +259,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							machine.LabelGPUProvisionerCustom: consts.GPUString,
+							consts.LabelGPUProvisionerCustom: consts.GPUString,
 						},
 					},
 				},
@@ -287,7 +286,7 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name: "node3",
 						Labels: map[string]string{
-							nodeclaim.LabelNodePool: nodeclaim.KaitoNodePoolName,
+							consts.LabelNodePool: consts.KaitoNodePoolName,
 						},
 					},
 				},
@@ -302,12 +301,9 @@ func TestSelectWorkspaceNodes(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			reconciler := &WorkspaceReconciler{
-				Scheme: test.NewTestScheme(),
-			}
 			featuregates.FeatureGates[consts.FeatureFlagKarpenter] = tc.karpenterFeatureGates
 
-			selectedNodes := reconciler.selectWorkspaceNodes(tc.qualified, tc.preferred, tc.previous, tc.count)
+			selectedNodes := utils.SelectNodes(tc.qualified, tc.preferred, tc.previous, tc.count)
 
 			selectedNodesArray := []string{}
 
@@ -345,11 +341,11 @@ func TestCreateAndValidateMachineNode(t *testing.T) {
 				{
 					Type:    v1alpha5.MachineLaunched,
 					Status:  corev1.ConditionFalse,
-					Message: machine.ErrorInstanceTypesUnavailable,
+					Message: consts.ErrorInstanceTypesUnavailable,
 				},
 			},
 			workspace:     *test.MockWorkspaceWithPreset,
-			expectedError: errors.New(machine.ErrorInstanceTypesUnavailable),
+			expectedError: errors.New(consts.ErrorInstanceTypesUnavailable),
 		},
 		"A machine is successfully created": {
 			callMocks: func(c *test.MockClient) {
@@ -418,12 +414,12 @@ func TestCreateAndValidateMachineNode(t *testing.T) {
 				{
 					Type:    v1beta1.Launched,
 					Status:  corev1.ConditionFalse,
-					Message: nodeclaim.ErrorInstanceTypesUnavailable,
+					Message: consts.ErrorInstanceTypesUnavailable,
 				},
 			},
 			workspace:             *test.MockWorkspaceWithPreset,
 			karpenterFeatureGates: true,
-			expectedError:         errors.New(nodeclaim.ErrorInstanceTypesUnavailable),
+			expectedError:         errors.New(consts.ErrorInstanceTypesUnavailable),
 		},
 	}
 
@@ -489,11 +485,11 @@ func TestCreateAndValidateNodeClaimNode(t *testing.T) {
 				{
 					Type:    v1beta1.Launched,
 					Status:  corev1.ConditionFalse,
-					Message: nodeclaim.ErrorInstanceTypesUnavailable,
+					Message: consts.ErrorInstanceTypesUnavailable,
 				},
 			},
 			workspace:     *test.MockWorkspaceWithPreset,
-			expectedError: errors.New(nodeclaim.ErrorInstanceTypesUnavailable),
+			expectedError: errors.New(consts.ErrorInstanceTypesUnavailable),
 		},
 		"A nodeClaim is successfully created": {
 			callMocks: func(c *test.MockClient) {
@@ -751,28 +747,34 @@ func TestApplyInferenceWithTemplate(t *testing.T) {
 }
 
 func TestGetAllQualifiedNodes(t *testing.T) {
+	deletedNode := corev1.Node{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "node4",
+			Labels: map[string]string{
+				corev1.LabelInstanceTypeStable: "Standard_NC12s_v3",
+			},
+			DeletionTimestamp: &v1.Time{Time: time.Now()},
+		},
+	}
+
 	testcases := map[string]struct {
 		callMocks     func(c *test.MockClient)
+		workspace     *v1alpha1.Workspace
 		expectedError error
+		expectedNodes []string
 	}{
 		"Fails to get qualified nodes because can't list nodes": {
 			callMocks: func(c *test.MockClient) {
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(errors.New("Failed to list nodes"))
 			},
+			workspace:     test.MockWorkspaceDistributedModel,
 			expectedError: errors.New("Failed to list nodes"),
+			expectedNodes: nil,
 		},
 		"Gets all qualified nodes": {
 			callMocks: func(c *test.MockClient) {
 				nodeList := test.MockNodeList
-				deletedNode := corev1.Node{
-					ObjectMeta: v1.ObjectMeta{
-						Name: "node4",
-						Labels: map[string]string{
-							corev1.LabelInstanceTypeStable: "Standard_NC12s_v3",
-						},
-						DeletionTimestamp: &v1.Time{Time: time.Now()},
-					},
-				}
+
 				nodeList.Items = append(nodeList.Items, deletedNode)
 
 				relevantMap := c.CreateMapWithType(nodeList)
@@ -786,14 +788,88 @@ func TestGetAllQualifiedNodes(t *testing.T) {
 
 				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(nil)
 			},
+			workspace:     test.MockWorkspaceDistributedModel,
 			expectedError: nil,
+			expectedNodes: []string{"node1"},
+		},
+		"Gets all qualified nodes with preferred": {
+			callMocks: func(c *test.MockClient) {
+				nodeList := test.MockNodeList
+
+				nodeList.Items = append(nodeList.Items, deletedNode)
+
+				nodesFromOtherVendor := []corev1.Node{
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Name: "node-p1",
+							Labels: map[string]string{
+								corev1.LabelInstanceTypeStable: "vendor1",
+							},
+						},
+						Status: corev1.NodeStatus{
+							Conditions: []corev1.NodeCondition{
+								{
+									Type:   corev1.NodeReady,
+									Status: corev1.ConditionTrue,
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Name: "node-p2",
+							Labels: map[string]string{
+								corev1.LabelInstanceTypeStable: "vendor2",
+							},
+						},
+						Status: corev1.NodeStatus{
+							Conditions: []corev1.NodeCondition{
+								{
+									Type:   corev1.NodeReady,
+									Status: corev1.ConditionFalse,
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Name: "node-p3",
+							Labels: map[string]string{
+								corev1.LabelInstanceTypeStable: "vendor1",
+							},
+						},
+						Status: corev1.NodeStatus{
+							Conditions: []corev1.NodeCondition{
+								{
+									Type:   corev1.NodeReady,
+									Status: corev1.ConditionTrue,
+								},
+							},
+						},
+					},
+				}
+				nodeList.Items = append(nodeList.Items, nodesFromOtherVendor...)
+
+				relevantMap := c.CreateMapWithType(nodeList)
+				//insert node objects into the map
+				for _, obj := range test.MockNodeList.Items {
+					n := obj
+					objKey := client.ObjectKeyFromObject(&n)
+
+					relevantMap[objKey] = &n
+				}
+
+				c.On("List", mock.IsType(context.Background()), mock.IsType(&corev1.NodeList{}), mock.Anything).Return(nil)
+			},
+			workspace:     test.MockWorkspaceWithPreferredNodes,
+			expectedError: nil,
+			expectedNodes: []string{"node1", "node-p1"},
 		},
 	}
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
 			mockClient := test.NewClient()
-			mockWorkspace := test.MockWorkspaceDistributedModel
 			reconciler := &WorkspaceReconciler{
 				Client: mockClient,
 				Scheme: test.NewTestScheme(),
@@ -802,15 +878,17 @@ func TestGetAllQualifiedNodes(t *testing.T) {
 
 			tc.callMocks(mockClient)
 
-			nodes, err := reconciler.getAllQualifiedNodes(ctx, mockWorkspace)
-			if tc.expectedError == nil {
-				assert.Check(t, err == nil, "Not expected to return error")
-				assert.Check(t, nodes != nil, "Response node array should not be nil")
-				assert.Check(t, len(nodes) == 1, "One out of three nodes should be qualified")
-			} else {
+			nodes, err := reconciler.getAllQualifiedNodes(ctx, tc.workspace)
+
+			if tc.expectedError != nil {
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 				assert.Check(t, nodes == nil, "Response node array should be nil")
+				return
 			}
+
+			assert.Check(t, err == nil, "Not expected to return error")
+			assert.Check(t, nodes != nil, "Response node array should not be nil")
+			assert.Check(t, len(nodes) == len(tc.expectedNodes), "Unexpected qualified nodes")
 		})
 	}
 }

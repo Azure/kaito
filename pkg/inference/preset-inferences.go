@@ -8,12 +8,12 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/azure/kaito/pkg/utils"
-	"github.com/azure/kaito/pkg/utils/consts"
+	"github.com/kaito-project/kaito/pkg/utils"
+	"github.com/kaito-project/kaito/pkg/utils/consts"
 
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/model"
-	"github.com/azure/kaito/pkg/resources"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/model"
+	"github.com/kaito-project/kaito/pkg/resources"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -109,6 +109,13 @@ func GetInferenceImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		imageTag := presetObj.Tag
 		registryName := os.Getenv("PRESET_REGISTRY_NAME")
 		imageName = fmt.Sprintf("%s/kaito-%s:%s", registryName, imageName, imageTag)
+		if len(workspaceObj.Inference.Adapters) > 0 {
+			for _, adapter := range workspaceObj.Inference.Adapters {
+				for _, secretName := range adapter.Source.ImagePullSecrets {
+					imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
+				}
+			}
+		}
 		return imageName, imagePullSecretRefs
 	}
 }
