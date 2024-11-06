@@ -8,7 +8,6 @@ import logging
 import chromadb
 import json
 from llama_index.vector_stores.chroma import ChromaVectorStore
-from spyder_kernels.utils.nsview import collections_display
 
 from .base import BaseVectorStore
 
