@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import os
-from tempfile import TemporaryDirectory
 from unittest.mock import patch
 import pytest
 from abc import ABC, abstractmethod
@@ -24,6 +23,12 @@ class BaseVectorStoreTest(ABC):
     @abstractmethod
     def vector_store_manager(self, init_embed_manager):
         """Each implementation must provide its own vector store manager."""
+        pass
+    
+    @property
+    @abstractmethod
+    def expected_query_score(self):
+        """Override this in implementation-specific test classes."""
         pass
 
     def test_index_documents(self, vector_store_manager):
@@ -52,14 +57,13 @@ class BaseVectorStoreTest(ABC):
         vector_store_manager.index_documents(index_name_1, documents1)
         vector_store_manager.index_documents(index_name_2, documents2)
 
-        assert vector_store_manager.list_all_indexed_documents() == {
-            'index1': {"87117028123498eb7d757b1507aa3e840c63294f94c27cb5ec83c939dedb32fd":
-                           {'hash': '1e64a170be48c45efeaa8667ab35919106da0489ec99a11d0029f2842db133aa',
-                            'text': 'First document in index1'}},
-            'index2': {"49b198c0e126a99e1975f17b564756c25b4ad691a57eda583e232fd9bee6de91":
-                           {'hash': 'a222f875b83ce8b6eb72b3cae278b620de9bcc7c6b73222424d3ce979d1a463b',
-                            'text': 'First document in index2'}}
-        }
+        # Call the backend-specific check method
+        self.check_indexed_documents(vector_store_manager)
+
+    @abstractmethod
+    def check_indexed_documents(self, vector_store_manager):
+        """Abstract method to check indexed documents in backend-specific format."""
+        pass
 
     @patch('requests.post')
     def test_query_documents(self, mock_post, vector_store_manager):
@@ -80,7 +84,7 @@ class BaseVectorStoreTest(ABC):
         assert query_result is not None
         assert query_result["response"] == "{'result': 'This is the completion from the API'}"
         assert query_result["source_nodes"][0]["text"] == "First document"
-        assert query_result["source_nodes"][0]["score"] == pytest.approx(0.5795239210128784, rel=1e-6)
+        assert query_result["source_nodes"][0]["score"] == pytest.approx(self.expected_query_score, rel=1e-6)
 
         mock_post.assert_called_once_with(
             INFERENCE_URL,
