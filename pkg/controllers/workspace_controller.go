@@ -24,13 +24,13 @@ import (
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/go-logr/logr"
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	"github.com/kaito-project/kaito/pkg/inference"
 	"github.com/kaito-project/kaito/pkg/machine"
 	"github.com/kaito-project/kaito/pkg/resources"
 	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/plugin"
-	"github.com/go-logr/logr"
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -53,7 +53,6 @@ import (
 )
 
 const (
-	gpuSkuPrefix             = "Standard_N"
 	nodePluginInstallTimeout = 60 * time.Second
 	WorkspaceHashAnnotation  = "workspace.kaito.io/hash"
 	WorkspaceNameLabel       = "workspace.kaito.io/name"
@@ -135,9 +134,8 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 			klog.ErrorS(updateErr, "failed to update workspace status", "workspace", klog.KObj(wObj))
 			return reconcile.Result{}, updateErr
 		}
-		// if error is	due to machine/nodeClaim instance types unavailability, stop reconcile.
-		if err.Error() == machine.ErrorInstanceTypesUnavailable ||
-			err.Error() == nodeclaim.ErrorInstanceTypesUnavailable {
+		// If the error is due to machine/nodeClaim instance types unavailability, stop reconcile.
+		if err.Error() == consts.ErrorInstanceTypesUnavailable {
 			return reconcile.Result{Requeue: false}, err
 		}
 		return reconcile.Result{}, err
@@ -323,54 +321,6 @@ func computeHash(w *kaitov1alpha1.Workspace) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-func selectNodes(qualified []*corev1.Node, preferred []string, previous []string, count int) []*corev1.Node {
-
-	sort.Slice(qualified, func(i, j int) bool {
-		iPreferred := utils.Contains(preferred, qualified[i].Name)
-		jPreferred := utils.Contains(preferred, qualified[j].Name)
-
-		if iPreferred && !jPreferred {
-			return true
-		} else if !iPreferred && jPreferred {
-			return false
-		} else { // either all are preferred, or none is preferred
-			iPrevious := utils.Contains(previous, qualified[i].Name)
-			jPrevious := utils.Contains(previous, qualified[j].Name)
-
-			if iPrevious && !jPrevious {
-				return true
-			} else if !iPrevious && jPrevious {
-				return false
-			} else { // either all are previous, or none is previous
-				var iCreatedByGPUProvisioner, jCreatedByGPUProvisioner bool
-				_, iCreatedByGPUProvisioner = qualified[i].Labels[machine.LabelGPUProvisionerCustom]
-				_, jCreatedByGPUProvisioner = qualified[j].Labels[machine.LabelGPUProvisionerCustom]
-				// Choose node created by gpu-provisioner and karpenter since it is more likely to be empty to use.
-				var iCreatedByKarpenter, jCreatedByKarpenter bool
-				if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
-					_, iCreatedByKarpenter = qualified[i].Labels[nodeclaim.LabelNodePool]
-					_, jCreatedByKarpenter = qualified[j].Labels[nodeclaim.LabelNodePool]
-				}
-				if (iCreatedByGPUProvisioner && !jCreatedByGPUProvisioner) ||
-					(iCreatedByKarpenter && !jCreatedByKarpenter) {
-					return true
-				} else if (!iCreatedByGPUProvisioner && jCreatedByGPUProvisioner) ||
-					(!iCreatedByKarpenter && jCreatedByKarpenter) {
-					return false
-				} else {
-					return qualified[i].Name < qualified[j].Name
-				}
-			}
-		}
-	})
-
-	if len(qualified) <= count {
-		return qualified
-	}
-
-	return qualified[0:count]
-}
-
 // applyWorkspaceResource applies workspace resource spec.
 func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
 
@@ -392,7 +342,7 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 		return err
 	}
 
-	selectedNodes := selectNodes(validNodes, wObj.Resource.PreferredNodes, wObj.Status.WorkerNodes, lo.FromPtr(wObj.Resource.Count))
+	selectedNodes := utils.SelectNodes(validNodes, wObj.Resource.PreferredNodes, wObj.Status.WorkerNodes, lo.FromPtr(wObj.Resource.Count))
 
 	newNodesCount := lo.FromPtr(wObj.Resource.Count) - len(selectedNodes)
 
@@ -427,7 +377,7 @@ func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *
 	}
 
 	// Ensure all gpu plugins are running successfully.
-	if strings.Contains(wObj.Resource.InstanceType, gpuSkuPrefix) { // GPU skus
+	if strings.Contains(wObj.Resource.InstanceType, consts.GpuSkuPrefix) { // GPU skus
 		for i := range selectedNodes {
 			err = c.ensureNodePlugins(ctx, wObj, selectedNodes[i])
 			if err != nil {
@@ -612,7 +562,7 @@ RetryWithDifferentName:
 // ensureNodePlugins ensures node plugins are installed.
 func (c *WorkspaceReconciler) ensureNodePlugins(ctx context.Context, wObj *kaitov1alpha1.Workspace, nodeObj *corev1.Node) error {
 	timeClock := clock.RealClock{}
-	tick := timeClock.NewTicker(nodePluginInstallTimeout)
+	tick := timeClock.NewTicker(consts.NodePluginInstallTimeout)
 	defer tick.Stop()
 
 	for {

@@ -1,9 +1,12 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 from typing import Any
 from llama_index.core.llms import CustomLLM, CompletionResponse, LLMMetadata, CompletionResponseGen
 from llama_index.llms.openai import OpenAI
 from llama_index.core.llms.callbacks import llm_completion_callback
 import requests
-from ragengine.config import INFERENCE_URL, INFERENCE_ACCESS_SECRET #, RESPONSE_FIELD
+from services.config import INFERENCE_URL, INFERENCE_ACCESS_SECRET #, RESPONSE_FIELD
 
 class Inference(CustomLLM):
     params: dict = {}

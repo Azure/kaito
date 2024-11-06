@@ -99,8 +99,8 @@ unit-test: ## Run unit tests.
 
 .PHONY: rag-service-test
 rag-service-test:
-	pip install -r ragengine/requirements.txt
-	pytest -o log_cli=true -o log_cli_level=INFO ragengine/tests
+	pip install -r pkg/ragengine/services/requirements.txt
+	pytest -o log_cli=true -o log_cli_level=INFO pkg/ragengine/services/tests
 
 .PHONY: tuning-metrics-server-test
 tuning-metrics-server-test:
@@ -121,7 +121,7 @@ GINKGO_SKIP ?=
 GINKGO_NODES ?= 2
 GINKGO_NO_COLOR ?= false
 GINKGO_TIMEOUT ?= 180m
-GINKGO_ARGS ?= -focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" -nodes=$(GINKGO_NODES) -no-color=$(GINKGO_NO_COLOR) -timeout=$(GINKGO_TIMEOUT)
+GINKGO_ARGS ?= -focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" -nodes=$(GINKGO_NODES) -no-color=$(GINKGO_NO_COLOR) -timeout=$(GINKGO_TIMEOUT) --fail-fast
 
 $(E2E_TEST):
 	(cd test/e2e && go test -c . -o $(E2E_TEST))
@@ -180,6 +180,10 @@ OUTPUT_TYPE ?= type=registry
 QEMU_VERSION ?= 7.2.0-1
 ARCH ?= amd64,arm64
 
+RAGENGINE_IMAGE_NAME ?= ragengine
+RAGENGINE_IMAGE_TAG ?= v0.0.1
+
+
 .PHONY: docker-buildx
 docker-buildx: ## Build and push docker image for the manager for cross-platform support
 	@if ! docker buildx ls | grep $(BUILDX_BUILDER_NAME); then \
@@ -188,10 +192,10 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 		docker buildx inspect $(BUILDX_BUILDER_NAME) --bootstrap; \
 	fi
 
-.PHONY: docker-build-kaito
-docker-build-kaito: docker-buildx
+.PHONY: docker-build-workspace
+docker-build-workspace: docker-buildx
 	docker buildx build \
-		--file ./docker/kaito/Dockerfile \
+		--file ./docker/workspace/Dockerfile \
 		--output=$(OUTPUT_TYPE) \
 		--platform="linux/$(ARCH)" \
 		--pull \
@@ -204,7 +208,7 @@ docker-build-ragengine: docker-buildx
                 --output=$(OUTPUT_TYPE) \
                 --platform="linux/$(ARCH)" \
                 --pull \
-                --tag $(REGISTRY)/$(IMG_NAME):$(IMG_TAG) .
+                --tag $(REGISTRY)/$(RAGENGINE_IMG_NAME):$(RAGENGINE_IMG_TAG) .
 
 .PHONY: docker-build-adapter
 docker-build-adapter: docker-buildx
@@ -316,13 +320,13 @@ azure-karpenter-helm:  ## Update Azure client env vars and settings in helm valu
 	kubectl wait --for=condition=available deploy "karpenter" -n karpenter --timeout=300s
 
 ##@ Build
-.PHONY: build
-build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/*.go
+.PHONY: build-workspace
+build-workspace: manifests generate fmt vet ## Build manager binary.
+	go build -o bin/workspace-manager cmd/workspace/*.go
 
-.PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/main.go
+.PHONY: run-workspace
+run-workspace: manifests generate fmt vet ## Run a controller from your host.
+	go run ./cmd/workspace/main.go
 
 ##@ Build Dependencies
 ## Location to install dependencies to

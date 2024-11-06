@@ -1,8 +1,11 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 from unittest.mock import patch
 
 from llama_index.core.storage.index_store import SimpleIndexStore
 
-from ragengine.main import app, vector_store_handler, rag_ops
+from services.main import app, vector_store_handler, rag_ops
 from fastapi.testclient import TestClient
 import pytest
 

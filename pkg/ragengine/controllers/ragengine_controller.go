@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/go-logr/logr"
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	"github.com/kaito-project/kaito/pkg/featuregates"
 	"github.com/kaito-project/kaito/pkg/machine"
 	"github.com/kaito-project/kaito/pkg/nodeclaim"
 	"github.com/kaito-project/kaito/pkg/resources"
+	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
-	"github.com/go-logr/logr"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -134,8 +135,7 @@ func (c *RAGEngineReconciler) applyRAGEngineResource(ctx context.Context, ragEng
 		return err
 	}
 
-	selectedNodes := selectNodes(validNodes, ragEngineObj.Spec.Compute.PreferredNodes, ragEngineObj.Status.WorkerNodes, lo.FromPtr(ragEngineObj.Spec.Compute.Count))
-
+	selectedNodes := utils.SelectNodes(validNodes, ragEngineObj.Spec.Compute.PreferredNodes, ragEngineObj.Status.WorkerNodes, lo.FromPtr(ragEngineObj.Spec.Compute.Count))
 	newNodesCount := lo.FromPtr(ragEngineObj.Spec.Compute.Count) - len(selectedNodes)
 
 	if newNodesCount > 0 {
@@ -169,7 +169,7 @@ func (c *RAGEngineReconciler) applyRAGEngineResource(ctx context.Context, ragEng
 	}
 
 	// Ensure all gpu plugins are running successfully.
-	if strings.Contains(ragEngineObj.Spec.Compute.InstanceType, gpuSkuPrefix) { // GPU skus
+	if strings.Contains(ragEngineObj.Spec.Compute.InstanceType, consts.GpuSkuPrefix) { // GPU skus
 		for i := range selectedNodes {
 			err = c.ensureNodePlugins(ctx, ragEngineObj, selectedNodes[i])
 			if err != nil {
@@ -351,7 +351,7 @@ RetryWithDifferentName:
 // ensureNodePlugins ensures node plugins are installed.
 func (c *RAGEngineReconciler) ensureNodePlugins(ctx context.Context, ragEngineObj *kaitov1alpha1.RAGEngine, nodeObj *corev1.Node) error {
 	timeClock := clock.RealClock{}
-	tick := timeClock.NewTicker(nodePluginInstallTimeout)
+	tick := timeClock.NewTicker(consts.NodePluginInstallTimeout)
 	defer tick.Stop()
 
 	for {
