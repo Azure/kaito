@@ -21,8 +21,8 @@ import (
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	"github.com/kaito-project/kaito/pkg/controllers"
 	"github.com/kaito-project/kaito/pkg/webhooks"
+	"github.com/kaito-project/kaito/pkg/workspace/controllers"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/injection/sharedmain"
 	"knative.dev/pkg/webhook"
