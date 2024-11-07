@@ -19,6 +19,7 @@ import (
 
 	"github.com/kaito-project/kaito/pkg/ragengine/controllers"
 	"github.com/kaito-project/kaito/pkg/webhooks"
+	"k8s.io/api/apps/v1beta1"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/injection/sharedmain"
 	"knative.dev/pkg/webhook"
@@ -158,7 +159,6 @@ func main() {
 		// wait 2 seconds to allow reconciling webhookconfiguration and service endpoint.
 		time.Sleep(2 * time.Second)
 	}
-
 	klog.InfoS("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		klog.ErrorS(err, "problem running manager")
