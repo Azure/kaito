@@ -23,7 +23,6 @@ on:
         default: "eastus"
       k8s_version:
         type: string
-        default: "1.30.0"
 
 jobs:
   e2e-tests:
