@@ -19,7 +19,6 @@ import (
 
 	"github.com/kaito-project/kaito/pkg/ragengine/controllers"
 	"github.com/kaito-project/kaito/pkg/webhooks"
-	"k8s.io/api/apps/v1beta1"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/injection/sharedmain"
 	"knative.dev/pkg/webhook"
