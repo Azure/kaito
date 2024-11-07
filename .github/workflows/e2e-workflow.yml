@@ -23,7 +23,6 @@ on:
         default: "eastus"
       k8s_version:
         type: string
-
 jobs:
   e2e-tests:
     runs-on: [ "self-hosted" ]
