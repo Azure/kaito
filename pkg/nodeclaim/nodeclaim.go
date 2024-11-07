@@ -14,9 +14,9 @@ import (
 
 	azurev1alpha2 "github.com/Azure/karpenter-provider-azure/pkg/apis/v1alpha2"
 	awsv1beta1 "github.com/aws/karpenter-provider-aws/pkg/apis/v1beta1"
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/resources"
-	"github.com/azure/kaito/pkg/utils/consts"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/resources"
+	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -28,13 +28,6 @@ import (
 	"knative.dev/pkg/apis"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
-)
-
-const (
-	KaitoNodePoolName             = "kaito"
-	LabelNodePool                 = "karpenter.sh/nodepool"
-	ErrorInstanceTypesUnavailable = "all requested instance types were unavailable during launch"
-	NodeClassName                 = "default"
 )
 
 var (
@@ -56,9 +49,9 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, o
 	nodeClaimName := GenerateNodeClaimName(obj)
 
 	nodeClaimLabels := map[string]string{
-		LabelNodePool:  KaitoNodePoolName, // Fake nodepool name to prevent Karpenter from scaling up.
-		nameLabel:      name,
-		namespaceLabel: namespace,
+		consts.LabelNodePool: consts.KaitoNodePoolName, // Fake nodepool name to prevent Karpenter from scaling up.
+		nameLabel:            name,
+		namespaceLabel:       namespace,
 	}
 	if labelSelector != nil && len(labelSelector.MatchLabels) != 0 {
 		nodeClaimLabels = lo.Assign(nodeClaimLabels, labelSelector.MatchLabels)
@@ -86,7 +79,7 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, o
 		},
 		Spec: v1beta1.NodeClaimSpec{
 			NodeClassRef: &v1beta1.NodeClassReference{
-				Name: NodeClassName,
+				Name: consts.NodeClassName,
 				Kind: nodeClassRefKind,
 			},
 			Taints: []v1.Taint{
@@ -99,9 +92,9 @@ func GenerateNodeClaimManifest(ctx context.Context, storageRequirement string, o
 			Requirements: []v1beta1.NodeSelectorRequirementWithMinValues{
 				{
 					NodeSelectorRequirement: v1.NodeSelectorRequirement{
-						Key:      LabelNodePool,
+						Key:      consts.LabelNodePool,
 						Operator: v1.NodeSelectorOpIn,
-						Values:   []string{KaitoNodePoolName},
+						Values:   []string{consts.KaitoNodePoolName},
 					},
 				},
 				{
@@ -156,7 +149,7 @@ func GenerateNodeClaimName(obj interface{}) string {
 func GenerateAKSNodeClassManifest(ctx context.Context) *azurev1alpha2.AKSNodeClass {
 	return &azurev1alpha2.AKSNodeClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: NodeClassName,
+			Name: consts.NodeClassName,
 			Annotations: map[string]string{
 				"kubernetes.io/description": "General purpose AKSNodeClass for running Ubuntu 22.04 nodes",
 			},
@@ -174,7 +167,7 @@ func GenerateEC2NodeClassManifest(ctx context.Context) *awsv1beta1.EC2NodeClass 
 			Annotations: map[string]string{
 				"kubernetes.io/description": "General purpose EC2NodeClass for running Amazon Linux 2 nodes",
 			},
-			Name: NodeClassName,
+			Name: consts.NodeClassName,
 		},
 		Spec: awsv1beta1.EC2NodeClassSpec{
 			AMIFamily: lo.ToPtr(awsv1beta1.AMIFamilyAL2), // Amazon Linux 2
@@ -201,7 +194,7 @@ func GenerateEC2NodeClassManifest(ctx context.Context) *awsv1beta1.EC2NodeClass 
 func CreateNodeClaim(ctx context.Context, nodeClaimObj *v1beta1.NodeClaim, kubeClient client.Client) error {
 	klog.InfoS("CreateNodeClaim", "nodeClaim", klog.KObj(nodeClaimObj))
 	return retry.OnError(retry.DefaultBackoff, func(err error) bool {
-		return err.Error() != ErrorInstanceTypesUnavailable
+		return err.Error() != consts.ErrorInstanceTypesUnavailable
 	}, func() error {
 		err := CheckNodeClass(ctx, kubeClient)
 		if err != nil {
@@ -220,11 +213,11 @@ func CreateNodeClaim(ctx context.Context, nodeClaimObj *v1beta1.NodeClaim, kubeC
 		// if SKU is not available, then exit.
 		_, conditionFound := lo.Find(updatedObj.GetConditions(), func(condition apis.Condition) bool {
 			return condition.Type == v1beta1.Launched &&
-				condition.Status == v1.ConditionFalse && condition.Message == ErrorInstanceTypesUnavailable
+				condition.Status == v1.ConditionFalse && condition.Message == consts.ErrorInstanceTypesUnavailable
 		})
 		if conditionFound {
-			klog.Error(ErrorInstanceTypesUnavailable, "reconcile will not continue")
-			return fmt.Errorf(ErrorInstanceTypesUnavailable)
+			klog.Error(consts.ErrorInstanceTypesUnavailable, "reconcile will not continue")
+			return fmt.Errorf(consts.ErrorInstanceTypesUnavailable)
 		}
 		return err
 	})
@@ -358,11 +351,11 @@ func CheckNodeClaimStatus(ctx context.Context, nodeClaimObj *v1beta1.NodeClaim, 
 
 func IsNodeClassAvailable(ctx context.Context, cloudName string, kubeClient client.Client) bool {
 	if cloudName == consts.AzureCloudName {
-		err := kubeClient.Get(ctx, client.ObjectKey{Name: NodeClassName},
+		err := kubeClient.Get(ctx, client.ObjectKey{Name: consts.NodeClassName},
 			&azurev1alpha2.AKSNodeClass{}, &client.GetOptions{})
 		return err == nil
 	} else if cloudName == consts.AWSCloudName {
-		err := kubeClient.Get(ctx, client.ObjectKey{Name: NodeClassName},
+		err := kubeClient.Get(ctx, client.ObjectKey{Name: consts.NodeClassName},
 			&awsv1beta1.EC2NodeClass{}, &client.GetOptions{})
 		return err == nil
 	}

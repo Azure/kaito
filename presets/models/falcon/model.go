@@ -3,13 +3,14 @@
 package falcon
 
 import (
-	"github.com/azure/kaito/pkg/tuning"
 	"time"
 
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/inference"
-	"github.com/azure/kaito/pkg/model"
-	"github.com/azure/kaito/pkg/utils/plugin"
+	"github.com/kaito-project/kaito/pkg/tuning"
+
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/model"
+	"github.com/kaito-project/kaito/pkg/utils/plugin"
+	"github.com/kaito-project/kaito/pkg/workspace/inference"
 )
 
 func init() {

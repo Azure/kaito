@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	kaitov1alpha1 "github.com/azure/kaito/api/v1alpha1"
-	"github.com/azure/kaito/pkg/resources"
-	"github.com/azure/kaito/pkg/utils/consts"
+	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
+	"github.com/kaito-project/kaito/pkg/resources"
+	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -24,13 +24,6 @@ import (
 	"k8s.io/utils/clock"
 	"knative.dev/pkg/apis"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-)
-
-const (
-	ProvisionerName               = "default"
-	LabelGPUProvisionerCustom     = "kaito.sh/machine-type"
-	LabelProvisionerName          = "karpenter.sh/provisioner-name"
-	ErrorInstanceTypesUnavailable = "all requested instance types were unavailable during launch"
 )
 
 var (
@@ -51,9 +44,9 @@ func GenerateMachineManifest(ctx context.Context, storageRequirement string, obj
 	digest := sha256.Sum256([]byte(namespace + name + time.Now().Format("2006-01-02 15:04:05.000000000"))) // We make sure the nodeClaim name is not fixed to the object
 	machineName := "ws" + hex.EncodeToString(digest[0:])[0:9]
 	machineLabels := map[string]string{
-		LabelProvisionerName: ProvisionerName,
-		nameLabel:            name,
-		namespaceLabel:       namespace,
+		consts.LabelProvisionerName: consts.ProvisionerName,
+		nameLabel:                   name,
+		namespaceLabel:              namespace,
 	}
 
 	if labelSelector != nil && len(labelSelector.MatchLabels) != 0 {
@@ -77,12 +70,12 @@ func GenerateMachineManifest(ctx context.Context, storageRequirement string, obj
 					Values:   []string{instanceType},
 				},
 				{
-					Key:      LabelProvisionerName,
+					Key:      consts.LabelProvisionerName,
 					Operator: v1.NodeSelectorOpIn,
-					Values:   []string{ProvisionerName},
+					Values:   []string{consts.ProvisionerName},
 				},
 				{
-					Key:      LabelGPUProvisionerCustom,
+					Key:      consts.LabelGPUProvisionerCustom,
 					Operator: v1.NodeSelectorOpIn,
 					Values:   []string{consts.GPUString},
 				},
@@ -117,7 +110,7 @@ func GenerateMachineManifest(ctx context.Context, storageRequirement string, obj
 func CreateMachine(ctx context.Context, machineObj *v1alpha5.Machine, kubeClient client.Client) error {
 	klog.InfoS("CreateMachine", "machine", klog.KObj(machineObj))
 	return retry.OnError(retry.DefaultBackoff, func(err error) bool {
-		return err.Error() != ErrorInstanceTypesUnavailable
+		return err.Error() != consts.ErrorInstanceTypesUnavailable
 	}, func() error {
 		err := kubeClient.Create(ctx, machineObj, &client.CreateOptions{})
 		if err != nil {
@@ -131,11 +124,11 @@ func CreateMachine(ctx context.Context, machineObj *v1alpha5.Machine, kubeClient
 		// if SKU is not available, then exit.
 		_, conditionFound := lo.Find(updatedObj.GetConditions(), func(condition apis.Condition) bool {
 			return condition.Type == v1alpha5.MachineLaunched &&
-				condition.Status == v1.ConditionFalse && condition.Message == ErrorInstanceTypesUnavailable
+				condition.Status == v1.ConditionFalse && condition.Message == consts.ErrorInstanceTypesUnavailable
 		})
 		if conditionFound {
-			klog.Error(ErrorInstanceTypesUnavailable, "reconcile will not continue")
-			return fmt.Errorf(ErrorInstanceTypesUnavailable)
+			klog.Error(consts.ErrorInstanceTypesUnavailable, "reconcile will not continue")
+			return fmt.Errorf(consts.ErrorInstanceTypesUnavailable)
 		}
 		return err
 	})
