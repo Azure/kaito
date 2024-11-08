@@ -6,7 +6,7 @@ import (
 	"time"
 
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
-	model "github.com/kaito-project/kaito/pkg/model"
+	"github.com/kaito-project/kaito/pkg/model"
 	"github.com/kaito-project/kaito/pkg/utils/plugin"
 	"github.com/kaito-project/kaito/pkg/workspace/inference"
 )
