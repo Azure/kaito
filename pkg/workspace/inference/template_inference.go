@@ -6,12 +6,13 @@ import (
 	"context"
 
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
-	"github.com/kaito-project/kaito/pkg/resources"
+	manifests "github.com/kaito-project/kaito/pkg/resources"
+	"github.com/kaito-project/kaito/pkg/utils/resources"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func CreateTemplateInference(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, kubeClient client.Client) (client.Object, error) {
-	depObj := resources.GenerateDeploymentManifestWithPodTemplate(ctx, workspaceObj, tolerations)
+	depObj := manifests.GenerateDeploymentManifestWithPodTemplate(ctx, workspaceObj, tolerations)
 	err := resources.CreateResource(ctx, client.Object(depObj), kubeClient)
 	if client.IgnoreAlreadyExists(err) != nil {
 		return nil, err

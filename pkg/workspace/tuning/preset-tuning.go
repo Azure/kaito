@@ -16,8 +16,9 @@ import (
 
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	"github.com/kaito-project/kaito/pkg/model"
-	"github.com/kaito-project/kaito/pkg/resources"
+	manifests "github.com/kaito-project/kaito/pkg/resources"
 	"github.com/kaito-project/kaito/pkg/utils"
+	"github.com/kaito-project/kaito/pkg/utils/resources"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/klog/v2"
@@ -356,7 +357,7 @@ func CreatePresetTuning(ctx context.Context, workspaceObj *kaitov1alpha1.Workspa
 		Name:  "PYTORCH_CUDA_ALLOC_CONF",
 		Value: "expandable_segments:True",
 	})
-	jobObj := resources.GenerateTuningJobManifest(ctx, workspaceObj, revisionNum, tuningImage, imagePullSecrets, *workspaceObj.Resource.Count, commands,
+	jobObj := manifests.GenerateTuningJobManifest(ctx, workspaceObj, revisionNum, tuningImage, imagePullSecrets, *workspaceObj.Resource.Count, commands,
 		containerPorts, nil, nil, resourceReq, tolerations, initContainers, sidecarContainers, volumes, volumeMounts, envVars)
 
 	err = resources.CreateResource(ctx, jobObj, kubeClient)
