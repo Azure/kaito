@@ -27,4 +27,7 @@ const (
 
 	// WorkspaceRevisionAnnotation is the Annotations for revision number
 	WorkspaceRevisionAnnotation = "workspace.kaito.io/revision"
+
+	// RAGEngineRevisionAnnotation is the Annotations for revision number
+	RAGEngineRevisionAnnotation = "ragengine.kaito.io/revision"
 )
