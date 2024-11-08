@@ -28,5 +28,4 @@ jobs:
     uses: ./.github/workflows/e2e-workflow.yml
     with:
       git_sha: ${{ github.event.pull_request.head.sha }}
-      k8s_version: ${{ vars.AKS_K8S_VERSION }}
       node_provisioner: ${{ matrix.node-provisioner }}
