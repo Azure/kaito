@@ -5,6 +5,9 @@ WORKDIR /app
 # Copy all files from ragengine/services into the app/services folder
 COPY services/ services/
 
+# Set the PYTHONPATH environment variable
+ENV PYTHONPATH=/app
+
 # Install dependencies from requirements.txt
 RUN pip install --no-cache-dir -r services/requirements.txt
 
