@@ -26,11 +26,11 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/go-logr/logr"
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
-	"github.com/kaito-project/kaito/pkg/inference"
 	"github.com/kaito-project/kaito/pkg/machine"
 	"github.com/kaito-project/kaito/pkg/resources"
 	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/plugin"
+	"github.com/kaito-project/kaito/pkg/workspace/inference"
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -53,10 +53,9 @@ import (
 )
 
 const (
-	nodePluginInstallTimeout = 60 * time.Second
-	WorkspaceHashAnnotation  = "workspace.kaito.io/hash"
-	WorkspaceNameLabel       = "workspace.kaito.io/name"
-	revisionHashSuffix       = 5
+	WorkspaceHashAnnotation = "workspace.kaito.io/hash"
+	WorkspaceNameLabel      = "workspace.kaito.io/name"
+	revisionHashSuffix      = 5
 )
 
 type WorkspaceReconciler struct {
