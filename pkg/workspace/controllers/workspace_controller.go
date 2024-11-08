@@ -53,10 +53,9 @@ import (
 )
 
 const (
-	nodePluginInstallTimeout = 60 * time.Second
-	WorkspaceHashAnnotation  = "workspace.kaito.io/hash"
-	WorkspaceNameLabel       = "workspace.kaito.io/name"
-	revisionHashSuffix       = 5
+	WorkspaceHashAnnotation = "workspace.kaito.io/hash"
+	WorkspaceNameLabel      = "workspace.kaito.io/name"
+	revisionHashSuffix      = 5
 )
 
 type WorkspaceReconciler struct {

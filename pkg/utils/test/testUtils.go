@@ -149,6 +149,35 @@ var (
 )
 
 var (
+	MockRAGEngineWithDeleteOldCR = v1alpha1.RAGEngine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testRAGEngine",
+			Namespace: "kaito",
+			Annotations: map[string]string{
+				"workspace.kaito.io/hash":     "14485768c1b67a529a71e3c87d9f2e6c1ed747534dea07e268e93475a5e21e",
+				"workspace.kaito.io/revision": "1",
+			},
+		},
+		Spec: &v1alpha1.RAGEngineSpec{
+			Compute: &v1alpha1.ResourceSpec{
+				Count:        &gpuNodeCount,
+				InstanceType: "Standard_NC12s_v3",
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"ragengine.kaito.io/name": "testRAGEngine",
+					},
+				},
+			},
+			Embedding: &v1alpha1.EmbeddingSpec{
+				Local: &v1alpha1.LocalEmbeddingSpec{
+					ModelID: "BAAI/bge-small-en-v1.5",
+				},
+			},
+		},
+	}
+)
+
+var (
 	MockWorkspaceFailToCreateCR = v1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testWorkspace-failedtocreateCR",
@@ -173,6 +202,28 @@ var (
 				},
 			},
 		},
+	}
+)
+
+var (
+	MockRAGEngineFailToCreateCR = v1alpha1.RAGEngine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testRAGEngine-failedtocreateCR",
+			Namespace: "kaito",
+			Annotations: map[string]string{
+				"ragengine.kaito.io/revision": "1",
+			},
+		},
+		Spec: &v1alpha1.RAGEngineSpec{
+			Compute: &v1alpha1.ResourceSpec{
+				Count:        &gpuNodeCount,
+				InstanceType: "Standard_NC12s_v3",
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"ragengine.kaito.io/name": "testRAGEngine",
+					},
+				},
+			}},
 	}
 )
 
@@ -205,6 +256,28 @@ var (
 )
 
 var (
+	MockRAGEngineSuccessful = v1alpha1.RAGEngine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testRAGEngine-successful",
+			Namespace: "kaito",
+			Annotations: map[string]string{
+				"ragengine.kaito.io/revision": "0",
+			},
+		},
+		Spec: &v1alpha1.RAGEngineSpec{
+			Compute: &v1alpha1.ResourceSpec{
+				Count:        &gpuNodeCount,
+				InstanceType: "Standard_NC12s_v3",
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"ragengine.kaito.io/name": "testRAGEngine",
+					},
+				},
+			}},
+	}
+)
+
+var (
 	MockWorkspaceWithComputeHash = v1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testWorkspace",
@@ -230,6 +303,29 @@ var (
 				},
 			},
 		},
+	}
+)
+
+var (
+	MockRAGEngineWithComputeHash = v1alpha1.RAGEngine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testRAGEngine",
+			Namespace: "kaito",
+			Annotations: map[string]string{
+				"ragengine.kaito.io/hash":     "7985249e078eb041e38c10c3637032b2d352616c609be8542a779460d3ff1d67",
+				"ragengine.kaito.io/revision": "1",
+			},
+		},
+		Spec: &v1alpha1.RAGEngineSpec{
+			Compute: &v1alpha1.ResourceSpec{
+				Count:        &gpuNodeCount,
+				InstanceType: "Standard_NC12s_v3",
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"ragengine.kaito.io/name": "testRAGEngine",
+					},
+				},
+			}},
 	}
 )
 
@@ -297,6 +393,29 @@ var (
 				},
 			},
 		},
+	}
+)
+
+var (
+	MockRAGEngineWithUpdatedDeployment = v1alpha1.RAGEngine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testRAGEngine",
+			Namespace: "kaito",
+			Annotations: map[string]string{
+				"ragengine.kaito.io/hash":     "7985249e078eb041e38c10c3637032b2d352616c609be8542a779460d3ff1d67",
+				"ragengine.kaito.io/revision": "1",
+			},
+		},
+		Spec: &v1alpha1.RAGEngineSpec{
+			Compute: &v1alpha1.ResourceSpec{
+				Count:        &gpuNodeCount,
+				InstanceType: "Standard_NC12s_v3",
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"ragengine.kaito.io/name": "testRAGEngine",
+					},
+				},
+			}},
 	}
 )
 
