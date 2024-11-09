@@ -36,24 +36,3 @@ func NewWorkspaceCRDValidationWebhook(ctx context.Context, _ configmap.Watcher) 
 var WorkspaceResources = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
 	kaitov1alpha1.GroupVersion.WithKind("Workspace"): &kaitov1alpha1.Workspace{},
 }
-
-func NewRAGEngineWebhooks() []knativeinjection.ControllerConstructor {
-	return []knativeinjection.ControllerConstructor{
-		certificates.NewController,
-		NewRAGEngineCRDValidationWebhook,
-	}
-}
-
-func NewRAGEngineCRDValidationWebhook(ctx context.Context, _ configmap.Watcher) *controller.Impl {
-	return validation.NewAdmissionController(ctx,
-		"validation.ragengine.kaito.sh",
-		"/validate/ragengine.kaito.sh",
-		RAGEngineResources,
-		func(ctx context.Context) context.Context { return ctx },
-		true,
-	)
-}
-
-var RAGEngineResources = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
-	kaitov1alpha1.GroupVersion.WithKind("RAGEngine"): &kaitov1alpha1.RAGEngine{},
-}
