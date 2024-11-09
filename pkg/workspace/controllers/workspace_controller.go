@@ -17,19 +17,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/kaito-project/kaito/pkg/featuregates"
-	"github.com/kaito-project/kaito/pkg/nodeclaim"
-	"github.com/kaito-project/kaito/pkg/tuning"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
+	"github.com/kaito-project/kaito/pkg/utils/nodeclaim"
+	"github.com/kaito-project/kaito/pkg/workspace/tuning"
 	batchv1 "k8s.io/api/batch/v1"
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/go-logr/logr"
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
-	"github.com/kaito-project/kaito/pkg/machine"
-	"github.com/kaito-project/kaito/pkg/resources"
+	manifests "github.com/kaito-project/kaito/pkg/resources"
 	"github.com/kaito-project/kaito/pkg/utils"
+	"github.com/kaito-project/kaito/pkg/utils/machine"
 	"github.com/kaito-project/kaito/pkg/utils/plugin"
+	"github.com/kaito-project/kaito/pkg/utils/resources"
 	"github.com/kaito-project/kaito/pkg/workspace/inference"
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
@@ -633,12 +634,12 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 
 	if presetName := getPresetName(wObj); presetName != "" {
 		model := plugin.KaitoModelRegister.MustGet(presetName)
-		serviceObj := resources.GenerateServiceManifest(ctx, wObj, serviceType, model.SupportDistributedInference())
+		serviceObj := manifests.GenerateServiceManifest(ctx, wObj, serviceType, model.SupportDistributedInference())
 		if err := resources.CreateResource(ctx, serviceObj, c.Client); err != nil {
 			return err
 		}
 		if model.SupportDistributedInference() {
-			headlessService := resources.GenerateHeadlessServiceManifest(ctx, wObj)
+			headlessService := manifests.GenerateHeadlessServiceManifest(ctx, wObj)
 			if err := resources.CreateResource(ctx, headlessService, c.Client); err != nil {
 				return err
 			}
@@ -759,7 +760,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 							volumes = append(volumes, adapterVolume)
 							volumeMounts = append(volumeMounts, adapterVolumeMount)
 						}
-						initContainers, envs := resources.GenerateInitContainers(wObj, volumeMounts)
+						initContainers, envs := manifests.GenerateInitContainers(wObj, volumeMounts)
 						spec := &deployment.Spec
 
 						spec.Template.Spec.InitContainers = initContainers
