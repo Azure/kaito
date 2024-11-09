@@ -6,8 +6,8 @@ import (
 	"context"
 
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
-	manifests "github.com/kaito-project/kaito/pkg/resources"
 	"github.com/kaito-project/kaito/pkg/utils/resources"
+	"github.com/kaito-project/kaito/pkg/workspace/manifests"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
