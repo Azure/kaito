@@ -38,14 +38,14 @@ func init() {
 var (
 	PresetFalcon7BModel          = "falcon-7b"
 	PresetFalcon40BModel         = "falcon-40b"
-	PresetFalcon11BModel 		 = "falcon-11b"
+	PresetFalcon11BModel         = "falcon-11b"
 	PresetFalcon7BInstructModel  = PresetFalcon7BModel + "-instruct"
 	PresetFalcon40BInstructModel = PresetFalcon40BModel + "-instruct"
 
 	PresetFalconTagMap = map[string]string{
 		"Falcon7B":          "0.0.6",
 		"Falcon7BInstruct":  "0.0.6",
-		"Falcon11B": 		 "0.0.1",
+		"Falcon11B":         "0.0.1",
 		"Falcon40B":         "0.0.7",
 		"Falcon40BInstruct": "0.0.7",
 	}
@@ -160,9 +160,9 @@ func (*falcon11b) GetTuningParameters() *model.PresetParam {
 		TotalGPUMemoryRequirement: "20Gi",
 		PerGPUMemoryRequirement:   "16Gi",
 		TorchRunParams:            tuning.DefaultAccelerateParams,
-		ReadinessTimeout: time.Duration(30) * time.Minute,
-		BaseCommand:      baseCommandPresetFalconTuning,
-		Tag:              PresetFalconTagMap["Falcon11B"],
+		ReadinessTimeout:          time.Duration(30) * time.Minute,
+		BaseCommand:               baseCommandPresetFalconTuning,
+		Tag:                       PresetFalconTagMap["Falcon11B"],
 	}
 }
 func (*falcon11b) SupportDistributedInference() bool {
