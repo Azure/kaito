@@ -35,16 +35,29 @@ az aksarc nodepool add --name "samplenodepool" --cluster-name "samplecluster" --
 
 ### Validation
 1.	After node pool creation command succeeds, you can confirm whether the GPU node is provisioned using `kubectl get nodes`.
-<div align="middle">
-  <img src="img/aksarc_get_nodes.png" width=70% title="node status after nodepool creation" alt="node status after nodepool creation">
-</div>
+```
+NAME              STATUS   ROLES           AGE   VERSION
+moc-l06l9ruvcd6   Ready    <none>          58d   v1.29.4
+moc-l9f0lh9ro95   Ready    control-plane   58d   v1.29.4
+moc-le4aoguwyd9   Ready    <none>          49d   v1.29.4
+```
 2.	Please also ensure the node has allocatable GPU cores using command 
 ```bash
 kubectl get node moc-l1i9uh0ksne -o yaml | grep -A 10 "allocatable:"
 ```
-<div align="middle">
-  <img src="img/aksarc_node_gpu_allocatable.png" width=50% title="node GPU status after nodepool creation" alt="node GPU status after nodepool creation">
-</div>
+```
+  allocatable:
+    cpu: 31580m
+    ephemeral-storage: "95026644016"
+    hugepages-1Gi: "0"
+    hugepages-2Mi: "0"
+    memory: 121761176Ki
+    nvidia.com/gpu: "2"
+    pods: "110"
+  capacity:
+    cpu: "32"
+    ephemeral-storage: 103110508Ki
+```
 
 ## Deploy KAITO via Helm
 1.	Git clone the KAITO repo to your local machine
@@ -105,9 +118,10 @@ inference:
 
 ## Validate model deployment 
 1.	Validate the workspace using the command `kubectl get workspace`. Please also make sure both `ResourceReady` and `InferenceReady` fields are True before testing with the sample prompt.
-<div align="middle">
-  <img src="img/aksarc_get_workspaces.png" width=90% title="workspace status after model deploy" alt="workspace status after model deploy">
-</div>
+```
+NAME                           INSTANCE           RESOURCEREADY   INFERENCEREADY   JOBSTARTED   WORKSPACESUCCEEDED   AGE
+workspace-falcon-7b            Standard_NC6s_v3   True            True                          True                 4d
+```
 
 2.	You may test the model with a sample prompt: 
 ```bash
@@ -115,7 +129,9 @@ export CLUSTERIP=$(kubectl get svc workspace-falcon-7b -o jsonpath="{.spec.clust
 
 kubectl run -it --rm --restart=Never curl --image=curlimages/curl -- curl -X POST http://$CLUSTERIP/chat -H "accept: application/json" -H "Content-Type: application/json" -d "{\"prompt\":\"<sample_prompt>\"}"
 ```
-a sample output will be
-<div align="middle">
-  <img src="img/aksarc_ask_question.png" width=90% title="validation sample after model deploy" alt="validation sample after model deploy">
-</div>
+a sample output will be like
+```bash
+usera@quke-desktop:~/go/src/go.goms.io/aks/kaito$ kubectl run -it --rm --restart=Never curl --image=curlimages/curl -- curl -X POST http://$CLUSTERIP/chat -H "accept: application/json" -H "Content-Type: application/json" -d "{\"prompt\":\"write a poem\"}"
+If you don't see a command prompt, try pressing enter.
+{"Result":"write a poem about the first day of school, the last day of school, or a day in school.\nThe first day of school\nI wake at dawn\nand think of the new day\nas the sun rises\nI am excited\nthe first day of school\nI wake at dawn\nand think of the new day\nas the sun rises\nI am excited\nthe last day of school\nI wake at dawn\nand think of the last day\nas the sun rises\nI am sad\nthe last day of school\nI wake at dawn\nand think of the last day\nas the sun rises\nI am sad\na day in school\nthe first day of school\nI wake at dawn\nand think of the new day\nas the sun rises\nI am excited\nthe last day of school\nI wake at dawn\nand think of the last day\nas the sun rises\nI am sad\na day in school\nI walk down the stairs"}pod "curl" deleted
+```
