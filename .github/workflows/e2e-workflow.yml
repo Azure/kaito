@@ -48,6 +48,8 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.git_sha }}
+      - name: Check support mode file
+        run: ls /home/runner-1/runner/_work/kaito/kaito/presets/models/supported_models.yaml
 
       - name: Set e2e Resource and Cluster Name
         run: |
