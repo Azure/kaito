@@ -1,8 +1,14 @@
-[__TOC__]
-# Supported Models
+# Use Kaito in AKS Arc
+This article describes how to deploy AI models on AKS arc with AI toolchain operator (KAITO). The AI toolchain operator (KAITO) is a managed add-on for all AKS, and it simplifies the experience of running OSS AI models on your AKS clusters. You may follow the workflow below to enable this feature:
+1.	Create a Node pool with GPU
+2.	Deploy KAITO operator
+3.	Deploy AI model
+4.	Validate the deployment
+
+## Supported Models
 Currently KAITO supports models such as Falcon, Phi2, Phi3, Llama2, Llama2Chat, Mistral. Please refer to KAITO’s [readme](https://github.com/Azure/kaito/blob/main/presets/README.md) file for the latest models. 
 
-# Prerequisite
+## Prerequisite
 1.	Before you begin, please make sure you have the following details from your infrastructure administrator:
     - An AKS cluster that's up and running.
     - We recommend using Linux machine for this feature.
@@ -13,7 +19,7 @@ Currently KAITO supports models such as Falcon, Phi2, Phi3, Llama2, Llama2Chat, 
     - If you need to install or upgrade, please see instruction from [Install Helm](https://helm.sh/docs/intro/install/).
     - If you need to install kubectl, please see instructions from [Install kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/).
 
-# Create a GPU Node Pool
+## Create a GPU Node Pool
 <details>
 <summary><b>Using Azure Portal</b></summary>
 <div align="middle">
@@ -40,20 +46,21 @@ kubectl get node moc-l1i9uh0ksne -o yaml | grep -A 10 "allocatable:"
   <img src="img/aksarc_node_gpu_allocatable.png" width=50% title="node GPU status after nodepool creation" alt="node GPU status after nodepool creation">
 </div>
 
-# Deploy KAITO via Helm
+## Deploy KAITO via Helm
 1.	Git clone the KAITO repo to your local machine
 2.	Install KAITO operator using command 
 ```bash
 helm install workspace ./charts/kaito/workspace --namespace kaito-workspace --create-namespace
 ```
 
-# Deploy LLM Model
+## Deploy LLM Model
 <details>
 <summary><b>Explain the Yaml file</b></summary>
 If a user runs Kaito in an on-premise Kubernetes cluster where nodepool auto provision are unavailable, the GPU nodes can be pre-configured.
 
 - the user needs to add the node names in the `preferredNodes` field in the `resource` spec. As a result, the Kaito controller will skip the steps for GPU node provisioning and use the prepared nodes to run the inference workload.
 
+Using the same method user can try all kaito functionalities, example can be found on /examples folder.
 </details>
 
 1.	Create a YAML file with the following template, make sure to replace the placeholders in curly braces with your own information. Please note, the PresetName can be found from the supported model file in KAITO’s github repo.
