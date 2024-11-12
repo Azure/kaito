@@ -28,6 +28,10 @@ func init() {
 		Name:     PresetPhi3Medium128kModel,
 		Instance: &phi3MediumB,
 	})
+	plugin.KaitoModelRegister.Register(&plugin.Registration{
+		Name:     PresetPhi3_5MiniInstruct,
+		Instance: &phi3_5MiniC,
+	})
 }
 
 var (
@@ -35,12 +39,14 @@ var (
 	PresetPhi3Mini128kModel   = "phi-3-mini-128k-instruct"
 	PresetPhi3Medium4kModel   = "phi-3-medium-4k-instruct"
 	PresetPhi3Medium128kModel = "phi-3-medium-128k-instruct"
+	PresetPhi3_5MiniInstruct  = "phi-3.5-mini-instruct"
 
 	PresetPhiTagMap = map[string]string{
 		"Phi3Mini4kInstruct":     "0.0.2",
 		"Phi3Mini128kInstruct":   "0.0.2",
 		"Phi3Medium4kInstruct":   "0.0.2",
 		"Phi3Medium128kInstruct": "0.0.2",
+		"Phi3_5MiniInstruct":     "0.0.1",
 	}
 
 	baseCommandPresetPhiInference = "accelerate launch"
@@ -127,6 +133,45 @@ func (*phi3Mini128KInst) GetTuningParameters() *model.PresetParam {
 }
 func (*phi3Mini128KInst) SupportDistributedInference() bool { return false }
 func (*phi3Mini128KInst) SupportTuning() bool {
+	return true
+}
+
+var phi3_5MiniC phi3_5MiniInst
+
+type phi3_5MiniInst struct{}
+
+func (*phi3_5MiniInst) GetInferenceParameters() *model.PresetParam {
+	return &model.PresetParam{
+		ModelFamilyName:           "Phi3_5",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
+		DiskStorageRequirement:    "50Gi",
+		GPUCountRequirement:       "1",
+		TotalGPUMemoryRequirement: "8Gi",
+		PerGPUMemoryRequirement:   "0Gi", // We run Phi using native vertical model parallel, no per GPU memory requirement.
+		TorchRunParams:            inference.DefaultAccelerateParams,
+		ModelRunParams:            phiRunParams,
+		ReadinessTimeout:          time.Duration(30) * time.Minute,
+		BaseCommand:               baseCommandPresetPhiInference,
+		Tag:                       PresetPhiTagMap["Phi3_5MiniInstruct"],
+	}
+}
+func (*phi3_5MiniInst) GetTuningParameters() *model.PresetParam {
+	return &model.PresetParam{
+		ModelFamilyName:           "Phi3_5",
+		ImageAccessMode:           string(kaitov1alpha1.ModelImageAccessModePublic),
+		DiskStorageRequirement:    "50Gi",
+		GPUCountRequirement:       "1",
+		TotalGPUMemoryRequirement: "72Gi",
+		PerGPUMemoryRequirement:   "72Gi",
+		// TorchRunParams:            inference.DefaultAccelerateParams,
+		// ModelRunParams:            phiRunParams,
+		ReadinessTimeout: time.Duration(30) * time.Minute,
+		BaseCommand:      baseCommandPresetPhiTuning,
+		Tag:              PresetPhiTagMap["Phi3_5MiniInstruct"],
+	}
+}
+func (*phi3_5MiniInst) SupportDistributedInference() bool { return false }
+func (*phi3_5MiniInst) SupportTuning() bool {
 	return true
 }
 
