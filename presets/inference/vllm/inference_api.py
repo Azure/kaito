@@ -33,6 +33,7 @@ def make_arg_parser(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:
         "gpu_memory_utilization": 0.95,
         "swap_space": 4,
         "disable_log_stats": False,
+        "uvicorn_log_level": "error"
     }
     parser.set_defaults(**engine_default_args)
 
@@ -75,6 +76,9 @@ if __name__ == "__main__":
 
     if args.max_model_len is None:
         engine_args = EngineArgs.from_cli_args(args)
+        # read the model config from hf weights path.
+        # vllm will perform different parser for different model architectures
+        # and read it into a unified EngineConfig.
         engine_config = engine_args.create_engine_config()
 
         logger.info("Try run profiler to find max available seq len")
