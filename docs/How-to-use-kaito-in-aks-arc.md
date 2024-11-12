@@ -1,0 +1,114 @@
+[__TOC__]
+# Supported Models
+Currently KAITO supports models such as Falcon, Phi2, Phi3, Llama2, Llama2Chat, Mistral. Please refer to KAITO’s [readme](https://github.com/Azure/kaito/blob/main/presets/README.md) file for the latest models. 
+
+# Prerequisite
+1.	Before you begin, please make sure you have the following details from your infrastructure administrator:
+    - An AKS cluster that's up and running.
+    - We recommend using Linux machine for this feature.
+    - Your local kubectl environment configured to point to your AKS cluster.
+        - Run `az aksarc get-credentials --resource-group <ResourceGroupName> --name <ClusterName>  --admin` to download the kubeconfig file.
+2.	Make sure your HCI cluster is enabled with GPU, you can ask your infrastructure administrator to set it up for you. You also need to identify the right VM SKUs for your AKS cluster before creating the node pool. The instruction can be found at [use GPU for compute-intensive workloads](https://learn.microsoft.com/en-us/azure/aks/hybrid/deploy-gpu-node-pool).
+3.	Make sure the helm and kubectl are installed in your local machine.
+    - If you need to install or upgrade, please see instruction from [Install Helm](https://helm.sh/docs/intro/install/).
+    - If you need to install kubectl, please see instructions from [Install kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/).
+
+# Create a GPU Node Pool
+<details>
+<summary><b>Using Azure Portal</b></summary>
+<div align="middle">
+  <img src="img/aksarc_nodepool_creation_portal.png" width=80% title="create nodepool from azure portal" alt="create nodepool from azure portal">
+</div>
+</details>
+
+Run following Az command to provision node pool, available GPU sku can be found [here](https://learn.microsoft.com/en-us/azure/aks/hybrid/deploy-gpu-node-pool#supported-vm-sizes)
+
+```bash
+az aksarc nodepool add --name "samplenodepool" --cluster-name "samplecluster" --resource-group "sample-rg" –node-vm-size "samplenodepoolsize" –os-type "Linux"
+```
+
+### Validation
+1.	After node pool creation command succeeds, you can confirm whether the GPU node is provisioned using `kubectl get nodes`.
+<div align="middle">
+  <img src="img/aksarc_get_nodes.png" width=70% title="node status after nodepool creation" alt="node status after nodepool creation">
+</div>
+2.	Please also ensure the node has allocatable GPU cores using command 
+```bash
+kubectl get node moc-l1i9uh0ksne -o yaml | grep -A 10 "allocatable:"
+```
+<div align="middle">
+  <img src="img/aksarc_node_gpu_allocatable.png" width=50% title="node GPU status after nodepool creation" alt="node GPU status after nodepool creation">
+</div>
+
+# Deploy KAITO via Helm
+1.	Git clone the KAITO repo to your local machine
+2.	Install KAITO operator using command 
+```bash
+helm install workspace ./charts/kaito/workspace --namespace kaito-workspace --create-namespace
+```
+
+# Deploy LLM Model
+<details>
+<summary><b>Explain the Yaml file</b></summary>
+If a user runs Kaito in an on-premise Kubernetes cluster where nodepool auto provision are unavailable, the GPU nodes can be pre-configured.
+
+- the user needs to add the node names in the `preferredNodes` field in the `resource` spec. As a result, the Kaito controller will skip the steps for GPU node provisioning and use the prepared nodes to run the inference workload.
+
+</details>
+
+1.	Create a YAML file with the following template, make sure to replace the placeholders in curly braces with your own information. Please note, the PresetName can be found from the supported model file in KAITO’s github repo.
+```yaml
+apiVersion: kaito.sh/v1alpha1
+kind: Workspace
+metadata:
+  name: { YourDeploymentName }
+resource:
+  instanceType: Standard_NC12s_v3
+  labelSelector:
+    matchLabels:
+      apps: { YourNodeLabel }
+  preferredNodes:
+  - { YourNodeName }
+inference:
+  preset:
+    name: { PresetName }
+
+```
+a sample yaml file can be 
+```yaml
+apiVersion: kaito.sh/v1alpha1
+kind: Workspace
+metadata:
+  name: workspace-falcon-7b
+resource:
+  instanceType: Standard_NC12s_v3
+  labelSelector:
+    matchLabels:
+      apps: falcon-7b
+  preferredNodes: 
+  - moc-lmkq7webq9z
+inference:
+  preset:
+    name: falcon-7b-instruct
+```
+2.	You need to label your GPU node first, `Kubectl label node samplenode app=YourNodeLabel` and then apply the YAML file
+`kubectl apply -f sampleyamlfile.yaml`
+
+ 
+
+## Validate model deployment 
+1.	Validate the workspace using the command `kubectl get workspace`. Please also make sure both `ResourceReady` and `InferenceReady` fields are True before testing with the sample prompt.
+<div align="middle">
+  <img src="img/aksarc_get_workspaces.png" width=90% title="workspace status after model deploy" alt="workspace status after model deploy">
+</div>
+
+2.	You may test the model with a sample prompt: 
+```bash
+export CLUSTERIP=$(kubectl get svc workspace-falcon-7b -o jsonpath="{.spec.clusterIPs[0]}") 
+
+kubectl run -it --rm --restart=Never curl --image=curlimages/curl -- curl -X POST http://$CLUSTERIP/chat -H "accept: application/json" -H "Content-Type: application/json" -d "{\"prompt\":\"<sample_prompt>\"}"
+```
+a sample output will be
+<div align="middle">
+  <img src="img/aksarc_ask_question.png" width=90% title="validation sample after model deploy" alt="validation sample after model deploy">
+</div>
