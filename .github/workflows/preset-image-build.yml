@@ -75,7 +75,7 @@ jobs:
   build-models:
     needs: determine-models
     if: needs.determine-models.outputs.is_matrix_empty == 'false'
-    runs-on: [self-hosted, 'hostname:kaito-e2e-github-runner']
+    runs-on: [self-hosted, 'hostname:model-server']
     environment: preset-env
     strategy:
       fail-fast: false
