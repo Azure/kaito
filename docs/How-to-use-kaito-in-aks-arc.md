@@ -131,7 +131,7 @@ kubectl run -it --rm --restart=Never curl --image=curlimages/curl -- curl -X POS
 ```
 a sample output will be like
 ```bash
-usera@quke-desktop:~/go/src/go.goms.io/aks/kaito$ kubectl run -it --rm --restart=Never curl --image=curlimages/curl -- curl -X POST http://$CLUSTERIP/chat -H "accept: application/json" -H "Content-Type: application/json" -d "{\"prompt\":\"write a poem\"}"
+$ kubectl run -it --rm --restart=Never curl --image=curlimages/curl -- curl -X POST http://$CLUSTERIP/chat -H "accept: application/json" -H "Content-Type: application/json" -d "{\"prompt\":\"write a poem\"}"
 If you don't see a command prompt, try pressing enter.
 {"Result":"write a poem about the first day of school, the last day of school, or a day in school.\nThe first day of school\nI wake at dawn\nand think of the new day\nas the sun rises\nI am excited\nthe first day of school\nI wake at dawn\nand think of the new day\nas the sun rises\nI am excited\nthe last day of school\nI wake at dawn\nand think of the last day\nas the sun rises\nI am sad\nthe last day of school\nI wake at dawn\nand think of the last day\nas the sun rises\nI am sad\na day in school\nthe first day of school\nI wake at dawn\nand think of the new day\nas the sun rises\nI am excited\nthe last day of school\nI wake at dawn\nand think of the last day\nas the sun rises\nI am sad\na day in school\nI walk down the stairs"}pod "curl" deleted
 ```
