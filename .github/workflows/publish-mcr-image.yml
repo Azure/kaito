@@ -46,23 +46,9 @@ jobs:
           VERSION: ${{ needs.get-tag.outputs.release-tag }}
           REGISTRY: ${{ secrets.KAITO_MCR_REGISTRY }}/public/aks/kaito
 
-  run-e2e-mcr:
-    permissions:
-      contents: read
-      id-token: write
-      statuses: write
-    needs: [ build-publish-mcr-image ]
-    uses: ./.github/workflows/e2e-workflow.yml
-    with:
-      git_sha: ${{ github.sha }}
-      isRelease: true
-      registry: "mcr.microsoft.com/aks/kaito"
-      k8s_version: ${{ vars.AKS_K8S_VERSION }}
-      tag: ${{ github.event.client_payload.tag }}
-
   create-release:
     runs-on: ubuntu-latest
-    needs: [ run-e2e-mcr ]
+    needs: [ build-publish-mcr-image ]
     steps:
       - name: 'Dispatch release tag'
         uses: peter-evans/repository-dispatch@v3
