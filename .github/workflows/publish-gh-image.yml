@@ -123,13 +123,6 @@ jobs:
       registry: ${{ needs.build-scan-publish-gh-images.outputs.registry_repository }}
       k8s_version: ${{ vars.AKS_K8S_VERSION }}
       tag: ${{ needs.check-tag.outputs.tag }}
-    secrets:
-      E2E_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      E2E_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      E2E_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      E2E_AMRT_SECRET_NAME: ${{ secrets.AMRT_SECRET_NAME }}
-      E2E_ACR_AMRT_USERNAME: ${{ secrets.ACR_AMRT_USERNAME }}
-      E2E_ACR_AMRT_PASSWORD: ${{ secrets.ACR_AMRT_PASSWORD }}
 
   publish-mcr-image:
     runs-on: ubuntu-latest
