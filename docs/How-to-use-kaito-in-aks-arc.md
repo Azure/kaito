@@ -1,9 +1,5 @@
 # Use Kaito in AKS Arc
-This article describes how to deploy AI models on AKS arc with AI toolchain operator (KAITO). The AI toolchain operator (KAITO) is a managed add-on for all AKS, and it simplifies the experience of running OSS AI models on your AKS clusters. You may follow the workflow below to enable this feature:
-1.	Create a Node pool with GPU
-2.	Deploy KAITO operator
-3.	Deploy AI model
-4.	Validate the deployment
+This article describes how to deploy AI models on AKS arc with AI toolchain operator (KAITO). Follow the workflow below to enable this feature.
 
 ## Supported Models
 Currently KAITO supports models such as Falcon, Phi2, Phi3, Llama2, Llama2Chat, Mistral. Please refer to KAITO’s [readme](https://github.com/Azure/kaito/blob/main/presets/README.md) file for the latest models. 
