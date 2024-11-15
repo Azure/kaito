@@ -83,11 +83,20 @@ func validateInitContainers(workspaceObj *kaitov1alpha1.Workspace, expectedInitC
 			}
 
 			if len(initContainers) != len(expectedInitContainers) {
+				for _, initContainer := range initContainers {
+					GinkgoWriter.Printf("initContainer Name: %s\n", initContainer.Name)
+				}
+				for _, expectedInitContainer := range expectedInitContainers {
+					GinkgoWriter.Printf("expectedInitContainer Name: %s\n", expectedInitContainer.Name)
+				}
 				return false
 			}
+
 			initContainer, expectedInitContainer := initContainers[0], expectedInitContainers[0]
 
-			// GinkgoWriter.Printf("Resource '%s' not ready. Ready replicas: %d\n", workspaceObj.Name, readyReplicas)
+			GinkgoWriter.Printf("initContainer Image: %s, expectedInitContainer Image: %s", initContainer.Image, expectedInitContainer.Image)
+			GinkgoWriter.Printf("initContainer Name: %s, expectedInitContainer Name: %s", initContainer.Name, expectedInitContainer.Name)
+
 			return initContainer.Image == expectedInitContainer.Image && initContainer.Name == expectedInitContainer.Name
 		}, 20*time.Minute, utils.PollInterval).Should(BeTrue(), "Failed to wait for initContainers to be ready")
 	})
