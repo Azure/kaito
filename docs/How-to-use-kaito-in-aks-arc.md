@@ -47,7 +47,7 @@ The node created will have random name in format moc-&lt;random&gt;, and will ha
 This command is to check the node whoes label can pass the regex and print its name
 </details>
 
-1.	After node pool creation command succeeds, you can confirm whether the GPU node is provisioned using following command, relace `<clusterName>` and `<nodepoolName>` with real value.
+1.	After node pool creation command succeeds, you can confirm whether the GPU node is provisioned using following command, replace `<clusterName>` and `<nodepoolName>` with real value.
 ```bash
 kubectl get nodes -o json | jq -r '.items[] | select(.metadata.labels["msft.microsoft/nodepool-name"] != null and (.metadata.labels["msft.microsoft/nodepool-name"] | tostring | test("^<culsterName>-.*-<nodepoolName>$"))) | .metadata.name'
 ```
