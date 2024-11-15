@@ -10,7 +10,7 @@ Currently KAITO supports models such as Falcon, Phi2, Phi3, Llama2, Llama2Chat, 
 
 ## Prerequisite
 1.	Before you begin, please make sure you have the following details from your infrastructure administrator:
-    - An AKS cluster that's up and running.
+    - An AKS Arc cluster that's up and running.
     - We recommend using Linux machine for this feature.
     - Your local kubectl environment configured to point to your AKS cluster.
         - Run `az aksarc get-credentials --resource-group <ResourceGroupName> --name <ClusterName>  --admin` to download the kubeconfig file.
@@ -27,20 +27,31 @@ Currently KAITO supports models such as Falcon, Phi2, Phi3, Llama2, Llama2Chat, 
 </div>
 </details>
 
-Run following Az command to provision node pool, available GPU sku can be found [here](https://learn.microsoft.com/en-us/azure/aks/hybrid/deploy-gpu-node-pool#supported-vm-sizes)
+<details>
+<summary><b>Using Az CLI</b></summary>
+<div align="middle">
+Run following Az command to provision node pool, available GPU sku can be found <a href="https://learn.microsoft.com/en-us/azure/aks/hybrid/deploy-gpu-node-pool#supported-vm-sizes">here</a>
 
 ```bash
 az aksarc nodepool add --name "samplenodepool" --cluster-name "samplecluster" --resource-group "sample-rg" –node-vm-size "samplenodepoolsize" –os-type "Linux"
 ```
 
+</div>
+</details>
+
 ### Validation
-1.	After node pool creation command succeeds, you can confirm whether the GPU node is provisioned using `kubectl get nodes`.
+<details>
+<summary><b>Explain the get node command</b></summary>
+The node created will have random name in format moc-&lt;random&gt;, and will have the following label to reference its nodepool: msft.microsoft/nodepool-name = &lt;culsterName&gt;-&lt;randon&gt;-&lt;nodepoolName&gt;. 
+
+This command is to check the node whoes label can pass the regex and print its name
+</details>
+
+1.	After node pool creation command succeeds, you can confirm whether the GPU node is provisioned using following command, relace `<clusterName>` and `<nodepoolName>` with real value.
+```bash
+kubectl get nodes -o json | jq -r '.items[] | select(.metadata.labels["msft.microsoft/nodepool-name"] != null and (.metadata.labels["msft.microsoft/nodepool-name"] | tostring | test("^<culsterName>-.*-<nodepoolName>$"))) | .metadata.name'
 ```
-NAME              STATUS   ROLES           AGE   VERSION
-moc-l06l9ruvcd6   Ready    <none>          58d   v1.29.4
-moc-l9f0lh9ro95   Ready    control-plane   58d   v1.29.4
-moc-le4aoguwyd9   Ready    <none>          49d   v1.29.4
-```
+
 2.	Please also ensure the node has allocatable GPU cores using command 
 ```bash
 kubectl get node moc-l1i9uh0ksne -o yaml | grep -A 10 "allocatable:"
@@ -60,6 +71,8 @@ kubectl get node moc-l1i9uh0ksne -o yaml | grep -A 10 "allocatable:"
 ```
 
 ## Deploy KAITO via Helm
+
+> User does not need to install the gpu-provisioner as the node will be provisioned manually.
 1.	Git clone the KAITO repo to your local machine
 2.	Install KAITO operator using command 
 ```bash
@@ -69,9 +82,10 @@ helm install workspace ./charts/kaito/workspace --namespace kaito-workspace --cr
 ## Deploy LLM Model
 <details>
 <summary><b>Explain the Yaml file</b></summary>
-If a user runs Kaito in an on-premise Kubernetes cluster where nodepool auto provision are unavailable, the GPU nodes can be pre-configured.
+If a user runs Kaito in an on-premise Kubernetes cluster where nodepool auto provision are unavailable, the GPU nodes can be <a href="#create-a-gpu-node-pool">pre-configured</a>.
 
 - the user needs to add the node names in the `preferredNodes` field in the `resource` spec. As a result, the Kaito controller will skip the steps for GPU node provisioning and use the prepared nodes to run the inference workload.
+
 
 Using the same method user can try all kaito functionalities, example can be found on /examples folder.
 </details>
