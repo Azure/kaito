@@ -2,7 +2,7 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
-VERSION ?= v0.3.1
+VERSION ?= v0.3.2
 GPU_PROVISIONER_VERSION ?= 0.2.1
 IMG_TAG ?= $(subst v,,$(VERSION))
 
@@ -43,7 +43,7 @@ AZURE_KARPENTER_MSI_NAME ?= azkarpenterIdentity
 RUN_LLAMA_13B ?= false
 AI_MODELS_REGISTRY ?= modelregistry.azurecr.io
 AI_MODELS_REGISTRY_SECRET ?= modelregistry
-SUPPORTED_MODELS_YAML_PATH ?= /home/runner-1/runner/_work/kaito/kaito/presets/models/supported_models.yaml
+SUPPORTED_MODELS_YAML_PATH ?= ~/runner/_work/kaito/kaito/presets/models/supported_models.yaml
 
 # Scripts
 GO_INSTALL := ./hack/go-install.sh

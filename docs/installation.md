@@ -77,7 +77,7 @@ az role assignment create --assignee $IDENTITY_PRINCIPAL_ID --scope /subscriptio
 Install the Node provisioner controller.
 ```bash
 # get additional values for helm chart install
-export GPU_PROVISIONER_VERSION=0.2.0
+export GPU_PROVISIONER_VERSION=0.2.1
 
 curl -sO https://raw.githubusercontent.com/Azure/gpu-provisioner/main/hack/deploy/configure-helm-values.sh
 chmod +x ./configure-helm-values.sh && ./configure-helm-values.sh $MY_CLUSTER $RESOURCE_GROUP $IDENTITY_NAME
