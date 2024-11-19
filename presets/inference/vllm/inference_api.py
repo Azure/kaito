@@ -65,13 +65,13 @@ def find_max_available_seq_len(engine_config: EngineConfig) -> int:
 
     max_probe_steps = 6
     if os.getenv("MAX_PROBE_STEPS") is not None:
-        max_probe_steps = int(os.getenv("MAX_PROBE_STEPS"))
+        try:
+            max_probe_steps = int(os.getenv("MAX_PROBE_STEPS"))
+        except ValueError:
+            raise ValueError("MAX_PROBE_STEPS must be an integer.")
 
     model_max_blocks = int(engine_config.model_config.max_model_len / engine_config.cache_config.block_size)
     res = binary_search_with_limited_steps(model_max_blocks, max_probe_steps, lambda x: is_context_length_safe(executor, x))
-
-    if res <= 0:
-        raise ValueError("No available memory for the cache blocks.")
 
     # release memory
     del executor
@@ -140,6 +140,8 @@ if __name__ == "__main__":
         if available_seq_len != max_model_len:
             logger.info(f"Set max_model_len from {max_model_len} to {available_seq_len}")
             args.max_model_len = available_seq_len
+        else:
+            logger.info(f"Using model default max_model_len {max_model_len}")
 
     # Run the serving server
     logger.info(f"Starting server on port {args.port}")
