@@ -81,8 +81,20 @@ def find_max_available_seq_len(engine_config: EngineConfig) -> int:
     return engine_config.cache_config.block_size * res
 
 def binary_search_with_limited_steps(upper: int, max_probe_steps: int, is_valid_fn: Callable[[int], bool]) -> int:
+    """
+    Finds the maximum valid value with limited number of steps.
+
+    Parameters:
+    - upper (int): The upper bound of the search space([0, upper]).
+    - max_probe_steps (int): Maximum number of steps to try.
+    - is_valid_fn (Callable[[int], bool]): A function that checks if a given value is valid.
+
+    Returns: - int: The maximum valid value.
+    """
     probe_steps = 0
     low = 0
+    # double the upper bound and firstly search at upper value later.
+    # because the valid value is likely to be close to the upper bound.
     high = upper * 2
     while low < high and probe_steps <= max_probe_steps:
         mid = (low + high + 1) // 2
