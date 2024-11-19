@@ -3,6 +3,7 @@
 import logging
 import gc
 import os
+from typing import Callable
 
 import uvloop
 import torch
@@ -62,21 +63,14 @@ def find_max_available_seq_len(engine_config: EngineConfig) -> int:
         observability_config=engine_config.observability_config,
     )
 
-    # binary search for the max safe seq len
+    max_probe_steps = 6
+    if os.getenv("MAX_PROBE_STEPS") is not None:
+        max_probe_steps = int(os.getenv("MAX_PROBE_STEPS"))
+
     model_max_blocks = int(engine_config.model_config.max_model_len / engine_config.cache_config.block_size)
-    low = 0
-    high = model_max_blocks * 2
-    while low < high:
-        mid = (low + high + 1) // 2
-        if mid > model_max_blocks:
-            break
+    res = binary_search_with_limited_steps(model_max_blocks, max_probe_steps, lambda x: is_context_length_safe(executor, x))
 
-        if is_context_length_safe(executor, mid):
-            low = mid
-        else:
-            high = mid - 1
-
-    if low <= 0:
+    if res <= 0:
         raise ValueError("No available memory for the cache blocks.")
 
     # release memory
@@ -84,7 +78,25 @@ def find_max_available_seq_len(engine_config: EngineConfig) -> int:
     gc.collect()
     torch.cuda.empty_cache()
 
-    return engine_config.cache_config.block_size * low
+    return engine_config.cache_config.block_size * res
+
+def binary_search_with_limited_steps(upper: int, max_probe_steps: int, is_valid_fn: Callable[[int], bool]) -> int:
+    probe_steps = 0
+    low = 0
+    high = upper * 2
+    while low < high and probe_steps <= max_probe_steps:
+        mid = (low + high + 1) // 2
+        if mid > upper:
+            break
+
+        if is_valid_fn(mid):
+            low = mid
+        else:
+            high = mid - 1
+
+        probe_steps += 1
+
+    return low
 
 def is_context_length_safe(executor: ExecutorBase, num_gpu_blocks: int) -> bool:
     """

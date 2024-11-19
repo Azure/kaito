@@ -13,12 +13,14 @@ parent_dir = str(Path(__file__).resolve().parent.parent)
 # Add the parent directory to sys.path
 sys.path.append(parent_dir)
 
+from inference_api import binary_search_with_limited_steps
+
 TEST_MODEL = "facebook/opt-125m"
 CHAT_TEMPLATE = ("{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') %}"
     "{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}"
     "{% elif (message['role'] == 'assistant') %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}")
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture
 def setup_server(request):
     if os.getenv("DEVICE") == "cpu":
         pytest.skip("Skipping test on cpu device")
@@ -112,3 +114,34 @@ def test_chat_completions_api(setup_server):
         assert "message" in choice, "Each choice should contain a 'message' key"
         assert "content" in choice["message"], "Each message should contain a 'content' key"
         assert len(choice["message"]["content"]) > 0, "The completion text should not be empty"
+
+
+def test_binary_search_with_limited_steps():
+
+    def is_safe_fn(x):
+        return x <= 10
+
+    # Test case 1: all values are safe
+    result = binary_search_with_limited_steps(10, 1, is_safe_fn)
+    assert result == 10, f"Expected 10, but got {result}"
+
+    result = binary_search_with_limited_steps(10, 10, is_safe_fn)
+    assert result == 10, f"Expected 10, but got {result}"
+
+    # Test case 2: partial safe, find the exact value
+    result = binary_search_with_limited_steps(20, 3, is_safe_fn)
+    assert result == 10, f"Expected 10, but got {result}"
+
+    result = binary_search_with_limited_steps(30, 5, is_safe_fn)
+    assert result == 10, f"Expected 10, but got {result}"
+
+    # Test case 3: partial safe, find an approximate value
+    result = binary_search_with_limited_steps(30, 3, is_safe_fn)
+    assert result == 7, f"Expected 7, but got {result}"
+
+    # Test case 4: all values are unsafe
+    result = binary_search_with_limited_steps(10, 1, lambda x: False)
+    assert result == 0, f"Expected 0, but got {result}"
+
+    result = binary_search_with_limited_steps(20, 100, lambda x: False)
+    assert result == 0, f"Expected 0, but got {result}"
