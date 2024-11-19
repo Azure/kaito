@@ -24,7 +24,10 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
 # Initialize logger
 logger = logging.getLogger(__name__)
 debug_mode = os.environ.get('DEBUG_MODE', 'false').lower() == 'true'
-logging.basicConfig(level=logging.DEBUG if debug_mode else logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG if debug_mode else logging.INFO,
+    format='%(levelname)s %(asctime)s %(filename)s:%(lineno)d] %(message)s',
+    datefmt='%m-%d %H:%M:%S')
 
 ADAPTERS_DIR = '/mnt/adapter'
 

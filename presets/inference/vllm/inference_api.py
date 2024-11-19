@@ -9,11 +9,15 @@ import torch
 from vllm.utils import FlexibleArgumentParser
 import vllm.entrypoints.openai.api_server as api_server
 from vllm.engine.llm_engine import (LLMEngine, EngineArgs, EngineConfig)
+from vllm.executor.executor_base import ExecutorBase
 
 # Initialize logger
 logger = logging.getLogger(__name__)
 debug_mode = os.environ.get('DEBUG_MODE', 'false').lower() == 'true'
-logging.basicConfig(level=logging.DEBUG if debug_mode else logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG if debug_mode else logging.INFO,
+    format='%(levelname)s %(asctime)s %(filename)s:%(lineno)d] %(message)s',
+    datefmt='%m-%d %H:%M:%S')
 
 def make_arg_parser(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:
     local_rank = int(os.environ.get("LOCAL_RANK",
@@ -58,15 +62,44 @@ def find_max_available_seq_len(engine_config: EngineConfig) -> int:
         observability_config=engine_config.observability_config,
     )
 
-    # see https://github.com/vllm-project/vllm/blob/v0.6.3/vllm/engine/llm_engine.py#L477
-    num_gpu_blocks, _ = executor.determine_num_available_blocks()
+    # binary search for the max safe seq len
+    model_max_blocks = int(engine_config.model_config.max_model_len / engine_config.cache_config.block_size)
+    low = 0
+    high = model_max_blocks * 2
+    while low < high:
+        mid = (low + high + 1) // 2
+        if mid > model_max_blocks:
+            break
+
+        if is_context_length_safe(executor, mid):
+            low = mid
+        else:
+            high = mid - 1
+
+    if low <= 0:
+        raise ValueError("No available memory for the cache blocks.")
 
     # release memory
     del executor
     gc.collect()
     torch.cuda.empty_cache()
 
-    return engine_config.cache_config.block_size * num_gpu_blocks
+    return engine_config.cache_config.block_size * low
+
+def is_context_length_safe(executor: ExecutorBase, num_gpu_blocks: int) -> bool:
+    """
+    Check if the avilable gpu blocks is enough for the given num_gpu_blocks.
+    """
+    context_length = executor.cache_config.block_size * num_gpu_blocks
+    executor.scheduler_config.max_num_batched_tokens = context_length
+
+    try:
+        # see https://github.com/vllm-project/vllm/blob/v0.6.3/vllm/engine/llm_engine.py#L477
+        available_gpu_blocks, _ = executor.determine_num_available_blocks()
+    except torch.OutOfMemoryError as e:
+        return False    
+
+    return available_gpu_blocks >= num_gpu_blocks
 
 if __name__ == "__main__":
     parser = FlexibleArgumentParser(description='vLLM serving server')
