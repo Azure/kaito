@@ -133,7 +133,7 @@ def test_binary_search_with_limited_steps():
     assert result == 10, f"Expected 10, but got {result}"
 
     result = binary_search_with_limited_steps(30, 5, is_safe_fn)
-    assert result == 10, f"Expected 10, but got {result}"
+    assert result == 9, f"Expected 10, but got {result}"
 
     # Test case 3: partial safe, find an approximate value
     result = binary_search_with_limited_steps(30, 3, is_safe_fn)

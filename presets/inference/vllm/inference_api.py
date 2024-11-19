@@ -96,8 +96,9 @@ def binary_search_with_limited_steps(upper: int, max_probe_steps: int, is_valid_
     # double the upper bound and firstly search at upper value later.
     # because the valid value is likely to be close to the upper bound.
     high = upper * 2
-    while low < high and probe_steps <= max_probe_steps:
+    while low < high and probe_steps < max_probe_steps:
         mid = (low + high + 1) // 2
+        logger.info(f"Probe step {probe_steps}: low={low}, high={high}, mid={mid}")
         if mid > upper:
             break
 
