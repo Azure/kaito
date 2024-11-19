@@ -83,7 +83,7 @@ curl -sO https://raw.githubusercontent.com/Azure/gpu-provisioner/main/hack/deplo
 chmod +x ./configure-helm-values.sh && ./configure-helm-values.sh $MY_CLUSTER $RESOURCE_GROUP $IDENTITY_NAME
 
 helm install gpu-provisioner --values gpu-provisioner-values.yaml --set settings.azure.clusterName=$MY_CLUSTER --wait \
-https://github.com/Azure/gpu-provisioner/raw/gh-pages/charts/gpu-provisioner-$GPU_PROVISIONER_VERSION.tgz
+https://github.com/Azure/gpu-provisioner/raw/gh-pages/charts/gpu-provisioner-$GPU_PROVISIONER_VERSION.tgz --namespace gpu-provisioner --create-namespace
 ```
 
 #### Create the federated credential
