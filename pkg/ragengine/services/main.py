@@ -7,7 +7,7 @@ from embedding.huggingface_local import LocalHuggingFaceEmbedding
 from embedding.huggingface_remote import RemoteHuggingFaceEmbedding
 from fastapi import FastAPI, HTTPException
 from models import (IndexRequest, ListDocumentsResponse,
-                    QueryRequest, QueryResponse, DocumentResponse)
+                    QueryRequest, QueryResponse, DocumentResponse, HealthStatus)
 from vector_store.faiss_store import FaissVectorStoreHandler
 
 from services.config import ACCESS_SECRET, EMBEDDING_TYPE, MODEL_ID
@@ -28,6 +28,21 @@ vector_store_handler = FaissVectorStoreHandler(embedding_manager)
 
 # Initialize RAG operations
 rag_ops = VectorStoreManager(vector_store_handler)
+
+@app.get("/health", response_model=HealthStatus)
+async def health_check():
+    try:
+
+        if embedding_manager is None:
+            raise HTTPException(status_code=500, detail="Embedding manager not initialized")
+        
+        if rag_ops is None:
+            raise HTTPException(status_code=500, detail="RAG operations not initialized")
+
+        return HealthStatus(status="Healthy")
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/index", response_model=List[DocumentResponse])
 async def index_documents(request: IndexRequest): # TODO: Research async/sync what to use (inference is calling)
@@ -59,4 +74,4 @@ async def list_all_indexed_documents():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=5000)

@@ -38,3 +38,7 @@ class QueryResponse(BaseModel):
     response: str
     source_nodes: List[NodeWithScore]
     metadata: Optional[dict] = None
+
+class HealthStatus(BaseModel):
+    status: str
+    detail: Optional[str] = None 
