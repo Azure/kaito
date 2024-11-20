@@ -3,7 +3,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Copy all files from ragengine/services into the app/services folder
-COPY services/ services/
+COPY pkg/ragengine/services/ services/
 
 # Set the PYTHONPATH environment variable
 ENV PYTHONPATH=/app
