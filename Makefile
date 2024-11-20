@@ -113,7 +113,8 @@ tuning-metrics-server-test:
 
 inference-api-e2e:
 	pip install -r ./presets/dependencies/requirements-test.txt
-	pytest -o log_cli=true -o log_cli_level=INFO presets/inference
+	pytest -o log_cli=true -o log_cli_level=INFO presets/inference/vllm
+	pytest -o log_cli=true -o log_cli_level=INFO presets/inference/text-generation
 
 # Ginkgo configurations
 GINKGO_FOCUS ?=
