@@ -18,7 +18,7 @@ spec:
         command:
           - /bin/sh
           - -c
-          - accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all /workspace/tfs/inference_api.py --pipeline text-generation --torch_dtype bfloat16
+          - python3 /workspace/vllm/inference_api.py --served-model-name test --dtype float16 --chat-template /workspace/chat_templates/falcon-instruct.jinja
         resources:
           requests:
             nvidia.com/gpu: 1
