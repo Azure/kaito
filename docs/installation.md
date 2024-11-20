@@ -1,6 +1,6 @@
 # Installation 
 
-The following guidance assumes **Azure Kubernetes Service(AKS)** is used to host the Kubernetes cluster.
+The following guidance assumes **Azure Kubernetes Service(AKS)** is used to host the Kubernetes cluster. If you want to use Elastic Kubernetes Service (EKS) instead, please follow the installation guide [here](./aws/aws_installation.md)
 
 Before you begin, ensure you have the following tools installed:
 
