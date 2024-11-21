@@ -235,10 +235,10 @@ jobs:
       - name: Replace IP and Deploy Resource to K8s
         run: |
             POSTFIX=$(echo "${{ matrix.model.name }}" | grep -q "llama" && echo "" || echo "_${{ env.RUNTIME }}")
-            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}$POSTFIX.yaml
-            sed -i "s/TAG_HERE/${{ matrix.model.tag }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}$POSTFIX.yaml
-            sed -i "s/REPO_HERE/${{ secrets.ACR_AMRT_USERNAME }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}$POSTFIX.yaml
-            kubectl apply -f presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}$POSTFIX.yaml
+            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/workspace/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}$POSTFIX.yaml
+            sed -i "s/TAG_HERE/${{ matrix.model.tag }}/g" presets/workspace/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}$POSTFIX.yaml
+            sed -i "s/REPO_HERE/${{ secrets.ACR_AMRT_USERNAME }}/g" presets/workspace/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}$POSTFIX.yaml
+            kubectl apply -f presets/workspace/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}$POSTFIX.yaml
 
       - name: Wait for Resource to be ready
         run: |
