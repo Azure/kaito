@@ -1,22 +1,32 @@
 ## Supported Models
-|Model name| Model source | Sample workspace|Kubernetes Workload|Distributed inference|
-|----|:----:|:----:| :----: |:----: |
-|falcon-7b-instruct |[tiiuae](https://huggingface.co/tiiuae/falcon-7b-instruct)|[link](../../../examples/inference/kaito_workspace_falcon_7b-instruct.yaml)|Deployment| false|
-|falcon-7b          |[tiiuae](https://huggingface.co/tiiuae/falcon-7b) |[link](../../../examples/inference/kaito_workspace_falcon_7b.yaml)|Deployment| false|
-|falcon-40b-instruct|[tiiuae](https://huggingface.co/tiiuae/falcon-40b-instruct) |[link](../../../examples/inference/kaito_workspace_falcon_40b-instruct.yaml)|Deployment| false|
-|falcon-40b         |[tiiuae](https://huggingface.co/tiiuae/falcon-40b)|[link](../../../examples/inference/kaito_workspace_falcon_40b.yaml)|Deployment| false|
+| Model name                 |                               Model source                               |                               Sample workspace                                | Kubernetes Workload | Distributed inference |
+|----------------------------|:------------------------------------------------------------------------:|:-----------------------------------------------------------------------------:|:-------------------:|:---------------------:|
+| phi-3-mini-4k-instruct     |   [microsoft](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct)   |   [link](../../../../examples/inference/kaito_workspace_phi_3_mini_4k.yaml)   |     Deployment      |         false         |
+| phi-3-mini-128k-instruct   |  [microsoft](https://huggingface.co/microsoft/Phi-3-mini-128k-instruct)  |  [link](../../../../examples/inference/kaito_workspace_phi_3_mini_128k.yaml)  |     Deployment      |         false         |
+| phi-3-medium-4k-instruct   |  [microsoft](https://huggingface.co/microsoft/Phi-3-medium-4k-instruct)  |  [link](../../../../examples/inference/kaito_workspace_phi_3_medium_4k.yaml)  |     Deployment      |         false         |
+| phi-3-medium-128k-instruct | [microsoft](https://huggingface.co/microsoft/Phi-3-medium-128k-instruct) | [link](../../../../examples/inference/kaito_workspace_phi_3_medium_128k.yaml) |     Deployment      |         false         |
 
 ## Image Source
 - **Public**: Kaito maintainers manage the lifecycle of the inference service images that contain model weights. The images are available in Microsoft Container Registry (MCR).
 
 ## Usage
 
+Phi-3 Mini models are best suited for prompts using the chat format as follows. You can provide the prompt as a question with a generic template as follows:
+
+```
+<|user|>\nQuestion<|end|>\n<|assistant|>
+```
+
+For more information on usage, check the phi-3 repo: [Phi-3 Repo](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct)
+
 The inference service endpoint is `/chat`.
+
 
 ### Basic example
 ```
-curl -X POST "http://<SERVICE>:80/chat" -H "accept: application/json" -H "Content-Type: application/json" -d '{"prompt":"YOUR_PROMPT_HERE"}'
+curl -X POST "http://<SERVICE>:80/chat" -H "accept: application/json" -H "Content-Type: application/json" -d '{"prompt":"<|user|> How to explain Internet for a medieval knight?<|end|><|assistant|>"}'
 ```
+
 
 ### Example with full configurable parameters
 ```
@@ -24,7 +34,7 @@ curl -X POST \
     -H "accept: application/json" \
     -H "Content-Type: application/json" \
     -d '{
-        "prompt":"YOUR_PROMPT_HERE",
+        "prompt":"<|user|> What is the meaning of life?<|end|><|assistant|>",
         "return_full_text": false,
         "clean_up_tokenization_spaces": false, 
         "prefix": null,

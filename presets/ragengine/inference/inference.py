@@ -6,7 +6,7 @@ from llama_index.core.llms import CustomLLM, CompletionResponse, LLMMetadata, Co
 from llama_index.llms.openai import OpenAI
 from llama_index.core.llms.callbacks import llm_completion_callback
 import requests
-from services.config import INFERENCE_URL, INFERENCE_ACCESS_SECRET #, RESPONSE_FIELD
+from ragengine.config import INFERENCE_URL, INFERENCE_ACCESS_SECRET #, RESPONSE_FIELD
 
 class Inference(CustomLLM):
     params: dict = {}

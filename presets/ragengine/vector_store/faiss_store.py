@@ -5,7 +5,7 @@ from typing import List
 
 import faiss
 from llama_index.vector_stores.faiss import FaissVectorStore
-from services.models import Document
+from ragengine.models import Document
 from .base import BaseVectorStore
 
 

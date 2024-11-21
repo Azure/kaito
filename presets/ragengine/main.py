@@ -10,7 +10,7 @@ from models import (IndexRequest, ListDocumentsResponse,
                     QueryRequest, QueryResponse, DocumentResponse, HealthStatus)
 from vector_store.faiss_store import FaissVectorStoreHandler
 
-from services.config import ACCESS_SECRET, EMBEDDING_TYPE, MODEL_ID
+from ragengine.config import ACCESS_SECRET, EMBEDDING_TYPE, MODEL_ID
 
 app = FastAPI()
 
