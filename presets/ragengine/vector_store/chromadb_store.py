@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from typing import Dict, List
-from services.models import Document
+from ragengine.models import Document
 import logging
 
 import chromadb

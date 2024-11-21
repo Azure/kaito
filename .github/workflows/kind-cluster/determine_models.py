@@ -17,7 +17,7 @@ def read_yaml(file_path):
         print(f"Error reading {file_path}: {e}")
         return None
 
-supp_models_yaml = 'presets/models/supported_models.yaml'
+supp_models_yaml = 'presets/workspace/models/supported_models.yaml'
 YAML_PR = read_yaml(supp_models_yaml)
 # Format: {falcon-7b : {model_name:falcon-7b, type:text-generation, version: #, tag: #}}
 MODELS = {model['name']: model for model in YAML_PR['models']}
@@ -85,7 +85,7 @@ def models_to_build(files_changed):
         models.update(detect_changes_in_yaml(yaml_main, YAML_PR))
     for model, model_info in MODELS.items():
         if model_info["type"] not in seen_model_types: 
-            if any(file.startswith(f'presets/inference/{model_info["type"]}') for file in files_changed):
+            if any(file.startswith(f'presets/workspace/inference/{model_info["type"]}') for file in files_changed):
                 models.add(model)
                 seen_model_types.add(model_info["type"])
     return list(models)
