@@ -78,7 +78,9 @@ DatasetConfig([full list](https://github.com/kaito-project/kaito/blob/main/prese
 - train_test_split: Proportion of data used for training, typically set to 1 for using all data.
 
 ## Input dataset format
-The input dataset for fine tuning should follow specific formats defined in the huggingface trainer library. Supported formats include conversational and instruction formats.
+The input dataset for fine-tuning should follow specific formats defined in the HuggingFace trainer library. Supported formats include conversational and instruction formats.
+
+For example, [HuggingFace Dolly 15k OAI-style dataset](https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/tree/main)
 
 - Conversational format
   ```json
@@ -90,17 +92,13 @@ The input dataset for fine tuning should follow specific formats defined in the 
     ]
   }
   ```
-For example, [HuggingFace Dolly 15k OAI-style dataset](https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/tree/main).
+
+For example, [HuggingFace Instruction Dataset](https://huggingface.co/datasets/HuggingFaceH4/instruction-dataset/tree/main)
 
 - Instruction format
   ```json
   {"prompt": "<prompt text>", "completion": "<ideal generated text>"}
-  {"prompt": "<prompt text>", "completion": "<ideal generated text>"}
-  {"prompt": "<prompt text>", "completion": "<ideal generated text>"}
   ```
-
-For example, [HuggingFace Instruction Dataset](https://huggingface.co/datasets/HuggingFaceH4/instruction-dataset/tree/main)
-
 
 If your dataset is not in one of these formats, it will be passed directly to the training library ([SFTTrainer](https://huggingface.co/docs/trl/en/sft_trainer)) without any preprocessing. This may result in undefined behavior if the dataset does not align with the trainer's expected input structure. To ensure proper functionality, you may need to preprocess the dataset to match one of the supported formats. For more details, please refer to this [documentation](https://huggingface.co/docs/trl/v0.9.4/sft_trainer#dataset-format-support).
 
