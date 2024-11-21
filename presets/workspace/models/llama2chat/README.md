@@ -59,7 +59,7 @@ inference:
         - <IMAGE PULL SECRETS>
 ```
 
-See [examples/inference](../../../examples/inference) for sample manifests.
+See [examples/inference](../../../../examples/inference) for sample manifests.
 
 ## Usage
 
