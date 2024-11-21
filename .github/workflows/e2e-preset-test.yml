@@ -250,6 +250,10 @@ jobs:
             POD_NAME=$(kubectl get pods -l app=${{ matrix.model.name }} -o jsonpath="{.items[0].metadata.name}")
             kubectl logs $POD_NAME | grep "Adapter added:" | grep "${{ matrix.model.expected_adapter }}" || (echo "Adapter not loaded or incorrect adapter loaded" && exit 1)
 
+      - name: Install testing commands
+        run: |
+            kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- apt-get update && apt-get install -y curl
+
       - name: Test healthz endpoint
         run: |
             if [[ "${{ matrix.model.name }}" == *"llama"* ]]; then
@@ -261,7 +265,6 @@ jobs:
             fi
       - name: Test inference endpoint
         run: |
-            kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- apt-get update && apt-get install -y curl
             echo "Testing inference for ${{ matrix.model.name }}"
             if [[ "${{ matrix.model.name }}" == *"llama"* && "${{ matrix.model.name }}" == *"-chat"* ]]; then
                 kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- \
