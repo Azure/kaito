@@ -99,8 +99,8 @@ unit-test: ## Run unit tests.
 
 .PHONY: rag-service-test
 rag-service-test:
-	pip install -r pkg/ragengine/services/requirements.txt
-	pytest -o log_cli=true -o log_cli_level=INFO pkg/ragengine/services/tests
+	pip install -r presets/ragengine/requirements.txt
+	pytest -o log_cli=true -o log_cli_level=INFO presets/ragengine/tests
 
 .PHONY: tuning-metrics-server-test
 tuning-metrics-server-test:
