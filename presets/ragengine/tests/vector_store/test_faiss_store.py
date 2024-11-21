@@ -5,8 +5,8 @@ import pytest
 import os
 
 from tempfile import TemporaryDirectory
-from services.tests.vector_store.test_base_store import BaseVectorStoreTest
-from services.vector_store.faiss_store import FaissVectorStoreHandler
+from ragengine.tests.vector_store.test_base_store import BaseVectorStoreTest
+from ragengine.vector_store.faiss_store import FaissVectorStoreHandler
 
 class TestFaissVectorStore(BaseVectorStoreTest):
     """Test implementation for FAISS vector store."""

@@ -6,11 +6,11 @@ from unittest.mock import patch
 import pytest
 from abc import ABC, abstractmethod
 
-from services.vector_store.base import BaseVectorStore
-from services.models import Document
-from services.embedding.huggingface_local import LocalHuggingFaceEmbedding
-from services.config import MODEL_ID, INFERENCE_URL, INFERENCE_ACCESS_SECRET
-from services.config import PERSIST_DIR
+from ragengine.vector_store.base import BaseVectorStore
+from ragengine.models import Document
+from ragengine.embedding.huggingface_local import LocalHuggingFaceEmbedding
+from ragengine.config import MODEL_ID, INFERENCE_URL, INFERENCE_ACCESS_SECRET
+from ragengine.config import PERSIST_DIR
 
 class BaseVectorStoreTest(ABC):
     """Base class for vector store tests that defines the test structure."""
