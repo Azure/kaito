@@ -58,4 +58,41 @@ kubectl describe deploy karpenter -n $KARPENTER_NAMESPACE
 ```
 
 ## Create a Workspace and start an inference service
-Once the Kaito and Karpenter controllers are installed, you can follow [these instructions](https://github.com/kaito-project/kaito/tree/main?tab=readme-ov-file#quick-start) to start an inference service. Just update the `resource.InstanceType` to a supported [AWS gpu sku](../../pkg/sku/aws_sku_handler.go).
+Once the Kaito and Karpenter controllers are installed, you can follow these commands to start a falcon-7b inference service.
+
+```bash
+$ cat sample_workspace.yaml
+apiVersion: kaito.sh/v1alpha1
+kind: Workspace
+metadata:
+  name: aws-workspace
+resource:
+  instanceType: "g5.4xlarge"
+  labelSelector:
+    matchLabels:
+      apps: falcon-7b
+inference:
+  preset:
+    name: "falcon-7b"
+
+$ kubectl apply -f sample_workspace.yaml
+```
+
+The workspace status can be tracked by running the following command. When the WORKSPACEREADY column becomes `True`, the model has been deployed successfully.
+
+```sh
+$ kubectl get workspace workspace-falcon-7b
+NAME                  INSTANCE            RESOURCEREADY   INFERENCEREADY    JOBSTARTED  WORKSPACESUCCEEDED  AGE
+aws-workspace         g5.4xlarge          True            True              True        True                10m
+```
+
+Next, one can find the inference service's cluster ip and use a temporal `curl` pod to test the service endpoint in the cluster.
+
+```sh
+$ kubectl get svc aws-workspace
+NAME                  TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)            AGE
+aws-workspace         ClusterIP   <CLUSTERIP>  <none>        80/TCP,29500/TCP   10m
+
+export CLUSTERIP=$(kubectl get svc aws-workspace -o jsonpath="{.spec.clusterIPs[0]}") 
+$ kubectl run -it --rm --restart=Never curl --image=curlimages/curl -- curl -X POST http://$CLUSTERIP/chat -H "accept: application/json" -H "Content-Type: application/json" -d "{\"prompt\":\"YOUR QUESTION HERE\"}"
+```
