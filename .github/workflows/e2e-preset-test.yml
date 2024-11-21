@@ -252,7 +252,8 @@ jobs:
 
       - name: Install testing commands
         run: |
-            kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- apt-get update && apt-get install -y curl
+            kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- apt-get update
+            kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- apt-get install -y curl
 
       - name: Test healthz endpoint
         run: |
