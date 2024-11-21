@@ -6,8 +6,8 @@ import pytest
 import os
 
 from tempfile import TemporaryDirectory
-from services.tests.vector_store.test_base_store import BaseVectorStoreTest
-from services.vector_store.chromadb_store import ChromaDBVectorStoreHandler
+from ragengine.tests.vector_store.test_base_store import BaseVectorStoreTest
+from ragengine.vector_store.chromadb_store import ChromaDBVectorStoreHandler
 
 class TestChromaDBVectorStore(BaseVectorStoreTest):
     """Test implementation for ChromaDB vector store."""
