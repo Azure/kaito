@@ -73,7 +73,7 @@ TrainingArguments([full list](https://huggingface.co/docs/transformers/v4.40.2/e
 DataCollator([full list](https://huggingface.co/docs/transformers/v4.40.2/en/main_classes/data_collator#transformers.DataCollatorForLanguageModeling))
 - mlm: Masked language modeling flag.
 
-DatasetConfig([full list](https://github.com/kaito-project/kaito/blob/main/presets/tuning/text-generation/cli.py#L44))
+DatasetConfig([full list](https://github.com/kaito-project/kaito/blob/main/presets/workspace/tuning/text-generation/cli.py#L44))
 - shuffle_dataset: Whether to shuffle the dataset.
 - train_test_split: Proportion of data used for training, typically set to 1 for using all data.
 
@@ -118,7 +118,7 @@ Figure 1. Kaito tuning pod structure.
 
 - Sidecar container: It is introduced to support automatically pushing the tuning results to a container registry. This container, with `docker` installed, runs a script to periodically check the training progress. Once the training is done, indicated by a sentinel file created by the training process, the script builds a container image containing the training results and pushes the image to the specified container registry.
 
-- Main container: It uses one of the supported model images. The image entry launches the [fine\_tuning.py](https://github.com/kaito-project/kaito/blob/main/presets/tuning/text-generation/fine_tuning.py) script.
+- Main container: It uses one of the supported model images. The image entry launches the [fine\_tuning.py](https://github.com/kaito-project/kaito/blob/main/presets/workspace/tuning/text-generation/fine_tuning.py) script.
 
 All three containers use shared local volumes (by mounting the same `EmptyDir` volumes), hence file copies between containers are avoided.
 

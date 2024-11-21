@@ -9,14 +9,14 @@ on:
     branches:
       - main
     paths:
-      - 'presets/inference/**'
-      - 'presets/models/supported_models.yaml'
+      - 'presets/workspace/inference/**'
+      - 'presets/workspace/models/supported_models.yaml'
   push:
     branches:
       - main
     paths:
-      - 'presets/inference/**'
-      - 'presets/models/supported_models.yaml'
+      - 'presets/workspace/inference/**'
+      - 'presets/workspace/models/supported_models.yaml'
   workflow_dispatch:
     inputs:
       force-run-all:

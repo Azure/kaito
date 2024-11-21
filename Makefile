@@ -43,7 +43,7 @@ AZURE_KARPENTER_MSI_NAME ?= azkarpenterIdentity
 RUN_LLAMA_13B ?= false
 AI_MODELS_REGISTRY ?= modelregistry.azurecr.io
 AI_MODELS_REGISTRY_SECRET ?= modelregistry
-SUPPORTED_MODELS_YAML_PATH ?= ~/runner/_work/kaito/kaito/presets/models/supported_models.yaml
+SUPPORTED_MODELS_YAML_PATH ?= ~/runner/_work/kaito/kaito/presets/workspace/models/supported_models.yaml
 
 # Scripts
 GO_INSTALL := ./hack/go-install.sh
@@ -104,17 +104,17 @@ rag-service-test:
 
 .PHONY: tuning-metrics-server-test
 tuning-metrics-server-test:
-	pip install -r ./presets/dependencies/requirements-test.txt
-	pytest -o log_cli=true -o log_cli_level=INFO presets/tuning/text-generation/metrics
+	pip install -r ./presets/workspace/dependencies/requirements-test.txt
+	pytest -o log_cli=true -o log_cli_level=INFO presets/workspace/tuning/text-generation/metrics
 
 ## --------------------------------------
 ## E2E tests
 ## --------------------------------------
 
 inference-api-e2e:
-	pip install -r ./presets/dependencies/requirements-test.txt
-	pytest -o log_cli=true -o log_cli_level=INFO presets/inference/vllm
-	pytest -o log_cli=true -o log_cli_level=INFO presets/inference/text-generation
+	pip install -r ./presets/workspace/dependencies/requirements-test.txt
+	pytest -o log_cli=true -o log_cli_level=INFO presets/workspace/inference/vllm
+	pytest -o log_cli=true -o log_cli_level=INFO presets/workspace/inference/text-generation
 
 # Ginkgo configurations
 GINKGO_FOCUS ?=
