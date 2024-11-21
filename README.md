@@ -64,8 +64,8 @@ The workspace status can be tracked by running the following command. When the W
 
 ```sh
 $ kubectl get workspace workspace-falcon-7b
-NAME                  INSTANCE            RESOURCEREADY   INFERENCEREADY   WORKSPACEREADY   AGE
-workspace-falcon-7b   Standard_NC12s_v3   True            True             True             10m
+NAME                  INSTANCE            RESOURCEREADY   INFERENCEREADY   JOBSTARTED  WORKSPACESUCCEEDED  AGE
+workspace-falcon-7b   Standard_NC12s_v3   True            True             True        True                10m
 ```
 
 Next, one can find the inference service's cluster ip and use a temporal `curl` pod to test the service endpoint in the cluster.
