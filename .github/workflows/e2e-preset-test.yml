@@ -261,6 +261,7 @@ jobs:
             fi
       - name: Test inference endpoint
         run: |
+            kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- apt-get update && apt-get install -y curl
             echo "Testing inference for ${{ matrix.model.name }}"
             if [[ "${{ matrix.model.name }}" == *"llama"* && "${{ matrix.model.name }}" == *"-chat"* ]]; then
                 kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- \
