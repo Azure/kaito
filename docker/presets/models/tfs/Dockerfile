@@ -7,10 +7,6 @@ ARG VERSION
 # Set the working directory
 WORKDIR /workspace
 
-RUN apt update && \
-    apt install -y curl procps && \
-    apt clean
-
 COPY kaito/presets/workspace/dependencies/requirements.txt /workspace/requirements.txt
 
 RUN pip install --no-cache-dir -r /workspace/requirements.txt
