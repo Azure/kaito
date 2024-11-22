@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: falcon-7b
 spec:
+  progressDeadlineSeconds: 1200
   replicas: 1
   selector:
     matchLabels:
