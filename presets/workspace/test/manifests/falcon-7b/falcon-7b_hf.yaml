@@ -1,8 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: falcon-7b-instruct
+  name: falcon-7b
 spec:
+  progressDeadlineSeconds: 1200
   replicas: 1
   selector:
     matchLabels:
@@ -14,7 +15,7 @@ spec:
     spec:
       containers:
       - name: falcon-container
-        image: REPO_HERE.azurecr.io/falcon-7b-instruct:TAG_HERE
+        image: REPO_HERE.azurecr.io/falcon-7b:TAG_HERE
         command:
           - /bin/sh
           - -c
@@ -52,4 +53,4 @@ spec:
         key: nvidia.com/gpu
         operator: Exists
       nodeSelector:
-        pool: falcon7binst
+        pool: falcon7b

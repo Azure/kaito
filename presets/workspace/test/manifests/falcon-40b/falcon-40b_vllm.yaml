@@ -1,8 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: falcon-7b-instruct
+  name: falcon-40b
 spec:
+  progressDeadlineSeconds: 1800
   replicas: 1
   selector:
     matchLabels:
@@ -14,16 +15,16 @@ spec:
     spec:
       containers:
       - name: falcon-container
-        image: REPO_HERE.azurecr.io/falcon-7b-instruct:TAG_HERE
+        image: REPO_HERE.azurecr.io/falcon-40b:TAG_HERE
         command:
           - /bin/sh
           - -c
-          - accelerate launch --num_processes 1 --num_machines 1 --machine_rank 0 --gpu_ids all /workspace/tfs/inference_api.py --pipeline text-generation --torch_dtype bfloat16
+          - python3 /workspace/vllm/inference_api.py --served-model-name test --dtype bfloat16 --chat-template /workspace/chat_templates/falcon-instruct.jinja --tensor-parallel-size 2
         resources:
           requests:
-            nvidia.com/gpu: 1
+            nvidia.com/gpu: 2
           limits:
-            nvidia.com/gpu: 1
+            nvidia.com/gpu: 2
         livenessProbe:
           httpGet:
             path: /health
@@ -52,4 +53,4 @@ spec:
         key: nvidia.com/gpu
         operator: Exists
       nodeSelector:
-        pool: falcon7binst
+        pool: falcon40b
