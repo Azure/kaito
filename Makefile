@@ -2,7 +2,7 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
-VERSION ?= v0.3.1
+VERSION ?= v0.3.2
 GPU_PROVISIONER_VERSION ?= 0.2.1
 IMG_TAG ?= $(subst v,,$(VERSION))
 
@@ -43,7 +43,7 @@ AZURE_KARPENTER_MSI_NAME ?= azkarpenterIdentity
 RUN_LLAMA_13B ?= false
 AI_MODELS_REGISTRY ?= modelregistry.azurecr.io
 AI_MODELS_REGISTRY_SECRET ?= modelregistry
-SUPPORTED_MODELS_YAML_PATH ?= ~/runner/_work/kaito/kaito/presets/models/supported_models.yaml
+SUPPORTED_MODELS_YAML_PATH ?= ~/runner/_work/kaito/kaito/presets/workspace/models/supported_models.yaml
 
 # Scripts
 GO_INSTALL := ./hack/go-install.sh
@@ -99,21 +99,22 @@ unit-test: ## Run unit tests.
 
 .PHONY: rag-service-test
 rag-service-test:
-	pip install -r pkg/ragengine/services/requirements.txt
-	pytest -o log_cli=true -o log_cli_level=INFO pkg/ragengine/services/tests
+	pip install -r presets/ragengine/requirements.txt
+	pytest -o log_cli=true -o log_cli_level=INFO presets/ragengine/tests
 
 .PHONY: tuning-metrics-server-test
 tuning-metrics-server-test:
-	pip install -r ./presets/dependencies/requirements-test.txt
-	pytest -o log_cli=true -o log_cli_level=INFO presets/tuning/text-generation/metrics
+	pip install -r ./presets/workspace/dependencies/requirements-test.txt
+	pytest -o log_cli=true -o log_cli_level=INFO presets/workspace/tuning/text-generation/metrics
 
 ## --------------------------------------
 ## E2E tests
 ## --------------------------------------
 
 inference-api-e2e:
-	pip install -r ./presets/dependencies/requirements-test.txt
-	pytest -o log_cli=true -o log_cli_level=INFO presets/inference
+	pip install -r ./presets/workspace/dependencies/requirements-test.txt
+	pytest -o log_cli=true -o log_cli_level=INFO presets/workspace/inference/vllm
+	pytest -o log_cli=true -o log_cli_level=INFO presets/workspace/inference/text-generation
 
 # Ginkgo configurations
 GINKGO_FOCUS ?=

@@ -20,19 +20,19 @@ import (
 
 const (
 	ProbePath = "/health"
-	Port5000  = int32(5000)
+	Port5000  = 5000
 )
 
 var (
 	containerPorts = []corev1.ContainerPort{{
-		ContainerPort: Port5000,
+		ContainerPort: int32(Port5000),
 	},
 	}
 
 	livenessProbe = &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
-				Port: intstr.FromInt(5000),
+				Port: intstr.FromInt(Port5000),
 				Path: ProbePath,
 			},
 		},
@@ -43,7 +43,7 @@ var (
 	readinessProbe = &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
-				Port: intstr.FromInt(5000),
+				Port: intstr.FromInt(Port5000),
 				Path: ProbePath,
 			},
 		},
@@ -100,6 +100,7 @@ func CreatePresetRAG(ctx context.Context, ragEngineObj *kaitov1alpha1.RAGEngine,
 	commands := utils.ShellCmd("python3 main.py")
 	// TODO: provide this image
 	image := "mcr.microsoft.com/aks/kaito/kaito-rag-service:0.0.1"
+
 	imagePullSecretRefs := []corev1.LocalObjectReference{}
 
 	depObj := manifests.GenerateRAGDeploymentManifest(ctx, ragEngineObj, revisionNum, image, imagePullSecretRefs, *ragEngineObj.Spec.Compute.Count, commands,

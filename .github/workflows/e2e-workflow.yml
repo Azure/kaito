@@ -27,7 +27,7 @@ on:
 
 jobs:
   e2e-tests:
-    runs-on: [ "self-hosted" ]
+    runs-on: [ "self-hosted", "hostname:kaito-e2e-github-runner" ]
     name: e2e-tests-${{ inputs.node_provisioner }}
     permissions:
       contents: read
@@ -72,7 +72,7 @@ jobs:
         run: sudo rm -rf ~/go/pkg/mod
       
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v5.0.2
+        uses: actions/setup-go@v5.1.0
         with:
           go-version: ${{ env.GO_VERSION  }}
 
