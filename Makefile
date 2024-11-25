@@ -46,10 +46,10 @@ AI_MODELS_REGISTRY_SECRET ?= modelregistry
 SUPPORTED_MODELS_YAML_PATH ?= ~/runner/_work/kaito/kaito/presets/workspace/models/supported_models.yaml
 
 ## AWS parameters
-CLUSTER_CONFIG_FILE ?= ./docs/aws/clusterconfig.yaml
+CLUSTER_CONFIG_FILE ?= ./docs/aws/clusterconfig.yaml.template
+RENDERED_CLUSTER_CONFIG_FILE ?= ./docs/aws/clusterconfig.yaml
 AWS_KARPENTER_VERSION ?=1.0.8
 CLUSTER_NAME ?= kaito-aws
-TEMPOUT ?= $(shell mktemp)
 AWS_K8S_VERSION ?= 1.30.0
 AWS_REGION ?= us-west-2
 AWS_PARTITION ?= aws
@@ -185,11 +185,15 @@ create-aks-cluster-for-karpenter: ## Create test AKS cluster (with msi, cilium, 
 ## --------------------------------------
 ## AWS resources
 ## --------------------------------------
+.PHONY: mktemp
+mktemp:
+	$(eval TEMPOUT := $(shell mktemp))
 
 .PHONY: deploy-aws-cloudformation
-deploy-aws-cloudformation: ## Deploy AWS CloudFormation stack
-	curl -fsSL https://raw.githubusercontent.com/aws/karpenter-provider-aws/v"${AWS_KARPENTER_VERSION}"/website/content/en/preview/getting-started/getting-started-with-karpenter/cloudformation.yaml  > "${TEMPOUT}" \
-	&& aws cloudformation deploy \
+deploy-aws-cloudformation: mktemp ## Deploy AWS CloudFormation stack
+	curl -fsSL https://raw.githubusercontent.com/aws/karpenter-provider-aws/v"${AWS_KARPENTER_VERSION}"/website/content/en/preview/getting-started/getting-started-with-karpenter/cloudformation.yaml  > "${TEMPOUT}" 
+
+	aws cloudformation deploy \
 	--stack-name "Karpenter-${CLUSTER_NAME}" \
 	--template-file "${TEMPOUT}" \
 	--capabilities CAPABILITY_NAMED_IAM \
@@ -197,9 +201,9 @@ deploy-aws-cloudformation: ## Deploy AWS CloudFormation stack
 
 .PHONY: create-eks-cluster
 create-eks-cluster: ## Create test EKS cluster
-	@envsubst < $(CLUSTER_CONFIG_FILE) > $(CLUSTER_CONFIG_FILE).tmp && mv $(CLUSTER_CONFIG_FILE).tmp $(CLUSTER_CONFIG_FILE)
+	@envsubst < $(CLUSTER_CONFIG_FILE) > $(RENDERED_CLUSTER_CONFIG_FILE)
 
-	eksctl create cluster -f $(CLUSTER_CONFIG_FILE)
+	eksctl create cluster -f $(RENDERED_CLUSTER_CONFIG_FILE)
 
 ## --------------------------------------
 ## Image Docker Build

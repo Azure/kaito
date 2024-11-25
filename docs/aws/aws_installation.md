@@ -61,7 +61,8 @@ kubectl describe deploy karpenter -n $KARPENTER_NAMESPACE
 Once the Kaito and Karpenter controllers are installed, you can follow these commands to start a falcon-7b inference service.
 
 ```bash
-$ cat sample_workspace.yaml
+$ export kaito_workspace_aws="../../examples/inference/kaito_workspace_falcon_7b_aws.yaml"
+$ cat $kaito_workspace_aws
 apiVersion: kaito.sh/v1alpha1
 kind: Workspace
 metadata:
@@ -75,7 +76,7 @@ inference:
   preset:
     name: "falcon-7b"
 
-$ kubectl apply -f sample_workspace.yaml
+$ kubectl apply -f $kaito_workspace_aws
 ```
 
 The workspace status can be tracked by running the following command. When the WORKSPACEREADY column becomes `True`, the model has been deployed successfully.
