@@ -1,23 +1,19 @@
-# Installation
+# Installation 
 
-The following guidance assumes **Azure Kubernetes Service(AKS)** is used to host
-the Kubernetes cluster.
+The following guidance assumes **Azure Kubernetes Service(AKS)** is used to host the Kubernetes cluster.
 
 Before you begin, ensure you have the following tools installed:
 
-- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) to
-  provision Azure resources
+- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) to provision Azure resources
 - [Helm](https://helm.sh) to install this operator
-- [kubectl](https://kubernetes.io/docs/tasks/tools/) to view Kubernetes
-  resources
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) to view Kubernetes resources
 - [git](https://git-scm.com/downloads) to clone this repo locally
 - [jq](https://jqlang.github.io/jq/download) to process JSON files
 
-**Important Note**: Ensure you use a release branch of the repository for a
-stable version of the installation.
+**Important Note**:
+Ensure you use a release branch of the repository for a stable version of the installation.
 
-If you do not already have an AKS cluster, run the following Azure CLI commands
-to create one:
+If you do not already have an AKS cluster, run the following Azure CLI commands to create one:
 
 ```bash
 export RESOURCE_GROUP="myResourceGroup"
@@ -33,8 +29,7 @@ Connect to the AKS cluster.
 az aks get-credentials --resource-group $RESOURCE_GROUP --name $MY_CLUSTER
 ```
 
-If you do not have `kubectl` installed locally, you can install using the
-following Azure CLI command.
+If you do not have `kubectl` installed locally, you can install using the following Azure CLI command.
 
 ```bash
 az aks install-cli
@@ -42,8 +37,7 @@ az aks install-cli
 
 ## Install workspace controller
 
-> Be sure you've cloned this repo and connected to your AKS cluster before
-> attempting to install the Helm charts.
+> Be sure you've cloned this repo and connected to your AKS cluster before attempting to install the Helm charts.
 
 Install the Workspace controller.
 
@@ -51,20 +45,16 @@ Install the Workspace controller.
 helm install workspace ./charts/kaito/workspace --namespace kaito-workspace --create-namespace
 ```
 
-Note that if you have installed another node provisioning controller that
-supports Karpenter-core APIs, the following steps for installing
-`gpu-provisioner` can be skipped.
+Note that if you have installed another node provisioning controller that supports Karpenter-core APIs, the following steps for installing `gpu-provisioner` can be skipped.
+
 
 ## Install gpu-provisioner controller
 
+
 #### Enable Workload Identity and OIDC Issuer features
+The *gpu-provisioner* controller requires the [workload identity](https://learn.microsoft.com/azure/aks/workload-identity-overview?tabs=dotnet) feature to acquire the access token to the AKS cluster. 
 
-The _gpu-provisioner_ controller requires the
-[workload identity](https://learn.microsoft.com/azure/aks/workload-identity-overview?tabs=dotnet)
-feature to acquire the access token to the AKS cluster.
-
-> Run the following commands only if your AKS cluster does not already have the
-> Workload Identity and OIDC issuer features enabled.
+> Run the following commands only if your AKS cluster does not already have the Workload Identity and OIDC issuer features enabled.
 
 ```bash
 export RESOURCE_GROUP="myResourceGroup"
@@ -73,11 +63,7 @@ az aks update -g $RESOURCE_GROUP -n $MY_CLUSTER --enable-oidc-issuer --enable-wo
 ```
 
 #### Create an identity and assign permissions
-
-The identity `kaitoprovisioner` is created for the _gpu-provisioner_ controller.
-It is assigned Contributor role for the managed cluster resource to allow
-changing `$MY_CLUSTER` (e.g., provisioning new nodes in it).
-
+The identity `kaitoprovisioner` is created for the *gpu-provisioner* controller. It is assigned Contributor role for the managed cluster resource to allow changing `$MY_CLUSTER` (e.g., provisioning new nodes in it).
 ```bash
 export SUBSCRIPTION=$(az account show --query id -o tsv)
 export IDENTITY_NAME="kaitoprovisioner"
@@ -88,9 +74,7 @@ az role assignment create --assignee $IDENTITY_PRINCIPAL_ID --scope /subscriptio
 ```
 
 #### Install helm charts
-
 Install the Node provisioner controller.
-
 ```bash
 # get additional values for helm chart install
 export GPU_PROVISIONER_VERSION=0.2.1
@@ -103,31 +87,20 @@ https://github.com/Azure/gpu-provisioner/raw/gh-pages/charts/gpu-provisioner-$GP
 ```
 
 #### Create the federated credential
-
-The federated identity credential between the managed identity
-`kaitoprovisioner` and the service account used by the _gpu-provisioner_
-controller is created.
-
+The federated identity credential between the managed identity `kaitoprovisioner` and the service account used by the *gpu-provisioner* controller is created.
 ```bash
 export AKS_OIDC_ISSUER=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query "oidcIssuerProfile.issuerUrl" -o tsv)
 az identity federated-credential create --name kaito-federatedcredential --identity-name $IDENTITY_NAME -g $RESOURCE_GROUP --issuer $AKS_OIDC_ISSUER --subject system:serviceaccount:"gpu-provisioner:gpu-provisioner" --audience api://AzureADTokenExchange --subscription $SUBSCRIPTION
 ```
-
-Then the _gpu-provisioner_ can access the managed cluster using a trust token
-with the same permissions of the `kaitoprovisioner` identity. Note that before
-finishing this step, the _gpu-provisioner_ controller pod will constantly fail
-with the following message in the log:
-
+Then the *gpu-provisioner* can access the managed cluster using a trust token with the same permissions of the `kaitoprovisioner` identity.
+Note that before finishing this step, the *gpu-provisioner* controller pod will constantly fail with the following message in the log:
 ```
 panic: Configure azure client fails. Please ensure federatedcredential has been created for identity XXXX.
 ```
-
 The pod will reach running state once the federated credential is created.
 
 ## Verify installation
-
-You can run the following commands to verify the installation of the controllers
-were successful.
+You can run the following commands to verify the installation of the controllers were successful.
 
 Check status of the Helm chart installations.
 
@@ -148,13 +121,10 @@ Check status of the `gpu-provisioner`.
 kubectl describe deploy gpu-provisioner -n gpu-provisioner
 ```
 
-## Troubleshooting
+## Troubleshooting 
+If you see that the `gpu-provisioner` deployment is not running after some time, it's possible that some values incorrect in your `values.ovveride.yaml`. 
 
-If you see that the `gpu-provisioner` deployment is not running after some time,
-it's possible that some values incorrect in your `values.ovveride.yaml`.
-
-Run the following command to check `gpu-provisioner` pod logs for additional
-details.
+Run the following command to check `gpu-provisioner` pod logs for additional details.
 
 ```bash
 kubectl logs --selector=app.kubernetes.io\/name=gpu-provisioner -n gpu-provisioner
