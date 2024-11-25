@@ -20,6 +20,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
 )
@@ -41,6 +42,10 @@ func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
 }
 
 func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
+	errmsgs := validation.IsDNS1123Label(w.Name)
+	if len(errmsgs) > 0 {
+		errs = errs.Also(apis.ErrInvalidValue(strings.Join(errmsgs, ", "), "name"))
+	}
 	base := apis.GetBaseline(ctx)
 	if base == nil {
 		klog.InfoS("Validate creation", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
@@ -93,14 +98,6 @@ func (w *Workspace) validateUpdate(old *Workspace) (errs *apis.FieldError) {
 	return errs
 }
 
-func ValidateDNSSubdomain(name string) bool {
-	var dnsSubDomainRegexp = regexp.MustCompile(`^(?i:[a-z0-9]([-a-z0-9]*[a-z0-9])?)$`)
-	if len(name) < 1 || len(name) > 253 {
-		return false
-	}
-	return dnsSubDomainRegexp.MatchString(name)
-}
-
 func (r *AdapterSpec) validateCreateorUpdate() (errs *apis.FieldError) {
 	if r.Source == nil {
 		errs = errs.Also(apis.ErrMissingField("Source"))
@@ -109,8 +106,8 @@ func (r *AdapterSpec) validateCreateorUpdate() (errs *apis.FieldError) {
 
 		if r.Source.Name == "" {
 			errs = errs.Also(apis.ErrMissingField("Name of Adapter field must be specified"))
-		} else if !ValidateDNSSubdomain(r.Source.Name) {
-			errs = errs.Also(apis.ErrMissingField("Name of Adapter must be a valid DNS subdomain value"))
+		} else if errmsgs := validation.IsDNS1123Subdomain(r.Source.Name); len(errmsgs) > 0 {
+			errs = errs.Also(apis.ErrInvalidValue(strings.Join(errmsgs, ", "), "adapters.source.name"))
 		}
 		if r.Source.Image == "" {
 			errs = errs.Also(apis.ErrMissingField("Image of Adapter field must be specified"))
