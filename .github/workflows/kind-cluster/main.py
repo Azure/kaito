@@ -134,7 +134,11 @@ def main():
     kubectl_path = get_kubectl_path()
     run_command(f"{kubectl_path} apply -f {job_name}-job.yaml")
     job_names.append(job_name)
-    
+
+    with open(f"{job_name}-job.yaml", "r") as file:
+        contents = file.read()
+        print(contents)
+        
     if not wait_for_jobs_to_complete(job_names):
         exit(1)  # Exit with an error code if any job failed
 
@@ -212,8 +216,8 @@ def log_job_info(job_name):
 def check_job_status(job_name, iteration):
     """Check the status of a Kubernetes job."""
     # Every 2.5 minutes log job information
-    if iteration % 5 == 0:
-        log_job_info(job_name)
+    # if iteration % 5 == 0:
+    log_job_info(job_name)
     # Query for the specific fields 'succeeded' and 'failed' in the job's status
     command_succeeded = f"kubectl get job docker-build-job-{job_name} -o jsonpath='{{.status.succeeded}}'"
     command_failed = f"kubectl get job docker-build-job-{job_name} -o jsonpath='{{.status.failed}}'"
