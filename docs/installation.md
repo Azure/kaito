@@ -105,7 +105,8 @@ You can run the following commands to verify the installation of the controllers
 Check status of the Helm chart installations.
 
 ```bash
-helm list -n default
+helm list -n kaito-workspace
+helm list -n gpu-provisioner
 ```
 
 Check status of the `workspace`.
