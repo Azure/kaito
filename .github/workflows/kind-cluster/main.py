@@ -135,10 +135,6 @@ def main():
     run_command(f"{kubectl_path} apply -f {job_name}-job.yaml")
     job_names.append(job_name)
 
-    with open(f"{job_name}-job.yaml", "r") as file:
-        contents = file.read()
-        print(contents)
-        
     if not wait_for_jobs_to_complete(job_names):
         exit(1)  # Exit with an error code if any job failed
 
