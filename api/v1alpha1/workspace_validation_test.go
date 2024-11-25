@@ -977,10 +977,10 @@ func TestWorkspaceValidateName(t *testing.T) {
 			workspace.Name = tt.workspaceName
 			errs := workspace.Validate(context.Background())
 			if (errs != nil) != tt.wantErr {
-				t.Errorf("validateCreate() error = %v, wantErr %v", errs, tt.wantErr)
+				t.Errorf("Validate() error = %v, wantErr %v", errs, tt.wantErr)
 			}
 			if errs != nil && !strings.Contains(errs.Error(), tt.errField) {
-				t.Errorf("validateCreate() expected error to contain field %s, but got %s", tt.errField, errs.Error())
+				t.Errorf("Validate() expected error to contain field %s, but got %s", tt.errField, errs.Error())
 			}
 		})
 	}
