@@ -49,10 +49,6 @@ SUPPORTED_MODELS_YAML_PATH ?= ~/runner/_work/kaito/kaito/presets/workspace/model
 CLUSTER_CONFIG_FILE ?= ./docs/aws/clusterconfig.yaml.template
 RENDERED_CLUSTER_CONFIG_FILE ?= ./docs/aws/clusterconfig.yaml
 AWS_KARPENTER_VERSION ?=1.0.8
-CLUSTER_NAME ?= kaito-aws
-AWS_K8S_VERSION ?= 1.30.0
-AWS_REGION ?= us-west-2
-AWS_PARTITION ?= aws
 
 # Scripts
 GO_INSTALL := ./hack/go-install.sh
@@ -194,10 +190,10 @@ deploy-aws-cloudformation: mktemp ## Deploy AWS CloudFormation stack
 	curl -fsSL https://raw.githubusercontent.com/aws/karpenter-provider-aws/v"${AWS_KARPENTER_VERSION}"/website/content/en/preview/getting-started/getting-started-with-karpenter/cloudformation.yaml  > "${TEMPOUT}" 
 
 	aws cloudformation deploy \
-	--stack-name "Karpenter-${CLUSTER_NAME}" \
+	--stack-name "Karpenter-${AWS_CLUSTER_NAME}" \
 	--template-file "${TEMPOUT}" \
 	--capabilities CAPABILITY_NAMED_IAM \
-	--parameter-overrides "ClusterName=${CLUSTER_NAME}"
+	--parameter-overrides "ClusterName=${AWS_CLUSTER_NAME}"
 
 .PHONY: create-eks-cluster
 create-eks-cluster: ## Create test EKS cluster
@@ -317,7 +313,7 @@ aws-patch-install-helm:
 	yq -i '(.image.repository)                                              = "$(REGISTRY)/workspace"'                    	./charts/kaito/workspace/values.yaml
 	yq -i '(.image.tag)                                                     = "$(IMG_TAG)"'                               	./charts/kaito/workspace/values.yaml
 	yq -i '(.featureGates.Karpenter)                                    	= "true"'                                       ./charts/kaito/workspace/values.yaml
-	yq -i '(.clusterName)                                                   = "$(CLUSTER_NAME)"'                    		./charts/kaito/workspace/values.yaml
+	yq -i '(.clusterName)                                                   = "$(AWS_CLUSTER_NAME)"'                    		./charts/kaito/workspace/values.yaml
 	yq -i '(.cloudProviderName)                                             = "aws"'                                        ./charts/kaito/workspace/values.yaml
 	
 	helm install kaito-workspace ./charts/kaito/workspace --namespace $(KAITO_NAMESPACE) --create-namespace
@@ -370,8 +366,8 @@ aws-karpenter-helm:
 	helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
 	--version "${AWS_KARPENTER_VERSION}" \
 	--namespace "${KARPENTER_NAMESPACE}" --create-namespace \
-	--set "settings.clusterName=${CLUSTER_NAME}" \
-	--set "settings.interruptionQueue=${CLUSTER_NAME}" \
+	--set "settings.clusterName=${AWS_CLUSTER_NAME}" \
+	--set "settings.interruptionQueue=${AWS_CLUSTER_NAME}" \
 	--set controller.resources.requests.cpu=1 \
 	--set controller.resources.requests.memory=1Gi \
 	--set controller.resources.limits.cpu=1 \

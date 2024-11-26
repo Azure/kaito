@@ -12,9 +12,11 @@ If you do not already have an EKS cluster, run the following to create one:
 ```bash
 cd ../.. #go back to main directory to use MAKE commands
 
-export CLUSTER_NAME = kaito-aws
-export AWS_REGION = us-west-2
-export KARPENTER_NAMESPACE = karpenter
+export AWS_CLUSTER_NAME=kaito-aws
+export AWS_REGION=us-west-2
+export AWS_PARTITION=aws
+export AWS_K8S_VERSION=1.30
+export KARPENTER_NAMESPACE=kube-system
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 
 make deploy-aws-cloudformation
@@ -48,7 +50,7 @@ helm list -n default
 Check status of `workspace`.
 
 ```bash
-kubectl describe deploy workspace -n kaito-workspace
+kubectl describe deploy kaito-workspace -n kaito-workspace
 ```
 
 Check status of `karpenter`.
