@@ -1,6 +1,6 @@
 # Installation 
 
-The following guidance assumes **Azure Kubernetes Service(AKS)** is used to host the Kubernetes cluster.
+The following guidance assumes **Azure Kubernetes Service(AKS)** is used to host the Kubernetes cluster. If you want to use Elastic Kubernetes Service (EKS) instead, please follow the installation guide [here](./aws/aws_installation.md)
 
 Before you begin, ensure you have the following tools installed:
 
@@ -69,7 +69,6 @@ export SUBSCRIPTION=$(az account show --query id -o tsv)
 export IDENTITY_NAME="kaitoprovisioner"
 az identity create --name $IDENTITY_NAME -g $RESOURCE_GROUP
 export IDENTITY_PRINCIPAL_ID=$(az identity show --name $IDENTITY_NAME -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query 'principalId' -o tsv)
-export IDENTITY_CLIENT_ID=$(az identity show --name $IDENTITY_NAME -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query 'clientId' -o tsv)
 az role assignment create --assignee $IDENTITY_PRINCIPAL_ID --scope /subscriptions/$SUBSCRIPTION/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ContainerService/managedClusters/$MY_CLUSTER  --role "Contributor"
 ```
 
@@ -105,7 +104,8 @@ You can run the following commands to verify the installation of the controllers
 Check status of the Helm chart installations.
 
 ```bash
-helm list -n default
+helm list -n kaito-workspace
+helm list -n gpu-provisioner
 ```
 
 Check status of the `workspace`.

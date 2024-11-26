@@ -22,17 +22,19 @@ Ensure your `accelerate` configuration aligns with the values provided during be
    - Before you can run the benchmarking on a GPU, ensure you have a GPU node set up in your AKS cluster.
    - If you haven't already, you can use the Azure CLI or the Azure Portal to create and configure a GPU node pool in your AKS cluster.
 <!-- markdown-link-check-disable -->
-2. Building and Pushing the Docker Image:
-    - First, you need to build a Docker image from the provided [Dockerfile](https://github.com/kaito-project/kaito/blob/main/docker/presets/models/tfs/Dockerfile) and push it to a container registry accessible by your AKS cluster
-<!-- markdown-link-check-enable -->
-    - Example:
-    ```
-    cd /path/to/directory_with_dockerfile
-    docker login
-    docker build -t your_username/falcon-gpu:latest .
-    docker push your_username/falcon-gpu:latest
-    ```
-4. Deploying a Pod with the Docker Image:
+2. Using or Building the Docker Image:
+    - If the image is already hosted on MCR (Microsoft Container Registry), you can access it directly. Use the following format: `mcr.microsoft.com/aks/kaito/kaito-<MODEL_NAME>:<MODEL_VERSION>`
+      - Example: `mcr.microsoft.com/aks/kaito/kaito-falcon-40b-instruct:0.0.7`
+    - If you are using a private or custom image, you will need to build and push it to your own container registry. Use the following commands:
+        ```
+        docker build -t <PRIVATE_IMAGE> --file docker/presets/models/tfs/Dockerfile \
+        --build-arg WEIGHTS_PATH=<PATH_TO_MODEL_WEIGHTS> \
+        --build-arg MODEL_TYPE=text-generation \
+        --build-arg VERSION=0.0.1
+      
+        docker push <PRIVATE_IMAGE>
+        ```
+3. Deploying a Pod with the Docker Image:
     - Deploy a pod in your AKS cluster using the image you just pushed.
     - Create a YAML file for the pod (e.g., falcon-gpu-pod.yaml). Here is an example YAML:
 
@@ -54,7 +56,7 @@ Ensure your `accelerate` configuration aligns with the values provided during be
     ```bash
     kubectl apply -f falcon-gpu-pod.yaml
     ```
-5. Accessing the Pod:
+4. Accessing the Pod:
     - Once the pod is up and running, you can use kubectl to SSH into it:
     ```bash
     kubectl exec -it falcon-gpu-pod -- /bin/bash
