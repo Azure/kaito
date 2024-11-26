@@ -45,6 +45,11 @@ AI_MODELS_REGISTRY ?= modelregistry.azurecr.io
 AI_MODELS_REGISTRY_SECRET ?= modelregistry
 SUPPORTED_MODELS_YAML_PATH ?= ~/runner/_work/kaito/kaito/presets/workspace/models/supported_models.yaml
 
+## AWS parameters
+CLUSTER_CONFIG_FILE ?= ./docs/aws/clusterconfig.yaml.template
+RENDERED_CLUSTER_CONFIG_FILE ?= ./docs/aws/clusterconfig.yaml
+AWS_KARPENTER_VERSION ?=1.0.8
+
 # Scripts
 GO_INSTALL := ./hack/go-install.sh
 
@@ -174,6 +179,29 @@ create-aks-cluster-for-karpenter: ## Create test AKS cluster (with msi, cilium, 
 	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --overwrite-existing
 
 ## --------------------------------------
+## AWS resources
+## --------------------------------------
+.PHONY: mktemp
+mktemp:
+	$(eval TEMPOUT := $(shell mktemp))
+
+.PHONY: deploy-aws-cloudformation
+deploy-aws-cloudformation: mktemp ## Deploy AWS CloudFormation stack
+	curl -fsSL https://raw.githubusercontent.com/aws/karpenter-provider-aws/v"${AWS_KARPENTER_VERSION}"/website/content/en/preview/getting-started/getting-started-with-karpenter/cloudformation.yaml  > "${TEMPOUT}" 
+
+	aws cloudformation deploy \
+	--stack-name "Karpenter-${AWS_CLUSTER_NAME}" \
+	--template-file "${TEMPOUT}" \
+	--capabilities CAPABILITY_NAMED_IAM \
+	--parameter-overrides "ClusterName=${AWS_CLUSTER_NAME}"
+
+.PHONY: create-eks-cluster
+create-eks-cluster: ## Create test EKS cluster
+	@envsubst < $(CLUSTER_CONFIG_FILE) > $(RENDERED_CLUSTER_CONFIG_FILE)
+
+	eksctl create cluster -f $(RENDERED_CLUSTER_CONFIG_FILE)
+
+## --------------------------------------
 ## Image Docker Build
 ## --------------------------------------
 BUILDX_BUILDER_NAME ?= img-builder
@@ -280,6 +308,16 @@ az-patch-install-helm: ## Update Azure client env vars and settings in helm valu
 
 	helm install kaito-workspace ./charts/kaito/workspace --namespace $(KAITO_NAMESPACE) --create-namespace
 
+.PHONY: aws-patch-install-helm ##install kaito on AWS cluster
+aws-patch-install-helm: 
+	yq -i '(.image.repository)                                              = "$(REGISTRY)/workspace"'                    	./charts/kaito/workspace/values.yaml
+	yq -i '(.image.tag)                                                     = "$(IMG_TAG)"'                               	./charts/kaito/workspace/values.yaml
+	yq -i '(.featureGates.Karpenter)                                    	= "true"'                                       ./charts/kaito/workspace/values.yaml
+	yq -i '(.clusterName)                                                   = "$(AWS_CLUSTER_NAME)"'                    		./charts/kaito/workspace/values.yaml
+	yq -i '(.cloudProviderName)                                             = "aws"'                                        ./charts/kaito/workspace/values.yaml
+	
+	helm install kaito-workspace ./charts/kaito/workspace --namespace $(KAITO_NAMESPACE) --create-namespace
+
 generate-identities: ## Create identities for the provisioner component.
 	./hack/deploy/generate-identities.sh \
 	$(AZURE_CLUSTER_NAME) $(AZURE_RESOURCE_GROUP) $(TEST_SUITE) $(AZURE_SUBSCRIPTION_ID)
@@ -319,6 +357,23 @@ azure-karpenter-helm:  ## Update Azure client env vars and settings in helm valu
     --set controller.resources.limits.memory=1Gi
 
 	kubectl wait --for=condition=available deploy "karpenter" -n karpenter --timeout=300s
+
+## --------------------------------------
+## AWS Karpenter Installation
+## --------------------------------------
+.PHONY: aws-karpenter-helm
+aws-karpenter-helm:  
+	helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+	--version "${AWS_KARPENTER_VERSION}" \
+	--namespace "${KARPENTER_NAMESPACE}" --create-namespace \
+	--set "settings.clusterName=${AWS_CLUSTER_NAME}" \
+	--set "settings.interruptionQueue=${AWS_CLUSTER_NAME}" \
+	--set controller.resources.requests.cpu=1 \
+	--set controller.resources.requests.memory=1Gi \
+	--set controller.resources.limits.cpu=1 \
+	--set controller.resources.limits.memory=1Gi \
+
+	kubectl wait --for=condition=available deploy "karpenter" -n ${KARPENTER_NAMESPACE} --timeout=300s
 
 ##@ Build
 .PHONY: build-workspace
