@@ -1,15 +1,8 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: {{ include "kaito.fullname" . }}
-  labels:
-    {{- include "kaito.labels" . | nindent 4 }}
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "kaito.fullname" . }}
-  namespace: {{ include "kaito.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "kaito.labels" . | nindent 4 }}
 spec:
@@ -39,6 +32,8 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --feature-gates={{- range $k, $v := .Values.featureGates }}{{ $k }}={{ $v}}{{- end }}
           env:
             - name: WEBHOOK_SERVICE
               value: {{ include "kaito.fullname" . }}
@@ -50,6 +45,8 @@ spec:
                   fieldPath: metadata.namespace
             - name: PRESET_REGISTRY_NAME
               value: {{ .Values.presetRegistryName }}
+            - name: CLOUD_PROVIDER
+              value: {{ .Values.cloudProviderName }}
           ports:
             - name: http-metrics
               containerPort: 8080

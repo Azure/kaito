@@ -5,7 +5,11 @@ on:
     branches:
       - main
   schedule:
-    - cron: "0 7 * * 1" # Mondays at 7:00 AM
+       # Daily at 1:00
+    - cron: '0 1 * * *'
+
+permissions:
+  contents: read
 
 jobs:
   analyze:
@@ -17,20 +21,30 @@ jobs:
       actions: read
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: true
           fetch-depth: 0
+       
+      - uses: actions/setup-go@v5.1.0
+        with:
+          go-version-file: 'go.mod'
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@cdcdbb579706841c47f7063dda365e292e5cad7a
+        uses: github/codeql-action/init@v3
         with:
           languages: go
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@cdcdbb579706841c47f7063dda365e292e5cad7a
+        uses: github/codeql-action/autobuild@v3
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@cdcdbb579706841c47f7063dda365e292e5cad7a
-  
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:go"

@@ -8,6 +8,7 @@ Before you begin, ensure you have the following tools installed:
 - [Helm](https://helm.sh) to install this operator
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) to view Kubernetes resources
 - [git](https://git-scm.com/downloads) to clone this repo locally
+- [jq](https://jqlang.github.io/jq/download) to process JSON files
 
 **Important Note**:
 Ensure you use a release branch of the repository for a stable version of the installation.
@@ -41,7 +42,7 @@ az aks install-cli
 Install the Workspace controller.
 
 ```bash
-helm install workspace ./charts/kaito/workspace
+helm install workspace ./charts/kaito/workspace --namespace kaito-workspace --create-namespace
 ```
 
 Note that if you have installed another node provisioning controller that supports Karpenter-core APIs, the following steps for installing `gpu-provisioner` can be skipped.
@@ -68,7 +69,6 @@ export SUBSCRIPTION=$(az account show --query id -o tsv)
 export IDENTITY_NAME="kaitoprovisioner"
 az identity create --name $IDENTITY_NAME -g $RESOURCE_GROUP
 export IDENTITY_PRINCIPAL_ID=$(az identity show --name $IDENTITY_NAME -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query 'principalId' -o tsv)
-export IDENTITY_CLIENT_ID=$(az identity show --name $IDENTITY_NAME -g $RESOURCE_GROUP --subscription $SUBSCRIPTION --query 'clientId' -o tsv)
 az role assignment create --assignee $IDENTITY_PRINCIPAL_ID --scope /subscriptions/$SUBSCRIPTION/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ContainerService/managedClusters/$MY_CLUSTER  --role "Contributor"
 ```
 
@@ -76,36 +76,13 @@ az role assignment create --assignee $IDENTITY_PRINCIPAL_ID --scope /subscriptio
 Install the Node provisioner controller.
 ```bash
 # get additional values for helm chart install
-export NODE_RESOURCE_GROUP=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --query nodeResourceGroup -o tsv)
-export LOCATION=$(az aks show -n $MY_CLUSTER -g $RESOURCE_GROUP --query location -o tsv)
-export TENANT_ID=$(az account show --query tenantId -o tsv)
+export GPU_PROVISIONER_VERSION=0.2.1
 
-# create a local values override file
-cat << EOF > values.override.yaml
-controller:
-  env:
-  - name: ARM_SUBSCRIPTION_ID
-    value: $SUBSCRIPTION
-  - name: LOCATION
-    value: $LOCATION
-  - name: AZURE_CLUSTER_NAME
-    value: $MY_CLUSTER
-  - name: AZURE_NODE_RESOURCE_GROUP
-    value: $NODE_RESOURCE_GROUP
-  - name: ARM_RESOURCE_GROUP
-    value: $RESOURCE_GROUP
-  - name: LEADER_ELECT
-    value: "false"
-workloadIdentity:
-  clientId: $IDENTITY_CLIENT_ID
-  tenantId: $TENANT_ID
-settings:
-  azure:
-    clusterName: $MY_CLUSTER
-EOF
+curl -sO https://raw.githubusercontent.com/Azure/gpu-provisioner/main/hack/deploy/configure-helm-values.sh
+chmod +x ./configure-helm-values.sh && ./configure-helm-values.sh $MY_CLUSTER $RESOURCE_GROUP $IDENTITY_NAME
 
-# install gpu-provisioner using values override file
-helm install gpu-provisioner ./charts/kaito/gpu-provisioner -f values.override.yaml
+helm install gpu-provisioner --values gpu-provisioner-values.yaml --set settings.azure.clusterName=$MY_CLUSTER --wait \
+https://github.com/Azure/gpu-provisioner/raw/gh-pages/charts/gpu-provisioner-$GPU_PROVISIONER_VERSION.tgz --namespace gpu-provisioner --create-namespace
 ```
 
 #### Create the federated credential
@@ -127,13 +104,14 @@ You can run the following commands to verify the installation of the controllers
 Check status of the Helm chart installations.
 
 ```bash
-helm list -n default
+helm list -n kaito-workspace
+helm list -n gpu-provisioner
 ```
 
 Check status of the `workspace`.
 
 ```bash
-kubectl describe deploy workspace -n workspace
+kubectl describe deploy workspace -n kaito-workspace
 ```
 
 Check status of the `gpu-provisioner`.

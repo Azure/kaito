@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: nvidia-device-plugin-daemonset
-  namespace: {{ include "kaito.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "kaito.labels" . | nindent 4 }}
 spec:
@@ -27,10 +27,6 @@ spec:
                 operator: NotIn
                 values:
                 - virtual-kubelet
-              - key: karpenter.sh/provisioner-name
-                operator: Exists
-              - key: kaito.sh/machine-type
-                operator: Exists
       tolerations:
         # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
         # This, along with the annotation above marks this pod as a critical add-on.
@@ -45,8 +41,13 @@ spec:
           effect: "NoSchedule"
       priorityClassName: high-priority-nonpreempting
       containers:
-        - image: mcr.microsoft.com/oss/nvidia/k8s-device-plugin:1.11
+        - image: nvcr.io/nvidia/k8s-device-plugin:v0.16.2
           name: nvidia-device-plugin-ctr
+          env:
+            - name: FAIL_ON_INIT_ERROR
+              value: "false"
+            - name: PASS_DEVICE_SPECS
+              value: "true"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -63,7 +64,7 @@ apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
   name: high-priority-nonpreempting
-  namespace: {{ include "kaito.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "kaito.labels" . | nindent 4 }}
 value: 1000000

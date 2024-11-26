@@ -6,3 +6,49 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "chore"
+
+  - package-ecosystem: docker
+    directory: /docker/kaito
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /docker/presets/inference/llama-2
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0
+
+  - package-ecosystem: docker
+    directory: /docker/presets/inference/tfs-onnx
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0
+
+  - package-ecosystem: docker
+    directory: /docker/presets/inference/tfs
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0
+
+  - package-ecosystem: docker
+    directory: /docker/presets/tuning
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: daily
+
+  - package-ecosystem: pip
+    directory: /presets/workspace/inference/text-generation
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0
+
+  - package-ecosystem: pip
+    directory: /presets/workspace/tuning/tfs
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0

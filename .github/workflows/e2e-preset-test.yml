@@ -11,10 +11,21 @@ on:
                 type: boolean
                 default: false
                 description: "Test all models for E2E"
+            force-run-all-phi-models:
+                type: boolean
+                default: false
+                description: "Test all Phi models for E2E"
+            test-on-vllm:
+                type: boolean
+                default: false
+                description: "Test on VLLM runtime"
 
 env:
-    GO_VERSION: "1.20"
+    GO_VERSION: "1.22"
     BRANCH_NAME: ${{ github.head_ref || github.ref_name}} 
+    FORCE_RUN_ALL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force-run-all == 'true' }}
+    FORCE_RUN_ALL_PHI:  ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force-run-all-phi-models== 'true' }}
+    RUNTIME: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.test-on-vllm == 'true') && 'vllm' || 'hf' }}
 
 permissions:
     id-token: write
@@ -31,13 +42,10 @@ jobs:
       full_matrix: ${{ steps.images.outputs.full_matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-            submodules: true
-            fetch-depth: 0
-
-      - name: Set FORCE_RUN_ALL Flag
-        run: echo "FORCE_RUN_ALL=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force-run-all == 'true' }}" >> $GITHUB_ENV
+          submodules: true
+          fetch-depth: 0
 
       # This script should output a JSON array of model names
       - name: Determine Affected Models
@@ -45,6 +53,7 @@ jobs:
         run: |
             PR_BRANCH=${{ env.BRANCH_NAME }} \
             FORCE_RUN_ALL=${{ env.FORCE_RUN_ALL }} \
+            FORCE_RUN_ALL_PHI=${{ env.FORCE_RUN_ALL_PHI }} \
             python3 .github/workflows/kind-cluster/determine_models.py
 
       - name: Print Determined Models
@@ -66,6 +75,9 @@ jobs:
         run: |         
             # Read the additional configurations from e2e-preset-configs.json
             CONFIGS=$(cat .github/e2e-preset-configs.json | jq -c '.matrix.image')
+
+            echo "CONFIGS:"
+            echo $CONFIGS
             
             # Pseudocode for combining matrices
             # COMBINED_MATRIX = []
@@ -103,7 +115,7 @@ jobs:
         model: ${{fromJson(needs.determine-models.outputs.full_matrix)}}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
         with:
             submodules: true
             fetch-depth: 0
@@ -112,42 +124,17 @@ jobs:
         run: echo "MODEL_IS_OSS=${{ matrix.model.OSS }}" >> $GITHUB_ENV
 
       - name: 'Az CLI login'
-        uses: azure/login@v1.6.1
+        uses: azure/login@v2.2.0
         with:
             client-id: ${{ secrets.AZURE_CLIENT_ID }}
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
             allow-no-subscriptions: true
-      
-      - name: 'Set Prod Subscription'
-        run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
-        
-      - name: 'Check if Image exists in Prod ACR'
-        id: check_prod_image
-        run: |
-            ACR_NAME=${{ secrets.PROD_ACR_USERNAME }}
-            IMAGE_NAME=unlisted/aks/kaito/kaito-${{ matrix.model.name }}
-            TAG=${{ matrix.model.tag }}
-        
-            # Use '|| true' to prevent script from exiting with an error if the repository is not found
-            TAGS=$(az acr repository show-tags -n $ACR_NAME --repository $IMAGE_NAME --output tsv || true)
 
-            if [[ -z "$TAGS" ]]; then
-                echo "Image $IMAGE_NAME:$TAG or repository not found in $ACR_NAME."
-                echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
-            else
-                if echo "$TAGS" | grep -q "^$TAG$"; then
-                    echo "IMAGE_EXISTS=true" >> $GITHUB_OUTPUT
-                else
-                    echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
-                    echo "Image $IMAGE_NAME:$TAG not found in $ACR_NAME."
-                fi
-            fi
-
-      - name: 'Set Test Subscription'
+      - name: 'Set ACR Subscription'
         run: az account set --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
 
-      - name: 'Check if Image exists in Test ACR'
-        id: check_test_image
+      - name: Check if Image exists in ACR
+        id: check_image
         run: |
             ACR_NAME=${{ secrets.ACR_AMRT_USERNAME }}
             IMAGE_NAME=${{ matrix.model.name }}
@@ -168,25 +155,24 @@ jobs:
                 fi
             fi
     
-      - name: Check if Image is Test and Prod ACRs
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'true'
+      - name: Exit if Image for testing does not exist
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'false'
         run: |
-            echo "Skipping: Image already exists in both Test and Prod ACRs, remember to bump tag"
-
+            echo "Image doesn't exist in ACR, remember to build image for testing first (preset-image-build)"
+            exit 1
+    
       - name: Set up kubectl context
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
           az aks get-credentials --resource-group llm-test --name GitRunner
     
       - name: Get Nodepool Name
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         id: get_nodepool_name
         run: |
             NAME_SUFFIX=${{ matrix.model.name }}
             NAME_SUFFIX_WITHOUT_DASHES=${NAME_SUFFIX//-/}  # Removing all '-' symbols
-            
+
             if [ ${#NAME_SUFFIX_WITHOUT_DASHES} -gt 12 ]; then
-                TRUNCATED_NAME_SUFFIX=${NAME_SUFFIX_WITHOUT_DASHES: -12}
+                TRUNCATED_NAME_SUFFIX=${NAME_SUFFIX_WITHOUT_DASHES:0:12}
             else
                 TRUNCATED_NAME_SUFFIX=$NAME_SUFFIX_WITHOUT_DASHES
             fi
@@ -194,7 +180,6 @@ jobs:
             echo "NODEPOOL_NAME=$TRUNCATED_NAME_SUFFIX" >> $GITHUB_OUTPUT
 
       - name: Create Nodepool
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
             NODEPOOL_EXIST=$(az aks nodepool show \
                             --name ${{ steps.get_nodepool_name.outputs.NODEPOOL_NAME }} \
@@ -229,11 +214,9 @@ jobs:
             fi
 
       - name: Create Service
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
-        run: kubectl apply -f presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}-service.yaml
+        run: kubectl apply -f presets/workspace/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}-service.yaml
       
       - name: Retrieve External Service IP
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         id: get_ip
         run: |
             while [[ -z $SERVICE_IP ]]; do 
@@ -250,34 +233,43 @@ jobs:
             echo "RESOURCE_TYPE=$RESOURCE_TYPE" >> $GITHUB_OUTPUT
       
       - name: Replace IP and Deploy Resource to K8s
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
-            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}.yaml
-            sed -i "s/TAG_HERE/${{ matrix.model.tag }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}.yaml
-            sed -i "s/REPO_HERE/${{ secrets.ACR_AMRT_USERNAME }}/g" presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}.yaml
-            kubectl apply -f presets/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}.yaml
+            POSTFIX=$(echo "${{ matrix.model.name }}" | grep -q "llama" && echo "" || echo "_${{ env.RUNTIME }}")
+            sed -i "s/MASTER_ADDR_HERE/${{ steps.get_ip.outputs.SERVICE_IP }}/g" presets/workspace/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}$POSTFIX.yaml
+            sed -i "s/TAG_HERE/${{ matrix.model.tag }}/g" presets/workspace/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}$POSTFIX.yaml
+            sed -i "s/REPO_HERE/${{ secrets.ACR_AMRT_USERNAME }}/g" presets/workspace/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}$POSTFIX.yaml
+            kubectl apply -f presets/workspace/test/manifests/${{ matrix.model.name }}/${{ matrix.model.name }}$POSTFIX.yaml
 
       - name: Wait for Resource to be ready
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
             kubectl rollout status ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} --timeout=1800s
-        
-      - name: Test home endpoint
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
+    
+      - name: Check Adapter Loading from Logs
+        if: matrix.model.loads_adapter == true
         run: |
-            curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/
+            POD_NAME=$(kubectl get pods -l app=${{ matrix.model.name }} -o jsonpath="{.items[0].metadata.name}")
+            kubectl logs $POD_NAME | grep "Adapter added:" | grep "${{ matrix.model.expected_adapter }}" || (echo "Adapter not loaded or incorrect adapter loaded" && exit 1)
+
+      - name: Install testing commands
+        run: |
+            kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- apt-get update
+            kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- apt-get install -y curl
 
       - name: Test healthz endpoint
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
-            curl http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/healthz
-    
+            if [[ "${{ matrix.model.name }}" == *"llama"* ]]; then
+                kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- \
+                curl -s http://localhost:5000/healthz
+            else
+                kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- \
+                curl -s http://localhost:5000/health
+            fi
       - name: Test inference endpoint
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false'
         run: |
+            echo "Testing inference for ${{ matrix.model.name }}"
             if [[ "${{ matrix.model.name }}" == *"llama"* && "${{ matrix.model.name }}" == *"-chat"* ]]; then
-                echo "Testing inference for ${{ matrix.model.name }}"
-                curl -X POST \
+                kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- \
+                curl -s -X POST \
                 -H "Content-Type: application/json" \
                 -d '{
                     "input_data": {
@@ -295,10 +287,10 @@ jobs:
                         ]
                     }
                 }' \
-                http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/chat
+                http://localhost:5000/chat
             elif [[ "${{ matrix.model.name }}" == *"llama"* ]]; then
-                echo "Testing inference for ${{ matrix.model.name }}"
-                curl -X POST \
+                kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- \
+                curl -s -X POST \
                 -H "Content-Type: application/json" \
                 -d '{
                     "prompts": [
@@ -311,10 +303,29 @@ jobs:
                         "max_gen_len": 128
                     }
                 }' \
-                http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/generate
+                http://localhost:5000/generate
+            elif [[ "${{ env.RUNTIME }}" == *"vllm"* ]]; then
+                kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- \
+                curl -s -X POST \
+                -H "accept: application/json" \
+                -H "Content-Type: application/json" \
+                -d '{
+                    "model": "test",
+                    "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant."
+                    },
+                    {
+                        "role": "user",
+                        "content": "Hello!"
+                    }
+                    ]
+                    }' \
+                http://localhost:5000/v1/chat/completions
             else
-                echo "Testing inference for ${{ matrix.model.name }}"
-                curl -X POST \
+                kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- \
+                curl -s -X POST \
                 -H "accept: application/json" \
                 -H "Content-Type: application/json" \
                 -d '{
@@ -348,36 +359,9 @@ jobs:
                             "remove_invalid_values":null
                         }
                     }' \
-                http://${{ steps.get_ip.outputs.SERVICE_IP }}:80/chat                
+                http://localhost:5000/chat
             fi
       
-      - name: Move from Test to Prod ACR
-        if: steps.check_test_image.outputs.IMAGE_EXISTS == 'true' && steps.check_prod_image.outputs.IMAGE_EXISTS == 'false' && github.event_name == 'workflow_dispatch' && env.MODEL_IS_OSS == 'true'
-        run: |
-            # This should only run if:
-            # 1. All prior steps have succeeed (Given)
-            # 2. Image exists in test ACR repo but not Prod
-            # 3. Workflow was triggered manually (workflow_dispatch)
-            # 4. Image is OSS (MIT/Apache2.0)
-
-            az account set --subscription ${{secrets.PROD_ACR_SUB_ID}}
-
-            TEST_ACR_NAME=${{ secrets.ACR_AMRT_USERNAME }}
-            PROD_ACR_NAME=${{ secrets.PROD_ACR_USERNAME }}
-            IMAGE_NAME=${{ matrix.model.name }}
-            TAG=${{ matrix.model.tag }}
-
-            # Formulate the source image reference
-            SOURCE_IMAGE=$IMAGE_NAME:$TAG
-            DEST_IMAGE=unlisted/aks/kaito/kaito-$IMAGE_NAME:$TAG
-
-            # Import the image from Test ACR to Prod ACR
-            az acr import \
-                --name $PROD_ACR_NAME \
-                --source $SOURCE_IMAGE \
-                --image $DEST_IMAGE \
-                --registry /subscriptions/${{secrets.AZURE_SUBSCRIPTION_ID}}/resourceGroups/${{secrets.TEST_ACR_RG}}/providers/Microsoft.ContainerRegistry/registries/$TEST_ACR_NAME
-            
       - name: Cleanup
         if: always()
         run: |
@@ -388,6 +372,7 @@ jobs:
                 
                 # Check and Delete K8s Resource (Deployment or StatefulSet)
                 if kubectl get $RESOURCE_TYPE ${{ matrix.model.name }} > /dev/null 2>&1; then
+                    kubectl logs $RESOURCE_TYPE/${{ matrix.model.name }}
                     kubectl delete $RESOURCE_TYPE ${{ matrix.model.name }}
                 fi
             fi

@@ -13,7 +13,7 @@ const (
 	ModelImageAccessModePrivate ModelImageAccessMode = "private"
 )
 
-// ResourceSpec desicribes the resource requirement of running the workload.
+// ResourceSpec describes the resource requirement of running the workload.
 // If the number of nodes in the cluster that meet the InstanceType and
 // LabelSelector requirements is small than the Count, controller
 // will provision new nodes before deploying the workload.
@@ -34,8 +34,7 @@ type ResourceSpec struct {
 	LabelSelector *metav1.LabelSelector `json:"labelSelector"`
 
 	// PreferredNodes is an optional node list specified by the user.
-	// If a node in the list does not have the required labels or
-	// the required instanceType, it will be ignored.
+	// If a node in the list does not have the required labels, it will be ignored.
 	// +optional
 	PreferredNodes []string `json:"preferredNodes,omitempty"`
 }
@@ -51,7 +50,7 @@ type PresetMeta struct {
 	// AccessMode specifies whether the containerized model image is accessible via public registry
 	// or private registry. This field defaults to "public" if not specified.
 	// If this field is "private", user needs to provide the private image information in PresetOptions.
-	// +bebuilder:default:="public"
+	// +kubebuilder:default:="public"
 	// +optional
 	AccessMode ModelImageAccessMode `json:"accessMode,omitempty"`
 }
@@ -60,7 +59,7 @@ type PresetOptions struct {
 	// Image is the name of the containerized model image.
 	// +optional
 	Image string `json:"image,omitempty"`
-	// ImagePullSecrets is a list of secret names in the same namespace used for pulling the image.
+	// ImagePullSecrets is a list of secret names in the same namespace used for pulling the model image.
 	// +optional
 	ImagePullSecrets []string `json:"imagePullSecrets,omitempty"`
 }
@@ -73,7 +72,7 @@ type PresetSpec struct {
 }
 
 type InferenceSpec struct {
-	// Preset describles the model that will be deployed with preset configurations.
+	// Preset describes the base model that will be deployed with preset configurations.
 	// +optional
 	Preset *PresetSpec `json:"preset,omitempty"`
 	// Template specifies the Pod template used to run the inference service. Users can specify custom Pod settings
@@ -83,6 +82,81 @@ type InferenceSpec struct {
 	// +kubebuilder:validation:Schemaless
 	// +optional
 	Template *v1.PodTemplateSpec `json:"template,omitempty"`
+	// Adapters are integrated into the base model for inference.
+	// Users can specify multiple adapters for the model and the respective weight of using each of them.
+	// +optional
+	Adapters []AdapterSpec `json:"adapters,omitempty"`
+}
+
+type AdapterSpec struct {
+	// Source describes where to obtain the adapter data.
+	// +optional
+	Source *DataSource `json:"source,omitempty"`
+	// Strength specifies the default multiplier for applying the adapter weights to the raw model weights.
+	// It is usually a float number between 0 and 1. It is defined as a string type to be language agnostic.
+	// +optional
+	Strength *string `json:"strength,omitempty"`
+}
+
+type DataSource struct {
+	// The name of the dataset. The same name will be used as a container name.
+	// It must be a valid DNS subdomain value,
+	Name string `json:"name,omitempty"`
+	// URLs specifies the links to the public data sources. E.g., files in a public github repository.
+	// +optional
+	URLs []string `json:"urls,omitempty"`
+	// The mounted volume that contains the data.
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
+	// +optional
+	Volume *v1.VolumeSource `json:"volumeSource,omitempty"`
+	// The name of the image that contains the source data. The assumption is that the source data locates in the
+	// `data` directory in the image.
+	// +optional
+	Image string `json:"image,omitempty"`
+	// ImagePullSecrets is a list of secret names in the same namespace used for pulling the data image.
+	// +optional
+	ImagePullSecrets []string `json:"imagePullSecrets,omitempty"`
+}
+
+type DataDestination struct {
+	// The mounted volume that is used to save the output data.
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
+	// +optional
+	Volume *v1.VolumeSource `json:"volumeSource,omitempty"`
+	// Name of the image where the output data is pushed to.
+	// +optional
+	Image string `json:"image,omitempty"`
+	// ImagePushSecret is the name of the secret in the same namespace that contains the authentication
+	// information that is needed for running `docker push`.
+	// +optional
+	ImagePushSecret string `json:"imagePushSecret,omitempty"`
+}
+
+type TuningMethod string
+
+const (
+	TuningMethodLora  TuningMethod = "lora"
+	TuningMethodQLora TuningMethod = "qlora"
+)
+
+type TuningSpec struct {
+	// Preset describes which model to load for tuning.
+	// +optional
+	Preset *PresetSpec `json:"preset,omitempty"`
+	// Method specifies the Parameter-Efficient Fine-Tuning(PEFT) method, such as lora, qlora, used for the tuning.
+	// +optional
+	Method TuningMethod `json:"method,omitempty"`
+	// Config specifies the name of a custom ConfigMap that contains tuning arguments.
+	// If specified, the ConfigMap must be in the same namespace as the Workspace custom resource.
+	// If not specified, a default Config is used based on the specified tuning method.
+	// +optional
+	Config string `json:"config,omitempty"`
+	// Input describes the input used by the tuning method.
+	Input *DataSource `json:"input"`
+	// Output specified where to store the tuning output.
+	Output *DataDestination `json:"output"`
 }
 
 // WorkspaceStatus defines the observed state of Workspace
@@ -104,14 +178,16 @@ type WorkspaceStatus struct {
 // +kubebuilder:printcolumn:name="Instance",type="string",JSONPath=".resource.instanceType",description=""
 // +kubebuilder:printcolumn:name="ResourceReady",type="string",JSONPath=".status.conditions[?(@.type==\"ResourceReady\")].status",description=""
 // +kubebuilder:printcolumn:name="InferenceReady",type="string",JSONPath=".status.conditions[?(@.type==\"InferenceReady\")].status",description=""
-// +kubebuilder:printcolumn:name="WorkspaceReady",type="string",JSONPath=".status.conditions[?(@.type==\"WorkspaceReady\")].status",description=""
+// +kubebuilder:printcolumn:name="JobStarted",type="string",JSONPath=".status.conditions[?(@.type==\"JobStarted\")].status",description=""
+// +kubebuilder:printcolumn:name="WorkspaceSucceeded",type="string",JSONPath=".status.conditions[?(@.type==\"WorkspaceSucceeded\")].status",description=""
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description=""
 type Workspace struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Resource  ResourceSpec    `json:"resource,omitempty"`
-	Inference InferenceSpec   `json:"inference,omitempty"`
+	Inference *InferenceSpec  `json:"inference,omitempty"`
+	Tuning    *TuningSpec     `json:"tuning,omitempty"`
 	Status    WorkspaceStatus `json:"status,omitempty"`
 }
 
