@@ -257,13 +257,9 @@ jobs:
 
       - name: Test healthz endpoint
         run: |
-            if [[ "${{ matrix.model.name }}" == *"llama"* ]]; then
-                kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- \
-                curl -s http://localhost:5000/healthz
-            else
-                kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- \
-                curl -s http://localhost:5000/health
-            fi
+            kubectl exec ${{steps.resource.outputs.RESOURCE_TYPE}}/${{ matrix.model.name }} -- \
+            curl -s http://localhost:5000/health
+
       - name: Test inference endpoint
         run: |
             echo "Testing inference for ${{ matrix.model.name }}"
