@@ -205,7 +205,7 @@ func TestGenerateNodeClaimManifest(t *testing.T) {
 		assert.Equal(t, nodeClaim.Labels[kaitov1alpha1.LabelWorkspaceNamespace], mockWorkspace.Namespace, "label must have same workspace namespace as workspace")
 		assert.Equal(t, nodeClaim.Labels[consts.LabelNodePool], consts.KaitoNodePoolName, "label must have same labels as workspace label selector")
 		assert.Equal(t, nodeClaim.Annotations[v1beta1.DoNotDisruptAnnotationKey], "true", "label must have do not disrupt annotation")
-		assert.Equal(t, len(nodeClaim.Spec.Requirements), 3, " NodeClaim must have 3 NodeSelector Requirements")
+		assert.Equal(t, len(nodeClaim.Spec.Requirements), 4, " NodeClaim must have 4 NodeSelector Requirements")
 		assert.Check(t, nodeClaim.Spec.NodeClassRef != nil, "NodeClaim must have NodeClassRef")
 		assert.Equal(t, nodeClaim.Spec.NodeClassRef.Kind, "EC2NodeClass", "NodeClaim must have 'EC2NodeClass' kind")
 	})
