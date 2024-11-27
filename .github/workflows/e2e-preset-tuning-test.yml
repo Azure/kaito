@@ -44,34 +44,33 @@ jobs:
       - name: Get test meta
         id: get_test_meta
         run: |
+            CONFIG=$(jq '.matrix.image[] | select(.name == "tuning-example")' .github/e2e-preset-configs.json)
+
             echo "TAG=0.0.7" >> $GITHUB_OUTPUT
-            echo "NODEPOOL_NAME=tuning" >> $GITHUB_OUTPUT
-            echo "NODE_COUNT=1" >> $GITHUB_OUTPUT
-            echo "NODE_VM_SIZE=Standard_NC6s_v3" >> $GITHUB_OUTPUT
-            echo "NODE_OSDISK_SIZE=100" >> $GITHUB_OUTPUT
+            echo "model=$CONFIG" >> $GITHUB_OUTPUT
 
       - name: Create Nodepool
         run: |
             NODEPOOL_EXIST=$(az aks nodepool show \
-                            --name ${{ steps.get_test_meta.outputs.NODEPOOL_NAME }} \
+                            --name ${{ steps.get_test_meta.outputs.model.name }} \
                             --cluster-name GitRunner \
                             --resource-group llm-test \
                             --query 'name' -o tsv || echo "")
             echo "NODEPOOL_EXIST: $NODEPOOL_EXIST"
             if [ -z "$NODEPOOL_EXIST" ]; then
                 az aks nodepool add \
-                    --name ${{ steps.get_test_meta.outputs.NODEPOOL_NAME }} \
+                    --name ${{ steps.get_test_meta.outputs.model.name }} \
                     --cluster-name GitRunner \
                     --resource-group llm-test \
-                    --node-count ${{ steps.get_test_meta.outputs.NODE_COUNT }} \
-                    --node-vm-size ${{ steps.get_test_meta.outputs.NODE_VM_SIZE }} \
-                    --node-osdisk-size ${{ steps.get_test_meta.outputs.NODE_OSDISK_SIZE }} \
-                    --labels pool=${{ steps.get_test_meta.outputs.NODEPOOL_NAME }} \
+                    --node-count ${{ steps.get_test_meta.outputs.model.node-count }} \
+                    --node-vm-size ${{ steps.get_test_meta.outputs.model.node-vm-size }} \
+                    --node-osdisk-size ${{ steps.get_test_meta.outputs.model.node-osdisk-size }} \
+                    --labels pool=${{ steps.get_test_meta.outputs.model.name }} \
                     --node-taints sku=gpu:NoSchedule \
                     --aks-custom-headers UseGPUDedicatedVHD=true
             else
                 NODEPOOL_STATE=$(az aks nodepool show \
-                                --name ${{ steps.get_test_meta.outputs.NODEPOOL_NAME }} \
+                                --name ${{ steps.get_test_meta.outputs.model.name }} \
                                 --cluster-name GitRunner \
                                 --resource-group llm-test \
                                 --query 'provisioningState' -o tsv)
@@ -122,7 +121,7 @@ jobs:
 
             # Check and Delete AKS Nodepool if it exists
             NODEPOOL_EXIST=$(az aks nodepool show \
-                            --name ${{ steps.get_test_meta.outputs.NODEPOOL_NAME }} \
+                            --name ${{ steps.get_test_meta.outputs.model.name }} \
                             --cluster-name GitRunner \
                             --resource-group llm-test \
                             --query 'name' -o tsv || echo "")
@@ -130,7 +129,7 @@ jobs:
             if [ -n "$NODEPOOL_EXIST" ]; then
                 echo "deleting nodepool"
                 az aks nodepool delete \
-                --name ${{ steps.get_test_meta.outputs.NODEPOOL_NAME }} \
+                --name ${{ steps.get_test_meta.outputs.model.name }} \
                 --cluster-name GitRunner \
                 --resource-group llm-test
             fi

@@ -71,7 +71,7 @@ spec:
       - emptyDir: {}
         name: data-volume
       nodeSelector:
-        pool: tuning
+        pool: tuning-example
 ---
 apiVersion: v1
 kind: ConfigMap
