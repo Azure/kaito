@@ -189,15 +189,6 @@ jobs:
           KARPENTER_VERSION: ${{ vars.KARPENTER_VERSION }}
           KARPENTER_NAMESPACE: ${{ env.KARPENTER_NAMESPACE }}
 
-      - name: build KAITO image
-        if: ${{ !inputs.isRelease }}
-        shell: bash
-        run: |
-          make docker-build-workspace
-        env:
-          REGISTRY: ${{ env.REGISTRY }}
-          VERSION: ${{ env.VERSION }}
-
       - name: Install KAITO Workspace helm chart
         shell: bash
         run: |
