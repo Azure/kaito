@@ -122,7 +122,7 @@ inference-api-e2e:
 	pytest -o log_cli=true -o log_cli_level=INFO presets/workspace/inference/text-generation
 
 # Ginkgo configurations
-GINKGO_FOCUS ?=
+GINKGO_FOCUS ?= tuning
 GINKGO_SKIP ?=
 GINKGO_NODES ?= 2
 GINKGO_NO_COLOR ?= false
