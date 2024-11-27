@@ -769,6 +769,9 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 						deployment.Annotations[kaitov1alpha1.WorkspaceRevisionAnnotation] = revisionStr
 						spec.Template.Spec.Volumes = volumes
 
+						_, imagePullSecrets := inference.GetInferenceImageInfo(ctx, wObj, inferenceParam)
+						deployment.Spec.Template.Spec.ImagePullSecrets = imagePullSecrets
+
 						if err := c.Update(ctx, deployment); err != nil {
 							return
 						}
