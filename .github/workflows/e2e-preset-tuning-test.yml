@@ -16,7 +16,6 @@ permissions:
 
 jobs:
   e2e-preset-tuning-tests:
-    needs: determine-models
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment: preset-env
@@ -44,33 +43,35 @@ jobs:
       - name: Get test meta
         id: get_test_meta
         run: |
-            CONFIG=$(jq '.matrix.image[] | select(.name == "tuning-example")' .github/e2e-preset-configs.json)
+            CONFIG=$(jq -c '.matrix.image[] | select(.name == "tuning-example")' .github/e2e-preset-configs.json)
 
             echo "TAG=0.0.7" >> $GITHUB_OUTPUT
-            echo "model=$CONFIG" >> $GITHUB_OUTPUT
+            for row in $(echo "${CONFIG}" | jq -r 'to_entries|map("\(.key)=\(.value|tostring)")|.[]'); do
+                echo "${row}" >> $GITHUB_OUTPUT
+            done
 
       - name: Create Nodepool
         run: |
             NODEPOOL_EXIST=$(az aks nodepool show \
-                            --name ${{ steps.get_test_meta.outputs.model.name }} \
+                            --name ${{ steps.get_test_meta.outputs.name }} \
                             --cluster-name GitRunner \
                             --resource-group llm-test \
                             --query 'name' -o tsv || echo "")
             echo "NODEPOOL_EXIST: $NODEPOOL_EXIST"
             if [ -z "$NODEPOOL_EXIST" ]; then
                 az aks nodepool add \
-                    --name ${{ steps.get_test_meta.outputs.model.name }} \
+                    --name ${{ steps.get_test_meta.outputs.name }} \
                     --cluster-name GitRunner \
                     --resource-group llm-test \
-                    --node-count ${{ steps.get_test_meta.outputs.model.node-count }} \
-                    --node-vm-size ${{ steps.get_test_meta.outputs.model.node-vm-size }} \
-                    --node-osdisk-size ${{ steps.get_test_meta.outputs.model.node-osdisk-size }} \
-                    --labels pool=${{ steps.get_test_meta.outputs.model.name }} \
+                    --node-count ${{ steps.get_test_meta.outputs.node-count }} \
+                    --node-vm-size ${{ steps.get_test_meta.outputs.node-vm-size }} \
+                    --node-osdisk-size ${{ steps.get_test_meta.outputs.node-osdisk-size }} \
+                    --labels pool=${{ steps.get_test_meta.outputs.name }} \
                     --node-taints sku=gpu:NoSchedule \
                     --aks-custom-headers UseGPUDedicatedVHD=true
             else
                 NODEPOOL_STATE=$(az aks nodepool show \
-                                --name ${{ steps.get_test_meta.outputs.model.name }} \
+                                --name ${{ steps.get_test_meta.outputs.name }} \
                                 --cluster-name GitRunner \
                                 --resource-group llm-test \
                                 --query 'provisioningState' -o tsv)
@@ -121,7 +122,7 @@ jobs:
 
             # Check and Delete AKS Nodepool if it exists
             NODEPOOL_EXIST=$(az aks nodepool show \
-                            --name ${{ steps.get_test_meta.outputs.model.name }} \
+                            --name ${{ steps.get_test_meta.outputs.name }} \
                             --cluster-name GitRunner \
                             --resource-group llm-test \
                             --query 'name' -o tsv || echo "")
@@ -129,7 +130,7 @@ jobs:
             if [ -n "$NODEPOOL_EXIST" ]; then
                 echo "deleting nodepool"
                 az aks nodepool delete \
-                --name ${{ steps.get_test_meta.outputs.model.name }} \
+                --name ${{ steps.get_test_meta.outputs.name }} \
                 --cluster-name GitRunner \
                 --resource-group llm-test
             fi
