@@ -548,12 +548,14 @@ func TestEnsureService(t *testing.T) {
 	testcases := map[string]struct {
 		callMocks     func(c *test.MockClient)
 		expectedError error
+		workspace     *kaitov1alpha1.Workspace
 	}{
 		"Existing service is found for workspace": {
 			callMocks: func(c *test.MockClient) {
 				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
 			},
 			expectedError: nil,
+			workspace:     test.MockWorkspaceDistributedModel,
 		},
 		"Service creation fails": {
 			callMocks: func(c *test.MockClient) {
@@ -561,6 +563,7 @@ func TestEnsureService(t *testing.T) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&corev1.Service{}), mock.Anything).Return(errors.New("cannot create service"))
 			},
 			expectedError: errors.New("cannot create service"),
+			workspace:     test.MockWorkspaceDistributedModel,
 		},
 		"Successfully creates a new service": {
 			callMocks: func(c *test.MockClient) {
@@ -568,6 +571,15 @@ func TestEnsureService(t *testing.T) {
 				c.On("Create", mock.IsType(context.Background()), mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
 			},
 			expectedError: nil,
+			workspace:     test.MockWorkspaceDistributedModel,
+		},
+		"Successfully creates a new service for a custom model": {
+			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(test.NotFoundError())
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
+			},
+			expectedError: nil,
+			workspace:     test.MockWorkspaceCustomModel,
 		},
 	}
 
@@ -582,7 +594,7 @@ func TestEnsureService(t *testing.T) {
 			}
 			ctx := context.Background()
 
-			err := reconciler.ensureService(ctx, test.MockWorkspaceDistributedModel)
+			err := reconciler.ensureService(ctx, tc.workspace)
 			if tc.expectedError == nil {
 				assert.Check(t, err == nil, "Not expected to return error")
 			} else {

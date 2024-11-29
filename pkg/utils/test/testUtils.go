@@ -70,6 +70,33 @@ var (
 			},
 		},
 	}
+	MockWorkspaceCustomModel = &v1alpha1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testCustomWorkspace",
+			Namespace: "kaito",
+		},
+		Resource: v1alpha1.ResourceSpec{
+			Count:        &gpuNodeCount,
+			InstanceType: "Standard_NC12s_v3",
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"apps": "test",
+				},
+			},
+		},
+		Inference: &v1alpha1.InferenceSpec{
+			Template: &corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test-container",
+							Image: "fake.kaito.com/kaito-image:0.0.1",
+						},
+					},
+				},
+			},
+		},
+	}
 )
 
 var (
