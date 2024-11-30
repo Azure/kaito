@@ -101,7 +101,7 @@ def setup_main_routes():
     def home():
         return "Server is running", 200
 
-    @app_main.get("/healthz")
+    @app_main.get("/health")
     def health_check():
         if not torch.cuda.is_available():
             raise HTTPException(status_code=500, detail="No GPU available")
@@ -181,7 +181,7 @@ def setup_main_routes():
             return {"error": str(e)}
 
 def setup_worker_routes(): 
-    @app_worker.get("/healthz")
+    @app_worker.get("/health")
     def health_check():
         if not torch.cuda.is_available():
             raise HTTPException(status_code=500, detail="No GPU available")
