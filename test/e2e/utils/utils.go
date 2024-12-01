@@ -12,6 +12,8 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -400,4 +402,20 @@ func GeneratePodTemplate(name, namespace, image string, labels map[string]string
 			},
 		},
 	}
+}
+
+func CompareSecrets(refs []corev1.LocalObjectReference, secrets []string) bool {
+	if len(refs) != len(secrets) {
+		return false
+	}
+
+	refSecrets := make([]string, len(refs))
+	for i, ref := range refs {
+		refSecrets[i] = ref.Name
+	}
+
+	sort.Strings(refSecrets)
+	sort.Strings(secrets)
+
+	return reflect.DeepEqual(refSecrets, secrets)
 }

@@ -99,6 +99,13 @@ func updateTorchParamsForDistributedInference(ctx context.Context, kubeClient cl
 func GetInferenceImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace, presetObj *model.PresetParam) (string, []corev1.LocalObjectReference) {
 	imagePullSecretRefs := []corev1.LocalObjectReference{}
 	// Check if the workspace preset's access mode is private
+	if len(workspaceObj.Inference.Adapters) > 0 {
+		for _, adapter := range workspaceObj.Inference.Adapters {
+			for _, secretName := range adapter.Source.ImagePullSecrets {
+				imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
+			}
+		}
+	}
 	if string(workspaceObj.Inference.Preset.AccessMode) == string(kaitov1alpha1.ModelImageAccessModePrivate) {
 		imageName := workspaceObj.Inference.Preset.PresetOptions.Image
 		for _, secretName := range workspaceObj.Inference.Preset.PresetOptions.ImagePullSecrets {
@@ -110,13 +117,7 @@ func GetInferenceImageInfo(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		imageTag := presetObj.Tag
 		registryName := os.Getenv("PRESET_REGISTRY_NAME")
 		imageName = fmt.Sprintf("%s/kaito-%s:%s", registryName, imageName, imageTag)
-		if len(workspaceObj.Inference.Adapters) > 0 {
-			for _, adapter := range workspaceObj.Inference.Adapters {
-				for _, secretName := range adapter.Source.ImagePullSecrets {
-					imagePullSecretRefs = append(imagePullSecretRefs, corev1.LocalObjectReference{Name: secretName})
-				}
-			}
-		}
+
 		return imageName, imagePullSecretRefs
 	}
 }
