@@ -129,6 +129,14 @@
         "node-osdisk-size": 150,
         "OSS": false,
         "loads_adapter": false
+      },
+      {
+        "name": "tuning-example",
+        "node-count": 1,
+        "node-vm-size": "Standard_NC6s_v3",
+        "node-osdisk-size": 100,
+        "OSS": true,
+        "loads_adapter": false
       }
     ]
   }

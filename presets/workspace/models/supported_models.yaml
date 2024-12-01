@@ -3,28 +3,29 @@ models:
   - name: llama-2-7b
     type: llama2-completion
     runtime: llama-2
-    tag: 0.0.3
+    tag: 0.0.4
   - name: llama-2-7b-chat
     type: llama2-chat
     runtime: llama-2
-    tag: 0.0.3
+    tag: 0.0.4
   - name: llama-2-13b
     type: llama2-completion
     runtime: llama-2
-    tag: 0.0.3
+    tag: 0.0.4
   - name: llama-2-13b-chat
     type: llama2-chat
     runtime: llama-2
-    tag: 0.0.3
+    tag: 0.0.4
   - name: llama-2-70b
     type: llama2-completion
     runtime: llama-2
-    tag: 0.0.3
+    tag: 0.0.4
   - name: llama-2-70b-chat
     type: llama2-chat
     runtime: llama-2
-    tag: 0.0.3
+    tag: 0.0.4
     # Tag history:
+    # 0.0.4 - Update endpoint /healthz -> /health (#738)
     # 0.0.3 - Inference API Cleanup (#233)
     # 0.0.2 - Eliminate Unnecessary Process Group Creation in Worker Initialization (#244)
     # 0.0.1 - Initial Release

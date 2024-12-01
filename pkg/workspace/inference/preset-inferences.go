@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	ProbePath     = "/healthz"
+	ProbePath     = "/health"
 	Port5000      = 5000
 	InferenceFile = "inference_api.py"
 )
