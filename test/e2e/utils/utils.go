@@ -227,6 +227,9 @@ func GenerateInferenceWorkspaceManifest(name, namespace, imageName string, resou
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
+			Annotations: map[string]string{
+				v1alpha1.AnnotationWorkspaceRuntime: string(model.RuntimeNameHuggingfaceTransformers),
+			},
 		},
 		Resource: kaitov1alpha1.ResourceSpec{
 			Count:          lo.ToPtr(resourceCount),
@@ -286,9 +289,6 @@ func GenerateTuningWorkspaceManifest(name, namespace, imageName string, resource
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
-			Annotations: map[string]string{
-				v1alpha1.AnnotationWorkspaceRuntime: string(model.RuntimeNameHuggingfaceTransformers),
-			},
 		},
 		Resource: kaitov1alpha1.ResourceSpec{
 			Count:          lo.ToPtr(resourceCount),
