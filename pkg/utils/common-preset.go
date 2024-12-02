@@ -4,7 +4,6 @@ package utils
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 const (
@@ -66,14 +65,12 @@ func ConfigSHMVolume(instanceCount int) (corev1.Volume, corev1.VolumeMount) {
 
 	// Signifies multinode inference requirement
 	if instanceCount > 1 {
-		size := resource.MustParse("4Gi")
 		// Append share memory volume to any existing volumes
 		volume = corev1.Volume{
 			Name: "dshm",
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{
-					Medium:    "Memory",
-					SizeLimit: &size,
+					Medium: "Memory",
 				},
 			},
 		}

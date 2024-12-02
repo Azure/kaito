@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/kaito-project/kaito/api/v1alpha1"
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	"github.com/kaito-project/kaito/pkg/model"
 	"github.com/samber/lo"
@@ -285,6 +286,9 @@ func GenerateTuningWorkspaceManifest(name, namespace, imageName string, resource
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
+			Annotations: map[string]string{
+				v1alpha1.AnnotationWorkspaceRuntime: string(model.RuntimeNameHuggingfaceTransformers),
+			},
 		},
 		Resource: kaitov1alpha1.ResourceSpec{
 			Count:          lo.ToPtr(resourceCount),

@@ -30,6 +30,9 @@ var (
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testWorkspace",
 			Namespace: "kaito",
+			Annotations: map[string]string{
+				v1alpha1.AnnotationWorkspaceRuntime: string(model.RuntimeNameHuggingfaceTransformers),
+			},
 		},
 		Resource: v1alpha1.ResourceSpec{
 			Count:        &gpuNodeCount,
@@ -122,6 +125,9 @@ var (
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testWorkspace",
 			Namespace: "kaito",
+			Annotations: map[string]string{
+				v1alpha1.AnnotationWorkspaceRuntime: string(model.RuntimeNameHuggingfaceTransformers),
+			},
 		},
 		Resource: v1alpha1.ResourceSpec{
 			Count:        &gpuNodeCount,
@@ -144,9 +150,6 @@ var (
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testWorkspace",
 			Namespace: "kaito",
-			Annotations: map[string]string{
-				v1alpha1.AnnotationWorkspaceRuntime: string(model.RuntimeNameVLLM),
-			},
 		},
 		Resource: v1alpha1.ResourceSpec{
 			Count:        &gpuNodeCount,

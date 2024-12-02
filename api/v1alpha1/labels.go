@@ -46,11 +46,12 @@ func GetWorkspaceRuntimeName(ws *Workspace) model.RuntimeName {
 	if ws == nil {
 		panic("workspace is nil")
 	}
-	runtime := model.RuntimeNameHuggingfaceTransformers
-	if featuregates.FeatureGates[consts.FeatureFlagVLLM] {
-		runtime = model.RuntimeNameVLLM
+
+	if !featuregates.FeatureGates[consts.FeatureFlagVLLM] {
+		return model.RuntimeNameHuggingfaceTransformers
 	}
 
+	runtime := model.RuntimeNameVLLM
 	name := ws.Annotations[AnnotationWorkspaceRuntime]
 	switch name {
 	case string(model.RuntimeNameHuggingfaceTransformers):
