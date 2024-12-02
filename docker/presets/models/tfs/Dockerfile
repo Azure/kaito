@@ -7,6 +7,9 @@ ARG VERSION
 # Set the working directory
 WORKDIR /workspace
 
+# Model weights
+COPY ${WEIGHTS_PATH} /workspace/weights
+
 COPY kaito/presets/workspace/dependencies/requirements.txt /workspace/requirements.txt
 
 RUN pip install --no-cache-dir -r /workspace/requirements.txt
@@ -26,8 +29,6 @@ COPY kaito/presets/workspace/inference/vllm/inference_api.py /workspace/vllm/inf
 # Chat template
 ADD kaito/presets/workspace/inference/chat_templates /workspace/chat_templates
 
-# Model weights
-COPY ${WEIGHTS_PATH} /workspace/weights
 RUN echo $VERSION > /workspace/version.txt && \
     ln -s /workspace/weights /workspace/tfs/weights && \
     ln -s /workspace/weights /workspace/vllm/weights
