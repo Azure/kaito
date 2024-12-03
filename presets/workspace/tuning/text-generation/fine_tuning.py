@@ -2,26 +2,26 @@
 # Licensed under the MIT license.
 import logging
 import os
-import sys
 from dataclasses import asdict
 from datetime import datetime
-from parser import parse_configs
+from parser import parse_configs, load_chat_template
 
 import torch
-import transformers
 from accelerate import Accelerator
 from dataset import DatasetManager
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
-                          BitsAndBytesConfig, HfArgumentParser, Trainer,
-                          TrainerCallback, TrainerControl, TrainerState,
-                          TrainingArguments)
+                          BitsAndBytesConfig,
+                          TrainerCallback, TrainerControl, TrainerState)
 from trl import SFTTrainer
 
 # Initialize logger
 logger = logging.getLogger(__name__)
 debug_mode = os.environ.get('DEBUG_MODE', 'false').lower() == 'true'
-logging.basicConfig(level=logging.DEBUG if debug_mode else logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG if debug_mode else logging.INFO,
+    format='%(levelname)s %(asctime)s %(filename)s:%(lineno)d] %(message)s',
+    datefmt='%m-%d %H:%M:%S')
 
 CONFIG_YAML = os.environ.get('YAML_FILE_PATH', '/mnt/config/training_config.yaml')
 parsed_configs = parse_configs(CONFIG_YAML)
@@ -36,7 +36,7 @@ dc_args = parsed_configs.get('DataCollator')
 accelerator = Accelerator()
 
 # Load Model Args
-model_args = asdict(model_config)
+model_args = model_config.get_model_args()
 if accelerator.distributed_type != "NO":  # Meaning we require distributed training
     logger.debug("Setting device map for distributed training")
     model_args["device_map"] = {"": accelerator.process_index}
@@ -47,10 +47,13 @@ bnb_config = BitsAndBytesConfig(**bnb_config_args)
 enable_qlora = bnb_config.is_quantizable()
 
 # Load the Pre-Trained Tokenizer
-tokenizer_args = {key: value for key, value in model_args.items() if key != "torch_dtype"}
+tokenizer_args = model_config.get_tokenizer_args()
+resovled_chat_template = load_chat_template(model_config.chat_template)
 tokenizer = AutoTokenizer.from_pretrained(**tokenizer_args)
 if not tokenizer.pad_token:
     tokenizer.pad_token = tokenizer.eos_token
+if resovled_chat_template is not None:
+    tokenizer.chat_template = resovled_chat_template
 if dc_args.mlm and tokenizer.mask_token is None:
     logger.warning(
         "This tokenizer does not have a mask token which is necessary for masked language modeling. "

@@ -2,8 +2,6 @@
 # Licensed under the MIT license.
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
-from enum import Enum, auto
 from typing import Any, Dict, List, Optional
 
 import torch
@@ -78,6 +76,7 @@ class ModelConfig:
     load_in_8bit: bool = field(default=False, metadata={"help": "Load model in 8-bit mode"})
     torch_dtype: Optional[str] = field(default=None, metadata={"help": "The torch dtype for the pre-trained model"})
     device_map: str = field(default="auto", metadata={"help": "The device map for the pre-trained model"})
+    chat_template: Optional[str] = field(default=None, metadata={"help": "The file path to the chat template, or the template in single-line form for the specified model"})
 
     def __post_init__(self):
         """
@@ -88,6 +87,12 @@ class ModelConfig:
                 self.torch_dtype = getattr(torch, self.torch_dtype)
             elif not isinstance(self.torch_dtype, torch.dtype):
                 raise ValueError(f"Invalid torch dtype: {self.torch_dtype}")
+
+    def get_tokenizer_args(self):
+        return {k: v for k, v in self.__dict__.items() if k not in ["torch_dtype", "chat_template"]}
+
+    def get_model_args(self):
+        return {k: v for k, v in self.__dict__.items() if k not in ["chat_template"]}
 
 @dataclass
 class QuantizationConfig(BitsAndBytesConfig):
