@@ -103,7 +103,7 @@ def load_chat_template(chat_template: Optional[str]) -> Optional[str]:
         resolved_chat_template = Path(chat_template).read_text()
 
     logger.info("Chat template loaded successfully")
-    logger.info("Chat template: %s", resolved_chat_template)
+    logger.info("Chat template:\n%s", resolved_chat_template)
     return resolved_chat_template
 
 

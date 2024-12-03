@@ -1,13 +1,16 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import os
-import sys
-from collections import defaultdict
+import logging
 from dataclasses import asdict, fields
+import codecs
+from pathlib import Path
+from typing import Optional
 
 import yaml
 from cli import (DatasetConfig, ExtDataCollator, ExtLoraConfig, ModelConfig, QuantizationConfig)
 from transformers import HfArgumentParser, TrainingArguments
+
+logger = logging.getLogger(__name__)
 
 # Mapping from config section names to data classes
 CONFIG_CLASS_MAP = {
@@ -69,3 +72,18 @@ def parse_configs(config_yaml):
         parsed_configs[section_name] = CONFIG_CLASS_MAP[section_name](**filtered_config)
 
     return parsed_configs
+
+def load_chat_template(chat_template: Optional[str]) -> Optional[str]:
+    logger.info(chat_template)
+    if chat_template is None:
+        return None
+
+    JINJA_CHARS = "{}\n"
+    if any(c in chat_template for c in JINJA_CHARS):
+        resolved_chat_template = codecs.decode(chat_template, "unicode_escape")
+    else:
+        resolved_chat_template = Path(chat_template).read_text()
+
+    logger.info("Chat template loaded successfully")
+    logger.info("Chat template:\n%s", resolved_chat_template)
+    return resolved_chat_template
