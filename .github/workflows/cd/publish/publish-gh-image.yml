@@ -116,7 +116,7 @@ jobs:
 
   run-e2e-gh-image:
     needs: [ check-tag, build-scan-publish-gh-images ]
-    uses: ./.github/workflows/e2e-workflow.yml
+    uses: ./.github/workflows/ci/e2e/e2e-workflow.yml
     with:
       git_sha: ${{ github.sha }}
       isRelease: true
