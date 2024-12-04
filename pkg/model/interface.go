@@ -100,8 +100,7 @@ func (h *HuggingfaceTransformersParam) DeepCopy() HuggingfaceTransformersParam {
 	if h == nil {
 		return HuggingfaceTransformersParam{}
 	}
-	out := HuggingfaceTransformersParam{}
-	out = *h
+	out := *h
 	out.TorchRunParams = make(map[string]string, len(h.TorchRunParams))
 	for k, v := range h.TorchRunParams {
 		out.TorchRunParams[k] = v
@@ -121,8 +120,7 @@ func (v *VLLMParam) DeepCopy() VLLMParam {
 	if v == nil {
 		return VLLMParam{}
 	}
-	out := VLLMParam{}
-	out = *v
+	out := *v
 	out.DistributionParams = make(map[string]string, len(v.DistributionParams))
 	for k, v := range v.DistributionParams {
 		out.DistributionParams[k] = v
