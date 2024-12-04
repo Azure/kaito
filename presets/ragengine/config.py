@@ -16,7 +16,7 @@ EMBEDDING_SOURCE_TYPE = os.getenv("EMBEDDING_SOURCE_TYPE", "local")  # Determine
 LOCAL_EMBEDDING_MODEL_ID = os.getenv("LOCAL_EMBEDDING_MODEL_ID", "BAAI/bge-small-en-v1.5")
 
 # Remote embedding model (if not local)
-REMOTE_EMBEDDING_URL = os.getenv("REMOTE_EMBEDDING_URL")
+REMOTE_EMBEDDING_URL = os.getenv("REMOTE_EMBEDDING_URL", "http://localhost:5000/embedding")
 REMOTE_EMBEDDING_ACCESS_SECRET = os.getenv("REMOTE_EMBEDDING_ACCESS_SECRET", "default-access-secret")
 
 # LLM (Large Language Model) configuration
