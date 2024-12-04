@@ -26,7 +26,7 @@ class Inference(CustomLLM):
         try:
             if "openai" in LLM_INFERENCE_URL:
                 return self._openai_complete(prompt, **kwargs, **self.params)
-            elif "api-inference.huggingface" in INFERENCE_URL:
+            elif "api-inference.huggingface" in LLM_INFERENCE_URL:
                 return self._huggingface_remote_complete(prompt, **kwargs, **self.params)
             else:
                 return self._custom_api_complete(prompt, **kwargs, **self.params)
@@ -42,9 +42,9 @@ class Inference(CustomLLM):
         return llm.complete(prompt)
 
     def _huggingface_remote_complete(self, prompt: str, **kwargs: Any) -> CompletionResponse:
-        headers = {"Authorization": f"Bearer {INFERENCE_ACCESS_SECRET}"}
+        headers = {"Authorization": f"Bearer {LLM_ACCESS_SECRET}"}
         data = {"messages": [{"role": "user", "content": prompt}]}
-        response = requests.post(INFERENCE_URL, json=data, headers=headers)
+        response = requests.post(LLM_INFERENCE_URL, json=data, headers=headers)
         response_data = response.json()
         return CompletionResponse(text=str(response_data))
 
