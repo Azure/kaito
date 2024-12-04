@@ -9,15 +9,15 @@ from abc import ABC, abstractmethod
 from ragengine.vector_store.base import BaseVectorStore
 from ragengine.models import Document
 from ragengine.embedding.huggingface_local import LocalHuggingFaceEmbedding
-from ragengine.config import MODEL_ID, INFERENCE_URL, INFERENCE_ACCESS_SECRET
-from ragengine.config import PERSIST_DIR
+from ragengine.config import (LOCAL_EMBEDDING_MODEL_ID, LLM_INFERENCE_URL,
+                              LLM_ACCESS_SECRET, VECTOR_DB_PERSIST_DIR)
 
 class BaseVectorStoreTest(ABC):
     """Base class for vector store tests that defines the test structure."""
     
     @pytest.fixture(scope='session')
     def init_embed_manager(self):
-        return LocalHuggingFaceEmbedding(MODEL_ID)
+        return LocalHuggingFaceEmbedding(LOCAL_EMBEDDING_MODEL_ID)
 
     @pytest.fixture
     @abstractmethod
@@ -87,9 +87,9 @@ class BaseVectorStoreTest(ABC):
         assert query_result["source_nodes"][0]["score"] == pytest.approx(self.expected_query_score, rel=1e-6)
 
         mock_post.assert_called_once_with(
-            INFERENCE_URL,
+            LLM_INFERENCE_URL,
             json={"prompt": "Context information is below.\n---------------------\ntype: text\n\nFirst document\n---------------------\nGiven the context information and not prior knowledge, answer the query.\nQuery: First\nAnswer: ", "formatted": True, 'temperature': 0.7},
-            headers={"Authorization": f"Bearer {INFERENCE_ACCESS_SECRET}"}
+            headers={"Authorization": f"Bearer {LLM_ACCESS_SECRET}"}
         )
 
     def test_add_document(self, vector_store_manager):
@@ -106,7 +106,7 @@ class BaseVectorStoreTest(ABC):
         documents = [Document(text="Test document", metadata={"type": "text"})]
         vector_store_manager.index_documents("test_index", documents)
         vector_store_manager._persist("test_index")
-        assert os.path.exists(PERSIST_DIR)
+        assert os.path.exists(VECTOR_DB_PERSIST_DIR)
 
     def test_persist_index_2(self, vector_store_manager):
         documents = [Document(text="Test document", metadata={"type": "text"})]
@@ -116,4 +116,4 @@ class BaseVectorStoreTest(ABC):
         vector_store_manager.index_documents("another_test_index", documents)
 
         vector_store_manager._persist_all()
-        assert os.path.exists(PERSIST_DIR)
+        assert os.path.exists(VECTOR_DB_PERSIST_DIR)
