@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 
 from ragengine.vector_store.base import BaseVectorStore
 from ragengine.models import Document
-from ragengine.embedding.huggingface_local import LocalHuggingFaceEmbedding
+from ragengine.embedding.huggingface_local_embedding import LocalHuggingFaceEmbedding
 from ragengine.config import (LOCAL_EMBEDDING_MODEL_ID, LLM_INFERENCE_URL,
                               LLM_ACCESS_SECRET, VECTOR_DB_PERSIST_DIR)
 
