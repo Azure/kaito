@@ -67,6 +67,9 @@ type VLLMParam struct {
 	DistributionParams map[string]string
 	// Parameters for running the model training/inference.
 	ModelRunParams map[string]string
+	// Wether the model supports multi-GPU (tensor parallel inference).
+	// see https://docs.vllm.ai/en/latest/serving/distributed_serving.html#details-for-distributed-inference-and-serving.
+	TensorParallelUnsupported bool
 }
 
 func (p *PresetParam) DeepCopy() *PresetParam {
@@ -98,8 +101,7 @@ func (h *HuggingfaceTransformersParam) DeepCopy() HuggingfaceTransformersParam {
 		return HuggingfaceTransformersParam{}
 	}
 	out := HuggingfaceTransformersParam{}
-	out.BaseCommand = h.BaseCommand
-	out.InferenceMainFile = h.InferenceMainFile
+	out = *h
 	out.TorchRunParams = make(map[string]string, len(h.TorchRunParams))
 	for k, v := range h.TorchRunParams {
 		out.TorchRunParams[k] = v
@@ -120,8 +122,7 @@ func (v *VLLMParam) DeepCopy() VLLMParam {
 		return VLLMParam{}
 	}
 	out := VLLMParam{}
-	out.BaseCommand = v.BaseCommand
-	out.ModelName = v.ModelName
+	out = *v
 	out.DistributionParams = make(map[string]string, len(v.DistributionParams))
 	for k, v := range v.DistributionParams {
 		out.DistributionParams[k] = v
@@ -145,7 +146,9 @@ func (p *PresetParam) GetInferenceCommand(runtime RuntimeName, skuNumGPUs string
 		if p.VLLM.ModelName != "" {
 			p.VLLM.ModelRunParams["served-model-name"] = p.VLLM.ModelName
 		}
-		p.VLLM.ModelRunParams["tensor-parallel-size"] = skuNumGPUs
+		if !p.VLLM.TensorParallelUnsupported {
+			p.VLLM.ModelRunParams["tensor-parallel-size"] = skuNumGPUs
+		}
 		modelCommand := utils.BuildCmdStr(p.VLLM.BaseCommand, p.VLLM.ModelRunParams)
 		return utils.ShellCmd(modelCommand)
 	default:

@@ -46,7 +46,21 @@ func TestCreatePresetInference(t *testing.T) {
 			workload: "Deployment",
 			// No BaseCommand, TorchRunParams, TorchRunRdzvParams, or ModelRunParams
 			// So expected cmd consists of shell command and inference file
-			expectedCmd: "/bin/sh -c python3 /workspace/vllm/inference_api.py --tensor-parallel-size=2",
+			expectedCmd: "/bin/sh -c python3 /workspace/vllm/inference_api.py --tensor-parallel-size=2 --served-model-name=mymodel",
+			hasAdapters: false,
+		},
+
+		"test-model-no-parallel/vllm": {
+			workspace: test.MockWorkspaceWithPresetVLLM,
+			nodeCount: 1,
+			modelName: "test-no-tensor-parallel-model",
+			callMocks: func(c *test.MockClient) {
+				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
+			},
+			workload: "Deployment",
+			// No BaseCommand, TorchRunParams, TorchRunRdzvParams, or ModelRunParams
+			// So expected cmd consists of shell command and inference file
+			expectedCmd: "/bin/sh -c python3 /workspace/vllm/inference_api.py",
 			hasAdapters: false,
 		},
 
@@ -58,7 +72,7 @@ func TestCreatePresetInference(t *testing.T) {
 				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 			},
 			workload:       "Deployment",
-			expectedCmd:    "/bin/sh -c python3 /workspace/vllm/inference_api.py --tensor-parallel-size=2",
+			expectedCmd:    "/bin/sh -c python3 /workspace/vllm/inference_api.py --tensor-parallel-size=2 --served-model-name=mymodel",
 			hasAdapters:    true,
 			expectedVolume: "adapter-volume",
 		},
@@ -148,7 +162,7 @@ func TestCreatePresetInference(t *testing.T) {
 				createdWorkload = "StatefulSet"
 			}
 			if tc.workload != createdWorkload {
-				t.Errorf("%s: returned worklaod type is wrong", k)
+				t.Errorf("%s: returned workload type is wrong", k)
 			}
 
 			var workloadCmd string
@@ -162,7 +176,7 @@ func TestCreatePresetInference(t *testing.T) {
 			params := toParameterMap(strings.Split(workloadCmd, "--")[1:])
 
 			expectedMaincmd := strings.Split(tc.expectedCmd, "--")[0]
-			expectedParams := toParameterMap(strings.Split(workloadCmd, "--")[1:])
+			expectedParams := toParameterMap(strings.Split(tc.expectedCmd, "--")[1:])
 
 			if mainCmd != expectedMaincmd {
 				t.Errorf("%s main cmdline is not expected, got %s, expect %s ", k, workloadCmd, tc.expectedCmd)
@@ -204,16 +218,19 @@ func TestCreatePresetInference(t *testing.T) {
 
 func toParameterMap(in []string) map[string]string {
 	ret := make(map[string]string)
-	for _, each := range in {
-		r := strings.Split(each, "=")
-		k := r[0]
-		var v string
-		if len(r) == 1 {
-			v = ""
-		} else {
-			v = r[1]
+	for _, eachToken := range in {
+		for _, each := range strings.Split(eachToken, " ") {
+			each = strings.TrimSpace(each)
+			r := strings.Split(each, "=")
+			k := r[0]
+			var v string
+			if len(r) == 1 {
+				v = ""
+			} else {
+				v = r[1]
+			}
+			ret[k] = v
 		}
-		ret[k] = v
 	}
 	return ret
 }

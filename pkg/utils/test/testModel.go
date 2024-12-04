@@ -10,14 +10,15 @@ import (
 	"github.com/kaito-project/kaito/pkg/utils/plugin"
 )
 
-type testModel struct{}
+type baseTestModel struct{}
 
-func (*testModel) GetInferenceParameters() *model.PresetParam {
+func (*baseTestModel) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
 		GPUCountRequirement: "1",
 		RuntimeParam: model.RuntimeParam{
 			VLLM: model.VLLMParam{
 				BaseCommand: "python3 /workspace/vllm/inference_api.py",
+				ModelName:   "mymodel",
 			},
 			Transformers: model.HuggingfaceTransformersParam{
 				BaseCommand:       "accelerate launch",
@@ -27,27 +28,42 @@ func (*testModel) GetInferenceParameters() *model.PresetParam {
 		ReadinessTimeout: time.Duration(30) * time.Minute,
 	}
 }
-func (*testModel) GetTuningParameters() *model.PresetParam {
+func (*baseTestModel) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
 		GPUCountRequirement: "1",
 		ReadinessTimeout:    time.Duration(30) * time.Minute,
 	}
 }
+func (*baseTestModel) SupportDistributedInference() bool {
+	return true
+}
+func (*baseTestModel) SupportTuning() bool {
+	return true
+}
+
+type testModel struct {
+	baseTestModel
+}
+
 func (*testModel) SupportDistributedInference() bool {
 	return false
 }
-func (*testModel) SupportTuning() bool {
-	return true
+
+type testDistributedModel struct {
+	baseTestModel
 }
 
-type testDistributedModel struct{}
+type testNoTensorParallelModel struct {
+	baseTestModel
+}
 
-func (*testDistributedModel) GetInferenceParameters() *model.PresetParam {
+func (*testNoTensorParallelModel) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
 		GPUCountRequirement: "1",
 		RuntimeParam: model.RuntimeParam{
 			VLLM: model.VLLMParam{
-				BaseCommand: "python3 /workspace/vllm/inference_api.py",
+				BaseCommand:               "python3 /workspace/vllm/inference_api.py",
+				TensorParallelUnsupported: true,
 			},
 			Transformers: model.HuggingfaceTransformersParam{
 				BaseCommand:       "accelerate launch",
@@ -57,30 +73,23 @@ func (*testDistributedModel) GetInferenceParameters() *model.PresetParam {
 		ReadinessTimeout: time.Duration(30) * time.Minute,
 	}
 }
-func (*testDistributedModel) GetTuningParameters() *model.PresetParam {
-	return &model.PresetParam{
-		GPUCountRequirement: "1",
-		ReadinessTimeout:    time.Duration(30) * time.Minute,
-	}
-}
-func (*testDistributedModel) SupportDistributedInference() bool {
-	return true
-}
-func (*testDistributedModel) SupportTuning() bool {
-	return true
+func (*testNoTensorParallelModel) SupportDistributedInference() bool {
+	return false
 }
 
 func RegisterTestModel() {
-	var test testModel
 	plugin.KaitoModelRegister.Register(&plugin.Registration{
 		Name:     "test-model",
-		Instance: &test,
+		Instance: &testModel{},
 	})
 
-	var testDistributed testDistributedModel
 	plugin.KaitoModelRegister.Register(&plugin.Registration{
 		Name:     "test-distributed-model",
-		Instance: &testDistributed,
+		Instance: &testDistributedModel{},
 	})
 
+	plugin.KaitoModelRegister.Register(&plugin.Registration{
+		Name:     "test-no-tensor-parallel-model",
+		Instance: &testNoTensorParallelModel{},
+	})
 }

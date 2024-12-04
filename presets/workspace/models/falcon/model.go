@@ -80,6 +80,11 @@ func (*falcon7b) GetInferenceParameters() *model.PresetParam {
 				BaseCommand:    inference.DefaultVLLMCommand,
 				ModelName:      "falcon-7b",
 				ModelRunParams: falconRunParamsVLLM,
+				// vllm requires the model specification to be exactly divisible by
+				// the number of GPUs(tensor parallel level).
+				// falcon-7b have 71 attention heads, which is a prime number.
+				// So, give up tensor parallel inference.
+				TensorParallelUnsupported: true,
 			},
 		},
 		ReadinessTimeout: time.Duration(30) * time.Minute,
@@ -137,6 +142,11 @@ func (*falcon7bInst) GetInferenceParameters() *model.PresetParam {
 				BaseCommand:    inference.DefaultVLLMCommand,
 				ModelName:      "falcon-7b-instruct",
 				ModelRunParams: falconRunParamsVLLM,
+				// vllm requires the model specification to be exactly divisible by
+				// the number of GPUs(tensor parallel level).
+				// falcon-7b-instruct have 71 attention heads, which is a prime number.
+				// So, give up tensor parallel inference.
+				TensorParallelUnsupported: true,
 			},
 		},
 		ReadinessTimeout: time.Duration(30) * time.Minute,
