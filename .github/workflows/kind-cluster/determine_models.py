@@ -127,7 +127,7 @@ def main():
     elif force_run_all_public != "false": 
         affected_models = [model['name'] for model in YAML_PR['models'] if "llama" not in model['name']]
     elif force_run_all_phi != "false":
-        affected_models = [model['name'] for model in YAML_PR['models'] if 'phi-3' in model['name']]
+        affected_models = [model['name'] for model in YAML_PR['models'] if 'phi-3.5' in model['name']]
     else:
         # Logic to determine affected models
         # Example: affected_models = ['model1', 'model2', 'model3']
