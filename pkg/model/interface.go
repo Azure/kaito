@@ -48,6 +48,8 @@ type PresetParam struct {
 type RuntimeParam struct {
 	Transformers HuggingfaceTransformersParam
 	VLLM         VLLMParam
+	// Disable the tensor parallelism
+	DisableTensorParallelism bool
 }
 
 type HuggingfaceTransformersParam struct {
@@ -87,7 +89,7 @@ func (rp *RuntimeParam) DeepCopy() RuntimeParam {
 	if rp == nil {
 		return RuntimeParam{}
 	}
-	out := RuntimeParam{}
+	out := *rp
 	out.Transformers = rp.Transformers.DeepCopy()
 	out.VLLM = rp.VLLM.DeepCopy()
 	return out
@@ -97,9 +99,7 @@ func (h *HuggingfaceTransformersParam) DeepCopy() HuggingfaceTransformersParam {
 	if h == nil {
 		return HuggingfaceTransformersParam{}
 	}
-	out := HuggingfaceTransformersParam{}
-	out.BaseCommand = h.BaseCommand
-	out.InferenceMainFile = h.InferenceMainFile
+	out := *h
 	out.TorchRunParams = make(map[string]string, len(h.TorchRunParams))
 	for k, v := range h.TorchRunParams {
 		out.TorchRunParams[k] = v
@@ -119,9 +119,7 @@ func (v *VLLMParam) DeepCopy() VLLMParam {
 	if v == nil {
 		return VLLMParam{}
 	}
-	out := VLLMParam{}
-	out.BaseCommand = v.BaseCommand
-	out.ModelName = v.ModelName
+	out := *v
 	out.DistributionParams = make(map[string]string, len(v.DistributionParams))
 	for k, v := range v.DistributionParams {
 		out.DistributionParams[k] = v
@@ -145,7 +143,9 @@ func (p *PresetParam) GetInferenceCommand(runtime RuntimeName, skuNumGPUs string
 		if p.VLLM.ModelName != "" {
 			p.VLLM.ModelRunParams["served-model-name"] = p.VLLM.ModelName
 		}
-		p.VLLM.ModelRunParams["tensor-parallel-size"] = skuNumGPUs
+		if !p.DisableTensorParallelism {
+			p.VLLM.ModelRunParams["tensor-parallel-size"] = skuNumGPUs
+		}
 		modelCommand := utils.BuildCmdStr(p.VLLM.BaseCommand, p.VLLM.ModelRunParams)
 		return utils.ShellCmd(modelCommand)
 	default:
