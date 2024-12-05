@@ -8,6 +8,9 @@ from llama_index.core.llms.callbacks import llm_completion_callback
 import requests
 from ragengine.config import LLM_INFERENCE_URL, LLM_ACCESS_SECRET #, LLM_RESPONSE_FIELD
 
+OPENAI_URL_PREFIX = "https://api.openai.com"
+HUGGINGFACE_URL_PREFIX = "https://api-inference.huggingface.co"
+
 class Inference(CustomLLM):
     params: dict = {}
 
@@ -24,9 +27,9 @@ class Inference(CustomLLM):
     @llm_completion_callback()
     def complete(self, prompt: str, **kwargs) -> CompletionResponse:
         try:
-            if "openai" in LLM_INFERENCE_URL:
+            if LLM_INFERENCE_URL.startswith(OPENAI_URL_PREFIX):
                 return self._openai_complete(prompt, **kwargs, **self.params)
-            elif "api-inference.huggingface" in LLM_INFERENCE_URL:
+            elif LLM_INFERENCE_URL.startswith(HUGGINGFACE_URL_PREFIX):
                 return self._huggingface_remote_complete(prompt, **kwargs, **self.params)
             else:
                 return self._custom_api_complete(prompt, **kwargs, **self.params)
