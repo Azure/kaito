@@ -61,9 +61,9 @@ func (*testNoTensorParallelModel) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
 		GPUCountRequirement: "1",
 		RuntimeParam: model.RuntimeParam{
+			DisableTensorParallelism: true,
 			VLLM: model.VLLMParam{
-				BaseCommand:               "python3 /workspace/vllm/inference_api.py",
-				TensorParallelUnsupported: true,
+				BaseCommand: "python3 /workspace/vllm/inference_api.py",
 			},
 			Transformers: model.HuggingfaceTransformersParam{
 				BaseCommand:       "accelerate launch",

@@ -48,6 +48,8 @@ type PresetParam struct {
 type RuntimeParam struct {
 	Transformers HuggingfaceTransformersParam
 	VLLM         VLLMParam
+	// Disable the tensor parallelism
+	DisableTensorParallelism bool
 }
 
 type HuggingfaceTransformersParam struct {
@@ -67,9 +69,6 @@ type VLLMParam struct {
 	DistributionParams map[string]string
 	// Parameters for running the model training/inference.
 	ModelRunParams map[string]string
-	// Wether the model supports multi-GPU (tensor parallel inference).
-	// see https://docs.vllm.ai/en/latest/serving/distributed_serving.html#details-for-distributed-inference-and-serving.
-	TensorParallelUnsupported bool
 }
 
 func (p *PresetParam) DeepCopy() *PresetParam {
@@ -90,7 +89,7 @@ func (rp *RuntimeParam) DeepCopy() RuntimeParam {
 	if rp == nil {
 		return RuntimeParam{}
 	}
-	out := RuntimeParam{}
+	out := *rp
 	out.Transformers = rp.Transformers.DeepCopy()
 	out.VLLM = rp.VLLM.DeepCopy()
 	return out
@@ -144,7 +143,7 @@ func (p *PresetParam) GetInferenceCommand(runtime RuntimeName, skuNumGPUs string
 		if p.VLLM.ModelName != "" {
 			p.VLLM.ModelRunParams["served-model-name"] = p.VLLM.ModelName
 		}
-		if !p.VLLM.TensorParallelUnsupported {
+		if !p.DisableTensorParallelism {
 			p.VLLM.ModelRunParams["tensor-parallel-size"] = skuNumGPUs
 		}
 		modelCommand := utils.BuildCmdStr(p.VLLM.BaseCommand, p.VLLM.ModelRunParams)
