@@ -72,11 +72,30 @@ workspace-phi-3-5-mini   Standard_NC12s_v3  True            True                
 Next, one can find the inference service's cluster ip and use a temporal `curl` pod to test the service endpoint in the cluster.
 
 ```sh
+# find service endpoint
 $ kubectl get svc workspace-phi-3-5-mini
 NAME                     TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)            AGE
 workspace-phi-3-5-mini   ClusterIP   <CLUSTERIP>  <none>        80/TCP,29500/TCP   10m
+$ export CLUSTERIP=$(kubectl get svc workspace-phi-3-5-mini -o jsonpath="{.spec.clusterIPs[0]}")
 
-export CLUSTERIP=$(kubectl get svc workspace-phi-3-5-mini -o jsonpath="{.spec.clusterIPs[0]}")
+# find availalbe models
+$ kubectl run -it --rm --restart=Never curl --image=curlimages/curl -- curl -s  http://$CLUSTERIP/v1/models | jq
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "phi-3.5-mini-instruct",
+      "object": "model",
+      "created": 1733370094,
+      "owned_by": "vllm",
+      "root": "/workspace/vllm/weights",
+      "parent": null,
+      "max_model_len": 16384
+    }
+  ]
+}
+
+# make an inference call using the model id (phi-3.5-mini-instruct) from previous step
 $ kubectl run -it --rm --restart=Never curl --image=curlimages/curl -- curl -X POST http://$CLUSTERIP/v1/completions \
   -H "Content-Type: application/json" \
   -d '{
