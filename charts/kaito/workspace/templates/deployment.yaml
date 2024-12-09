@@ -33,7 +33,7 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
-            - --feature-gates={{- range $k, $v := .Values.featureGates }}{{ $k }}={{ $v}}{{- end }}
+            - --feature-gates={{ include "utils.joinKeyValuePairs" .Values.featureGates }}
           env:
             - name: WEBHOOK_SERVICE
               value: {{ include "kaito.fullname" . }}

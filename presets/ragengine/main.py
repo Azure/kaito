@@ -3,22 +3,23 @@
 
 from typing import List
 from vector_store_manager.manager import VectorStoreManager
-from embedding.huggingface_local import LocalHuggingFaceEmbedding
-from embedding.huggingface_remote import RemoteHuggingFaceEmbedding
+from embedding.huggingface_local_embedding import LocalHuggingFaceEmbedding
+from embedding.remote_embedding import RemoteEmbeddingModel
 from fastapi import FastAPI, HTTPException
 from models import (IndexRequest, ListDocumentsResponse,
                     QueryRequest, QueryResponse, DocumentResponse, HealthStatus)
 from vector_store.faiss_store import FaissVectorStoreHandler
 
-from ragengine.config import ACCESS_SECRET, EMBEDDING_TYPE, MODEL_ID
+from ragengine.config import (REMOTE_EMBEDDING_URL, REMOTE_EMBEDDING_ACCESS_SECRET,
+                              EMBEDDING_SOURCE_TYPE, LOCAL_EMBEDDING_MODEL_ID)
 
 app = FastAPI()
 
 # Initialize embedding model
-if EMBEDDING_TYPE.lower() == "local":
-    embedding_manager = LocalHuggingFaceEmbedding(MODEL_ID)
-elif EMBEDDING_TYPE.lower() == "remote":
-    embedding_manager = RemoteHuggingFaceEmbedding(MODEL_ID, ACCESS_SECRET)
+if EMBEDDING_SOURCE_TYPE.lower() == "local":
+    embedding_manager = LocalHuggingFaceEmbedding(LOCAL_EMBEDDING_MODEL_ID)
+elif EMBEDDING_SOURCE_TYPE.lower() == "remote":
+    embedding_manager = RemoteEmbeddingModel(REMOTE_EMBEDDING_URL, REMOTE_EMBEDDING_ACCESS_SECRET)
 else:
     raise ValueError("Invalid Embedding Type Specified (Must be Local or Remote)")
 

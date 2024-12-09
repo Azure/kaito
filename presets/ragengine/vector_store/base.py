@@ -14,7 +14,7 @@ from llama_index.core import (StorageContext, VectorStoreIndex)
 from ragengine.models import Document
 from ragengine.embedding.base import BaseEmbeddingModel
 from ragengine.inference.inference import Inference
-from ragengine.config import PERSIST_DIR
+from ragengine.config import VECTOR_DB_PERSIST_DIR
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -140,7 +140,7 @@ class BaseVectorStore(ABC):
     def _persist_all(self):
         """Common persistence logic."""
         logger.info("Persisting all indexes.")
-        self.index_store.persist(os.path.join(PERSIST_DIR, "store.json"))
+        self.index_store.persist(os.path.join(VECTOR_DB_PERSIST_DIR, "store.json"))
         for idx in self.index_store.index_structs():
             self._persist(idx.index_id)
 
@@ -148,11 +148,11 @@ class BaseVectorStore(ABC):
         """Common persistence logic for individual index."""
         try:
             logger.info(f"Persisting index {index_name}.")
-            self.index_store.persist(os.path.join(PERSIST_DIR, "store.json"))
+            self.index_store.persist(os.path.join(VECTOR_DB_PERSIST_DIR, "store.json"))
             assert index_name in self.index_map, f"No such index: '{index_name}' exists."
             storage_context = self.index_map[index_name].storage_context
             # Persist the specific index
-            storage_context.persist(persist_dir=os.path.join(PERSIST_DIR, index_name))
+            storage_context.persist(persist_dir=os.path.join(VECTOR_DB_PERSIST_DIR, index_name))
             logger.info(f"Successfully persisted index {index_name}.")
         except Exception as e:
             logger.error(f"Failed to persist index {index_name}. Error: {str(e)}")

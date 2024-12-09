@@ -2,7 +2,7 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
-VERSION ?= v0.3.2
+VERSION ?= v0.4.0
 GPU_PROVISIONER_VERSION ?= 0.2.1
 IMG_TAG ?= $(subst v,,$(VERSION))
 
@@ -126,8 +126,8 @@ GINKGO_FOCUS ?=
 GINKGO_SKIP ?=
 GINKGO_NODES ?= 2
 GINKGO_NO_COLOR ?= false
-GINKGO_TIMEOUT ?= 180m
-GINKGO_ARGS ?= -focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" -nodes=$(GINKGO_NODES) -no-color=$(GINKGO_NO_COLOR) -timeout=$(GINKGO_TIMEOUT) --fail-fast
+GINKGO_TIMEOUT ?= 120m
+GINKGO_ARGS ?= -focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" -nodes=$(GINKGO_NODES) -no-color=$(GINKGO_NO_COLOR) --output-interceptor-mode=none -timeout=$(GINKGO_TIMEOUT) --fail-fast
 
 $(E2E_TEST):
 	(cd test/e2e && go test -c . -o $(E2E_TEST))
@@ -208,6 +208,7 @@ BUILDX_BUILDER_NAME ?= img-builder
 OUTPUT_TYPE ?= type=registry
 QEMU_VERSION ?= 7.2.0-1
 ARCH ?= amd64,arm64
+BUILDKIT_VERSION ?= v0.18.1
 
 RAGENGINE_IMAGE_NAME ?= ragengine
 RAGENGINE_IMAGE_TAG ?= v0.0.1
@@ -217,7 +218,7 @@ RAGENGINE_IMAGE_TAG ?= v0.0.1
 docker-buildx: ## Build and push docker image for the manager for cross-platform support
 	@if ! docker buildx ls | grep $(BUILDX_BUILDER_NAME); then \
 		docker run --rm --privileged mcr.microsoft.com/mirror/docker/multiarch/qemu-user-static:$(QEMU_VERSION) --reset -p yes; \
-		docker buildx create --name $(BUILDX_BUILDER_NAME) --use; \
+		docker buildx create --name $(BUILDX_BUILDER_NAME) --driver-opt image=mcr.microsoft.com/oss/v2/moby/buildkit:$(BUILDKIT_VERSION) --use; \
 		docker buildx inspect $(BUILDX_BUILDER_NAME) --bootstrap; \
 	fi
 
