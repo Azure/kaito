@@ -293,15 +293,14 @@ func computeHash(ragEngineObj *kaitov1alpha1.RAGEngine) string {
 
 // applyRAGEngineResource applies RAGEngine resource spec.
 func (c *RAGEngineReconciler) applyRAGEngineResource(ctx context.Context, ragEngineObj *kaitov1alpha1.RAGEngine) error {
-
-	// Wait for pending machines if any before we decide whether to create new machine or not.
-	if err := machine.WaitForPendingMachines(ctx, ragEngineObj, c.Client); err != nil {
-		return err
-	}
-
 	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 		// Wait for pending nodeClaims if any before we decide whether to create new node or not.
 		if err := nodeclaim.WaitForPendingNodeClaims(ctx, ragEngineObj, c.Client); err != nil {
+			return err
+		}
+	} else {
+		// Wait for pending machines if any before we decide whether to create new machine or not.
+		if err := machine.WaitForPendingMachines(ctx, ragEngineObj, c.Client); err != nil {
 			return err
 		}
 	}
@@ -578,11 +577,11 @@ func (c *RAGEngineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&kaitov1alpha1.RAGEngine{}).
-		Watches(&v1alpha5.Machine{}, c.watchMachines()).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 5})
 	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
-		builder.
-			Watches(&v1beta1.NodeClaim{}, c.watchNodeClaims()) // watches for nodeClaim with labels indicating ragengine name.
+		builder.Watches(&v1beta1.NodeClaim{}, c.watchNodeClaims()) // watches for nodeClaim with labels indicating ragengine name.
+	} else {
+		builder.Watches(&v1alpha5.Machine{}, c.watchMachines())
 	}
 	return builder.Complete(c)
 }

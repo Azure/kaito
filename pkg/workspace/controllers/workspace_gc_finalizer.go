@@ -21,19 +21,6 @@ import (
 func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj *kaitov1alpha1.Workspace) (ctrl.Result, error) {
 	klog.InfoS("garbageCollectWorkspace", "workspace", klog.KObj(wObj))
 
-	// Check if there are any machines associated with this workspace.
-	mList, err := machine.ListMachines(ctx, wObj, c.Client)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	// We should delete all the machines that are created by this workspace
-	for i := range mList.Items {
-		if deleteErr := c.Delete(ctx, &mList.Items[i], &client.DeleteOptions{}); deleteErr != nil {
-			klog.ErrorS(deleteErr, "failed to delete the machine", "machine", klog.KObj(&mList.Items[i]))
-			return ctrl.Result{}, deleteErr
-		}
-	}
-
 	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 		// Check if there are any nodeClaims associated with this workspace.
 		ncList, err := nodeclaim.ListNodeClaim(ctx, wObj, c.Client)
@@ -45,6 +32,19 @@ func (c *WorkspaceReconciler) garbageCollectWorkspace(ctx context.Context, wObj 
 		for i := range ncList.Items {
 			if deleteErr := c.Delete(ctx, &ncList.Items[i], &client.DeleteOptions{}); deleteErr != nil {
 				klog.ErrorS(deleteErr, "failed to delete the nodeClaim", "nodeClaim", klog.KObj(&ncList.Items[i]))
+				return ctrl.Result{}, deleteErr
+			}
+		}
+	} else {
+		// Check if there are any machines associated with this workspace.
+		mList, err := machine.ListMachines(ctx, wObj, c.Client)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		// We should delete all the machines that are created by this workspace
+		for i := range mList.Items {
+			if deleteErr := c.Delete(ctx, &mList.Items[i], &client.DeleteOptions{}); deleteErr != nil {
+				klog.ErrorS(deleteErr, "failed to delete the machine", "machine", klog.KObj(&mList.Items[i]))
 				return ctrl.Result{}, deleteErr
 			}
 		}
