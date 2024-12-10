@@ -97,6 +97,7 @@ jobs:
         run: |
           make docker-build-rag-service
         env:
+          REGISTRY: ${{ env.REGISTRY }}
           RAGENGINE_SERVICE_IMG_NAME: ${{ env.IMAGE_NAME }}
           RAGENGINE_SERVICE_IMG_TAG: ${{ needs.check-tag.outputs.tag }}
 
