@@ -240,6 +240,15 @@ docker-build-ragengine: docker-buildx
                 --pull \
                 --tag $(REGISTRY)/$(RAGENGINE_IMG_NAME):$(RAGENGINE_IMG_TAG) .
 
+.PHONY: docker-build-rag-service
+docker-build-ragservice: docker buildx
+    docker buildx build \
+        --platform="linux/$(ARCH)" \
+        --output=$(OUTPUT_TYPE) \
+        --file ./docker/ragengine/service/Dockerfile \
+        --pull \
+        -tag $(REGISTRY)/$(RAGENGINE_SERVICE_IMG_NAME):$(RAGENGINE_SERVICE_IMG_TAG) .
+
 .PHONY: docker-build-adapter
 docker-build-adapter: docker-buildx
 	docker buildx build \
