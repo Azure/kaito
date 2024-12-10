@@ -508,3 +508,131 @@ func TestUpdateControllerRevision1(t *testing.T) {
 		})
 	}
 }
+
+func TestApplyRAG(t *testing.T) {
+	test.RegisterTestModel()
+	testcases := map[string]struct {
+		callMocks     func(c *test.MockClient)
+		ragengine     v1alpha1.RAGEngine
+		expectedError error
+		verifyCalls   func(c *test.MockClient)
+	}{
+
+		"Fail because associated workload with ragengine cannot be retrieved": {
+			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(errors.New("Failed to get resource"))
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.RAGEngine{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.RAGEngine{}), mock.Anything).Return(nil)
+			},
+			ragengine:     *test.MockRAGEngineWithRevision1,
+			expectedError: errors.New("Failed to get resource"),
+			verifyCalls: func(c *test.MockClient) {
+				c.AssertNumberOfCalls(t, "List", 0)
+				c.AssertNumberOfCalls(t, "Create", 0)
+				c.AssertNumberOfCalls(t, "Get", 5)
+				c.AssertNumberOfCalls(t, "Delete", 0)
+			},
+		},
+
+		"Create preset inference because inference workload did not exist": {
+			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(test.NotFoundError()).Times(4)
+				c.On("Get", mock.Anything, mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+					depObj := &appsv1.Deployment{}
+					key := client.ObjectKey{Namespace: "kaito", Name: "testRAGEngine"}
+					c.GetObjectFromMap(depObj, key)
+					depObj.Status.ReadyReplicas = 1
+					c.CreateOrUpdateObjectInMap(depObj)
+				})
+				c.On("Create", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
+
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
+
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.RAGEngine{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.RAGEngine{}), mock.Anything).Return(nil)
+				os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
+			},
+			ragengine: *test.MockRAGEngineWithRevision1,
+			verifyCalls: func(c *test.MockClient) {
+				c.AssertNumberOfCalls(t, "List", 0)
+				c.AssertNumberOfCalls(t, "Create", 1)
+				c.AssertNumberOfCalls(t, "Get", 7)
+				c.AssertNumberOfCalls(t, "Delete", 0)
+				c.AssertNumberOfCalls(t, "Update", 0)
+			},
+			expectedError: nil,
+		},
+
+		"Apply inference from existing workload": {
+			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.Anything, mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).
+					Run(func(args mock.Arguments) {
+						dep := args.Get(2).(*appsv1.Deployment)
+						*dep = test.MockRAGDeploymentUpdated
+					}).
+					Return(nil)
+
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.RAGEngine{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.RAGEngine{}), mock.Anything).Return(nil)
+			},
+			ragengine:     *test.MockRAGEngineWithRevision1,
+			expectedError: nil,
+			verifyCalls: func(c *test.MockClient) {
+				c.AssertNumberOfCalls(t, "List", 0)
+				c.AssertNumberOfCalls(t, "Create", 0)
+				c.AssertNumberOfCalls(t, "Get", 3)
+				c.AssertNumberOfCalls(t, "Delete", 0)
+				c.AssertNumberOfCalls(t, "Update", 0)
+			},
+		},
+
+		"Update deployment with new configuration": {
+			callMocks: func(c *test.MockClient) {
+				// Mocking existing Deployment object
+				c.On("Get", mock.Anything, mock.Anything, mock.IsType(&appsv1.Deployment{}), mock.Anything).
+					Run(func(args mock.Arguments) {
+						dep := args.Get(2).(*appsv1.Deployment)
+						*dep = test.MockRAGDeploymentUpdated
+					}).
+					Return(nil)
+
+				c.On("Update", mock.IsType(context.Background()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
+
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&v1alpha1.RAGEngine{}), mock.Anything).Return(nil)
+				c.StatusMock.On("Update", mock.IsType(context.Background()), mock.IsType(&v1alpha1.RAGEngine{}), mock.Anything).Return(nil)
+			},
+			ragengine:     *test.MockRAGEngineWithPreset,
+			expectedError: nil,
+			verifyCalls: func(c *test.MockClient) {
+				c.AssertNumberOfCalls(t, "List", 0)
+				c.AssertNumberOfCalls(t, "Create", 0)
+				c.AssertNumberOfCalls(t, "Get", 3)
+				c.AssertNumberOfCalls(t, "Delete", 0)
+				c.AssertNumberOfCalls(t, "Update", 1)
+			},
+		},
+	}
+
+	for k, tc := range testcases {
+		t.Run(k, func(t *testing.T) {
+			mockClient := test.NewClient()
+			tc.callMocks(mockClient)
+
+			reconciler := &RAGEngineReconciler{
+				Client: mockClient,
+				Scheme: test.NewTestScheme(),
+			}
+			ctx := context.Background()
+
+			err := reconciler.applyRAG(ctx, &tc.ragengine)
+			if tc.expectedError == nil {
+				assert.Check(t, err == nil, "Not expected to return error")
+			} else {
+				assert.Equal(t, tc.expectedError.Error(), err.Error())
+			}
+			if tc.verifyCalls != nil {
+				tc.verifyCalls(mockClient)
+			}
+		})
+	}
+}

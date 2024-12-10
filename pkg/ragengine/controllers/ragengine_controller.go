@@ -18,6 +18,7 @@ import (
 	"github.com/go-logr/logr"
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	"github.com/kaito-project/kaito/pkg/featuregates"
+	"github.com/kaito-project/kaito/pkg/ragengine/manifests"
 	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/kaito-project/kaito/pkg/utils/machine"
@@ -152,8 +153,22 @@ func (c *RAGEngineReconciler) applyRAG(ctx context.Context, ragEngineObj *kaitov
 
 		if err = resources.GetResource(ctx, ragEngineObj.Name, ragEngineObj.Namespace, c.Client, deployment); err == nil {
 			klog.InfoS("An inference workload already exists for ragengine", "ragengine", klog.KObj(ragEngineObj))
-			return
+			if deployment.Annotations[kaitov1alpha1.RAGEngineRevisionAnnotation] != revisionStr {
 
+				envs := manifests.RAGSetEnv(ragEngineObj)
+
+				spec := &deployment.Spec
+				// Currently, all CRD changes are only passed through environment variables (env)
+				spec.Template.Spec.Containers[0].Env = envs
+				deployment.Annotations[kaitov1alpha1.RAGEngineRevisionAnnotation] = revisionStr
+
+				if err := c.Update(ctx, deployment); err != nil {
+					return
+				}
+			}
+			if err = resources.CheckResourceStatus(deployment, c.Client, time.Duration(10)*time.Minute); err != nil {
+				return
+			}
 		} else if apierrors.IsNotFound(err) {
 			var workloadObj client.Object
 			// Need to create a new workload
@@ -577,6 +592,9 @@ func (c *RAGEngineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&kaitov1alpha1.RAGEngine{}).
+		Owns(&appsv1.ControllerRevision{}).
+		Owns(&appsv1.Deployment{}).
+		Watches(&v1alpha5.Machine{}, c.watchMachines()).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 5})
 	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 		builder.Watches(&v1beta1.NodeClaim{}, c.watchNodeClaims()) // watches for nodeClaim with labels indicating ragengine name.
