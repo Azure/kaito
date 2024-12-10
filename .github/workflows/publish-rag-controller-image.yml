@@ -1,4 +1,4 @@
-name: Create, Scan and Publish RAG Service Image
+name: Create, Scan and Publish RAG Controller Image
 on:
   workflow_dispatch:
     inputs:
