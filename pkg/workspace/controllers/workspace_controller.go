@@ -323,15 +323,14 @@ func computeHash(w *kaitov1alpha1.Workspace) string {
 
 // applyWorkspaceResource applies workspace resource spec.
 func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
-
-	// Wait for pending machines if any before we decide whether to create new machine or not.
-	if err := machine.WaitForPendingMachines(ctx, wObj, c.Client); err != nil {
-		return err
-	}
-
 	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 		// Wait for pending nodeClaims if any before we decide whether to create new node or not.
 		if err := nodeclaim.WaitForPendingNodeClaims(ctx, wObj, c.Client); err != nil {
+			return err
+		}
+	} else {
+		// Wait for pending machines if any before we decide whether to create new machine or not.
+		if err := machine.WaitForPendingMachines(ctx, wObj, c.Client); err != nil {
 			return err
 		}
 	}
@@ -834,12 +833,12 @@ func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.Deployment{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&batchv1.Job{}).
-		Watches(&v1alpha5.Machine{}, c.watchMachines()).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 5})
 
 	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
-		builder.
-			Watches(&v1beta1.NodeClaim{}, c.watchNodeClaims()) // watches for nodeClaim with labels indicating workspace name.
+		builder.Watches(&v1beta1.NodeClaim{}, c.watchNodeClaims()) // watches for nodeClaim with labels indicating workspace name.
+	} else {
+		builder.Watches(&v1alpha5.Machine{}, c.watchMachines())
 	}
 	return builder.Complete(c)
 }
