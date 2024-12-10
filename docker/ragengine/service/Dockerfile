@@ -33,5 +33,5 @@ WORKDIR /app/ragengine
 # docker buildx build \
 #   --platform linux/amd64,linux/arm64 \
 #   -f docker/ragengine/service/Dockerfile \
-#   -t <ACR_PATH>/kaito-rag-service:0.0.4 \
+#   -t <ACR_PATH>/kaito-rag-service:0.0.1 \
 #   --push .
