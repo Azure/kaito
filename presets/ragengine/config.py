@@ -23,7 +23,7 @@ REMOTE_EMBEDDING_ACCESS_SECRET = os.getenv("REMOTE_EMBEDDING_ACCESS_SECRET", "de
 RERANKER_SOURCE_TYPE = os.getenv("RERANKER_SOURCE_TYPE", "local")  # Determines local or remote reranker source
 
 # Local reranker model
-LOCAL_RERANKER_MODEL_ID = os.getenv("LOCAL_RERANKER_MODEL_ID", "BAAI/bge-small-en-v1.5")
+LOCAL_RERANKER_MODEL_ID = os.getenv("LOCAL_RERANKER_MODEL_ID", "BAAI/bge-reranker-large")
 
 # Remote reranker model (if not local)
 REMOTE_RERANKER_URL = os.getenv("REMOTE_RERANKER_URL", "http://localhost:5000/reranker")
