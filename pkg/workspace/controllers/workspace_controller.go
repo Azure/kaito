@@ -17,20 +17,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/kaito-project/kaito/pkg/featuregates"
-	"github.com/kaito-project/kaito/pkg/nodeclaim"
-	"github.com/kaito-project/kaito/pkg/tuning"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
+	"github.com/kaito-project/kaito/pkg/utils/nodeclaim"
+	"github.com/kaito-project/kaito/pkg/workspace/tuning"
 	batchv1 "k8s.io/api/batch/v1"
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/go-logr/logr"
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
-	"github.com/kaito-project/kaito/pkg/machine"
-	"github.com/kaito-project/kaito/pkg/resources"
 	"github.com/kaito-project/kaito/pkg/utils"
+	"github.com/kaito-project/kaito/pkg/utils/machine"
 	"github.com/kaito-project/kaito/pkg/utils/plugin"
+	"github.com/kaito-project/kaito/pkg/utils/resources"
 	"github.com/kaito-project/kaito/pkg/workspace/inference"
+	"github.com/kaito-project/kaito/pkg/workspace/manifests"
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -322,15 +323,14 @@ func computeHash(w *kaitov1alpha1.Workspace) string {
 
 // applyWorkspaceResource applies workspace resource spec.
 func (c *WorkspaceReconciler) applyWorkspaceResource(ctx context.Context, wObj *kaitov1alpha1.Workspace) error {
-
-	// Wait for pending machines if any before we decide whether to create new machine or not.
-	if err := machine.WaitForPendingMachines(ctx, wObj, c.Client); err != nil {
-		return err
-	}
-
 	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
 		// Wait for pending nodeClaims if any before we decide whether to create new node or not.
 		if err := nodeclaim.WaitForPendingNodeClaims(ctx, wObj, c.Client); err != nil {
+			return err
+		}
+	} else {
+		// Wait for pending machines if any before we decide whether to create new machine or not.
+		if err := machine.WaitForPendingMachines(ctx, wObj, c.Client); err != nil {
 			return err
 		}
 	}
@@ -631,19 +631,24 @@ func (c *WorkspaceReconciler) ensureService(ctx context.Context, wObj *kaitov1al
 		return nil
 	}
 
+	supportsDistributedInference := false
 	if presetName := getPresetName(wObj); presetName != "" {
 		model := plugin.KaitoModelRegister.MustGet(presetName)
-		serviceObj := resources.GenerateServiceManifest(ctx, wObj, serviceType, model.SupportDistributedInference())
-		if err := resources.CreateResource(ctx, serviceObj, c.Client); err != nil {
+		supportsDistributedInference = model.SupportDistributedInference()
+	}
+
+	serviceObj := manifests.GenerateServiceManifest(ctx, wObj, serviceType, supportsDistributedInference)
+	if err := resources.CreateResource(ctx, serviceObj, c.Client); err != nil {
+		return err
+	}
+
+	if supportsDistributedInference {
+		headlessService := manifests.GenerateHeadlessServiceManifest(ctx, wObj)
+		if err := resources.CreateResource(ctx, headlessService, c.Client); err != nil {
 			return err
 		}
-		if model.SupportDistributedInference() {
-			headlessService := resources.GenerateHeadlessServiceManifest(ctx, wObj)
-			if err := resources.CreateResource(ctx, headlessService, c.Client); err != nil {
-				return err
-			}
-		}
 	}
+
 	return nil
 }
 
@@ -759,7 +764,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 							volumes = append(volumes, adapterVolume)
 							volumeMounts = append(volumeMounts, adapterVolumeMount)
 						}
-						initContainers, envs := resources.GenerateInitContainers(wObj, volumeMounts)
+						initContainers, envs := manifests.GenerateInitContainers(wObj, volumeMounts)
 						spec := &deployment.Spec
 
 						spec.Template.Spec.InitContainers = initContainers
@@ -767,6 +772,9 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 						spec.Template.Spec.Containers[0].VolumeMounts = volumeMounts
 						deployment.Annotations[kaitov1alpha1.WorkspaceRevisionAnnotation] = revisionStr
 						spec.Template.Spec.Volumes = volumes
+
+						_, imagePullSecrets := inference.GetInferenceImageInfo(ctx, wObj, inferenceParam)
+						deployment.Spec.Template.Spec.ImagePullSecrets = imagePullSecrets
 
 						if err := c.Update(ctx, deployment); err != nil {
 							return
@@ -779,7 +787,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1a
 			} else if apierrors.IsNotFound(err) {
 				var workloadObj client.Object
 				// Need to create a new workload
-				workloadObj, err = inference.CreatePresetInference(ctx, wObj, revisionStr, inferenceParam, model.SupportDistributedInference(), c.Client)
+				workloadObj, err = inference.CreatePresetInference(ctx, wObj, revisionStr, model, c.Client)
 				if err != nil {
 					return
 				}
@@ -825,12 +833,12 @@ func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.Deployment{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&batchv1.Job{}).
-		Watches(&v1alpha5.Machine{}, c.watchMachines()).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 5})
 
 	if featuregates.FeatureGates[consts.FeatureFlagKarpenter] {
-		builder.
-			Watches(&v1beta1.NodeClaim{}, c.watchNodeClaims()) // watches for nodeClaim with labels indicating workspace name.
+		builder.Watches(&v1beta1.NodeClaim{}, c.watchNodeClaims()) // watches for nodeClaim with labels indicating workspace name.
+	} else {
+		builder.Watches(&v1alpha5.Machine{}, c.watchMachines())
 	}
 	return builder.Complete(c)
 }
