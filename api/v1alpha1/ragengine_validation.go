@@ -31,6 +31,13 @@ func (w *RAGEngine) Validate(ctx context.Context) (errs *apis.FieldError) {
 	if base == nil {
 		klog.InfoS("Validate creation", "ragengine", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
 		errs = errs.Also(w.validateCreate().ViaField("spec"))
+	} else {
+		klog.InfoS("Validate update", "ragengine", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
+		old := base.(*RAGEngine)
+		errs = errs.Also(
+			w.validateCreate().ViaField("spec"),
+			w.Spec.Compute.validateUpdate(old.Spec.Compute).ViaField("resource"),
+		)
 	}
 	return errs
 }
