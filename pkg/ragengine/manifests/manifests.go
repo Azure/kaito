@@ -165,3 +165,52 @@ func RAGSetEnv(ragEngineObj *kaitov1alpha1.RAGEngine) []corev1.EnvVar {
 	}
 	return envs
 }
+
+func GenerateRAGServiceManifest(ctx context.Context, ragObj *kaitov1alpha1.RAGEngine, serviceName string, serviceType corev1.ServiceType, serviceRole string) *corev1.Service {
+	selector := map[string]string{
+		kaitov1alpha1.LabelRAGEngineName: ragObj.Name,
+	}
+
+	var servicePorts []corev1.ServicePort
+	if serviceRole == "query" {
+		servicePorts = []corev1.ServicePort{
+			{
+				Name:       "http",
+				Protocol:   corev1.ProtocolTCP,
+				Port:       80,
+				TargetPort: intstr.FromInt32(5000),
+			},
+		}
+	} else if serviceRole == "index" {
+		servicePorts = []corev1.ServicePort{
+			{
+				Name:       "http",
+				Protocol:   corev1.ProtocolTCP,
+				Port:       80,
+				TargetPort: intstr.FromInt32(5000),
+			},
+		}
+	}
+
+	return &corev1.Service{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      serviceName,
+			Namespace: ragObj.Namespace,
+			OwnerReferences: []v1.OwnerReference{
+				{
+					APIVersion: kaitov1alpha1.GroupVersion.String(),
+					Kind:       "RAGEngine",
+					UID:        ragObj.UID,
+					Name:       ragObj.Name,
+					Controller: &controller,
+				},
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Type:                     serviceType,
+			Ports:                    servicePorts,
+			Selector:                 selector,
+			PublishNotReadyAddresses: true,
+		},
+	}
+}
