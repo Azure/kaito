@@ -14,14 +14,18 @@ parent_dir = str(Path(__file__).resolve().parent.parent)
 sys.path.append(parent_dir)
 
 from inference_api import binary_search_with_limited_steps
+from huggingface_hub import snapshot_download
+import shutil
 
 TEST_MODEL = "facebook/opt-125m"
+TEST_ADAPTER_NAME1 = "mylora1"
+TEST_ADAPTER_NAME2 = "mylora2"
 CHAT_TEMPLATE = ("{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') %}"
     "{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}"
     "{% elif (message['role'] == 'assistant') %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}")
 
-@pytest.fixture
-def setup_server(request):
+@pytest.fixture(scope="session", autouse=True)
+def setup_server(request, tmp_path_factory, autouse=True):
     if os.getenv("DEVICE") == "cpu":
         pytest.skip("Skipping test on cpu device")
     print("\n>>> Doing setup")
@@ -29,15 +33,23 @@ def setup_server(request):
     global TEST_PORT
     TEST_PORT = port
 
+    tmp_file_dir = tmp_path_factory.mktemp("adapter")
+    print(f"Downloading adapter image to {tmp_file_dir}")
+    snapshot_download(repo_id="slall/facebook-opt-125M-imdb-lora", local_dir=str(tmp_file_dir / TEST_ADAPTER_NAME1))
+    snapshot_download(repo_id="slall/facebook-opt-125M-imdb-lora", local_dir=str(tmp_file_dir / TEST_ADAPTER_NAME2))
+
     args = [
         "python3",
         os.path.join(parent_dir, "inference_api.py"),
         "--model", TEST_MODEL,
         "--chat-template", CHAT_TEMPLATE,
-        "--port", str(TEST_PORT)
+        "--port", str(TEST_PORT),
+        "--kaito-adapters-dir", tmp_file_dir,
     ]
     print(f">>> Starting server on port {TEST_PORT}")
-    process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    env = os.environ.copy()
+    env["MAX_PROBE_STEPS"] = "0"
+    process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
 
     def fin():
         process.terminate()
@@ -47,6 +59,8 @@ def setup_server(request):
         stdout = process.stdout.read().decode()
         print(f">>> Server stdout: {stdout}")
         print ("\n>>> Doing teardown")
+        print(f"Removing adapter image from {tmp_file_dir}")
+        shutil.rmtree(tmp_file_dir)
 
     if not is_port_open("localhost", TEST_PORT):
         fin()
@@ -115,6 +129,17 @@ def test_chat_completions_api(setup_server):
         assert "content" in choice["message"], "Each message should contain a 'content' key"
         assert len(choice["message"]["content"]) > 0, "The completion text should not be empty"
 
+def test_model_list(setup_server):
+    response = requests.get(f"http://127.0.0.1:{TEST_PORT}/v1/models")
+    data = response.json()
+
+    assert "data" in data, f"The response should contain a 'data' key, but got {data}"
+    assert len(data["data"]) == 3, f"The response should contain three models, but got {data['data']}"
+    assert data["data"][0]["id"] == TEST_MODEL, f"The first model should be the test model, but got {data['data'][0]['id']}"
+    assert data["data"][1]["id"] == TEST_ADAPTER_NAME2, f"The second model should be the test adapter, but got {data['data'][1]['id']}"
+    assert data["data"][1]["parent"] == TEST_MODEL, f"The second model should have the test model as parent, but got {data['data'][1]['parent']}"
+    assert data["data"][2]["id"] == TEST_ADAPTER_NAME1, f"The third model should be the test adapter, but got {data['data'][2]['id']}"
+    assert data["data"][2]["parent"] == TEST_MODEL, f"The third model should have the test model as parent, but got {data['data'][2]['parent']}"
 
 def test_binary_search_with_limited_steps():
 

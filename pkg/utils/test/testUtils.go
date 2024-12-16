@@ -225,6 +225,58 @@ var (
 			},
 		},
 	}
+	MockRAGEngineWithRevision1 = &v1alpha1.RAGEngine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "testRAGEngine",
+			Namespace:   "kaito",
+			Annotations: map[string]string{v1alpha1.RAGEngineRevisionAnnotation: "1"},
+		},
+		Spec: &v1alpha1.RAGEngineSpec{
+			Compute: &v1alpha1.ResourceSpec{
+				Count:        &gpuNodeCount,
+				InstanceType: "Standard_NC12s_v3",
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"ragengine.kaito.io/name": "testRAGEngine",
+					},
+				},
+			},
+			Embedding: &v1alpha1.EmbeddingSpec{
+				Local: &v1alpha1.LocalEmbeddingSpec{
+					ModelID: "BAAI/bge-small-en-v1.5",
+				},
+			},
+			InferenceService: &v1alpha1.InferenceServiceSpec{
+				URL: "http://localhost:5000/chat",
+			},
+		},
+	}
+	MockRAGEngineWithRevision2 = &v1alpha1.RAGEngine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "testRAGEngine",
+			Namespace:   "kaito",
+			Annotations: map[string]string{v1alpha1.RAGEngineRevisionAnnotation: "2"},
+		},
+		Spec: &v1alpha1.RAGEngineSpec{
+			Compute: &v1alpha1.ResourceSpec{
+				Count:        &gpuNodeCount,
+				InstanceType: "Standard_NC12s_v3",
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"ragengine.kaito.io/name": "testRAGEngine",
+					},
+				},
+			},
+			Embedding: &v1alpha1.EmbeddingSpec{
+				Local: &v1alpha1.LocalEmbeddingSpec{
+					ModelID: "BAAI/bge-small-en-v1.5",
+				},
+			},
+			InferenceService: &v1alpha1.InferenceServiceSpec{
+				URL: "http://localhost:5000/chat",
+			},
+		},
+	}
 )
 
 var MockRAGEngineWithPresetHash = "14485768c1b67a529a71e3c87d9f2e6c1ed747534dea07e268e93475a5e21e"
@@ -620,6 +672,60 @@ var (
 		},
 	}
 )
+var MockRAGDeploymentUpdated = appsv1.Deployment{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:        "testRAGEngine",
+		Namespace:   "kaito",
+		Annotations: map[string]string{v1alpha1.RAGEngineRevisionAnnotation: "1"},
+	},
+	Spec: appsv1.DeploymentSpec{
+		Replicas: &numRep,
+		Template: corev1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"app": "test-app",
+				},
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name:  "test-container",
+						Image: "nginx:latest",
+						Ports: []corev1.ContainerPort{
+							{
+								ContainerPort: 80,
+								Protocol:      corev1.ProtocolTCP,
+							},
+						},
+						Env: []corev1.EnvVar{
+							{
+								Name:  "ENV_VAR_NAME",
+								Value: "ENV_VAR_VALUE",
+							},
+						},
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "volume-name",
+								MountPath: "/mount/path",
+							},
+						},
+					},
+				},
+				Volumes: []corev1.Volume{
+					{
+						Name: "volume-name",
+						VolumeSource: corev1.VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+					},
+				},
+			},
+		},
+	},
+	Status: appsv1.DeploymentStatus{
+		ReadyReplicas: 1,
+	},
+}
 
 var (
 	MockWorkspaceWithInferenceTemplate = &v1alpha1.Workspace{

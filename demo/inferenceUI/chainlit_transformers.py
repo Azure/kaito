@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urljoin
 
 import chainlit as cl
 import requests
@@ -25,7 +26,7 @@ def inference(prompt):
         }
     }
 
-    response = requests.post(URL, json=data)
+    response = requests.post(urljoin(URL, "chat"), json=data)
 
     if response.status_code == 200:
         response_data = response.json()
