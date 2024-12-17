@@ -44,28 +44,16 @@ A chat template is defined in a `.jinja` file. Below is an example template:
 
 ---
 
-## Using Chat Templates
-To use a chat template, follow these steps:
+## Using Chat Templates with Inference API
 
-1. **Create the Template File:** Save your template as a `.jinja` file.
-2. **Load the Template in Your Code:** Use the `transformers` library to load and apply the template. For example:
+Kaito has already provided chat template options in the inference_api code. Simply use the --chat-template flag to pass the path to your .jinja template file.
 
-```python
-from transformers import ChatModel, ChatTemplate
+Find the existing jinja template in the [`chat_templates`](https://github.com/kaito-project/kaito/tree/main/presets/workspace/inference/chat_templates) directory.
 
-# Load model and template
-model = ChatModel.from_pretrained("model-name")
-template = ChatTemplate.from_file("path/to/template.jinja")
+Command Example:
 
-# Define chat history
-chat_history = [
-    {"role": "user", "content": "What's the weather today?"},
-    {"role": "assistant", "content": "The weather is sunny."}
-]
-
-# Generate response
-response = model.chat(template=template, messages=chat_history)
-print(response)
+```bash
+python3 inference_api.py --model model-name --chat-template /path/to/chat_template.jinja
 ```
 
 ---
