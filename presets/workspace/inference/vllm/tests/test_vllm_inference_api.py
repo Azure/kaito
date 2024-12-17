@@ -13,13 +13,15 @@ parent_dir = str(Path(__file__).resolve().parent.parent)
 # Add the parent directory to sys.path
 sys.path.append(parent_dir)
 
-from inference_api import binary_search_with_limited_steps
+from inference_api import binary_search_with_limited_steps, KaitoConfig
 from huggingface_hub import snapshot_download
 import shutil
 
 TEST_MODEL = "facebook/opt-125m"
 TEST_ADAPTER_NAME1 = "mylora1"
 TEST_ADAPTER_NAME2 = "mylora2"
+TEST_MODEL_NAME = "mymodel"
+TEST_MODEL_LEN = 1024
 CHAT_TEMPLATE = ("{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') %}"
     "{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}"
     "{% elif (message['role'] == 'assistant') %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}")
@@ -33,18 +35,33 @@ def setup_server(request, tmp_path_factory, autouse=True):
     global TEST_PORT
     TEST_PORT = port
 
+    # prepare testing adapter images
     tmp_file_dir = tmp_path_factory.mktemp("adapter")
     print(f"Downloading adapter image to {tmp_file_dir}")
     snapshot_download(repo_id="slall/facebook-opt-125M-imdb-lora", local_dir=str(tmp_file_dir / TEST_ADAPTER_NAME1))
     snapshot_download(repo_id="slall/facebook-opt-125M-imdb-lora", local_dir=str(tmp_file_dir / TEST_ADAPTER_NAME2))
+
+    # prepare testing config file
+    config_file = tmp_file_dir / "config.yaml"
+    kaito_config = KaitoConfig(
+        vllm={
+            "max-model-len": TEST_MODEL_LEN,
+            "served-model-name": TEST_MODEL_NAME
+        },
+        max_probe_steps=0,
+    )
+    with open(config_file, "w") as f:
+        f.write(kaito_config.to_yaml())
 
     args = [
         "python3",
         os.path.join(parent_dir, "inference_api.py"),
         "--model", TEST_MODEL,
         "--chat-template", CHAT_TEMPLATE,
+        "--max-model-len", "2048", # expected to be overridden by config file
         "--port", str(TEST_PORT),
         "--kaito-adapters-dir", tmp_file_dir,
+        "--kaito-config-file", config_file,
     ]
     print(f">>> Starting server on port {TEST_PORT}")
     env = os.environ.copy()
@@ -90,7 +107,7 @@ def find_available_port(start_port=5000, end_port=8000):
 
 def test_completions_api(setup_server):
     request_data = {
-        "model": TEST_MODEL,
+        "model": TEST_MODEL_NAME,
         "prompt": "Say this is a test",
         "max_tokens": 7,
         "temperature": 0.5,
@@ -108,7 +125,7 @@ def test_completions_api(setup_server):
 
 def test_chat_completions_api(setup_server):
     request_data = {
-        "model": TEST_MODEL,
+        "model": TEST_MODEL_NAME,
         "messages": [
             {"role": "user", "content": "Hello!"},
             {"role": "assistant", "content": "Hi there! How can I help you today?"}
@@ -135,11 +152,12 @@ def test_model_list(setup_server):
 
     assert "data" in data, f"The response should contain a 'data' key, but got {data}"
     assert len(data["data"]) == 3, f"The response should contain three models, but got {data['data']}"
-    assert data["data"][0]["id"] == TEST_MODEL, f"The first model should be the test model, but got {data['data'][0]['id']}"
+    assert data["data"][0]["id"] == TEST_MODEL_NAME, f"The first model should be the test model, but got {data['data'][0]['id']}"
+    assert data["data"][0]["max_model_len"] == TEST_MODEL_LEN, f"The first model should have the test model length, but got {data['data'][0]['max_model_len']}"
     assert data["data"][1]["id"] == TEST_ADAPTER_NAME2, f"The second model should be the test adapter, but got {data['data'][1]['id']}"
-    assert data["data"][1]["parent"] == TEST_MODEL, f"The second model should have the test model as parent, but got {data['data'][1]['parent']}"
+    assert data["data"][1]["parent"] == TEST_MODEL_NAME, f"The second model should have the test model as parent, but got {data['data'][1]['parent']}"
     assert data["data"][2]["id"] == TEST_ADAPTER_NAME1, f"The third model should be the test adapter, but got {data['data'][2]['id']}"
-    assert data["data"][2]["parent"] == TEST_MODEL, f"The third model should have the test model as parent, but got {data['data'][2]['parent']}"
+    assert data["data"][2]["parent"] == TEST_MODEL_NAME, f"The third model should have the test model as parent, but got {data['data'][2]['parent']}"
 
 def test_binary_search_with_limited_steps():
 
