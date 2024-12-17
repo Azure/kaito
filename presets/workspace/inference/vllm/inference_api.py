@@ -4,7 +4,7 @@ import logging
 import gc
 import os
 import argparse
-from typing import Callable, Optional, List
+from typing import Callable, Optional, List, Any
 import yaml
 from dataclasses import dataclass
 
@@ -72,7 +72,10 @@ class KAITOArgumentParser(argparse.ArgumentParser):
             file_config = KaitoConfig.from_yaml(kaito_args.kaito_config_file)
             if kaito_args.kaito_max_probe_steps is None:
                 kaito_args.kaito_max_probe_steps = file_config.max_probe_steps
-            runtime_args.extend(file_config.runtime_arg_overrides.split())
+
+            for key, value in file_config.vllm.items():
+                runtime_args.append(f"--{key}")
+                runtime_args.append(str(value))
 
         vllm_args = self.vllm_parser.parse_args(runtime_args, **kwargs)
         # Merge KAITO and vLLM args
@@ -86,8 +89,8 @@ class KAITOArgumentParser(argparse.ArgumentParser):
 @dataclass
 class KaitoConfig:
     # Extra arguments for the vllm serving server, will be forwarded to the vllm server.
-    # This should be a string in the cli args format. e.g. "--arg1 val1 --arg2 val2"
-    runtime_arg_overrides: str
+    # This should be in key-value format.
+    vllm: dict[str, Any]
 
     # Maximum number of steps to find the max available seq len fitting in the GPU memory.
     max_probe_steps: int
@@ -97,7 +100,7 @@ class KaitoConfig:
         with open(yaml_file, 'r') as file:
             config_data = yaml.safe_load(file)
         return KaitoConfig(
-            runtime_arg_overrides=config_data.get('runtime_arg_overrides', {}),
+            vllm=config_data.get('vllm', {}),
             max_probe_steps=config_data.get('max_probe_steps', 6)
         )
 

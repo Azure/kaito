@@ -44,7 +44,10 @@ def setup_server(request, tmp_path_factory, autouse=True):
     # prepare testing config file
     config_file = tmp_file_dir / "config.yaml"
     kaito_config = KaitoConfig(
-        runtime_arg_overrides=f"--max-model-len {TEST_MODEL_LEN} --served-model-name {TEST_MODEL_NAME}",
+        vllm={
+            "max-model-len": TEST_MODEL_LEN,
+            "served-model-name": TEST_MODEL_NAME
+        },
         max_probe_steps=0,
     )
     with open(config_file, "w") as f:
