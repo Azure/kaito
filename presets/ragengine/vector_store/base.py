@@ -10,11 +10,13 @@ import os
 from llama_index.core import Document as LlamaDocument
 from llama_index.core.storage.index_store import SimpleIndexStore
 from llama_index.core import (StorageContext, VectorStoreIndex)
+from llama_index.core.postprocessor import LLMRerank  # Query with LLM Reranking
 
 from ragengine.models import Document
 from ragengine.embedding.base import BaseEmbeddingModel
 from ragengine.inference.inference import Inference
-from ragengine.config import VECTOR_DB_PERSIST_DIR
+from ragengine.config import (USE_LLM_RERANK, LLM_RERANKER_BATCH_SIZE,
+                              LLM_RERANKER_TOP_N, VECTOR_DB_PERSIST_DIR)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -86,15 +88,52 @@ class BaseVectorStore(ABC):
             self._persist(index_name)
         return list(indexed_doc_ids)
 
-    def query(self, index_name: str, query: str, top_k: int, llm_params: dict):
-        """Common query logic for all vector stores."""
+    def query(self,
+              index_name: str,
+              query: str,
+              top_k: int,
+              llm_params: dict,
+              rerank_params: Optional[Dict] = None
+    ):
+        """
+        Query the indexed documents with optional LLM-based reranking.
+
+        Args:
+            index_name (str): Name of the index to query
+            query (str): Query string
+            top_k (int): Number of initial top results to retrieve
+            llm_params (dict): Parameters for the language model
+            rerank_params (Optional[Dict]): Optional configuration for reranking
+                - 'top_n' (int): Number of documents to process in each batch
+                - 'batch_size' (int):  Number of top documents to return after reranking
+
+        Returns:
+            dict: A dictionary containing the response and source nodes.
+        """
         if index_name not in self.index_map:
             raise ValueError(f"No such index: '{index_name}' exists.")
         self.llm.set_params(llm_params)
 
+        default_rerank_params = {
+            'choice_batch_size': LLM_RERANKER_BATCH_SIZE,  # reasonable default
+            'top_n': min(LLM_RERANKER_TOP_N, top_k) # default to up to LLM_RERANKER_TOP_N top results, but not more than top_k
+        }
+        rerank_params = {**default_rerank_params, **(rerank_params or {})}
+
+        node_postprocessors = []
+        if USE_LLM_RERANK:
+            node_postprocessors.append(
+                LLMRerank(
+                    choice_batch_size=rerank_params['choice_batch_size'],
+                    top_n=rerank_params['top_n']
+                )
+            )
+
         query_engine = self.index_map[index_name].as_query_engine(
-            llm=self.llm, 
-            similarity_top_k=top_k
+            llm=self.llm,
+            similarity_top_k=top_k,
+            streaming=True,
+            node_postprocessors=node_postprocessors
         )
         query_result = query_engine.query(query)
         return {
