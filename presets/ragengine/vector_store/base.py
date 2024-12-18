@@ -114,14 +114,16 @@ class BaseVectorStore(ABC):
             raise ValueError(f"No such index: '{index_name}' exists.")
         self.llm.set_params(llm_params)
 
-        default_rerank_params = {
-            'choice_batch_size': LLM_RERANKER_BATCH_SIZE,  # reasonable default
-            'top_n': min(LLM_RERANKER_TOP_N, top_k) # default to up to LLM_RERANKER_TOP_N top results, but not more than top_k
-        }
-        rerank_params = {**default_rerank_params, **(rerank_params or {})}
-
         node_postprocessors = []
-        if USE_LLM_RERANK:
+        if rerank_params:
+            # Set default reranking parameters and merge with provided params
+            default_rerank_params = {
+                'choice_batch_size': LLM_RERANKER_BATCH_SIZE,  # Default batch size
+                'top_n': min(LLM_RERANKER_TOP_N, top_k)        # Limit top_n to top_k by default
+            }
+            rerank_params = {**default_rerank_params, **rerank_params}
+
+            # Add LLMRerank to postprocessors
             node_postprocessors.append(
                 LLMRerank(
                     choice_batch_size=rerank_params['choice_batch_size'],

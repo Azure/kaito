@@ -30,7 +30,6 @@ REMOTE_EMBEDDING_ACCESS_SECRET = os.getenv("REMOTE_EMBEDDING_ACCESS_SECRET", "de
 # Reranking Configuration
 # For now we support simple LLMReranker, future additions would include
 # FlagEmbeddingReranker, SentenceTransformerReranker, CohereReranker
-USE_LLM_RERANK = os.getenv("USE_LLM_RERANK", "false").lower() == "true"
 LLM_RERANKER_BATCH_SIZE = int(os.getenv("LLM_RERANKER_BATCH_SIZE", 5))  # Default LLM batch size
 LLM_RERANKER_TOP_N = int(os.getenv("LLM_RERANKER_TOP_N", 3))  # Default top 3 reranked nodes
 
