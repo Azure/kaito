@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from ragengine.models import Document
 from ragengine.vector_store.base import BaseVectorStore

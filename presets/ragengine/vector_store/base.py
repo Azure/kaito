@@ -3,7 +3,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from typing import Dict, List, Optional
 import hashlib
 import os
 
@@ -15,8 +15,7 @@ from llama_index.core.postprocessor import LLMRerank  # Query with LLM Reranking
 from ragengine.models import Document
 from ragengine.embedding.base import BaseEmbeddingModel
 from ragengine.inference.inference import Inference
-from ragengine.config import (USE_LLM_RERANK, LLM_RERANKER_BATCH_SIZE,
-                              LLM_RERANKER_TOP_N, VECTOR_DB_PERSIST_DIR)
+from ragengine.config import (LLM_RERANKER_BATCH_SIZE, LLM_RERANKER_TOP_N, VECTOR_DB_PERSIST_DIR)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
