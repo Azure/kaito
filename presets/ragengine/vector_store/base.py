@@ -10,6 +10,7 @@ import os
 from llama_index.core import Document as LlamaDocument
 from llama_index.core.storage.index_store import SimpleIndexStore
 from llama_index.core import (StorageContext, VectorStoreIndex)
+from llama_index.core.postprocessor import LLMRerank  # Query with LLM Reranking
 
 from ragengine.models import Document
 from ragengine.embedding.base import BaseEmbeddingModel
@@ -93,8 +94,10 @@ class BaseVectorStore(ABC):
         self.llm.set_params(llm_params)
 
         query_engine = self.index_map[index_name].as_query_engine(
-            llm=self.llm, 
-            similarity_top_k=top_k
+            llm=self.llm,
+            similarity_top_k=top_k,
+            streaming=True,
+            node_postprocessors=[self.reranker] or []
         )
         query_result = query_engine.query(query)
         return {
