@@ -219,10 +219,7 @@ jobs:
       - name: Retrieve External Service IP
         id: get_ip
         run: |
-            while [[ -z $SERVICE_IP ]]; do 
-                SERVICE_IP=$(kubectl get svc ${{ matrix.model.name }} -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')
-                sleep 5
-            done 
+            SERVICE_IP=$(kubectl get svc ${{ matrix.model.name }} -o=jsonpath='{.spec.clusterIP}')
             echo "Service IP is $SERVICE_IP"
             echo "SERVICE_IP=$SERVICE_IP" >> $GITHUB_OUTPUT
 
