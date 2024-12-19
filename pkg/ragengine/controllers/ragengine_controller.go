@@ -127,6 +127,14 @@ func (c *RAGEngineReconciler) addRAGEngine(ctx context.Context, ragEngineObj *ka
 		}
 		return reconcile.Result{}, err
 	}
+	if err := c.ensureServices(ctx, ragEngineObj); err != nil {
+		if updateErr := c.updateStatusConditionIfNotMatch(ctx, ragEngineObj, kaitov1alpha1.RAGEngineConditionTypeSucceeded, metav1.ConditionFalse,
+			"ragEngineFailed", err.Error()); updateErr != nil {
+			klog.ErrorS(updateErr, "failed to update ragEngine status", "ragEngine", klog.KObj(ragEngineObj))
+			return reconcile.Result{}, updateErr
+		}
+		return reconcile.Result{}, err
+	}
 	if err = c.applyRAG(ctx, ragEngineObj); err != nil {
 		if updateErr := c.updateStatusConditionIfNotMatch(ctx, ragEngineObj, kaitov1alpha1.RAGEngineConditionTypeSucceeded, metav1.ConditionFalse,
 			"ragengineFailed", err.Error()); updateErr != nil {
@@ -142,6 +150,56 @@ func (c *RAGEngineReconciler) addRAGEngine(ctx context.Context, ragEngineObj *ka
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
+}
+
+func (c *RAGEngineReconciler) ensureServices(ctx context.Context, ragObj *kaitov1alpha1.RAGEngine) error {
+	serviceType := corev1.ServiceTypeClusterIP
+	ragAnnotations := ragObj.GetAnnotations()
+
+	if len(ragAnnotations) != 0 {
+		val, found := ragAnnotations[kaitov1alpha1.AnnotationEnableLB]
+		if found && val == "True" {
+			serviceType = corev1.ServiceTypeLoadBalancer
+		}
+	}
+
+	// Ensure QueryService
+	// TODO: queryServiceName currently does not accept customization for now
+
+	queryServiceName := fmt.Sprintf("%s-query", ragObj.Name)
+
+	if err := c.ensureService(ctx, ragObj, queryServiceName, serviceType, "query"); err != nil {
+		return err
+	}
+
+	// Ensure IndexService
+	// TODO:  queryServiceName currently does not accept customization for now
+
+	indexServiceName := fmt.Sprintf("%s-index", ragObj.Name)
+
+	if err := c.ensureService(ctx, ragObj, indexServiceName, serviceType, "index"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *RAGEngineReconciler) ensureService(ctx context.Context, ragObj *kaitov1alpha1.RAGEngine, serviceName string, serviceType corev1.ServiceType, serviceRole string) error {
+	existingSVC := &corev1.Service{}
+	err := resources.GetResource(ctx, serviceName, ragObj.Namespace, c.Client, existingSVC)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+	} else {
+		return nil
+	}
+	serviceObj := manifests.GenerateRAGServiceManifest(ctx, ragObj, serviceName, serviceType, serviceRole)
+	if err := resources.CreateResource(ctx, serviceObj, c.Client); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *RAGEngineReconciler) applyRAG(ctx context.Context, ragEngineObj *kaitov1alpha1.RAGEngine) error {
