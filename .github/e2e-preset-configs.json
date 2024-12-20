@@ -99,7 +99,8 @@
         "loads_adapter": false
       },
       {
-        "name": "qwen2-5-coder-7b-instruct",
+        "name": "qwen2.5-coder-7b-instruct",
+        "workload": "qwen2-5-coder-7b-instruct",
         "node-count": 1,
         "node-vm-size": "Standard_NC12s_v3",
         "node-osdisk-size": 100,
