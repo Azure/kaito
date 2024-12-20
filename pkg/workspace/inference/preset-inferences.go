@@ -17,6 +17,7 @@ import (
 	"github.com/kaito-project/kaito/pkg/utils/resources"
 	"github.com/kaito-project/kaito/pkg/workspace/manifests"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
@@ -131,8 +132,13 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	model model.Model, kubeClient client.Client) (client.Object, error) {
 	inferenceParam := model.GetInferenceParameters().DeepCopy()
 
+	configVolume, err := EnsureInferenceConfigMap(ctx, workspaceObj, kubeClient)
+	if err != nil {
+		return nil, err
+	}
+
 	if model.SupportDistributedInference() {
-		if err := updateTorchParamsForDistributedInference(ctx, kubeClient, workspaceObj, inferenceParam); err != nil { //
+		if err := updateTorchParamsForDistributedInference(ctx, kubeClient, workspaceObj, inferenceParam); err != nil {
 			klog.ErrorS(err, "failed to update torch params", "workspace", workspaceObj)
 			return nil, err
 		}
@@ -157,6 +163,12 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 	// additional volume
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
+
+	// Add config volume mount
+	cmVolume, cmVolumeMount := utils.ConfigCMVolume(configVolume.Name)
+	volumes = append(volumes, cmVolume)
+	volumeMounts = append(volumeMounts, cmVolumeMount)
+
 	// add share memory for cross process communication
 	shmVolume, shmVolumeMount := utils.ConfigSHMVolume(skuGPUCount)
 	if shmVolume.Name != "" {
@@ -173,7 +185,7 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 
 	// inference command
 	runtimeName := kaitov1alpha1.GetWorkspaceRuntimeName(workspaceObj)
-	commands := inferenceParam.GetInferenceCommand(runtimeName, skuNumGPUs)
+	commands := inferenceParam.GetInferenceCommand(runtimeName, skuNumGPUs, &cmVolumeMount)
 
 	image, imagePullSecrets := GetInferenceImageInfo(ctx, workspaceObj, inferenceParam)
 
@@ -190,4 +202,71 @@ func CreatePresetInference(ctx context.Context, workspaceObj *kaitov1alpha1.Work
 		return nil, err
 	}
 	return depObj, nil
+}
+
+// EnsureInferenceConfigMap handles two scenarios:
+// 1. User provided config (workspaceObj.Inference.Config):
+//   - Check if it exists in the target namespace
+//   - If not found, return error as this is user-specified
+//
+// 2. No user config specified:
+//   - Use the default config template (inference-params-template)
+//   - Check if it exists in the target namespace
+//   - If not, copy from release namespace to target namespace
+func EnsureInferenceConfigMap(ctx context.Context, workspaceObj *kaitov1alpha1.Workspace,
+	kubeClient client.Client) (*corev1.ConfigMap, error) {
+
+	// If user specified a config, use that
+	if workspaceObj.Inference.Config != "" {
+		userCM := &corev1.ConfigMap{}
+		err := resources.GetResource(ctx, workspaceObj.Inference.Config, workspaceObj.Namespace, kubeClient, userCM)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return nil, fmt.Errorf("user specified ConfigMap %s not found in namespace %s",
+					workspaceObj.Inference.Config, workspaceObj.Namespace)
+			}
+			return nil, err
+		}
+
+		return userCM, nil
+	}
+
+	// Otherwise use default template
+	configMapName := kaitov1alpha1.DefaultInferenceConfigTemplate
+
+	// Check if default configmap already exists in target namespace
+	existingCM := &corev1.ConfigMap{}
+	err := resources.GetResource(ctx, configMapName, workspaceObj.Namespace, kubeClient, existingCM)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return nil, err
+		}
+	} else {
+		klog.Infof("Default ConfigMap already exists in target namespace: %s, no action taken.", workspaceObj.Namespace)
+		return existingCM, nil
+	}
+
+	// Copy default template from release namespace if not found
+	releaseNamespace, err := utils.GetReleaseNamespace()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get release namespace: %v", err)
+	}
+
+	templateCM := &corev1.ConfigMap{}
+	err = resources.GetResource(ctx, configMapName, releaseNamespace, kubeClient, templateCM)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get default ConfigMap from template namespace: %v", err)
+	}
+
+	templateCM.Namespace = workspaceObj.Namespace
+	templateCM.ResourceVersion = "" // Clear metadata not needed for creation
+	templateCM.UID = ""             // Clear UID
+
+	err = resources.CreateResource(ctx, templateCM, kubeClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create default ConfigMap in target namespace %s: %v",
+			workspaceObj.Namespace, err)
+	}
+
+	return templateCM, nil
 }
