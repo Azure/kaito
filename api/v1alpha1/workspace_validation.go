@@ -29,9 +29,10 @@ const (
 	N_SERIES_PREFIX = "Standard_N"
 	D_SERIES_PREFIX = "Standard_D"
 
-	DefaultLoraConfigMapTemplate  = "lora-params-template"
-	DefaultQloraConfigMapTemplate = "qlora-params-template"
-	MaxAdaptersNumber             = 10
+	DefaultLoraConfigMapTemplate   = "lora-params-template"
+	DefaultQloraConfigMapTemplate  = "qlora-params-template"
+	DefaultInferenceConfigTemplate = "inference-params-template"
+	MaxAdaptersNumber              = 10
 )
 
 func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {

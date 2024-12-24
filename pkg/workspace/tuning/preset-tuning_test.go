@@ -28,24 +28,6 @@ func normalize(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-// Saves state of current env, and returns function to restore to saved state
-func saveEnv(key string) func() {
-	envVal, envExists := os.LookupEnv(key)
-	return func() {
-		if envExists {
-			err := os.Setenv(key, envVal)
-			if err != nil {
-				return
-			}
-		} else {
-			err := os.Unsetenv(key)
-			if err != nil {
-				return
-			}
-		}
-	}
-}
-
 func TestGetInstanceGPUCount(t *testing.T) {
 	os.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
 
@@ -224,7 +206,7 @@ func TestEnsureTuningConfigMap(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			cleanupEnv := saveEnv(consts.DefaultReleaseNamespaceEnvVar)
+			cleanupEnv := test.SaveEnv(consts.DefaultReleaseNamespaceEnvVar)
 			defer cleanupEnv()
 
 			if tc.setupEnv != nil {

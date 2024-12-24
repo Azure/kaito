@@ -15,10 +15,13 @@ import (
 	"github.com/kaito-project/kaito/pkg/utils/test"
 
 	"github.com/kaito-project/kaito/pkg/utils/plugin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 var ValidStrength string = "0.5"
@@ -41,12 +44,13 @@ func TestCreatePresetInference(t *testing.T) {
 			nodeCount: 1,
 			modelName: "test-model",
 			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.TODO()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 			},
 			workload: "Deployment",
 			// No BaseCommand, TorchRunParams, TorchRunRdzvParams, or ModelRunParams
 			// So expected cmd consists of shell command and inference file
-			expectedCmd: "/bin/sh -c python3 /workspace/vllm/inference_api.py --tensor-parallel-size=2 --served-model-name=mymodel",
+			expectedCmd: "/bin/sh -c python3 /workspace/vllm/inference_api.py --tensor-parallel-size=2 --served-model-name=mymodel --kaito-config-file=/mnt/config/inference_config.yaml",
 			hasAdapters: false,
 		},
 
@@ -55,12 +59,13 @@ func TestCreatePresetInference(t *testing.T) {
 			nodeCount: 1,
 			modelName: "test-no-tensor-parallel-model",
 			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.TODO()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 			},
 			workload: "Deployment",
 			// No BaseCommand, TorchRunParams, TorchRunRdzvParams, or ModelRunParams
 			// So expected cmd consists of shell command and inference file
-			expectedCmd: "/bin/sh -c python3 /workspace/vllm/inference_api.py",
+			expectedCmd: "/bin/sh -c python3 /workspace/vllm/inference_api.py --kaito-config-file=/mnt/config/inference_config.yaml",
 			hasAdapters: false,
 		},
 
@@ -69,10 +74,11 @@ func TestCreatePresetInference(t *testing.T) {
 			nodeCount: 1,
 			modelName: "test-model",
 			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.TODO()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 			},
 			workload:       "Deployment",
-			expectedCmd:    "/bin/sh -c python3 /workspace/vllm/inference_api.py --tensor-parallel-size=2 --served-model-name=mymodel",
+			expectedCmd:    "/bin/sh -c python3 /workspace/vllm/inference_api.py --tensor-parallel-size=2 --served-model-name=mymodel --kaito-config-file=/mnt/config/inference_config.yaml",
 			hasAdapters:    true,
 			expectedVolume: "adapter-volume",
 		},
@@ -82,6 +88,7 @@ func TestCreatePresetInference(t *testing.T) {
 			nodeCount: 1,
 			modelName: "test-model",
 			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.TODO()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 			},
 			workload: "Deployment",
@@ -96,6 +103,7 @@ func TestCreatePresetInference(t *testing.T) {
 			nodeCount: 1,
 			modelName: "test-distributed-model",
 			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.TODO()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(nil)
 				c.On("Get", mock.IsType(context.TODO()), mock.Anything, mock.IsType(&corev1.Service{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.StatefulSet{}), mock.Anything).Return(nil)
 			},
@@ -109,6 +117,7 @@ func TestCreatePresetInference(t *testing.T) {
 			nodeCount: 1,
 			modelName: "test-model",
 			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.TODO()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(nil)
 				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 			},
 			workload:       "Deployment",
@@ -233,4 +242,95 @@ func toParameterMap(in []string) map[string]string {
 		}
 	}
 	return ret
+}
+
+func TestEnsureInferenceConfigMap(t *testing.T) {
+	testcases := map[string]struct {
+		setupEnv      func()
+		callMocks     func(c *test.MockClient)
+		workspaceObj  *v1alpha1.Workspace
+		expectedError string
+	}{
+		"Config already exists in workspace namespace": {
+			setupEnv: func() {
+				os.Setenv(consts.DefaultReleaseNamespaceEnvVar, "release-namespace")
+			},
+			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(nil)
+			},
+			workspaceObj: &v1alpha1.Workspace{
+				Inference: &v1alpha1.InferenceSpec{
+					Config: "inference-config-template",
+				},
+			},
+			expectedError: "",
+		},
+		"Error finding release namespace": {
+			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(errors.NewNotFound(schema.GroupResource{}, "inference-config-template"))
+			},
+			workspaceObj: &v1alpha1.Workspace{
+				Inference: &v1alpha1.InferenceSpec{},
+			},
+			expectedError: "failed to get release namespace: failed to determine release namespace from file /var/run/secrets/kubernetes.io/serviceaccount/namespace and env var RELEASE_NAMESPACE",
+		},
+		"Config doesn't exist in namespace": {
+			setupEnv: func() {
+				os.Setenv(consts.DefaultReleaseNamespaceEnvVar, "release-namespace")
+			},
+			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).Return(errors.NewNotFound(schema.GroupResource{}, "inference-config-template"))
+			},
+			workspaceObj: &v1alpha1.Workspace{
+				Inference: &v1alpha1.InferenceSpec{
+					Config: "inference-config-template",
+				},
+			},
+			expectedError: "user specified ConfigMap inference-config-template not found in namespace workspace-namespace",
+		},
+		"Generate default config": {
+			setupEnv: func() {
+				os.Setenv(consts.DefaultReleaseNamespaceEnvVar, "release-namespace")
+			},
+			callMocks: func(c *test.MockClient) {
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).
+					Return(errors.NewNotFound(schema.GroupResource{}, "inference-params-template")).Times(4)
+
+				c.On("Get", mock.IsType(context.Background()), mock.Anything, mock.IsType(&corev1.ConfigMap{}), mock.Anything).
+					Run(func(args mock.Arguments) {
+						cm := args.Get(2).(*corev1.ConfigMap)
+						cm.Name = "inference-params-template"
+					}).Return(nil)
+
+				c.On("Create", mock.IsType(context.Background()), mock.MatchedBy(func(cm *corev1.ConfigMap) bool {
+					return cm.Name == "inference-params-template" && cm.Namespace == "workspace-namespace"
+				}), mock.Anything).Return(nil)
+			},
+			workspaceObj: &v1alpha1.Workspace{
+				Inference: &v1alpha1.InferenceSpec{},
+			},
+			expectedError: "",
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			cleanupEnv := test.SaveEnv(consts.DefaultReleaseNamespaceEnvVar)
+			defer cleanupEnv()
+
+			if tc.setupEnv != nil {
+				tc.setupEnv()
+			}
+			mockClient := test.NewClient()
+			tc.callMocks(mockClient)
+			tc.workspaceObj.SetNamespace("workspace-namespace")
+			_, err := EnsureInferenceConfigMap(context.Background(), tc.workspaceObj, mockClient)
+			if tc.expectedError != "" {
+				assert.EqualError(t, err, tc.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+			mockClient.AssertExpectations(t)
+		})
+	}
 }
