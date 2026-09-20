@@ -482,10 +482,21 @@ var gpuMemoryUtilizationByModelAndGPU = map[modelGPUKey]string{
 	{modelName: "deepseek-v4-pro", gpuModel: "NVIDIA H100"}: "0.91",
 }
 
-// ResolveGPUMemoryUtilization returns the --gpu-memory-utilization vLLM should be
-// launched with for the given GPU. A per-GPU-model safety cap (clamps down for
-// tight-VRAM GPUs) wins over the default.
-func ResolveGPUMemoryUtilization(gpuModel string) string {
+var gpuMemoryUtilizationByModel = map[string]map[string]string{
+	// Reserve additional headroom for cataloged Gemma 4 models on tight A10 fits.
+	"gemma-4-e4b-it": {"NVIDIA A10": "0.80"},
+	"gemma-4-e2b-it": {"NVIDIA A10": "0.80"},
+}
+
+// ResolveGPUMemoryUtilization returns the --gpu-memory-utilization vLLM should
+// use for the given model and GPU. Model-specific overrides take precedence over
+// per-GPU overrides and the default.
+func ResolveGPUMemoryUtilization(modelName, gpuModel string) string {
+	if byGPUModel, ok := gpuMemoryUtilizationByModel[strings.ToLower(modelName)]; ok {
+		if util, ok := byGPUModel[sku.CanonicalGPUModel(gpuModel)]; ok {
+			return util
+		}
+	}
 	if util, ok := gpuMemoryUtilizationByGPUModel[sku.CanonicalGPUModel(gpuModel)]; ok {
 		return util
 	}
@@ -527,7 +538,7 @@ func (p *PresetParam) buildVLLMInferenceCommand(rc RuntimeContext) []string {
 		gpuModel = rc.GPUConfig.GPUModel
 	}
 	policyGPUModel := sku.CanonicalGPUModel(gpuModel)
-	gpuMemoryUtilization := ResolveGPUMemoryUtilization(gpuModel)
+	gpuMemoryUtilization := ResolveGPUMemoryUtilization(p.Name, gpuModel)
 	if modelUtilization, ok := gpuMemoryUtilizationByModelAndGPU[modelGPUKey{modelName: p.VLLM.ModelName, gpuModel: policyGPUModel}]; ok {
 		gpuMemoryUtilization = modelUtilization
 	}
