@@ -66,6 +66,21 @@ helm install workspace ./charts/kaito/workspace  \
 
 If your cluster already has the [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/index.html) installed, it provides its own Node Feature Discovery (NFD) and GPU Feature Discovery (GFD) components. Installing KAITO's bundled copies will cause **CRD and resource conflicts**.
 
+LMCache MP native-sidecar mode requires the NVIDIA Container Toolkit and the
+`nvidia` RuntimeClass in addition to the device plugin. Install or validate the
+pinned runtime stack before installing the workspace chart:
+
+```bash
+./hack/deploy/install-gpu-operator.sh
+```
+
+The script installs GPU Operator `v26.7.0` with driver and toolkit installation
+disabled for managed KAITO GPU node images, which already contain NVIDIA
+Container Runtime. It creates `RuntimeClass/nvidia` using the baked
+`nvidia-container-runtime` handler, or reuses an existing stack only when its
+`ClusterPolicy` is Ready and `RuntimeClass/nvidia` exists. A partial stack is an
+error; the script never installs a second operator alongside it.
+
 ### How the GFD subchart is controlled
 
 The `gpu-feature-discovery` subchart is **only installed** when `featureGates.disableNodeAutoProvisioning=true`. By default, this value is `false`, so the GFD subchart is not deployed and no NFD/GFD conflicts will occur.
@@ -90,5 +105,10 @@ helm install workspace ./charts/kaito/workspace \
   --set gpu-feature-discovery.gfd.enabled=false \
   --set nvidiaDevicePlugin.enabled=false
 ```
+
+This is the required workspace profile when the bootstrap script manages GPU
+Operator. With Node Auto-Provisioning enabled, only
+`nvidiaDevicePlugin.enabled=false` is required because the GFD subchart is not
+installed.
 
 > **Note:** If you are using the default configuration (`featureGates.disableNodeAutoProvisioning=false`), the `gpu-feature-discovery` subchart is not installed at all, and no NFD/GFD overrides are needed.

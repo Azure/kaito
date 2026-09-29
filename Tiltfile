@@ -42,6 +42,8 @@ def main(IMG='controller:latest', DISABLE_SECURITY_CONTEXT=True):
             gfd_flags += ' --set gpu-feature-discovery.nfd.enabled={}'.format(str(gfd_settings['nfd']['enabled']).lower())
         if 'enabled' in gfd_settings.get('gfd', {}):
             gfd_flags += ' --set gpu-feature-discovery.gfd.enabled={}'.format(str(gfd_settings['gfd']['enabled']).lower())
+        nvidia_device_plugin_enabled = gfd_settings.get('nvidiaDevicePlugin', {}).get('enabled', True)
+        gfd_flags += ' --set nvidiaDevicePlugin.enabled={}'.format(str(nvidia_device_plugin_enabled).lower())
 
         helm_template = 'helm template kaito-workspace ./charts/kaito/workspace --namespace kaito-workspace --set clusterName={} --set image.repository=controller --set image.tag=latest --set enableBaseImageAutoUpgrade={} --set featureGates.gatewayAPIInferenceExtension={} --set featureGates.disableNodeAutoProvisioning={} --set featureGates.enableInferenceSetController={} --set featureGates.enableMIG={} --set nodeProvisioner={} --set presetRegistryName={}'.format(cluster_name, feature_gates.get('enableBaseImageAutoUpgrade', False), feature_gates['gatewayAPIInferenceExtension'], feature_gates['disableNodeAutoProvisioning'], feature_gates.get('enableInferenceSetController', False), feature_gates.get('enableMIG', False), node_provisioner, preset_registry) + gfd_flags
         # Set the image name and tag to controller:latest for Tilt to
@@ -109,11 +111,12 @@ def main(IMG='controller:latest', DISABLE_SECURITY_CONTEXT=True):
                  'validation.workspace.kaito.sh:validatingwebhookconfiguration',
         ],
     )
-    k8s_resource(
-        workload='nvidia-device-plugin-daemonset',
-        new_name='device plugin',
-        labels='Dependencies',
-    )
+    if settings.get('gpu_feature_discovery', {}).get('nvidiaDevicePlugin', {}).get('enabled', True):
+        k8s_resource(
+            workload='nvidia-device-plugin-daemonset',
+            new_name='device plugin',
+            labels='Dependencies',
+        )
 
     # Re-compile the manager binary when anything in deps changes.
     local_resource(

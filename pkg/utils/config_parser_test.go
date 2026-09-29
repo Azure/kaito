@@ -89,3 +89,18 @@ func TestParseExplicitMaxModelLen(t *testing.T) {
 		})
 	}
 }
+
+func TestParseKVCacheCPUUtilization(t *testing.T) {
+	value, found := ParseKVCacheCPUUtilization("kv_cache_cpu_memory_utilization: 0\n")
+	assert.True(t, found)
+	assert.Equal(t, 0.0, value)
+
+	_, found = ParseKVCacheCPUUtilization("vllm:\n  max-model-len: 4096\n")
+	assert.False(t, found)
+}
+
+func TestHasVLLMConfigKey(t *testing.T) {
+	config := "vllm:\n  kv-transfer-config: '{\"kv_connector\":\"Custom\"}'\n"
+	assert.True(t, HasVLLMConfigKey(config, "kv-transfer-config"))
+	assert.False(t, HasVLLMConfigKey(config, "max-model-len"))
+}

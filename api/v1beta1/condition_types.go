@@ -71,6 +71,10 @@ const (
 	// WorkspaceConditionTypeModelMirrorReady indicates the ModelMirror download is complete and model is ready for streaming.
 	WorkspaceConditionTypeModelMirrorReady = ConditionType("ModelMirrorReady")
 
+	// WorkspaceConditionTypeLMCacheReady reports whether the managed LMCache
+	// native sidecar is enabled and ready for the inference workload.
+	WorkspaceConditionTypeLMCacheReady = ConditionType("LMCacheReady")
+
 	// WorkspaceConditionTypeModelConfigReady reports whether a bring-your-own
 	// model's configuration resolved successfully and still matches what the
 	// deployment was sized and configured from. It also carries artifact-level

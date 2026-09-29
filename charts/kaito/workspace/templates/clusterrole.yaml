@@ -84,6 +84,12 @@ rules:
   - apiGroups: ["storage.k8s.io"]
     resources: ["storageclasses"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["node.k8s.io"]
+    resources: ["runtimeclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["nvidia.com"]
+    resources: ["clusterpolicies"]
+    verbs: ["get", "list", "watch"]
   {{- if .Values.featureGates.gatewayAPIInferenceExtension }}
   - apiGroups: ["source.toolkit.fluxcd.io"]
     resources: ["ocirepositories"]
