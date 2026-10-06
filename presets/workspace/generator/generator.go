@@ -289,13 +289,20 @@ var (
 		"qwen2.5":     "tool-chat-hermes.jinja",
 	}
 
-	// tokenizerModePrefixMap maps model name prefixes to their vLLM tokenizer mode.
+	// tokenizerModePrefixMap contains name-based exceptions whose architecture
+	// belongs to another model family, such as DeepSeek R1 distills.
 	tokenizerModePrefixMap = map[string]string{
-		// Use deepseek_v32 tokenizer mode for both DeepSeek R1 and V3 models to avoid special token decoding issues:
+		// Use deepseek_v32 tokenizer mode for DeepSeek R1 distills to avoid special token decoding issues:
 		// https://github.com/kaito-project/kaito/issues/1976
 		"deepseek-r1": "deepseek_v32",
-		"deepseek-v3": "deepseek_v32",
-		"deepseek-v4": "deepseek_v4",
+	}
+
+	tokenizerModeArchMap = map[string]string{
+		"DeepseekV3ForCausalLM":              "deepseek_v32",
+		"DeepseekV32ForCausalLM":             "deepseek_v32",
+		"DeepseekV4ForCausalLM":              "deepseek_v4",
+		"DeepseekV4ForConditionalGeneration": "deepseek_v4",
+		"DeepseekV41ForCausalLM":             "deepseek_v41",
 	}
 
 	// vllmAttentionBackendPrefixMap maps model name prefixes to their vLLM attention backend.
@@ -306,23 +313,20 @@ var (
 	// source: https://docs.vllm.ai/en/latest/configuration/engine_args/#-moe-backend
 	vllmMoeBackendOverride = map[string]string{}
 
-	// vllmKVCacheDtypePrefixMap maps model name prefixes to their required vLLM
+	// vllmEngramConfigArchMap maps model architectures to their vLLM Engram configuration.
+	vllmEngramConfigArchMap = map[string]string{
+		// source: https://recipes.vllm.ai/deepseek-ai/DeepSeek-V4.1-Flash?hardware=h100&strategy=single_node_tep
+		"DeepseekV41ForCausalLM": `'{"cpu_offload":true}'`,
+	}
+
+	// vllmKVCacheDtypeArchMap maps model architectures to their required vLLM
 	// kv-cache-dtype. Some architectures only support a specific KV cache format
 	// and assert at engine init otherwise.
 	// source: https://docs.vllm.ai/en/latest/configuration/engine_args/#-kv-cache-dtype
-	vllmKVCacheDtypePrefixMap = map[string]string{
-		// DeepSeek-V4 (Flash, Pro, ...) asserts "only supports fp8 kv-cache format
-		// for now" when the kv-cache-dtype is left at the default "auto".
-		"deepseek-v4": "fp8",
-		// GLM-5.2-FP8's recipe serves with an fp8 kv-cache to roughly halve the KV
-		// footprint (enabling its full context window).
-		// source: https://recipes.vllm.ai/zai-org/GLM-5.2
-		"glm-5.2-fp8": "fp8",
-		// source: https://recipes.vllm.ai/zai-org/GLM-5.3
-		"glm-5.3": "fp8",
-		// Hopper requires BF16 KV cache for Flash; "auto" uses the model dtype.
-		// source: https://recipes.vllm.ai/zai-org/GLM-5.3-Flash
-		"glm-5.3-flash": "auto",
+	vllmKVCacheDtypeArchMap = map[string]string{
+		"DeepseekV4ForCausalLM":              "fp8",
+		"DeepseekV4ForConditionalGeneration": "fp8",
+		"GlmMoeDsaForCausalLM":               "fp8",
 	}
 
 	// vllmGdnPrefillBackendPrefixMap maps model name prefixes to their vLLM GDN prefill backend.
@@ -335,23 +339,27 @@ var (
 		"qwen3.8": "triton",
 	}
 
-	// vllmExpertParallelEnabled maps model name prefixes to enable expert parallelism.
+	// vllmExpertParallelEnabledArchMap lists model architectures that enable expert parallelism.
 	// Expert parallelism distributes MoE experts across TP ranks, which can avoid
 	// FP8 block quantization issues when expert weight dimensions are not divisible
 	// by the quantization block size.
 	// source: https://docs.vllm.ai/en/latest/configuration/engine_args/#-enable-expert-parallel
-	vllmExpertParallelEnabled = map[string]bool{
-		"minimax-m2":    true,
-		"glm-5.3-flash": true,
+	vllmExpertParallelEnabledArchMap = map[string]bool{
+		"MiniMaxM2ForCausalLM":             true,
+		"Glm5NextForCausalLM":              true,
+		"Glm5NextForConditionalGeneration": true,
+		"DeepseekV41ForCausalLM":           true,
 	}
 
-	// vllmDisableFlashInferAutotunePrefixMap disables vLLM's FlashInfer kernel autotuning
-	vllmDisableFlashInferAutotunePrefixMap = map[string]bool{
+	// vllmDisableFlashInferAutotuneArchMap lists architectures that disable
+	// vLLM's FlashInfer kernel autotuning.
+	vllmDisableFlashInferAutotuneArchMap = map[string]bool{
 		// DeepSeek-V3.2's recipe requires disabling it explicitly.
 		// source: https://recipes.vllm.ai/deepseek-ai/DeepSeek-V3.2
-		"deepseek-v3.2": true,
+		"DeepseekV32ForCausalLM": true,
 		// source: https://recipes.vllm.ai/zai-org/GLM-5.3-Flash
-		"glm-5.3-flash": true,
+		"Glm5NextForCausalLM":              true,
+		"Glm5NextForConditionalGeneration": true,
 	}
 
 	// catalogOverrides provides hardcoded values for models whose HuggingFace
@@ -993,9 +1001,16 @@ func computeMambaStateBytesPerSeq(config map[string]interface{}) int {
 	return info.PerLayerBytes * info.NumLinearLayers
 }
 
-// applyFamilyRunParams sets the vLLM run parameters selected by model name.
+// applyFamilyRunParams sets the vLLM run parameters selected by model architecture
+// and name-based family exceptions.
 func (g *Generator) applyFamilyRunParams() {
 	params := g.Param.VLLM.ModelRunParams
+	for _, arch := range g.Param.Metadata.Architectures {
+		if mode, ok := tokenizerModeArchMap[arch]; ok {
+			params["tokenizer_mode"] = mode
+			break
+		}
+	}
 	if mode, ok := lookupFamilyPrefix(g, tokenizerModePrefixMap); ok {
 		params["tokenizer_mode"] = mode
 	}
@@ -1005,18 +1020,33 @@ func (g *Generator) applyFamilyRunParams() {
 	if backend, ok := lookupFamilyExact(g, vllmMoeBackendOverride); ok {
 		params["moe-backend"] = backend
 	}
-	if dtype, ok := lookupFamilyPrefix(g, vllmKVCacheDtypePrefixMap); ok {
-		params["kv-cache-dtype"] = dtype
+	for _, arch := range g.Param.Metadata.Architectures {
+		if config, ok := vllmEngramConfigArchMap[arch]; ok {
+			params["engram-config"] = config
+			break
+		}
+	}
+	for _, arch := range g.Param.Metadata.Architectures {
+		if dtype, ok := vllmKVCacheDtypeArchMap[arch]; ok {
+			params["kv-cache-dtype"] = dtype
+			break
+		}
 	}
 	if backend, ok := lookupFamilyPrefix(g, vllmGdnPrefillBackendPrefixMap); ok {
 		params["gdn-prefill-backend"] = backend
 	}
-	if enabled, _ := lookupFamilyPrefix(g, vllmExpertParallelEnabled); enabled {
-		params["enable-expert-parallel"] = ""
+	for _, arch := range g.Param.Metadata.Architectures {
+		if vllmExpertParallelEnabledArchMap[arch] {
+			params["enable-expert-parallel"] = ""
+			break
+		}
 	}
 	// Emitted as --kernel-config.enable_flashinfer_autotune=False.
-	if disable, _ := lookupFamilyPrefix(g, vllmDisableFlashInferAutotunePrefixMap); disable {
-		params["kernel-config.enable_flashinfer_autotune"] = "False"
+	for _, arch := range g.Param.Metadata.Architectures {
+		if vllmDisableFlashInferAutotuneArchMap[arch] {
+			params["kernel-config.enable_flashinfer_autotune"] = "False"
+			break
+		}
 	}
 }
 
