@@ -26,9 +26,12 @@ import threading
 import unicodedata
 from enum import StrEnum
 
+import json_repair
+import regex
 from detect_secrets.core.secrets_collection import SecretsCollection
 from detect_secrets.settings import default_settings
 
+_JSON_PATTERN = r"(?<!\\)(?:\\\\)*\{(?:[^{}]|(?R))*\}"
 # Compatibility patterns for token formats not fully detected by the currently
 # pinned detect-secrets defaults.
 _DETECT_SECRETS_COMPATIBILITY_PATTERNS = (
@@ -256,8 +259,8 @@ class NativeInvisibleTextScanner:
 class NativeJSONScanner:
     """KAITO-owned JSON validation and repair scanner.
 
-    Validates that output is valid JSON. Can optionally attempt to repair
-    malformed JSON using a simple heuristic repair algorithm.
+    Finds JSON objects in output text, validates each candidate, and optionally
+    repairs malformed candidates.
     """
 
     def __init__(
@@ -267,6 +270,7 @@ class NativeJSONScanner:
     ) -> None:
         self.required_elements = required_elements
         self.repair = repair
+        self._pattern = regex.compile(_JSON_PATTERN, re.DOTALL)
 
     def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
         """Scan output for valid JSON and optionally repair it.
@@ -277,75 +281,59 @@ class NativeJSONScanner:
 
         Returns:
             (output, valid, score):
-                output: Original output, or repaired JSON if repair=True and fixable.
-                valid: True if output is valid JSON and meets required_elements.
+                output: Original output with repairable JSON candidates repaired.
+                valid: True if all candidates are valid and enough are present.
                 score: Conformant to KAITO scanner contract: -1.0 when valid,
                     1.0 when invalid.
         """
         del prompt
 
         if output.strip() == "":
-            return output, False, 1.0
-
-        # Try to parse as JSON
-        try:
-            parsed = json.loads(output)
-            # Check if it meets minimum element requirement
-            if self.required_elements > 0 and (
-                (isinstance(parsed, dict) and len(parsed) < self.required_elements)
-                or (isinstance(parsed, list) and len(parsed) < self.required_elements)
-            ):
-                return output, False, 1.0
             return output, True, -1.0
-        except (json.JSONDecodeError, ValueError):
+
+        json_candidates = self._pattern.findall(output)
+        valid_jsons = []
+        for json_candidate in json_candidates:
+            if self._is_valid_json(json_candidate):
+                valid_jsons.append(json_candidate)
+                continue
+
             if not self.repair:
-                return output, False, 1.0
+                continue
 
-            # Attempt simple repair strategies
-            repaired = self._attempt_repair(output)
-            if repaired is not None:
-                try:
-                    parsed = json.loads(repaired)
-                    if self.required_elements > 0 and (
-                        (
-                            isinstance(parsed, dict)
-                            and len(parsed) < self.required_elements
-                        )
-                        or (
-                            isinstance(parsed, list)
-                            and len(parsed) < self.required_elements
-                        )
-                    ):
-                        return output, False, 1.0
-                    return repaired, True, -1.0
-                except (json.JSONDecodeError, ValueError):
-                    return output, False, 1.0
+            repaired_json = self._repair_json(json_candidate)
+            if not self._is_valid_json(repaired_json):
+                continue
 
+            valid_jsons.append(repaired_json)
+            output = output.replace(json_candidate, repaired_json)
+
+        if len(valid_jsons) < self.required_elements:
             return output, False, 1.0
 
-    def _attempt_repair(self, output: str) -> str | None:
-        """Attempt to repair malformed JSON using simple heuristics.
+        if len(valid_jsons) != len(json_candidates):
+            return output, False, 1.0
 
-        Returns:
-            Repaired JSON string if repair was successful, None otherwise.
-        """
-        text = output.strip()
+        return output, True, -1.0
 
-        # Try adding closing braces/brackets if missing
-        if text.startswith("{"):
-            braces_to_add = text.count("{") - text.count("}")
-            text_with_close = text + "}" * braces_to_add
-        elif text.startswith("["):
-            brackets_to_add = text.count("[") - text.count("]")
-            text_with_close = text + "]" * brackets_to_add
-        else:
-            return None
-
+    @staticmethod
+    def _is_valid_json(json_string: str) -> bool:
         try:
-            json.loads(text_with_close)
-            return text_with_close
-        except (json.JSONDecodeError, ValueError):
-            return None
+            json.loads(json_string)
+        except ValueError:
+            return False
+        return True
+
+    @staticmethod
+    def _repair_json(json_string: str) -> str:
+        try:
+            return json_repair.repair_json(
+                json_string,
+                skip_json_loads=True,
+                return_objects=False,
+            )
+        except ValueError:
+            return json_string
 
 
 class NativeReadingTimeScanner:
@@ -450,7 +438,7 @@ class NativeTokenLimitScanner:
         Returns:
             (output, valid, score):
                 output: Original output, or truncated to fit within limit.
-                valid: True if token count <= limit, False if truncated.
+                valid: True if token count is less than limit, False otherwise.
                 score: Conformant to KAITO scanner contract: -1.0 when valid,
                     1.0 when invalid.
         """
@@ -463,7 +451,7 @@ class NativeTokenLimitScanner:
         tokens = tokenizer.encode(output)
         token_count = len(tokens)
 
-        if token_count <= self.limit:
+        if token_count < self.limit:
             return output, True, -1.0
 
         # Truncate to fit within limit

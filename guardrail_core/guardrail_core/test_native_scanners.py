@@ -237,46 +237,40 @@ class TestNativeInvisibleTextScanner:
 class TestNativeJSONScanner:
     """Test native JSON scanner."""
 
-    def test_valid_json_passed(self):
-        """Test valid JSON passes."""
-        scanner = NativeJSONScanner()
-        output, valid, score = scanner.scan("", '{"key": "value"}')
-        assert valid
-        assert score == -1.0
+    @pytest.mark.parametrize(
+        ("output", "required_elements", "expected_valid"),
+        [
+            ("", 0, True),
+            ('Here is the result:\n{"a": 1}', 1, True),
+            ('first {"a": 1} second {"b": 2}', 2, True),
+            ('{"a": 1, "b": 2}', 2, False),
+            ("plain text", 0, True),
+            ("plain text", 1, False),
+            ('good {"a": 1} bad {"b": }', 1, False),
+        ],
+    )
+    def test_matches_legacy_candidate_semantics(
+        self, output, required_elements, expected_valid
+    ):
+        scanner = NativeJSONScanner(
+            required_elements=required_elements,
+            repair=False,
+        )
 
-    def test_invalid_json_failed(self):
-        """Test invalid JSON fails without repair."""
-        scanner = NativeJSONScanner(repair=False)
-        output, valid, score = scanner.scan("", '{"key": "value"')
-        assert not valid
-        assert score == 1.0
+        assert scanner.scan("", output) == (
+            output,
+            expected_valid,
+            -1.0 if expected_valid else 1.0,
+        )
 
-    def test_repair_success(self):
-        """Test JSON repair succeeds."""
-        scanner = NativeJSONScanner(repair=True)
-        output, valid, score = scanner.scan("", '{"key": "value"')
-        assert valid
-        assert score == -1.0
+    def test_repairs_embedded_json_candidate(self):
+        scanner = NativeJSONScanner(required_elements=1, repair=True)
 
-    def test_repair_failure_invalid(self):
-        """Test repair failure returns invalid."""
-        scanner = NativeJSONScanner(repair=True)
-        broken_json = "this is not json at all"
-        output, valid, score = scanner.scan("", broken_json)
-        assert not valid
-        assert score == 1.0
-        assert output == broken_json
-
-    def test_required_elements_check(self):
-        """Test required_elements validation."""
-        scanner = NativeJSONScanner(required_elements=2)
-        output, valid, score = scanner.scan("", '{"a": 1, "b": 2}')
-        assert valid
-        # Below requirement fails
-        scanner2 = NativeJSONScanner(required_elements=3)
-        output2, valid2, score2 = scanner2.scan("", '{"a": 1}')
-        assert not valid2
-        assert score2 == 1.0
+        assert scanner.scan("", 'result {"a": 1,}') == (
+            'result {"a": 1}',
+            True,
+            -1.0,
+        )
 
 
 class TestNativeReadingTimeScanner:
@@ -313,47 +307,40 @@ class TestNativeTokenLimitScanner:
 
     def test_within_limit(self):
         """Test token count within limit."""
-        try:
-            scanner = NativeTokenLimitScanner(limit=100)
-            output, valid, score = scanner.scan("", "Hello world")
-            assert valid
-            assert score == -1.0
-        except ImportError:
-            pass
+        scanner = NativeTokenLimitScanner(limit=100)
+        output, valid, score = scanner.scan("", "Hello world")
+        assert valid
+        assert score == -1.0
 
     def test_exceed_limit_with_truncate(self):
         """Test token count exceeds limit and is truncated."""
-        try:
-            scanner = NativeTokenLimitScanner(limit=5)
-            text = " ".join(["word"] * 50)
-            output, valid, score = scanner.scan("", text)
-            assert not valid
-            assert score == 1.0
-            assert len(output.split()) < len(text.split())
-        except ImportError:
-            pass
+        scanner = NativeTokenLimitScanner(limit=5)
+        text = " ".join(["word"] * 50)
+        output, valid, score = scanner.scan("", text)
+        assert not valid
+        assert score == 1.0
+        assert len(output.split()) < len(text.split())
+
+    def test_equal_to_limit_is_invalid(self):
+        scanner = NativeTokenLimitScanner(limit=2)
+
+        assert scanner.scan("", "hello world") == ("hello world", False, 1.0)
 
     def test_model_name_precedence(self):
         """Test model_name takes precedence over encoding_name."""
-        try:
-            scanner = NativeTokenLimitScanner(
-                limit=100, encoding_name="cl100k_base", model_name="gpt-3.5-turbo"
-            )
-            output, valid, score = scanner.scan("", "Hello world")
-            assert valid
-            assert score == -1.0
-        except ImportError:
-            pass
+        scanner = NativeTokenLimitScanner(
+            limit=100, encoding_name="cl100k_base", model_name="gpt-3.5-turbo"
+        )
+        output, valid, score = scanner.scan("", "Hello world")
+        assert valid
+        assert score == -1.0
 
     def test_empty_output(self):
         """Test empty output."""
-        try:
-            scanner = NativeTokenLimitScanner(limit=100)
-            output, valid, score = scanner.scan("", "")
-            assert valid
-            assert score == -1.0
-        except ImportError:
-            pass
+        scanner = NativeTokenLimitScanner(limit=100)
+        output, valid, score = scanner.scan("", "")
+        assert valid
+        assert score == -1.0
 
 
 class TestNativeSecretsScanner:
