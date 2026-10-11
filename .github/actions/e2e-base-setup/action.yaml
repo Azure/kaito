@@ -22,7 +22,7 @@ inputs:
   region:
     description: "the azure location to run the e2e test in"
     required: false
-    default: "swedencentral"
+    default: "polandcentral"
   k8s_version:
     description: "Kubernetes version"
     required: false
