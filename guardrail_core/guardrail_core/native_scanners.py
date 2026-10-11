@@ -233,10 +233,13 @@ class NativeInvisibleTextScanner:
             (output, valid, score):
                 output: Original or sanitized output text with invisible chars removed.
                 valid: True if no invisible characters found, False otherwise.
-                score: Conformant to KAITO scanner contract: -1.0 when valid,
-                    1.0 when invalid (invisible characters found).
+                score: -1.0 for ASCII text, 0.0 for visible Unicode text,
+                    and 1.0 when invisible characters are found.
         """
         del prompt
+
+        if not any(ord(char) > 127 for char in output):
+            return output, True, -1.0
 
         invisible_chars = []
         for i, char in enumerate(output):
@@ -247,7 +250,7 @@ class NativeInvisibleTextScanner:
                 invisible_chars.append(i)
 
         if not invisible_chars:
-            return output, True, -1.0
+            return output, True, 0.0
 
         # Remove invisible characters
         sanitized = "".join(

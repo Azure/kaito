@@ -214,6 +214,12 @@ class TestNativeInvisibleTextScanner:
         assert score == -1.0
         assert output == "Hello World"
 
+    @pytest.mark.parametrize("text", ["你好", "café"])
+    def test_visible_unicode_uses_neutral_score(self, text):
+        scanner = NativeInvisibleTextScanner()
+
+        assert scanner.scan("", text) == (text, True, 0.0)
+
     def test_invisible_unicode_removed(self):
         """Test invisible unicode characters are removed."""
         scanner = NativeInvisibleTextScanner()
