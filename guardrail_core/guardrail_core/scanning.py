@@ -13,6 +13,7 @@
 
 """KAITO-owned guardrail scanner orchestration."""
 
+from collections.abc import Sequence
 from typing import Protocol
 
 
@@ -21,18 +22,21 @@ class Scanner(Protocol):
 
 
 def scan_output(
-    scanners: list[Scanner],
+    scanners: Sequence[Scanner],
     prompt: str,
-    output: str,
+    output: str | None,
     fail_fast: bool = False,
-) -> tuple[str, dict[str, bool], dict[str, float]]:
+) -> tuple[str | None, dict[str, bool], dict[str, float]]:
     """Run output scanners sequentially and collect their validity and scores."""
-    sanitized_output = output
     results_valid: dict[str, bool] = {}
     results_score: dict[str, float] = {}
 
+    if output is None:
+        return output, results_valid, results_score
+
+    sanitized_output = output
     if not scanners or output.strip() == "":
-        return sanitized_output, results_valid, results_score
+        return output, results_valid, results_score
 
     for scanner in scanners:
         sanitized_output, is_valid, risk_score = scanner.scan(

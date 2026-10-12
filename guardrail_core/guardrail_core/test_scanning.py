@@ -68,3 +68,7 @@ def test_scan_output_stops_after_invalid_scanner_when_fail_fast():
 
 def test_scan_output_returns_empty_results_without_scanning_empty_output():
     assert scan_output([_FailingScanner()], "prompt", "  ") == ("  ", {}, {})
+
+
+def test_scan_output_returns_empty_results_without_scanning_none_output():
+    assert scan_output([_FailingScanner()], "prompt", None) == (None, {}, {})
