@@ -21,7 +21,6 @@ from guardrail_core.native_scanners import (
     BanSubstringsMatchType,
     NativeBanSubstringsScanner,
     NativeInvisibleTextScanner,
-    NativeJSONScanner,
     NativeReadingTimeScanner,
     NativeRegexScanner,
     NativeSecretsScanner,
@@ -238,45 +237,6 @@ class TestNativeInvisibleTextScanner:
         output, valid, score = scanner.scan("", "Hello\tWorld")
         assert valid
         assert "\t" in output
-
-
-class TestNativeJSONScanner:
-    """Test native JSON scanner."""
-
-    @pytest.mark.parametrize(
-        ("output", "required_elements", "expected_valid"),
-        [
-            ("", 0, True),
-            ('Here is the result:\n{"a": 1}', 1, True),
-            ('first {"a": 1} second {"b": 2}', 2, True),
-            ('{"a": 1, "b": 2}', 2, False),
-            ("plain text", 0, True),
-            ("plain text", 1, False),
-            ('good {"a": 1} bad {"b": }', 1, False),
-        ],
-    )
-    def test_matches_legacy_candidate_semantics(
-        self, output, required_elements, expected_valid
-    ):
-        scanner = NativeJSONScanner(
-            required_elements=required_elements,
-            repair=False,
-        )
-
-        assert scanner.scan("", output) == (
-            output,
-            expected_valid,
-            -1.0 if expected_valid else 1.0,
-        )
-
-    def test_repairs_embedded_json_candidate(self):
-        scanner = NativeJSONScanner(required_elements=1, repair=True)
-
-        assert scanner.scan("", 'result {"a": 1,}') == (
-            'result {"a": 1}',
-            True,
-            -1.0,
-        )
 
 
 class TestNativeReadingTimeScanner:

@@ -13,7 +13,7 @@
 
 """Scanner config schemas for output guardrails.
 
-Each schema describes the YAML shape of one guardrail scanner and knows how
+Each schema describes the YAML shape of one llm_guard scanner AND knows how
 to build the corresponding scanner instance. To add a new scanner:
   1. Define a dataclass with `from_dict()` and `build()`
   2. Register it in SCANNER_REGISTRY below
@@ -28,6 +28,8 @@ import ipaddress
 import re
 from dataclasses import dataclass
 from typing import Any, ClassVar
+
+import llm_guard.output_scanners as llm_guard_output_scanners
 
 # Allowed match_type values derived from enums in guardrail_core.native_scanners
 _BAN_SUBSTRINGS_MATCH_TYPES = frozenset(("word", "str"))
@@ -312,9 +314,7 @@ class JSONConfig:
         return cls(required_elements=required_elements, repair=repair)
 
     def build(self, action_on_hit: str) -> Any:
-        from guardrail_core.native_scanners import NativeJSONScanner
-
-        return NativeJSONScanner(
+        return llm_guard_output_scanners.JSON(
             required_elements=self.required_elements,
             repair=self.repair,
         )
