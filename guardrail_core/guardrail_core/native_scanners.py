@@ -18,6 +18,7 @@ All scanners implement the KAITO output guardrail scanner interface:
 """
 
 import hashlib
+import json
 import os
 import re
 import tempfile
@@ -25,9 +26,12 @@ import threading
 import unicodedata
 from enum import StrEnum
 
+import json_repair
+import regex
 from detect_secrets.core.secrets_collection import SecretsCollection
 from detect_secrets.settings import default_settings
 
+_JSON_PATTERN = r"(?<!\\)(?:\\\\)*\{(?:[^{}]|(?R))*\}"
 # Compatibility patterns for token formats not fully detected by the currently
 # pinned detect-secrets defaults.
 _DETECT_SECRETS_COMPATIBILITY_PATTERNS = (
@@ -253,6 +257,86 @@ class NativeInvisibleTextScanner:
             char for i, char in enumerate(output) if i not in invisible_chars
         )
         return sanitized, False, 1.0
+
+
+class NativeJSONScanner:
+    """KAITO-owned JSON validation and repair scanner.
+
+    Finds JSON objects in output text, validates each candidate, and optionally
+    repairs malformed candidates.
+    """
+
+    def __init__(
+        self,
+        required_elements: int = 0,
+        repair: bool = True,
+    ) -> None:
+        self.required_elements = required_elements
+        self.repair = repair
+        self._pattern = regex.compile(_JSON_PATTERN, re.DOTALL)
+
+    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+        """Scan output for valid JSON and optionally repair it.
+
+        Args:
+            prompt: The input prompt (unused, kept for interface compatibility).
+            output: The text to scan.
+
+        Returns:
+            (output, valid, score):
+                output: Original output with repairable JSON candidates repaired.
+                valid: True if all candidates are valid and enough are present.
+                score: Conformant to KAITO scanner contract: -1.0 when valid,
+                    1.0 when invalid.
+        """
+        del prompt
+
+        if output.strip() == "":
+            return output, True, -1.0
+
+        json_candidates = self._pattern.findall(output)
+        valid_jsons = []
+        for json_candidate in json_candidates:
+            if self._is_valid_json(json_candidate):
+                valid_jsons.append(json_candidate)
+                continue
+
+            if not self.repair:
+                continue
+
+            repaired_json = self._repair_json(json_candidate)
+            if not self._is_valid_json(repaired_json):
+                continue
+
+            valid_jsons.append(repaired_json)
+            output = output.replace(json_candidate, repaired_json)
+
+        if len(valid_jsons) < self.required_elements:
+            return output, False, 1.0
+
+        if len(valid_jsons) != len(json_candidates):
+            return output, False, 1.0
+
+        return output, True, -1.0
+
+    @staticmethod
+    def _is_valid_json(json_string: str) -> bool:
+        try:
+            json.loads(json_string)
+        except ValueError:
+            return False
+        return True
+
+    @staticmethod
+    def _repair_json(json_string: str) -> str:
+        try:
+            return json_repair.repair_json(
+                json_string,
+                skip_json_loads=True,
+                return_objects=False,
+            )
+        except ValueError:
+            return json_string
 
 
 class NativeReadingTimeScanner:

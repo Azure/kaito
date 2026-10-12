@@ -18,7 +18,7 @@ from hashlib import sha256
 from typing import Any
 
 import yaml
-from llm_guard import scan_output
+from guardrail_core.scanning import scan_output
 
 from ragengine import config
 from ragengine.guardrails.scanner_schemas import (
