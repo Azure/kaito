@@ -18,15 +18,20 @@ All scanners implement the KAITO output guardrail scanner interface:
 """
 
 import hashlib
+import json
 import os
 import re
 import tempfile
 import threading
+import unicodedata
 from enum import StrEnum
 
+import json_repair
+import regex
 from detect_secrets.core.secrets_collection import SecretsCollection
 from detect_secrets.settings import default_settings
 
+_JSON_PATTERN = r"(?<!\\)(?:\\\\)*\{(?:[^{}]|(?R))*\}"
 # Compatibility patterns for token formats not fully detected by the currently
 # pinned detect-secrets defaults.
 _DETECT_SECRETS_COMPATIBILITY_PATTERNS = (
@@ -208,6 +213,255 @@ class NativeRegexScanner:
         else:
             # Allow-list: no allowed patterns matched = invalid, score 1.0
             return output, False, 1.0
+
+
+class NativeInvisibleTextScanner:
+    """KAITO-owned scanner to detect and remove invisible Unicode characters.
+
+    Detects non-printable, zero-width, and control characters that can hide
+    steganographic content or malicious instructions in model output.
+    """
+
+    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+        """Scan output for invisible or non-printable Unicode characters.
+
+        Args:
+            prompt: The input prompt (unused, kept for interface compatibility).
+            output: The text to scan.
+
+        Returns:
+            (output, valid, score):
+                output: Original or sanitized output text with invisible chars removed.
+                valid: True if no invisible characters found, False otherwise.
+                score: -1.0 for ASCII text, 0.0 for visible Unicode text,
+                    and 1.0 when invisible characters are found.
+        """
+        del prompt
+
+        if not any(ord(char) > 127 for char in output):
+            return output, True, -1.0
+
+        invisible_chars = []
+        for i, char in enumerate(output):
+            category = unicodedata.category(char)
+            # Detect format chars (Cf), private use (Co), and unassigned (Cn).
+            # This matches llm-guard behavior: skips normal control chars like \n, \t, \r
+            if category in ("Cf", "Co", "Cn"):
+                invisible_chars.append(i)
+
+        if not invisible_chars:
+            return output, True, 0.0
+
+        # Remove invisible characters
+        sanitized = "".join(
+            char for i, char in enumerate(output) if i not in invisible_chars
+        )
+        return sanitized, False, 1.0
+
+
+class NativeJSONScanner:
+    """KAITO-owned JSON validation and repair scanner.
+
+    Finds JSON objects in output text, validates each candidate, and optionally
+    repairs malformed candidates.
+    """
+
+    def __init__(
+        self,
+        required_elements: int = 0,
+        repair: bool = True,
+    ) -> None:
+        self.required_elements = required_elements
+        self.repair = repair
+        self._pattern = regex.compile(_JSON_PATTERN, re.DOTALL)
+
+    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+        """Scan output for valid JSON and optionally repair it.
+
+        Args:
+            prompt: The input prompt (unused, kept for interface compatibility).
+            output: The text to scan.
+
+        Returns:
+            (output, valid, score):
+                output: Original output with repairable JSON candidates repaired.
+                valid: True if all candidates are valid and enough are present.
+                score: Conformant to KAITO scanner contract: -1.0 when valid,
+                    1.0 when invalid.
+        """
+        del prompt
+
+        if output.strip() == "":
+            return output, True, -1.0
+
+        json_candidates = self._pattern.findall(output)
+        valid_jsons = []
+        for json_candidate in json_candidates:
+            if self._is_valid_json(json_candidate):
+                valid_jsons.append(json_candidate)
+                continue
+
+            if not self.repair:
+                continue
+
+            repaired_json = self._repair_json(json_candidate)
+            if not self._is_valid_json(repaired_json):
+                continue
+
+            valid_jsons.append(repaired_json)
+            output = output.replace(json_candidate, repaired_json)
+
+        if len(valid_jsons) < self.required_elements:
+            return output, False, 1.0
+
+        if len(valid_jsons) != len(json_candidates):
+            return output, False, 1.0
+
+        return output, True, -1.0
+
+    @staticmethod
+    def _is_valid_json(json_string: str) -> bool:
+        try:
+            json.loads(json_string)
+        except ValueError:
+            return False
+        return True
+
+    @staticmethod
+    def _repair_json(json_string: str) -> str:
+        try:
+            return json_repair.repair_json(
+                json_string,
+                skip_json_loads=True,
+                return_objects=False,
+            )
+        except ValueError:
+            return json_string
+
+
+class NativeReadingTimeScanner:
+    """KAITO-owned scanner to enforce reading time limits on output.
+
+    Uses a simple heuristic: assumes average reading speed of ~200 words per minute.
+    Can either mark output invalid or truncate it to fit within the time limit.
+    """
+
+    # Average reading speed in words per minute
+    _DEFAULT_READING_SPEED = 200
+
+    def __init__(
+        self,
+        max_time: float,
+        truncate: bool = False,
+    ) -> None:
+        self.max_time = max_time
+        self.truncate = truncate
+
+    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+        """Scan output for reading time and optionally truncate.
+
+        Args:
+            prompt: The input prompt (unused, kept for interface compatibility).
+            output: The text to scan.
+
+        Returns:
+            (output, valid, score):
+                output: Original or truncated output.
+                valid: True if reading time <= max_time, False if exceeds or truncated.
+                score: Conformant to KAITO scanner contract: -1.0 when valid,
+                    1.0 when invalid/truncated.
+        """
+        del prompt
+
+        if output.strip() == "":
+            return output, True, -1.0
+
+        # Estimate reading time
+        words = output.split()
+        word_count = len(words)
+        reading_time = word_count / self._DEFAULT_READING_SPEED
+
+        if reading_time <= self.max_time:
+            return output, True, -1.0
+
+        if not self.truncate:
+            return output, False, 1.0
+
+        # Calculate maximum words to keep
+        max_words = int(self.max_time * self._DEFAULT_READING_SPEED)
+        truncated = " ".join(words[:max_words])
+
+        # Return False to indicate output was modified
+        return truncated, False, 1.0
+
+
+class NativeTokenLimitScanner:
+    """KAITO-owned scanner to enforce token count limits on output.
+
+    Uses tiktoken for accurate token counting with configurable tokenizer.
+    When output exceeds the limit, truncates it to fit.
+    Requires tiktoken to be installed.
+    """
+
+    def __init__(
+        self,
+        limit: int,
+        encoding_name: str = "cl100k_base",
+        model_name: str | None = None,
+    ) -> None:
+        self.limit = limit
+        self.encoding_name = encoding_name
+        self.model_name = model_name
+        self._tokenizer = None
+
+    def _get_tokenizer(self):
+        """Lazily load tokenizer to avoid import overhead."""
+        if self._tokenizer is None:
+            try:
+                import tiktoken
+
+                if self.model_name:
+                    self._tokenizer = tiktoken.encoding_for_model(self.model_name)
+                else:
+                    self._tokenizer = tiktoken.get_encoding(self.encoding_name)
+            except ImportError:
+                raise ImportError(
+                    "tiktoken is required for NativeTokenLimitScanner. "
+                    "Install it with: pip install tiktoken"
+                )
+        return self._tokenizer
+
+    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+        """Scan output for token count limit.
+
+        Args:
+            prompt: The input prompt (unused, kept for interface compatibility).
+            output: The text to scan.
+
+        Returns:
+            (output, valid, score):
+                output: Original output, or truncated to fit within limit.
+                valid: True if token count is less than limit, False otherwise.
+                score: Conformant to KAITO scanner contract: -1.0 when valid,
+                    1.0 when invalid.
+        """
+        del prompt
+
+        if output.strip() == "":
+            return output, True, -1.0
+
+        tokenizer = self._get_tokenizer()
+        tokens = tokenizer.encode(output)
+        token_count = len(tokens)
+
+        if token_count < self.limit:
+            return output, True, -1.0
+
+        # Truncate to fit within limit
+        truncated_tokens = tokens[: self.limit]
+        truncated_output = tokenizer.decode(truncated_tokens)
+
+        return truncated_output, False, 1.0
 
 
 class NativeSecretsScanner:

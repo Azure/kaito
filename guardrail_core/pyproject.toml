@@ -5,4 +5,7 @@ description = "KAITO-owned guardrail scanners"
 requires-python = ">=3.12"
 dependencies = [
     "bc-detect-secrets==1.5.43",
+    "json-repair==0.60.1",
+    "regex==2024.11.6",
+    "tiktoken==0.11.0",
 ]

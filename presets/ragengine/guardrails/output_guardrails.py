@@ -18,6 +18,7 @@ from hashlib import sha256
 from typing import Any
 
 import yaml
+from guardrail_core.scanning import scan_output
 
 from ragengine import config
 from ragengine.guardrails.scanner_schemas import (
@@ -149,11 +150,10 @@ class OutputGuardrails:
                 triggered_scanners: list[dict[str, Any]] = []
                 for parsed, scanner in built_scanners:
                     scanner_action_on_hit = parsed.action_on_hit or self.action_on_hit
-                    # Call scanner directly using KAITO contract
-                    output_text, is_valid, score = scanner.scan(prompt, sanitized_output)
-                    sanitized_output = output_text
-
-                    if is_valid:
+                    sanitized_output, results_valid, results_score = scan_output(
+                        [scanner], prompt, sanitized_output, fail_fast=False
+                    )
+                    if all(results_valid.values()):
                         continue
 
                     guardrails_response_scanner_hits_total.labels(
@@ -165,7 +165,7 @@ class OutputGuardrails:
                         {
                             "type": parsed.type,
                             "action": scanner_action_on_hit,
-                            "scores": {"score": score} if score else {},
+                            "scores": results_score,
                         }
                     )
                     if scanner_action_on_hit == "block":
