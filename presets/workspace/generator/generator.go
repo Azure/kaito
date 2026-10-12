@@ -305,20 +305,17 @@ var (
 		"qwen2.5":     "tool-chat-hermes.jinja",
 	}
 
-	// tokenizerModePrefixMap contains name-based exceptions whose architecture
-	// belongs to another model family, such as DeepSeek R1 distills.
-	tokenizerModePrefixMap = map[string]string{
-		// Use deepseek_v32 tokenizer mode for DeepSeek R1 distills to avoid special token decoding issues:
-		// https://github.com/kaito-project/kaito/issues/1976
-		"deepseek-r1": "deepseek_v32",
-	}
-
 	tokenizerModeArchMap = map[string]string{
 		"DeepseekV3ForCausalLM":              "deepseek_v32",
 		"DeepseekV32ForCausalLM":             "deepseek_v32",
 		"DeepseekV4ForCausalLM":              "deepseek_v4",
 		"DeepseekV4ForConditionalGeneration": "deepseek_v4",
 		"DeepseekV41ForCausalLM":             "deepseek_v41",
+	}
+
+	tokenizerModeModelOverride = map[string]string{
+		"deepseek-r1-distill-llama-8b": "deepseek_v32",
+		"deepseek-r1-distill-qwen-14b": "deepseek_v32",
 	}
 
 	// vllmAttentionBackendPrefixMap maps model name prefixes to their vLLM attention backend.
@@ -1131,7 +1128,7 @@ func (g *Generator) applyFamilyRunParams() {
 			break
 		}
 	}
-	if mode, ok := lookupFamilyPrefix(g, tokenizerModePrefixMap); ok {
+	if mode, ok := lookupFamilyExact(g, tokenizerModeModelOverride); ok {
 		params["tokenizer_mode"] = mode
 	}
 	if backend, ok := lookupFamilyPrefix(g, vllmAttentionBackendPrefixMap); ok {
