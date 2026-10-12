@@ -16,11 +16,12 @@
 NOTE: this file is under a Go package dir, so CI pytest globs (which target presets/)
 do NOT run it automatically. Run manually during development:
     python3 pkg/workspace/inference/modelstreaming/azure/fetch_sas_test.py
-It stubs azure.identity so azure-identity need not be installed locally.
+It stubs azure.identity so azure-identity need not be installed locally; rfc8785 must be
+installed (pip install rfc8785==0.1.4, matching rfc8785Version in sasblob.go).
 """
 
-import hashlib
 import importlib.util
+import json
 import os
 import sys
 import tempfile
@@ -93,6 +94,31 @@ def test_extract_blob_uri_public():
     )
 
 
+def test_extract_blob_uri_foundry_byo_top_level():
+    payload = {
+        "id": "azureai://accounts/a/projects/p/models/m/versions/1",
+        "name": "m",
+        "version": "1",
+        "blobUri": "https://acct.blob.core.windows.net/c/foundry",
+    }
+    assert (
+        fetch_sas.extract_blob_uri(payload)
+        == "https://acct.blob.core.windows.net/c/foundry"
+    )
+
+
+def test_extract_blob_uri_top_level_takes_precedence():
+    payload = {
+        "blobUri": "https://acct.blob.core.windows.net/c/top-level",
+        "properties": {"modelUri": "https://acct.blob.core.windows.net/c/properties"},
+        "blobReference": {"blobUri": "https://acct.blob.core.windows.net/c/reference"},
+    }
+    assert (
+        fetch_sas.extract_blob_uri(payload)
+        == "https://acct.blob.core.windows.net/c/top-level"
+    )
+
+
 def test_extract_blob_uri_byo():
     payload = {"blobReference": {"blobUri": "https://acct.blob.core.windows.net/c"}}
     assert fetch_sas.extract_blob_uri(payload) == "https://acct.blob.core.windows.net/c"
@@ -118,12 +144,30 @@ def test_extract_sas_uri_missing():
     assert fetch_sas.extract_sas_uri({}) == ""
 
 
-def test_account_and_container():
-    account, container = fetch_sas.account_and_container(
-        "https://sacae6.blob.core.windows.net/private-mo-abc/sub/dir"
+def test_account_container_and_prefix_public():
+    payload = {
+        "properties": {
+            "modelUri": "https://sacae6.blob.core.windows.net/public-models/qwen/version-2/"
+        }
+    }
+    account, container, prefix = fetch_sas.account_container_and_prefix(
+        fetch_sas.extract_blob_uri(payload)
     )
     assert account == "sacae6", account
-    assert container == "private-mo-abc", container
+    assert container == "public-models", container
+    assert prefix == "qwen/version-2", prefix
+
+
+def test_account_container_and_prefix_foundry_byo():
+    payload = {
+        "blobUri": "https://sacae6.blob.core.windows.net/private-models/projects/p/models/qwen/version-1"
+    }
+    account, container, prefix = fetch_sas.account_container_and_prefix(
+        fetch_sas.extract_blob_uri(payload)
+    )
+    assert account == "sacae6", account
+    assert container == "private-models", container
+    assert prefix == "projects/p/models/qwen/version-1", prefix
 
 
 def test_list_blob_names_parses_names():
@@ -138,6 +182,27 @@ def test_list_blob_names_parses_names():
         lambda: fetch_sas.list_blob_names("https://blob/c?sig=x"),
     )
     assert names == ["model/a.safetensors", "model/config.json"], names
+
+
+def test_list_blob_names_scopes_listing_to_model_prefix():
+    xml = (
+        "<EnumerationResults><Blobs>"
+        "<Blob><Name>models/qwen/v1/model.safetensors</Name></Blob>"
+        "</Blobs></EnumerationResults>"
+    )
+    requested_urls = []
+
+    def responder(url, timeout=30):
+        requested_urls.append(url)
+        return _FakeResp(xml)
+
+    names = _with_urlopen(
+        responder,
+        lambda: fetch_sas.list_blob_names("https://blob/c?sig=x", "models/qwen/v1"),
+    )
+    assert names == ["models/qwen/v1/model.safetensors"], names
+    assert len(requested_urls) == 1, requested_urls
+    assert "prefix=models%2Fqwen%2Fv1%2F" in requested_urls[0], requested_urls[0]
 
 
 def test_list_blob_names_paginates_and_unescapes():
@@ -180,6 +245,22 @@ def test_discover_subpath_none():
     assert fetch_sas.discover_subpath(["config.json"]) == ""
 
 
+def test_discover_subpath_ignores_sibling_models_outside_prefix():
+    names = [
+        "models/qwen/v1/weights/a.safetensors",
+        "models/qwen/v1/weights/b.safetensors",
+        "models/llama/v1/model.safetensors",
+    ]
+    assert (
+        fetch_sas.discover_subpath(names, "models/qwen/v1") == "models/qwen/v1/weights"
+    )
+
+
+def test_discover_subpath_preserves_prefix_without_safetensors():
+    names = ["models/qwen/v1/config.json", "models/qwen/v1/tokenizer.json"]
+    assert fetch_sas.discover_subpath(names, "models/qwen/v1") == "models/qwen/v1"
+
+
 def test_blob_url_inserts_path_before_query():
     assert (
         fetch_sas.blob_url(
@@ -196,14 +277,66 @@ def test_blob_url_without_query():
     )
 
 
+_VECTORS_PATH = os.path.join(
+    _here,
+    "..",
+    "..",
+    "..",
+    "..",
+    "..",
+    "presets",
+    "workspace",
+    "models",
+    "testdata",
+    "config_digest_vectors.json",
+)
+
+
+def _load_vectors():
+    with open(_VECTORS_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def test_canonical_config_digest_shared_vectors():
+    # The same vectors pin models.ConfigDigest in Go, so both sides agree byte-for-byte.
+    vectors = _load_vectors()
+    assert vectors["equivalent"] and vectors["invalid"]
+    for group in vectors["equivalent"]:
+        for raw in group["inputs"]:
+            got = fetch_sas.canonical_config_digest(raw.encode("utf-8"))
+            assert got == group["sha256"], (group["name"], raw, got)
+    for case in vectors["invalid"]:
+        _expect_valueerror(
+            "config.json",
+            lambda: fetch_sas.canonical_config_digest(case["input"].encode("utf-8")),
+        )
+
+
 def test_verify_bundle_accepts_matching_config():
-    config = '{"architectures": ["LlamaForCausalLM"]}'
-    sha = hashlib.sha256(config.encode("utf-8")).hexdigest()
+    # The operator hashed a reserialized copy (0.0 -> 0, keys reordered, compact); the
+    # bundle holds the original pretty-printed file. They must still verify.
+    operator_copy = '{"attention_dropout":0,"architectures":["LlamaForCausalLM"]}'
+    bundle_config = (
+        '{\n  "architectures": ["LlamaForCausalLM"],\n  "attention_dropout": 0.0\n}\n'
+    )
+    sha = fetch_sas.canonical_config_digest(operator_copy.encode("utf-8"))
     names = ["model/config.json", "model/model.safetensors"]
     # No exception means the bundle's config.json matched what was sized for.
     _with_urlopen(
-        lambda url, timeout=60: _FakeResp(config),
+        lambda url, timeout=60: _FakeResp(bundle_config),
         lambda: fetch_sas.verify_bundle("https://blob/c?sig=x", names, "model", sha),
+    )
+
+
+def test_verify_bundle_rejects_invalid_config_json():
+    _with_urlopen(
+        lambda url, timeout=60: _FakeResp('{"a": 1, "a": 2}'),
+        lambda: _expect_valueerror(
+            "duplicate key",
+            lambda: fetch_sas.verify_bundle(
+                "https://blob/c?sig=x", ["config.json"], "", "0" * 64
+            ),
+        ),
     )
 
 
@@ -280,6 +413,86 @@ def test_write_env_file():
     assert "STREAM_MODEL_URI='az://c/sub'\n" in content, content
     # single quote in the token value is shell-escaped
     assert "sv=1&sig=ab'\\''cd" in content, content
+
+
+def test_redact_masks_signature_everywhere():
+    line = "GET https://a.blob.core.windows.net/c?sv=1&sig=SECRET%2F&se=x failed; sig=OTHER"
+    out = fetch_sas.redact(line)
+    assert "SECRET" not in out and "OTHER" not in out, out
+    assert "se=x" in out, out
+
+
+def test_redact_url_only_touches_sas_urls():
+    assert (
+        fetch_sas.redact_url("https://a.blob.core.windows.net/c/x?sv=1&sig=abc")
+        == "https://a.blob.core.windows.net/c/x?<redacted>"
+    )
+    plain = "https://a/models/m/versions/1?api-version=2025-11-15-preview"
+    assert fetch_sas.redact_url(plain) == plain
+
+
+def test_describe_error_includes_http_status_and_body():
+    import io
+    import urllib.error
+
+    err = urllib.error.HTTPError(
+        "https://a.blob.core.windows.net/c?sig=abc",
+        403,
+        "Forbidden",
+        {},
+        io.BytesIO(b'{"error":{"code":"AuthorizationFailed"}}'),
+    )
+    msg = fetch_sas.describe_error(err)
+    assert "HTTP 403" in msg and "AuthorizationFailed" in msg, msg
+    assert "abc" not in msg, msg
+
+
+def test_describe_error_truncates_large_body():
+    import io
+    import urllib.error
+
+    body = b"x" * (fetch_sas.MAX_ERROR_BODY + 100)
+    err = urllib.error.HTTPError("https://a/m", 500, "err", {}, io.BytesIO(body))
+    assert "...(truncated)" in fetch_sas.describe_error(err)
+
+
+def test_step_logs_and_wraps_failure():
+    import logging
+
+    records = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record):
+            records.append(fetch_sas.redact(record.getMessage()))
+
+    fetch_sas.configure_logging()
+    fetch_sas.log.addHandler(_Capture())
+    try:
+        with fetch_sas.step(1, "ok step"):
+            pass
+        try:
+            with fetch_sas.step(2, "bad step"):
+                raise ValueError("boom sig=leak")
+        except fetch_sas.StepError as err:
+            assert isinstance(err.cause, ValueError)
+        else:
+            raise AssertionError("expected StepError")
+    finally:
+        fetch_sas.configure_logging()
+    joined = "\n".join(records)
+    assert "ok step ok (" in joined, joined
+    assert "bad step failed (" in joined and "boom" in joined, joined
+    assert "leak" not in joined, joined
+
+
+def test_main_reports_missing_env():
+    saved = {k: os.environ.pop(k, None) for k in fetch_sas.REQUIRED_ENV}
+    try:
+        assert fetch_sas.main() == 1
+    finally:
+        for k, v in saved.items():
+            if v is not None:
+                os.environ[k] = v
 
 
 if __name__ == "__main__":

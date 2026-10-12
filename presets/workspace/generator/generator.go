@@ -70,27 +70,36 @@ var (
 	mistralRegex    = regexp.MustCompile(`consolidated.*\.safetensors`)
 	// source: https://github.com/vllm-project/vllm/blob/main/vllm/reasoning/__init__.py
 	reasoningParserModeNamePrefixMap = map[string]string{
-		"deepseek-r1":  "deepseek_r1",
-		"deepseek-v3":  "deepseek_v3",
-		"deepseek-v4":  "deepseek_v4",
-		"ernie-4.5":    "ernie45",
-		"gemma-4":      "gemma4",
-		"glm-4.5":      "glm45",
-		"granite-3.2":  "granite",
-		"holo2":        "holo2",
-		"hunyuan-a13b": "hunyuan_a13b",
-		"kimi-k2":      "kimi_k2",
-		"laguna":       "poolside_v1",
-		"minimax-m2":   "minimax_m2_append_think",
-		"minimax-m3":   "minimax_m3",
-		"mimo":         "mimo",
-		"mistral":      "mistral",
-		"olmo-3":       "olmo3",
-		"qwen3":        "qwen3",
-		"qwq-32b":      "deepseek_r1",
-		"step3":        "step3",
+		"deepseek-r1":   "deepseek_r1",
+		"deepseek-v3":   "deepseek_v3",
+		"deepseek-v4":   "deepseek_v4",
+		"deepseek-v4.1": "deepseek_v41",
+		"ernie-4.5":     "ernie45",
+		"gemma-4":       "gemma4",
+		"glm-4.5":       "glm45",
+		"granite-3.2":   "granite",
+		"holo2":         "holo2",
+		"hunyuan-a13b":  "hunyuan_a13b",
+		"hy-v4":         "hy_v4",
+		"inkling":       "inkling",
+		"k2-horizon":    "k2_horizon",
+		"kimi-k2":       "kimi_k2",
+		"kimi-k3":       "kimi_k3",
+		"laguna":        "poolside_v1",
+		"minimax-m2":    "minimax_m2_append_think",
+		"minimax-m3":    "minimax_m3",
+		"mimo":          "mimo",
+		"mistral":       "mistral",
+		"muse-glimmer":  "muse_glimmer",
+		"olmo-3":        "olmo3",
+		"qwen3":         "qwen3",
+		"qwq-32b":       "deepseek_r1",
+		"step3":         "step3",
 	}
 	reasoningParserArchMap = map[string]string{
+		"DeepseekV41ForCausalLM":                  "deepseek_v41",
+		"DeepseekV4ForCausalLM":                   "deepseek_v4",
+		"DeepseekV4ForConditionalGeneration":      "deepseek_v4",
 		"DeepseekV3ForCausalLM":                   "deepseek_v3",
 		"Ernie4_5_VLMoeForConditionalGeneration":  "ernie45",
 		"Ernie4_5_MoeForCausalLM":                 "ernie45",
@@ -107,6 +116,11 @@ var (
 		"MiniMaxM3SparseForConditionalGeneration": "minimax_m3",
 		"MiMoForCausalLM":                         "mimo",
 		"HYV3ForCausalLM":                         "hy_v3",
+		"HYV4ForCausalLM":                         "hy_v4",
+		"InklingForCausalLM":                      "inkling",
+		"InklingForConditionalGeneration":         "inkling",
+		"K2HorizonForCausalLM":                    "k2_horizon",
+		"KimiK3ForConditionalGeneration":          "kimi_k3",
 		"LagunaForCausalLM":                       "poolside_v1",
 		"Mistral3ForConditionalGeneration":        "mistral",
 		"MistralForCausalLM":                      "mistral",
@@ -116,8 +130,12 @@ var (
 		"OlmoForCausalLM":                         "olmo3",
 		"Qwen3ForCausalLM":                        "qwen3",
 		"Qwen3MoeForCausalLM":                     "qwen3",
+		"Qwen3_5ForCausalLM":                      "qwen3",
 		"Qwen3_5ForConditionalGeneration":         "qwen3",
+		"Qwen3_5MoeForCausalLM":                   "qwen3",
 		"Qwen3_5MoeForConditionalGeneration":      "qwen3",
+		"MuseGlimmerForCausalLM":                  "muse_glimmer",
+		"MuseGlimmerForConditionalGeneration":     "muse_glimmer",
 		"GptOssForCausalLM":                       "openai_gptoss",
 		"Step3TextForCausalLM":                    "step3",
 		"Step3VLForConditionalGeneration":         "step3",
@@ -164,8 +182,13 @@ var (
 		"deepseek-v3.1":       "deepseek_v31",
 		"deepseek-v3.2":       "deepseek_v32",
 		"deepseek-v4":         "deepseek_v4",
+		"deepseek-v4.1":       "deepseek_v41",
 		"kimi_k2":             "kimi_k2",
+		"kimi-k3":             "kimi_k3",
+		"k2-horizon":          "k2_horizon",
 		"hunyuan-a13b":        "hunyuan_a13b",
+		"hy-v4":               "hy_v4",
+		"inkling":             "inkling",
 		"longcat":             "longcat",
 		"glm-4":               "glm45",
 		"glm-4.7":             "glm47",
@@ -175,6 +198,7 @@ var (
 		"qwen3.6":             "qwen3_coder",
 		"qwen3.8":             "qwen3_coder",
 		"olmo-3":              "olmo3",
+		"muse-glimmer":        "muse_glimmer",
 		"gigachat3":           "gigachat3",
 		"ernie-4.5":           "ernie45",
 		"phi4-mini":           "phi4_mini_json",
@@ -187,6 +211,9 @@ var (
 
 	// key is model architecture name, value is ToolCallParser mode name
 	toolCallParserArchMap = map[string]string{
+		"DeepseekV41ForCausalLM":                  "deepseek_v41",
+		"DeepseekV4ForCausalLM":                   "deepseek_v4",
+		"DeepseekV4ForConditionalGeneration":      "deepseek_v4",
 		"MistralForCausalLM":                      "mistral",
 		"MistralLarge3ForCausalLM":                "mistral",
 		"LlamaForCausalLM":                        "llama3_json",
@@ -200,13 +227,20 @@ var (
 		"Qwen2ForCausalLM":                        "hermes",
 		"Qwen3ForCausalLM":                        "hermes",
 		"Qwen3MoeForCausalLM":                     "qwen3_xml",
+		"Qwen3_5ForCausalLM":                      "qwen3_coder",
 		"Qwen3_5ForConditionalGeneration":         "qwen3_coder",
+		"Qwen3_5MoeForCausalLM":                   "qwen3_coder",
 		"Qwen3_5MoeForConditionalGeneration":      "qwen3_coder",
 		"MiniMaxM2ForCausalLM":                    "minimax_m2",
 		"MiniMaxM3SparseForCausalLM":              "minimax_m3",
 		"MiniMaxM3SparseForConditionalGeneration": "minimax_m3",
 		"MiMoForCausalLM":                         "mimo",
 		"HYV3ForCausalLM":                         "hy_v3",
+		"HYV4ForCausalLM":                         "hy_v4",
+		"InklingForCausalLM":                      "inkling",
+		"InklingForConditionalGeneration":         "inkling",
+		"K2HorizonForCausalLM":                    "k2_horizon",
+		"KimiK3ForConditionalGeneration":          "kimi_k3",
 		"LagunaForCausalLM":                       "poolside_v1",
 		"Lfm2ForCausalLM":                         "lfm2",
 		"Lfm2MoeForCausalLM":                      "lfm2",
@@ -234,6 +268,8 @@ var (
 		"KimiK2ForCausalLM":                       "kimi_k2",
 		"KimiK25ForConditionalGeneration":         "kimi_k2",
 		"GigaChat3ForCausalLM":                    "gigachat3",
+		"MuseGlimmerForCausalLM":                  "muse_glimmer",
+		"MuseGlimmerForConditionalGeneration":     "muse_glimmer",
 	}
 
 	// chatTemplatePrefixMap maps model name prefixes to vllm-customized chat templates.
@@ -364,11 +400,42 @@ type Generator struct {
 	ConfigFormat  string
 	TokenizerMode string
 	ModelConfig   map[string]interface{}
+
+	// nameHint, when set, replaces Metadata.Name as the key for the
+	// name-keyed runtime tables, because a custom model's digest name can never
+	// match them. It is only a lookup key: model metadata and sizing still come
+	// from config.json.
+	nameHint string
+}
+
+// ModelNameFromRepo returns the lowercased final path segment of a model
+// repository ID, which is the form the name-keyed tables are keyed on.
+func ModelNameFromRepo(modelRepo string) string {
+	nameParts := strings.Split(modelRepo, "/")
+	return strings.ToLower(nameParts[len(nameParts)-1])
+}
+
+func (g *Generator) familyName() string {
+	if g.nameHint != "" {
+		return g.nameHint
+	}
+	return g.Param.Metadata.Name
+}
+
+// lookupFamilyPrefix returns the value of the longest table prefix of the
+// generator's family name.
+func lookupFamilyPrefix[V any](g *Generator, table map[string]V) (V, bool) {
+	return longestPrefixMatch(g.familyName(), table)
+}
+
+// lookupFamilyExact returns the table value keyed by the generator's family name.
+func lookupFamilyExact[V any](g *Generator, table map[string]V) (V, bool) {
+	v, ok := table[g.familyName()]
+	return v, ok
 }
 
 func NewGenerator(modelRepo, token string) *Generator {
-	nameParts := strings.Split(modelRepo, "/")
-	modelNameSafe := strings.ToLower(nameParts[len(nameParts)-1])
+	modelNameSafe := ModelNameFromRepo(modelRepo)
 
 	gen := &Generator{
 		ModelRepo:     modelRepo,
@@ -616,6 +683,43 @@ func getString(config map[string]interface{}, keys []string) string {
 	return ""
 }
 
+// longestPrefixMatch returns the value of the longest key in table that is a
+// prefix of name.
+func longestPrefixMatch[V any](name string, table map[string]V) (V, bool) {
+	prefixes := make([]string, 0, len(table))
+	for prefix := range table {
+		prefixes = append(prefixes, prefix)
+	}
+	sort.Slice(prefixes, func(i, j int) bool {
+		if len(prefixes[i]) == len(prefixes[j]) {
+			return prefixes[i] > prefixes[j]
+		}
+		return len(prefixes[i]) > len(prefixes[j])
+	})
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(name, prefix) {
+			return table[prefix], true
+		}
+	}
+	var zero V
+	return zero, false
+}
+
+// applyFamilyParsers sets the parsers and chat template selected by the most
+// specific model name prefix, and reports whether the model is excluded from
+// reasoning parsing.
+func (g *Generator) applyFamilyParsers() (nonReasoning bool) {
+	nonReasoning, _ = lookupFamilyExact(g, nonReasoningModels)
+	if !nonReasoning {
+		g.Param.Metadata.ReasoningParser, _ = lookupFamilyPrefix(g, reasoningParserModeNamePrefixMap)
+	}
+	g.Param.Metadata.ToolCallParser, _ = lookupFamilyPrefix(g, toolCallParserModeNamePrefixMap)
+	if template, ok := lookupFamilyPrefix(g, chatTemplatePrefixMap); ok {
+		g.Param.Metadata.ChatTemplate = template
+	}
+	return nonReasoning
+}
+
 func (g *Generator) ParseModelMetadata() {
 	maxPos := getInt(g.ModelConfig, configKeyMap["modelTokenLimit"], DefaultModelTokenLimit)
 
@@ -639,39 +743,15 @@ func (g *Generator) ParseModelMetadata() {
 		}
 	}
 
-	// set reasoning parser based on model name prefix
-	if !nonReasoningModels[g.Param.Metadata.Name] {
-		for prefix, parser := range reasoningParserModeNamePrefixMap {
-			if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
+	nonReasoning := g.applyFamilyParsers()
+
+	// set reasoning parser based on model architecture if not set by name prefix
+	if !nonReasoning && g.Param.Metadata.ReasoningParser == "" {
+		for _, arch := range g.Param.Metadata.Architectures {
+			if parser, ok := reasoningParserArchMap[arch]; ok {
 				g.Param.Metadata.ReasoningParser = parser
 				break
 			}
-		}
-
-		// set reasoning parser based on model architecture if not set by name prefix
-		if g.Param.Metadata.ReasoningParser == "" {
-			for _, arch := range g.Param.Metadata.Architectures {
-				if parser, ok := reasoningParserArchMap[arch]; ok {
-					g.Param.Metadata.ReasoningParser = parser
-					break
-				}
-			}
-		}
-	}
-
-	// set ToolCallParser based on model name prefix
-	// sort the keys of toolCallParserModeNamePrefixMap in reverse alphabetical order and then iterate
-	// this is to ensure that longer (more specific) prefixes are matched first
-	prefixes := make([]string, 0, len(toolCallParserModeNamePrefixMap))
-	for prefix := range toolCallParserModeNamePrefixMap {
-		prefixes = append(prefixes, prefix)
-	}
-	sort.Sort(sort.Reverse(sort.StringSlice(prefixes)))
-
-	for _, prefix := range prefixes {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
-			g.Param.Metadata.ToolCallParser = toolCallParserModeNamePrefixMap[prefix]
-			break
 		}
 	}
 
@@ -682,14 +762,6 @@ func (g *Generator) ParseModelMetadata() {
 				g.Param.Metadata.ToolCallParser = parser
 				break
 			}
-		}
-	}
-
-	// set ChatTemplate based on model name prefix
-	for prefix, template := range chatTemplatePrefixMap {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
-			g.Param.Metadata.ChatTemplate = template
-			break
 		}
 	}
 
@@ -886,6 +958,33 @@ func computeMambaStateBytesPerSeq(config map[string]interface{}) int {
 	return info.PerLayerBytes * info.NumLinearLayers
 }
 
+// applyFamilyRunParams sets the vLLM run parameters selected by model name.
+func (g *Generator) applyFamilyRunParams() {
+	params := g.Param.VLLM.ModelRunParams
+	if mode, ok := lookupFamilyPrefix(g, tokenizerModePrefixMap); ok {
+		params["tokenizer_mode"] = mode
+	}
+	if backend, ok := lookupFamilyPrefix(g, vllmAttentionBackendPrefixMap); ok {
+		params["attention-backend"] = backend
+	}
+	if backend, ok := lookupFamilyExact(g, vllmMoeBackendOverride); ok {
+		params["moe-backend"] = backend
+	}
+	if dtype, ok := lookupFamilyPrefix(g, vllmKVCacheDtypePrefixMap); ok {
+		params["kv-cache-dtype"] = dtype
+	}
+	if backend, ok := lookupFamilyPrefix(g, vllmGdnPrefillBackendPrefixMap); ok {
+		params["gdn-prefill-backend"] = backend
+	}
+	if enabled, _ := lookupFamilyPrefix(g, vllmExpertParallelEnabled); enabled {
+		params["enable-expert-parallel"] = ""
+	}
+	// Emitted as --kernel-config.enable_flashinfer_autotune=False.
+	if disable, _ := lookupFamilyPrefix(g, vllmDisableFlashInferAutotunePrefixMap); disable {
+		params["kernel-config.enable_flashinfer_autotune"] = "False"
+	}
+}
+
 func (g *Generator) FinalizeParams() {
 	g.Param.Metadata.DiskStorageRequirement = g.calculateStorageSize()
 
@@ -898,59 +997,7 @@ func (g *Generator) FinalizeParams() {
 	g.Param.VLLM.ModelRunParams["config_format"] = g.ConfigFormat
 	g.Param.VLLM.ModelRunParams["tokenizer_mode"] = g.TokenizerMode
 
-	// Override tokenizer mode based on model name prefix
-	for prefix, mode := range tokenizerModePrefixMap {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
-			g.Param.VLLM.ModelRunParams["tokenizer_mode"] = mode
-			break
-		}
-	}
-
-	// Set attention backend based on model name prefix
-	for prefix, backend := range vllmAttentionBackendPrefixMap {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
-			g.Param.VLLM.ModelRunParams["attention-backend"] = backend
-			break
-		}
-	}
-
-	// Set MoE backend based on exact model name match
-	if backend, ok := vllmMoeBackendOverride[g.Param.Metadata.Name]; ok {
-		g.Param.VLLM.ModelRunParams["moe-backend"] = backend
-	}
-
-	// Set kv-cache-dtype based on model name prefix
-	for prefix, dtype := range vllmKVCacheDtypePrefixMap {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
-			g.Param.VLLM.ModelRunParams["kv-cache-dtype"] = dtype
-			break
-		}
-	}
-
-	// Set GDN prefill backend based on model name prefix
-	for prefix, backend := range vllmGdnPrefillBackendPrefixMap {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
-			g.Param.VLLM.ModelRunParams["gdn-prefill-backend"] = backend
-			break
-		}
-	}
-
-	// Enable expert parallelism based on model name prefix
-	for prefix, enabled := range vllmExpertParallelEnabled {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) && enabled {
-			g.Param.VLLM.ModelRunParams["enable-expert-parallel"] = ""
-			break
-		}
-	}
-
-	// Disable FlashInfer kernel autotuning for models that explicitly require it.
-	// Emitted as --kernel-config.enable_flashinfer_autotune=False.
-	for prefix, disable := range vllmDisableFlashInferAutotunePrefixMap {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) && disable {
-			g.Param.VLLM.ModelRunParams["kernel-config.enable_flashinfer_autotune"] = "False"
-			break
-		}
-	}
+	g.applyFamilyRunParams()
 
 	bpt, attnType := g.calculateKVCacheTokenSize()
 	g.Param.Metadata.BytesPerToken = bpt
