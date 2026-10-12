@@ -62,9 +62,10 @@
   "gpuPools": {
     "a10": {
       "displayName": "NVIDIA A10",
-      "region": "swedencentral",
-      "fallbackRegion": "polandcentral",
-      "fallbackSystemPoolVmSize": "Standard_NV12ads_A10_v5",
+      "region": "polandcentral",
+      "fallbackRegion": "swedencentral",
+      "systemPoolVmSize": "Standard_NV12ads_A10_v5",
+      "fallbackSystemPoolVmSize": "Standard_D4d_v4",
       "instanceTypes": {
         "1": "Standard_NV36ads_A10_v5",
         "2": "Standard_NV72ads_A10_v5"
