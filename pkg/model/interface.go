@@ -208,6 +208,32 @@ func (m *Metadata) Validate() error {
 	return err
 }
 
+// SpeculativeDecodingConfig defines the speculative decoding configuration
+// for a preset model. It is populated by KAITO maintainers in the
+// speculativeDecodingByPreset map and injected into the vLLM command line
+// when the user enables speculative decoding via annotation.
+type SpeculativeDecodingConfig struct {
+	Method string       `yaml:"method"` // "mtp" / "ngram" / ...
+	MTP    *MTPConfig   `yaml:"mtp,omitempty"`
+	NGram  *NGramConfig `yaml:"ngram,omitempty"`
+	// future: add method-specific sub-configs as real support lands.
+}
+
+// MTPConfig covers vLLM's mtp method, including both the self-contained-head
+// case (where the served checkpoint carries the predictor) and the
+// assistant-checkpoint case, where the draft/assistant checkpoint is passed
+// via the model field.
+type MTPConfig struct {
+	NumSpeculativeTokens int    `yaml:"numSpeculativeTokens"`
+	Model                string `yaml:"model,omitempty"`
+}
+
+// NGramConfig covers the n-gram lookup speculative decoding method.
+type NGramConfig struct {
+	NumSpeculativeTokens int `yaml:"numSpeculativeTokens"`
+	PromptLookupMax      int `yaml:"promptLookupMax"`
+}
+
 // PresetParam defines the preset inference parameters for a model.
 type PresetParam struct {
 	Metadata
@@ -225,6 +251,15 @@ type PresetParam struct {
 	ModelTokenLimit               int            // Maximum number of tokens (context window) supported by the model. Maps to 'max_position_embeddings' in the model's Hugging Face config.json.
 
 	RuntimeParam
+
+	// SpeculativeDecoding holds the preset-tuned speculative decoding
+	// configuration for this preset (e.g. mtp/ngram). A nil value does NOT
+	// mean the preset lacks speculative-decoding support: when a workload
+	// opts in via kaito.sh/enable-speculative-decoding and this field is nil,
+	// applySpeculativeDecoding falls back to the universal ngram default
+	// (see proposal PR #2303). Callers must
+	// not use nil as a feature-support signal.
+	SpeculativeDecoding *SpeculativeDecodingConfig `yaml:"speculativeDecoding,omitempty"`
 
 	// ReadinessTimeout defines the maximum duration for creating the workload.
 	// This timeout accommodates the size of the image, ensuring pull completion
@@ -274,6 +309,18 @@ func (p *PresetParam) DeepCopy() *PresetParam {
 	*out = *p
 	out.RuntimeParam = p.RuntimeParam.DeepCopy()
 	out.TuningPerGPUMemoryRequirement = maps.Clone(p.TuningPerGPUMemoryRequirement)
+	if p.SpeculativeDecoding != nil {
+		sd := *p.SpeculativeDecoding
+		if p.SpeculativeDecoding.MTP != nil {
+			mtp := *p.SpeculativeDecoding.MTP
+			sd.MTP = &mtp
+		}
+		if p.SpeculativeDecoding.NGram != nil {
+			ng := *p.SpeculativeDecoding.NGram
+			sd.NGram = &ng
+		}
+		out.SpeculativeDecoding = &sd
+	}
 	return out
 }
 
@@ -389,8 +436,8 @@ func (p *PresetParam) buildHuggingfaceInferenceCommand() []string {
 const defaultGPUMemoryUtilization = "0.92"
 
 // gpuMemoryUtilizationByGPUModel overrides --gpu-memory-utilization for specific
-// GPU models that need extra headroom. Keyed by the exact sku.GPUConfig.GPUModel
-// string (as defined in the SKU table, e.g. "NVIDIA A10").
+// GPU models that need extra headroom. Keys use the canonical SKU-table names;
+// BYO GPU Feature Discovery product labels are normalized before lookup.
 var gpuMemoryUtilizationByGPUModel = map[string]string{
 	// On the 24 GiB A10, vLLM's KV-pool profiling under-counts the
 	// prompt-logprobs warmup + CUDA-graph-capture transients for some models
@@ -399,11 +446,47 @@ var gpuMemoryUtilizationByGPUModel = map[string]string{
 	"NVIDIA A10": "0.82",
 }
 
+type modelGPUKey struct {
+	modelName string
+	gpuModel  string
+}
+
+// cudagraphModeByModelAndGPU overrides vLLM's default FULL_AND_PIECEWISE mode
+// for known incompatibilities. An empty GPU model applies the mode to every GPU.
+// Inference performance may degrade compared with the default FULL_AND_PIECEWISE mode.
+// TODO: Remove these overrides once default FULL_AND_PIECEWISE mode is supported in vLLM.
+var cudagraphModeByModelAndGPU = map[modelGPUKey]string{
+	// FULL_AND_PIECEWISE mode Cuda graph capture OOMs for Nemotron models under vllm 0.30.0
+	{modelName: "nvidia-nemotron-nano-9b-v2", gpuModel: "NVIDIA A10"}:     "FULL_DECODE_ONLY",
+	{modelName: "nvidia-nemotron-3-nano-4b-bf16", gpuModel: "NVIDIA A10"}: "FULL_DECODE_ONLY",
+	// FULL_AND_PIECEWISE mode Cuda graph capture fails on V4 Flash under vllm 0.30.0
+	{modelName: "deepseek-v4-flash-0731"}: "PIECEWISE",
+	// V4 Pro exhausts memory in PIECEWISE capture after DeepGEMM warmup under vllm 0.30.0
+	{modelName: "deepseek-v4-pro"}: "FULL_DECODE_ONLY",
+}
+
+// linearBackendByModelAndGPU overrides vLLM's default selection of linear backend.
+var linearBackendByModelAndGPU = map[modelGPUKey]string{
+	// Selects Marlin for FP8 Mistral models on GPUs without native FP8 support.
+	// vLLM 0.30.0 otherwise selects a CUTLASS SM80 path that cannot consume FP8
+	// operands and fails during Inductor compilation or eager profile execution.
+	{modelName: "ministral-3-14b-instruct-2512", gpuModel: "NVIDIA A10"}:  "marlin",
+	{modelName: "ministral-3-14b-instruct-2512", gpuModel: "NVIDIA A100"}: "marlin",
+	{modelName: "mistral-medium-3.5-128b", gpuModel: "NVIDIA A100"}:       "marlin",
+}
+
+// gpuMemoryUtilizationByModelAndGPU reserves runtime activation headroom for
+// exact model/GPU combinations beyond the general per-GPU policy.
+var gpuMemoryUtilizationByModelAndGPU = map[modelGPUKey]string{
+	// At 0.92, V4 Pro OOMs at max concurrency during startup benchmarking.
+	{modelName: "deepseek-v4-pro", gpuModel: "NVIDIA H100"}: "0.91",
+}
+
 // ResolveGPUMemoryUtilization returns the --gpu-memory-utilization vLLM should be
 // launched with for the given GPU. A per-GPU-model safety cap (clamps down for
 // tight-VRAM GPUs) wins over the default.
 func ResolveGPUMemoryUtilization(gpuModel string) string {
-	if util, ok := gpuMemoryUtilizationByGPUModel[gpuModel]; ok {
+	if util, ok := gpuMemoryUtilizationByGPUModel[sku.CanonicalGPUModel(gpuModel)]; ok {
 		return util
 	}
 	return defaultGPUMemoryUtilization
@@ -443,7 +526,28 @@ func (p *PresetParam) buildVLLMInferenceCommand(rc RuntimeContext) []string {
 	if rc.GPUConfig != nil {
 		gpuModel = rc.GPUConfig.GPUModel
 	}
-	p.VLLM.ModelRunParams["gpu-memory-utilization"] = ResolveGPUMemoryUtilization(gpuModel)
+	policyGPUModel := sku.CanonicalGPUModel(gpuModel)
+	gpuMemoryUtilization := ResolveGPUMemoryUtilization(gpuModel)
+	if modelUtilization, ok := gpuMemoryUtilizationByModelAndGPU[modelGPUKey{modelName: p.VLLM.ModelName, gpuModel: policyGPUModel}]; ok {
+		gpuMemoryUtilization = modelUtilization
+	}
+	p.VLLM.ModelRunParams["gpu-memory-utilization"] = gpuMemoryUtilization
+
+	const cudagraphModeParam = "compilation-config.cudagraph_mode"
+	_, configured := p.VLLM.ModelRunParams[cudagraphModeParam]
+	if !configured {
+		if mode, ok := cudagraphModeByModelAndGPU[modelGPUKey{modelName: p.VLLM.ModelName, gpuModel: policyGPUModel}]; ok {
+			p.VLLM.ModelRunParams[cudagraphModeParam] = mode
+		} else if mode, ok := cudagraphModeByModelAndGPU[modelGPUKey{modelName: p.VLLM.ModelName}]; ok {
+			p.VLLM.ModelRunParams[cudagraphModeParam] = mode
+		}
+	}
+
+	if _, configured := p.VLLM.ModelRunParams["linear-backend"]; !configured {
+		if backend, ok := linearBackendByModelAndGPU[modelGPUKey{modelName: p.VLLM.ModelName, gpuModel: policyGPUModel}]; ok {
+			p.VLLM.ModelRunParams["linear-backend"] = backend
+		}
+	}
 
 	// Cap --max-num-seqs for hybrid Mamba/Gated-DeltaNet models so vLLM engine init
 	// does not fail when the default (1024) exceeds the available Mamba cache blocks.
@@ -615,11 +719,24 @@ func (p *PresetParam) buildMultiNodeRayCommand(rc RuntimeContext) []string {
 	p.VLLM.RayWorkerParams["ray_address"] = utils.GetRayLeaderHost(rc.WorkspaceMetadata)
 	p.VLLM.RayWorkerParams["ray_port"] = strconv.Itoa(PortRayCluster)
 
+	// Runtime CUDA provisioning downloads over 1 GiB on each new node. The
+	// workers initialize in parallel, but a cold node can exceed vLLM's default
+	// five-minute Ray join timeout and make an otherwise healthy leader exit.
+	if p.RequiresCUDAToolkit() {
+		const cudaToolkitRayInitTimeout = "900"
+		if _, configured := p.VLLM.RayLeaderParams["ray_init_timeout"]; !configured {
+			p.VLLM.RayLeaderParams["ray_init_timeout"] = cudaToolkitRayInitTimeout
+		}
+		if _, configured := p.VLLM.RayWorkerParams["ray_init_timeout"]; !configured {
+			p.VLLM.RayWorkerParams["ray_init_timeout"] = cudaToolkitRayInitTimeout
+		}
+	}
+
 	rayLeaderCommand := utils.BuildCmdStr(p.VLLM.RayLeaderBaseCommand, p.VLLM.RayLeaderParams)
 	modelRunCommand := utils.BuildCmdStr(p.VLLM.BaseCommand, p.VLLM.ModelRunParams)
 	result := utils.BuildIfElseCmdStr(
-		`[ "${POD_INDEX}" = "0" ]`,                                      // leader if pod index is 0, otherwise worker
-		strings.Join([]string{rayLeaderCommand, modelRunCommand}, "; "), // leader: start ray head + model
+		`[ "${POD_INDEX}" = "0" ]`,                                        // leader if pod index is 0, otherwise worker
+		strings.Join([]string{rayLeaderCommand, modelRunCommand}, " && "), // start model only after Ray is ready
 		map[string]string{},
 		p.VLLM.RayWorkerBaseCommand, // worker: join the cluster
 		p.VLLM.RayWorkerParams,
@@ -692,7 +809,11 @@ func (p *PresetParam) RequiresDeepGEMM() bool {
 // RequiresFlashInfer returns true for models which require JIT-compilation with nvcc at runtime.
 func (p *PresetParam) RequiresFlashInfer() bool {
 	switch p.Name {
-	case "minimax-m2.7", "mistral-small-4-119b-2603":
+	case "kimi-k2.6",
+		"kimi-k2.7-code",
+		"minimax-m2.7",
+		"mistral-small-4-119b-2603",
+		"nvidia-nemotron-3-ultra-550b-a55b-nvfp4":
 		return true
 	}
 	return false

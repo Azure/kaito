@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	helmv2 "github.com/fluxcd/helm-controller/api/v2"
+	fluxkustomize "github.com/fluxcd/pkg/apis/kustomize"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
@@ -85,7 +86,8 @@ func TestGenerateInferencePoolHelmRelease(t *testing.T) {
 							},
 						},
 						"flags": map[string]any{
-							"secure-serving": false,
+							"metrics-endpoint-auth": false,
+							"secure-serving":        false,
 						},
 					},
 					"modelServers": map[string]any{
@@ -133,7 +135,8 @@ func TestGenerateInferencePoolHelmRelease(t *testing.T) {
 							},
 						},
 						"flags": map[string]any{
-							"secure-serving": false,
+							"metrics-endpoint-auth": false,
+							"secure-serving":        false,
 						},
 					},
 					"modelServers": map[string]any{
@@ -181,7 +184,8 @@ func TestGenerateInferencePoolHelmRelease(t *testing.T) {
 							},
 						},
 						"flags": map[string]any{
-							"secure-serving": false,
+							"metrics-endpoint-auth": false,
+							"secure-serving":        false,
 						},
 					},
 					"modelServers": map[string]any{
@@ -206,6 +210,11 @@ func TestGenerateInferencePoolHelmRelease(t *testing.T) {
 			origVLLM := featuregates.FeatureGates[consts.FeatureFlagVLLM]
 			featuregates.FeatureGates[consts.FeatureFlagVLLM] = true
 			defer func() { featuregates.FeatureGates[consts.FeatureFlagVLLM] = origVLLM }()
+			origFlowControl := featuregates.FeatureGates[consts.FeatureFlagEnableEPPFlowControl]
+			featuregates.FeatureGates[consts.FeatureFlagEnableEPPFlowControl] = false
+			defer func() {
+				featuregates.FeatureGates[consts.FeatureFlagEnableEPPFlowControl] = origFlowControl
+			}()
 
 			helmRelease, err := GenerateInferencePoolHelmRelease(tc.workspace)
 			assert.NoError(t, err)
@@ -226,6 +235,67 @@ func TestGenerateInferencePoolHelmRelease(t *testing.T) {
 			assert.NoError(t, json.Unmarshal(helmRelease.Spec.Values.Raw, &vals))
 			assert.Equal(t, tc.expected, vals)
 		})
+	}
+}
+
+func TestGenerateInferencePoolHelmReleaseFlowControl(t *testing.T) {
+	inferenceSet := test.MockInferenceSetWithPreset.DeepCopy()
+	original := featuregates.FeatureGates[consts.FeatureFlagEnableEPPFlowControl]
+	defer func() {
+		featuregates.FeatureGates[consts.FeatureFlagEnableEPPFlowControl] = original
+	}()
+
+	for _, tc := range []struct {
+		name           string
+		enabled        bool
+		expectedConfig any
+	}{
+		{name: "disabled", enabled: false, expectedConfig: nil},
+		{name: "enabled", enabled: true, expectedConfig: "flow-control-plugins.yaml"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			featuregates.FeatureGates[consts.FeatureFlagEnableEPPFlowControl] = tc.enabled
+
+			helmRelease, err := GenerateInferencePoolHelmRelease(inferenceSet)
+			assert.NoError(t, err)
+
+			values := map[string]any{}
+			assert.NoError(t, json.Unmarshal(helmRelease.Spec.Values.Raw, &values))
+			epp := values["router"].(map[string]any)["epp"].(map[string]any)
+			assert.Equal(t, tc.expectedConfig, epp["pluginsConfigFile"])
+			if tc.enabled {
+				customConfig := epp["pluginsCustomConfig"].(map[string]any)["flow-control-plugins.yaml"].(string)
+				assert.Contains(t, customConfig, "featureGates:\n- flowControl")
+			}
+		})
+	}
+}
+
+func TestGenerateInferencePoolHelmReleaseEPPPodLabel(t *testing.T) {
+	inferenceSet := test.MockInferenceSetWithPreset.DeepCopy()
+	inferenceSet.Name = "model-deployment"
+
+	helmRelease, err := GenerateInferencePoolHelmRelease(inferenceSet)
+	assert.NoError(t, err)
+
+	if assert.Len(t, helmRelease.Spec.PostRenderers, 1) &&
+		assert.NotNil(t, helmRelease.Spec.PostRenderers[0].Kustomize) &&
+		assert.Len(t, helmRelease.Spec.PostRenderers[0].Kustomize.Patches, 1) {
+		patch := helmRelease.Spec.PostRenderers[0].Kustomize.Patches[0]
+		assert.Equal(t, &fluxkustomize.Selector{
+			Group:         "apps",
+			Version:       "v1",
+			Kind:          "Deployment",
+			LabelSelector: "llm-d.ai/igw-mode=llm-d-router-gateway",
+		}, patch.Target)
+
+		operations := []map[string]string{}
+		assert.NoError(t, json.Unmarshal([]byte(patch.Patch), &operations))
+		assert.Equal(t, []map[string]string{{
+			"op":   "copy",
+			"from": "/metadata/name",
+			"path": "/spec/template/metadata/labels/inferencepool",
+		}}, operations)
 	}
 }
 

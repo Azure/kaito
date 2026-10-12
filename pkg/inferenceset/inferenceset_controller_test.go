@@ -20,9 +20,11 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	helmv2 "github.com/fluxcd/helm-controller/api/v2"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
+	"github.com/go-logr/logr"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -38,6 +40,7 @@ import (
 	"github.com/kaito-project/kaito/pkg/featuregates"
 	"github.com/kaito-project/kaito/pkg/model"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
+	utilsinferenceset "github.com/kaito-project/kaito/pkg/utils/inferenceset"
 	"github.com/kaito-project/kaito/pkg/utils/test"
 	"github.com/kaito-project/kaito/pkg/workspace/controllers"
 	"github.com/kaito-project/kaito/pkg/workspace/inference"
@@ -418,6 +421,72 @@ func TestEnsureGatewayAPIInferenceExtension(t *testing.T) {
 // condition logic inside addOrUpdateInferenceSet.
 // --------------------------------------------------------------------------
 
+func TestReconcileExistingWorkspaceMetadata(t *testing.T) {
+	t.Run("updates speculative decoding annotation without clobbering unrelated child annotations", func(t *testing.T) {
+		prevProvisioner := consts.ActiveNodeProvisioner
+		consts.ActiveNodeProvisioner = consts.NodeProvisionerKarpenter
+		defer func() { consts.ActiveNodeProvisioner = prevProvisioner }()
+
+		iObj := test.MockInferenceSetWithPresetVLLM.DeepCopy()
+		iObj.Labels = map[string]string{
+			v1beta1.LabelInferenceRole: "prefill",
+		}
+		iObj.Spec.Template.Labels = map[string]string{
+			"team": "serving",
+		}
+		iObj.Spec.Template.Annotations = map[string]string{
+			v1beta1.AnnotationEnableSpeculativeDecoding: "true",
+			v1beta1.AnnotationCapacityType:              consts.KarpenterCapacityTypeSpot,
+		}
+
+		desired := utilsinferenceset.NewWorkspaceForInferenceSet(iObj)
+		ws := test.MockWorkspaceWithPresetVLLM.DeepCopy()
+		ws.Labels = map[string]string{
+			"team":  "old-team",
+			"extra": "keep-me",
+		}
+		ws.Annotations = map[string]string{
+			v1beta1.AnnotationEnableSpeculativeDecoding: "false",
+			v1beta1.AnnotationCapacityType:              "reserved",
+			v1beta1.AnnotationDisableBenchmark:          "true",
+			"workspace.kaito.io/hash":                   "hash",
+			"workspace.kaito.io/revision":               "3",
+			"kaito.sh/upgrade-start-time":               "ts",
+			"example.com/stale":                         "keep-me",
+		}
+
+		updated := reconcileExistingWorkspaceMetadata(ws, desired)
+		assert.True(t, updated)
+		assert.Equal(t, "serving", ws.Labels["team"])
+		assert.Equal(t, "prefill", ws.Labels[v1beta1.LabelInferenceRole])
+		assert.Equal(t, iObj.Name, ws.Labels[consts.WorkspaceCreatedByInferenceSetLabel])
+		assert.Equal(t, "keep-me", ws.Labels["extra"], "non-InferenceSet labels should remain additive")
+		assert.Equal(t, "true", ws.Annotations[v1beta1.AnnotationEnableSpeculativeDecoding])
+		assert.Equal(t, consts.KarpenterCapacityTypeSpot, ws.Annotations[v1beta1.AnnotationCapacityType])
+		assert.Equal(t, "hash", ws.Annotations["workspace.kaito.io/hash"])
+		assert.Equal(t, "3", ws.Annotations["workspace.kaito.io/revision"])
+		assert.Equal(t, "ts", ws.Annotations["kaito.sh/upgrade-start-time"])
+		assert.Equal(t, "keep-me", ws.Annotations["example.com/stale"])
+
+		assert.False(t, reconcileExistingWorkspaceMetadata(ws, desired), "already-reconciled workspace metadata should be a no-op")
+	})
+
+	t.Run("removes speculative decoding annotation when no longer desired", func(t *testing.T) {
+		iObj := test.MockInferenceSetWithPresetVLLM.DeepCopy()
+		desired := utilsinferenceset.NewWorkspaceForInferenceSet(iObj)
+		ws := test.MockWorkspaceWithPresetVLLM.DeepCopy()
+		ws.Annotations = map[string]string{
+			v1beta1.AnnotationEnableSpeculativeDecoding: "true",
+			"workspace.kaito.io/hash":                   "hash",
+		}
+
+		updated := reconcileExistingWorkspaceMetadata(ws, desired)
+		assert.True(t, updated)
+		assert.NotContains(t, ws.Annotations, v1beta1.AnnotationEnableSpeculativeDecoding)
+		assert.Equal(t, "hash", ws.Annotations["workspace.kaito.io/hash"])
+	})
+}
+
 func TestInferenceSetBenchmarkAggregation(t *testing.T) {
 	makeWorkspace := func(name string, tpm string) v1beta1.Workspace {
 		ws := v1beta1.Workspace{
@@ -559,6 +628,66 @@ func TestInferenceSetBenchmarkAggregation(t *testing.T) {
 				fmt.Sprintf("%d/%d replicas benchmarked", benchmarkedReplicas, *tc.inferenceset.Spec.Replicas))
 		})
 	}
+}
+
+func TestInferenceSetScaleFromZeroRetriesPendingExpectations(t *testing.T) {
+	ctx := context.Background()
+	inferenceSet := test.MockInferenceSetWithPreset.DeepCopy()
+	inferenceSet.Spec.Replicas = lo.ToPtr(int32(1))
+	workspace := utilsinferenceset.NewWorkspaceForInferenceSet(inferenceSet)
+	workspace.Name = inferenceSet.Name + "-initial"
+	workspace.GenerateName = ""
+
+	scheme := runtime.NewScheme()
+	assert.NoError(t, v1beta1.AddToScheme(scheme))
+	assert.NoError(t, appsv1.AddToScheme(scheme))
+	cl := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(inferenceSet).
+		WithObjects(inferenceSet, workspace).
+		Build()
+	reconciler := NewInferenceSetReconciler(cl, scheme, logr.Discard(), nil)
+	isKey := client.ObjectKeyFromObject(inferenceSet).String()
+
+	// Scale down and intentionally do not report the Workspace deletion event.
+	inferenceSet.Spec.Replicas = lo.ToPtr(int32(0))
+	result, err := reconciler.addOrUpdateInferenceSet(ctx, inferenceSet)
+	assert.NoError(t, err)
+	assert.Zero(t, result.RequeueAfter)
+	assertWorkspaceCount(t, ctx, cl, inferenceSet, 0)
+
+	// Scale up. The missed observation leaves deletion expectations pending, so
+	// reconciliation must retry without requiring another spec change.
+	inferenceSet.Spec.Replicas = lo.ToPtr(int32(1))
+	result, err = reconciler.addOrUpdateInferenceSet(ctx, inferenceSet)
+	assert.NoError(t, err)
+	assert.Equal(t, time.Second, result.RequeueAfter)
+	assertWorkspaceCount(t, ctx, cl, inferenceSet, 0)
+
+	// A delayed watch event satisfies the deletion expectation. The scheduled
+	// retry then creates the replacement Workspace.
+	reconciler.expectations.DeletionObserved(reconciler.klogger, isKey)
+	result, err = reconciler.addOrUpdateInferenceSet(ctx, inferenceSet)
+	assert.NoError(t, err)
+	assert.Zero(t, result.RequeueAfter)
+	assertWorkspaceCount(t, ctx, cl, inferenceSet, 1)
+
+	// Until the creation event is observed, another retry must not create a
+	// duplicate Workspace.
+	result, err = reconciler.addOrUpdateInferenceSet(ctx, inferenceSet)
+	assert.NoError(t, err)
+	assert.Equal(t, time.Second, result.RequeueAfter)
+	assertWorkspaceCount(t, ctx, cl, inferenceSet, 1)
+}
+
+func assertWorkspaceCount(t *testing.T, ctx context.Context, cl client.Client, inferenceSet *v1beta1.InferenceSet, expected int) {
+	t.Helper()
+	workspaceList := &v1beta1.WorkspaceList{}
+	err := cl.List(ctx, workspaceList,
+		client.InNamespace(inferenceSet.Namespace),
+		client.MatchingLabels{consts.WorkspaceCreatedByInferenceSetLabel: inferenceSet.Name})
+	assert.NoError(t, err)
+	assert.Len(t, workspaceList.Items, expected)
 }
 
 func TestSelectWorkspacesToDelete(t *testing.T) {

@@ -912,7 +912,10 @@ def test_build_scanners_supports_normalized_ban_substrings_type(
 
     assert parsed == (_ban_subs_cfg(substrings=["secret"]),)
     assert len(scanners) == 1
-    assert isinstance(scanners[0], FakeBanSubstrings)
+    # Native scanner, not FakeBanSubstrings
+    from guardrail_core.native_scanners import NativeBanSubstringsScanner
+
+    assert isinstance(scanners[0], NativeBanSubstringsScanner)
     assert scanners[0].substrings == ["secret"]
     assert scanners[0].redact is True
 
@@ -999,21 +1002,6 @@ def test_build_scanners_builds_json_and_reading_time(fake_llm_guard_scanners):
 
 
 def test_build_scanners_supports_secrets_type(monkeypatch):
-    class FakeSecrets:
-        def __init__(self, *, redact_mode="all"):
-            self.redact_mode = redact_mode
-
-        @staticmethod
-        def redact_value(value, mode):
-            return f"{mode}:{value}"
-
-    monkeypatch.setattr(
-        scanner_schemas_module.llm_guard_input_scanners,
-        "Secrets",
-        FakeSecrets,
-        raising=False,
-    )
-
     parsed = output_guardrails_module._parse_policy_scanner_configs(
         [{"type": "secrets", "redactMode": "partial"}],
         "guardrails.yaml",
@@ -1022,12 +1010,12 @@ def test_build_scanners_supports_secrets_type(monkeypatch):
 
     scanners = guardrails._build_scanners()
     monkeypatch.setattr(
-        scanners[0], "_detect_secret_values", lambda output: {"secret-value"}
+        scanners[0], "_detect_secret_values", lambda output: {"secret-token"}
     )
 
     assert parsed == (_secrets_cfg(redact_mode="partial"),)
-    assert scanners[0].scan("ignored", "secret-value") == (
-        "partial:secret-value",
+    assert scanners[0].scan("ignored", "secret-token") == (
+        "se..en",
         False,
         1.0,
     )
@@ -1065,8 +1053,10 @@ def test_output_secrets_scanner_deduplicates_detector_hits(monkeypatch):
         def scan_file(self, path):
             pass
 
+    import guardrail_core.native_scanners as native_scanners_module
+
     monkeypatch.setattr(
-        scanner_schemas_module, "SecretsCollection", FakeSecretsCollection
+        native_scanners_module, "SecretsCollection", FakeSecretsCollection
     )
     scanner = SecretsConfig(redact_mode="all").build("redact")
 
@@ -1141,16 +1131,17 @@ def test_build_scanners_skips_configs_whose_build_raises(monkeypatch):
     sentinel = object()
     call_count = {"n": 0}
 
-    def fake_regex(*args, **kwargs):
+    def fake_build(self, action_on_hit):
         call_count["n"] += 1
         if call_count["n"] == 1:
             raise RuntimeError("simulated build failure")
         return sentinel
 
+    # Mock RegexConfig.build() instead of llm_guard since we now use NativeRegexScanner
     monkeypatch.setattr(
-        scanner_schemas_module.llm_guard_output_scanners,
-        "Regex",
-        fake_regex,
+        scanner_schemas_module.RegexConfig,
+        "build",
+        fake_build,
         raising=False,
     )
 
@@ -1195,10 +1186,12 @@ def test_regex_config_build_uses_value_lookup_for_fullmatch(
 ):
     """Regression test: enum value 'fullmatch' must work end-to-end (the enum
     NAME is FULL_MATCH, so a name-based lookup would raise KeyError)."""
+    from guardrail_core.native_scanners import RegexMatchType
+
     cfg = RegexConfig.from_dict({"patterns": ["a"], "match_type": "fullmatch"})
     scanner = cfg.build("redact")
 
-    assert scanner.match_type == scanner_schemas_module.RegexMatchType.FULL_MATCH
+    assert scanner.match_type == RegexMatchType.FULL_MATCH
 
 
 # ---------------------------------------------------------------------------

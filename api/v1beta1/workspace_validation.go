@@ -45,6 +45,7 @@ import (
 	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/kaito-project/kaito/pkg/utils/mig"
 	"github.com/kaito-project/kaito/pkg/utils/plugin"
+	"github.com/kaito-project/kaito/pkg/utils/speculativedecoding"
 	"github.com/kaito-project/kaito/presets/workspace/models"
 )
 
@@ -92,6 +93,9 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		if w.Inference != nil {
 			errs = errs.Also(w.Inference.validateUpdate(old.Inference).ViaField("inference"))
 		}
+		// Validate speculative decoding annotation on updates too.
+		errs = errs.Also(w.validateAnnotations())
+		errs = errs.Also(w.validateSpeculativeDecoding(ctx))
 		if w.Tuning != nil {
 			errs = errs.Also(w.Tuning.validateUpdate(old.Tuning).ViaField("tuning"))
 		}
@@ -107,6 +111,7 @@ func (w *Workspace) ValidateCreate(ctx context.Context) (errs *apis.FieldError) 
 	errs = errs.Also(w.validateAnnotations())
 	errs = errs.Also(w.validateNodeClassNameAnnotation())
 	errs = errs.Also(w.validateCapacityTypeAnnotation())
+	errs = errs.Also(w.validateSpeculativeDecoding(ctx))
 	if w.Inference != nil {
 		bypassResourceChecks := false
 		if w.GetAnnotations() != nil {
@@ -160,6 +165,53 @@ func (w *Workspace) validateAnnotations() (errs *apis.FieldError) {
 			))
 		}
 	}
+	return errs
+}
+
+func (w *Workspace) validateSpeculativeDecoding(ctx context.Context) (errs *apis.FieldError) {
+	presetName := ""
+	if w.Inference != nil && w.Inference.Preset != nil {
+		presetName = string(w.Inference.Preset.Name)
+	}
+
+	status, invalidValue := speculativedecoding.ValidateOptIn(
+		w.GetAnnotations(),
+		AnnotationEnableSpeculativeDecoding,
+		presetName,
+		GetWorkspaceRuntimeName(w),
+	)
+	switch status {
+	case speculativedecoding.OptInDisabled:
+		return nil
+	case speculativedecoding.OptInInvalidValue:
+		return errs.Also(apis.ErrInvalidValue(
+			fmt.Sprintf("annotation %s has invalid value %q; expected \"true\" or \"false\"", AnnotationEnableSpeculativeDecoding, invalidValue),
+			fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	case speculativedecoding.OptInMissingPreset:
+		return errs.Also(apis.ErrGeneric(
+			"kaito.sh/enable-speculative-decoding requires a preset inference; remove the annotation or set inference.preset.name",
+			fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	case speculativedecoding.OptInRuntimeMismatch:
+		return errs.Also(apis.ErrGeneric(
+			fmt.Sprintf(
+				"kaito.sh/enable-speculative-decoding requires the vLLM runtime; preset %q is configured for a different runtime",
+				presetName,
+			),
+			fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	}
+
+	// Any preset is accepted: presets registered in generator.speculativeDecodingByPreset
+	// get their preset-tuned config (e.g. mtp for DeepSeek R1/V3/V3.2); everything else
+	// falls back to the universal ngram default at pod-spec generation time.
+	//
+	// Current reachable methods in this PR are only preset-tuned mtp and the
+	// universal ngram fallback; both are allowed under pipeline parallelism.
+	// If KAITO later adds a speculative-decoding method that is not PP-safe,
+	// add an explicit guard here before accepting the annotation.
+
 	return errs
 }
 
@@ -607,14 +659,18 @@ func (r *ResourceSpec) validateCreateWithInference(ctx context.Context, inferenc
 			groupCount := 0
 			for i := range nodeItems {
 				node := &nodeItems[i]
-				// Try to get GPU configuration from nvidia.com labels first
-				gpuConfig, err := sku.GetGPUConfigFromNodeLabels(node)
+				gpuConfig, err := sku.GetGPUConfigFromNode(node)
 				if err != nil {
 					if relaxed {
 						continue
 					}
-					errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to get GPU config from nvidia labels on node %s: %v", node.Name, err)))
+					errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to get GPU config from known instance type or nvidia labels on node %s: %v", node.Name, err)))
 					return errs
+				}
+				gpuModel := sku.CanonicalGPUModel(gpuConfig.GPUModel)
+				currentGPUModel := ""
+				if skuConfig != nil {
+					currentGPUModel = sku.CanonicalGPUModel(skuConfig.GPUModel)
 				}
 
 				switch {
@@ -626,12 +682,12 @@ func (r *ResourceSpec) validateCreateWithInference(ctx context.Context, inferenc
 						skuConfig = gpuConfig
 						groupCount = 1
 					} else if gpuConfig.GPUMem.Equal(skuConfig.GPUMem) &&
-						gpuConfig.GPUModel == skuConfig.GPUModel &&
+						gpuModel == currentGPUModel &&
 						gpuConfig.GPUCount == skuConfig.GPUCount {
 						groupCount++
 					}
 				default:
-					if gpuConfig.GPUModel != skuConfig.GPUModel {
+					if gpuModel != currentGPUModel {
 						errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Non-uniform GPU product: node %s has %s GPUs, but previous node has %s GPUs, all nodes must have the same GPU product for homogeneous placement", node.Name, gpuConfig.GPUModel, skuConfig.GPUModel)))
 						return errs
 					}
@@ -651,7 +707,7 @@ func (r *ResourceSpec) validateCreateWithInference(ctx context.Context, inferenc
 				if relaxed {
 					return errs
 				}
-				errs = errs.Also(apis.ErrGeneric("Failed to determine GPU configuration from existing nodes, ensure nodes have appropriate NVIDIA GPU labels"))
+				errs = errs.Also(apis.ErrGeneric("Failed to determine GPU configuration from existing nodes, ensure nodes have a known instance type or appropriate NVIDIA GPU labels"))
 				return errs
 			}
 			machineCount = groupCount

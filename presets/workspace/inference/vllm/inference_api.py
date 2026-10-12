@@ -28,8 +28,10 @@ from typing import Any
 import psutil
 import rate_limit
 import uvloop
-import vllm.entrypoints.openai.api_server as api_server
+import vllm.entrypoints.launchers.api_server.entry as api_server_entry
+import vllm.entrypoints.launchers.cli_args as launcher_cli_args
 import yaml
+from _workarounds import model_asset_prefetch
 from huggingface_hub import HfFileSystem, scan_cache_dir
 from prometheus_client import CONTENT_TYPE_LATEST, Gauge, generate_latest
 from vllm.entrypoints.openai.models.protocol import LoRAModulePath
@@ -73,7 +75,7 @@ class KAITOArgumentParser(argparse.ArgumentParser):
         super().__init__(*args, **kwargs)
 
         # Initialize vllm parser
-        self.vllm_parser = api_server.make_arg_parser(self.vllm_parser)
+        self.vllm_parser = launcher_cli_args.make_arg_parser(self.vllm_parser)
         self._reset_vllm_defaults()
 
         # KAITO only args
@@ -115,6 +117,7 @@ class KAITOArgumentParser(argparse.ArgumentParser):
             default=False,
             help="Disable the loopback endpoint used to abort startup benchmark requests.",
         )
+        model_asset_prefetch.register_args(self)
 
     def _reset_vllm_defaults(self):
         local_rank = int(os.environ.get("LOCAL_RANK", 0))  # Default to 0 if not set
@@ -585,20 +588,20 @@ if __name__ == "__main__":
     logger.info(f"Starting server on port {args.port}")
 
     def _wrap_build_and_serve(hook):
-        """Chain a pre-serve hook onto api_server.build_and_serve.
+        """Chain a pre-serve hook onto api_server_entry.build_and_serve.
 
         hook(engine_client) runs after the engine is built (so
         engine_client.vllm_config is fully resolved) but before uvicorn
         starts accepting requests. Multiple wraps compose in registration
         order.
         """
-        prev = api_server.build_and_serve
+        prev = api_server_entry.build_and_serve
 
         async def wrapped(engine_client, listen_address, sock, bargs, **kw):
             hook(engine_client)
             return await prev(engine_client, listen_address, sock, bargs, **kw)
 
-        api_server.build_and_serve = wrapped
+        api_server_entry.build_and_serve = wrapped
 
     # Always start the download monitor so both metrics are always exposed.
     # For local model paths _run returns 0 immediately; for HF repo IDs it
@@ -644,7 +647,7 @@ if __name__ == "__main__":
             host = getattr(setup_args, "host", "0.0.0.0")
             return f"http://{host}:{setup_args.port}", pre_sock
 
-        api_server.setup_server = _patched_setup
+        api_server_entry.setup_server = _patched_setup
 
         # By the time build_and_serve runs, model downloading, KV cache
         # allocation, and model warmup are all complete. Stop the metrics
@@ -684,5 +687,7 @@ if __name__ == "__main__":
     _wrap_build_and_serve(_configure_runtime_limits)
     configure_middlewares(args)
 
+    model_asset_prefetch.prefetch_model_assets(args)
+
     # See https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html
-    uvloop.run(api_server.run_server(args))
+    uvloop.run(api_server_entry.run_server(args))

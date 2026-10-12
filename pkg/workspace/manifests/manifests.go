@@ -19,6 +19,7 @@ import (
 	"path"
 
 	helmv2 "github.com/fluxcd/helm-controller/api/v2"
+	fluxkustomize "github.com/fluxcd/pkg/apis/kustomize"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
@@ -32,6 +33,7 @@ import (
 
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
+	"github.com/kaito-project/kaito/pkg/featuregates"
 	pkgmodel "github.com/kaito-project/kaito/pkg/model"
 	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
@@ -386,6 +388,16 @@ func inferencePoolTargetPort() int32 {
 
 // GenerateInferencePoolHelmRelease generates a Flux HelmRelease for the inference pool.
 func GenerateInferencePoolHelmRelease(inferenceSetObj *kaitov1beta1.InferenceSet) (*helmv2.HelmRelease, error) {
+	inferencePoolName := utils.InferencePoolName(inferenceSetObj.Name)
+	// llm-d-router-gateway v0.9.0 has no value for extending EPP pod labels.
+	eppPodLabelPatch, err := json.Marshal([]map[string]string{{
+		"op":   "copy",
+		"from": "/metadata/name",
+		"path": "/spec/template/metadata/labels/inferencepool",
+	}})
+	if err != nil {
+		return nil, err
+	}
 	matchLabels := map[string]string{
 		consts.WorkspaceCreatedByInferenceSetLabel: inferenceSetObj.Name,
 	}
@@ -424,7 +436,8 @@ func GenerateInferencePoolHelmRelease(inferenceSetObj *kaitov1beta1.InferenceSet
 				// filter fails with "Connection refused" / "no healthy upstream"
 				// during TLS handshake against a plaintext client.
 				"flags": map[string]any{
-					"secure-serving": false,
+					"metrics-endpoint-auth": false,
+					"secure-serving":        false,
 				},
 			},
 			"modelServers": map[string]any{
@@ -435,6 +448,41 @@ func GenerateInferencePoolHelmRelease(inferenceSetObj *kaitov1beta1.InferenceSet
 			},
 		},
 	}
+	if featuregates.FeatureGates[consts.FeatureFlagEnableEPPFlowControl] {
+		// The router chart treats pluginsCustomConfig as a complete
+		// EndpointPickerConfig rather than merging it with the built-in default.
+		// Preserve that default plugin stack here while adding the flowControl
+		// feature gate. EPP v0.9.0's deprecated environment toggle is applied too
+		// late to initialize the Flow Control admission controller.
+		eppValues := helmValues["router"].(map[string]any)["epp"].(map[string]any)
+		eppValues["pluginsConfigFile"] = "flow-control-plugins.yaml"
+		eppValues["pluginsCustomConfig"] = map[string]string{
+			"flow-control-plugins.yaml": `apiVersion: llm-d.ai/v1alpha1
+kind: EndpointPickerConfig
+featureGates:
+- flowControl
+plugins:
+- type: queue-scorer
+- type: kv-cache-utilization-scorer
+- type: prefix-cache-scorer
+- type: metrics-data-source
+  parameters:
+    scheme: "http"
+    path: "/metrics"
+    insecureSkipVerify: true
+- type: core-metrics-extractor
+schedulingProfiles:
+- name: default
+  plugins:
+  - pluginRef: queue-scorer
+    weight: 2
+  - pluginRef: kv-cache-utilization-scorer
+    weight: 2
+  - pluginRef: prefix-cache-scorer
+    weight: 3
+`,
+		}
+	}
 	rawHelmValues, err := json.Marshal(helmValues)
 	if err != nil {
 		return nil, err
@@ -442,18 +490,31 @@ func GenerateInferencePoolHelmRelease(inferenceSetObj *kaitov1beta1.InferenceSet
 
 	return &helmv2.HelmRelease{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      utils.InferencePoolName(inferenceSetObj.Name),
+			Name:      inferencePoolName,
 			Namespace: inferenceSetObj.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(inferenceSetObj, kaitov1beta1.GroupVersion.WithKind("InferenceSet")),
 			},
 		},
 		Spec: helmv2.HelmReleaseSpec{
+			PostRenderers: []helmv2.PostRenderer{{
+				Kustomize: &helmv2.Kustomize{
+					Patches: []fluxkustomize.Patch{{
+						Patch: string(eppPodLabelPatch),
+						Target: &fluxkustomize.Selector{
+							Group:         "apps",
+							Version:       "v1",
+							Kind:          "Deployment",
+							LabelSelector: "llm-d.ai/igw-mode=llm-d-router-gateway",
+						},
+					}},
+				},
+			}},
 			// Referencing the OCIRepository created above
 			ChartRef: &helmv2.CrossNamespaceSourceReference{
 				Kind:      sourcev1.OCIRepositoryKind,
 				Namespace: inferenceSetObj.Namespace,
-				Name:      utils.InferencePoolName(inferenceSetObj.Name),
+				Name:      inferencePoolName,
 			},
 			Values: &apiextensionsv1.JSON{
 				Raw: rawHelmValues,
