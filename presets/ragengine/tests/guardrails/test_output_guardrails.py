@@ -18,7 +18,7 @@ import textwrap
 import time
 
 import pytest
-from llm_guard import scan_output
+from guardrail_core.scanning import scan_output
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 

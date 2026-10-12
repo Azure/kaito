@@ -13,7 +13,7 @@
 
 """Scanner config schemas for output guardrails.
 
-Each schema describes the YAML shape of one llm_guard scanner AND knows how
+Each schema describes the YAML shape of one guardrail scanner and knows how
 to build the corresponding scanner instance. To add a new scanner:
   1. Define a dataclass with `from_dict()` and `build()`
   2. Register it in SCANNER_REGISTRY below
