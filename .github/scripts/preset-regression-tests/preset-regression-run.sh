@@ -415,7 +415,11 @@ print_diagnostics() {
   # NodeClaim conditions and events carry the real provisioning error (capacity,
   # quota, SKU availability); the workspace condition only says "not ready".
   echo "::group::${ws} — node provisioning (NodePool / NodeClaim)"
-  kubectl get nodepools.karpenter.sh -o wide 2>&1 || true
+  if [[ "${TEST_SUITE:-gpuprovisioner}" == "azkarpenter" ]]; then
+    kubectl get nodepools.karpenter.sh -o wide 2>&1 || true
+  else
+    echo "NodePools are not used by gpu-provisioner."
+  fi
   kubectl get nodeclaims.karpenter.sh \
     -l "$(nodeclaim_selector "$ws")" \
     -o wide 2>&1 || true
@@ -431,8 +435,8 @@ print_diagnostics() {
   echo "--- NodeClaim events ---"
   kubectl get events -A --field-selector involvedObject.kind=NodeClaim \
     --sort-by=.lastTimestamp 2>&1 | tail -n 20 || true
-  # gpu-provisioner creates NodeClaims directly and has no NodePools, so the query
-  # above comes back empty for it; only the controller to read logs from differs.
+  # gpu-provisioner creates NodeClaims directly and has no NodePools; only the
+  # controller to read logs from differs.
   local prov_ns prov_label
   if [[ "${TEST_SUITE:-gpuprovisioner}" == "azkarpenter" ]]; then
     prov_ns="${KARPENTER_NAMESPACE:-karpenter}"
