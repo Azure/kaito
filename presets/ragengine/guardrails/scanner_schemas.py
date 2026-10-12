@@ -13,7 +13,7 @@
 
 """Scanner config schemas for output guardrails.
 
-Each schema describes the YAML shape of one guardrail scanner and knows how
+Each schema describes the YAML shape of one llm_guard scanner AND knows how
 to build the corresponding scanner instance. To add a new scanner:
   1. Define a dataclass with `from_dict()` and `build()`
   2. Register it in SCANNER_REGISTRY below
@@ -28,6 +28,9 @@ import ipaddress
 import re
 from dataclasses import dataclass
 from typing import Any, ClassVar
+
+import llm_guard.input_scanners as llm_guard_input_scanners
+import llm_guard.output_scanners as llm_guard_output_scanners
 
 # Allowed match_type values derived from enums in guardrail_core.native_scanners
 _BAN_SUBSTRINGS_MATCH_TYPES = frozenset(("word", "str"))
@@ -126,6 +129,36 @@ class SensitiveConfig:
             detectors=self.detectors,
             redact=(action_on_hit == "redact"),
         )
+
+
+# Adapts llm_guard InvisibleText for model output scanning.
+class InvisibleTextOutputAdapter:
+    def __init__(self) -> None:
+        self._scanner = llm_guard_input_scanners.InvisibleText()
+
+    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+        sanitized_output, is_valid, score = self._scanner.scan(output)
+        return sanitized_output, is_valid, score
+
+
+# Adapts llm_guard TokenLimit to limit model output token count.
+class TokenLimitOutputAdapter:
+    def __init__(
+        self,
+        *,
+        limit: int,
+        encoding_name: str = "cl100k_base",
+        model_name: str | None = None,
+    ) -> None:
+        self._scanner = llm_guard_input_scanners.TokenLimit(
+            limit=limit,
+            encoding_name=encoding_name,
+            model_name=model_name,
+        )
+
+    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+        sanitized_output, is_valid, score = self._scanner.scan(output)
+        return sanitized_output, is_valid, score
 
 
 @dataclass
@@ -251,9 +284,7 @@ class InvisibleTextConfig:
         return cls()
 
     def build(self, action_on_hit: str) -> Any:
-        from guardrail_core.native_scanners import NativeInvisibleTextScanner
-
-        return NativeInvisibleTextScanner()
+        return InvisibleTextOutputAdapter()
 
 
 @dataclass
@@ -287,9 +318,7 @@ class TokenLimitConfig:
         return cls(limit=limit, encoding_name=encoding_name, model_name=model_name)
 
     def build(self, action_on_hit: str) -> Any:
-        from guardrail_core.native_scanners import NativeTokenLimitScanner
-
-        return NativeTokenLimitScanner(
+        return TokenLimitOutputAdapter(
             limit=self.limit,
             encoding_name=self.encoding_name,
             model_name=self.model_name,
@@ -343,9 +372,7 @@ class ReadingTimeConfig:
         return cls(max_time=float(max_time), truncate=truncate)
 
     def build(self, action_on_hit: str) -> Any:
-        from guardrail_core.native_scanners import NativeReadingTimeScanner
-
-        return NativeReadingTimeScanner(
+        return llm_guard_output_scanners.ReadingTime(
             max_time=self.max_time,
             truncate=self.truncate,
         )
