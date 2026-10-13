@@ -215,19 +215,6 @@ class NativeInvisibleTextScanner:
     """Remove Unicode characters that can invisibly hide or obfuscate text."""
 
     def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
-        """Scan output for invisible or non-printable Unicode characters.
-
-        Args:
-            prompt: The input prompt (unused, kept for interface compatibility).
-            output: The text to scan.
-
-        Returns:
-            (output, valid, score):
-                output: Original or sanitized output text with invisible chars removed.
-                valid: True if no invisible characters found, False otherwise.
-                score: -1.0 for ASCII text, 0.0 for visible Unicode text,
-                    and 1.0 when invisible characters are found.
-        """
         del prompt
 
         if not any(ord(char) > 127 for char in output):
@@ -236,15 +223,13 @@ class NativeInvisibleTextScanner:
         invisible_chars = []
         for i, char in enumerate(output):
             category = unicodedata.category(char)
-            # Detect format chars (Cf), private use (Co), and unassigned (Cn).
-            # This matches llm-guard behavior: skips normal control chars like \n, \t, \r
+            # Match llm-guard's format, private-use, and unassigned categories.
             if category in ("Cf", "Co", "Cn"):
                 invisible_chars.append(i)
 
         if not invisible_chars:
             return output, True, 0.0
 
-        # Remove invisible characters
         sanitized = "".join(
             char for i, char in enumerate(output) if i not in invisible_chars
         )
@@ -252,13 +237,8 @@ class NativeInvisibleTextScanner:
 
 
 class NativeReadingTimeScanner:
-    """KAITO-owned scanner to enforce reading time limits on output.
+    """Enforce a 200-word-per-minute reading-time limit on output."""
 
-    Uses a simple heuristic: assumes average reading speed of ~200 words per minute.
-    Can either mark output invalid or truncate it to fit within the time limit.
-    """
-
-    # Average reading speed in words per minute
     _DEFAULT_READING_SPEED = 200
 
     def __init__(
@@ -270,25 +250,11 @@ class NativeReadingTimeScanner:
         self.truncate = truncate
 
     def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
-        """Scan output for reading time and optionally truncate.
-
-        Args:
-            prompt: The input prompt (unused, kept for interface compatibility).
-            output: The text to scan.
-
-        Returns:
-            (output, valid, score):
-                output: Original or truncated output.
-                valid: True if reading time <= max_time, False if exceeds or truncated.
-                score: Conformant to KAITO scanner contract: -1.0 when valid,
-                    1.0 when invalid/truncated.
-        """
         del prompt
 
         if output.strip() == "":
             return output, True, -1.0
 
-        # Estimate reading time
         words = output.split()
         word_count = len(words)
         reading_time = word_count / self._DEFAULT_READING_SPEED
@@ -299,21 +265,14 @@ class NativeReadingTimeScanner:
         if not self.truncate:
             return output, False, 1.0
 
-        # Calculate maximum words to keep
         max_words = int(self.max_time * self._DEFAULT_READING_SPEED)
         truncated = " ".join(words[:max_words])
 
-        # Return False to indicate output was modified
         return truncated, False, 1.0
 
 
 class NativeTokenLimitScanner:
-    """KAITO-owned scanner to enforce token count limits on output.
-
-    Uses tiktoken for accurate token counting with configurable tokenizer.
-    When output exceeds the limit, truncates it to fit.
-    Requires tiktoken to be installed.
-    """
+    """Enforce a strict token limit using tiktoken."""
 
     def __init__(
         self,
@@ -327,7 +286,6 @@ class NativeTokenLimitScanner:
         self._tokenizer = None
 
     def _get_tokenizer(self):
-        """Lazily load tokenizer to avoid import overhead."""
         if self._tokenizer is None:
             try:
                 import tiktoken
@@ -344,19 +302,6 @@ class NativeTokenLimitScanner:
         return self._tokenizer
 
     def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
-        """Scan output for token count limit.
-
-        Args:
-            prompt: The input prompt (unused, kept for interface compatibility).
-            output: The text to scan.
-
-        Returns:
-            (output, valid, score):
-                output: Original output, or truncated to fit within limit.
-                valid: True if token count is less than limit, False otherwise.
-                score: Conformant to KAITO scanner contract: -1.0 when valid,
-                    1.0 when invalid.
-        """
         del prompt
 
         if output.strip() == "":
@@ -369,7 +314,6 @@ class NativeTokenLimitScanner:
         if token_count < self.limit:
             return output, True, -1.0
 
-        # Truncate to fit within limit
         truncated_tokens = tokens[: self.limit]
         truncated_output = tokenizer.decode(truncated_tokens)
 

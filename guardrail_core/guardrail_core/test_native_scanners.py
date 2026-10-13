@@ -203,10 +203,7 @@ class TestNativeRegexScanner:
 
 
 class TestNativeInvisibleTextScanner:
-    """Test native InvisibleText scanner."""
-
     def test_normal_text_unchanged(self):
-        """Test normal text is unchanged."""
         scanner = NativeInvisibleTextScanner()
         output, valid, score = scanner.scan("", "Hello World")
         assert valid
@@ -220,16 +217,13 @@ class TestNativeInvisibleTextScanner:
         assert scanner.scan("", text) == (text, True, 0.0)
 
     def test_invisible_unicode_removed(self):
-        """Test invisible unicode characters are removed."""
         scanner = NativeInvisibleTextScanner()
-        # Zero-width space
-        output, valid, score = scanner.scan("", "Hello​World")
+        output, valid, score = scanner.scan("", "Hello\u200bWorld")
         assert not valid
         assert score == 1.0
         assert "​" not in output
 
     def test_newline_tab_preserved(self):
-        """Test newline and tab are preserved (Cc category not removed)."""
         scanner = NativeInvisibleTextScanner()
         output, valid, score = scanner.scan("", "Hello\nWorld")
         assert valid
@@ -240,10 +234,7 @@ class TestNativeInvisibleTextScanner:
 
 
 class TestNativeReadingTimeScanner:
-    """Test native ReadingTime scanner."""
-
     def test_within_limit(self):
-        """Test text within time limit."""
         scanner = NativeReadingTimeScanner(max_time=1.0)
         text = " ".join(["word"] * 60)
         output, valid, score = scanner.scan("", text)
@@ -251,7 +242,6 @@ class TestNativeReadingTimeScanner:
         assert score == -1.0
 
     def test_exceed_limit_no_truncate(self):
-        """Test text exceeding limit without truncation."""
         scanner = NativeReadingTimeScanner(max_time=0.5)
         text = " ".join(["word"] * 300)
         output, valid, score = scanner.scan("", text)
@@ -259,7 +249,6 @@ class TestNativeReadingTimeScanner:
         assert score == 1.0
 
     def test_exceed_limit_with_truncate(self):
-        """Test text is truncated when exceeding limit."""
         scanner = NativeReadingTimeScanner(max_time=0.5, truncate=True)
         text = " ".join(["word"] * 300)
         output, valid, score = scanner.scan("", text)
@@ -269,17 +258,13 @@ class TestNativeReadingTimeScanner:
 
 
 class TestNativeTokenLimitScanner:
-    """Test native TokenLimit scanner."""
-
     def test_within_limit(self):
-        """Test token count within limit."""
         scanner = NativeTokenLimitScanner(limit=100)
         output, valid, score = scanner.scan("", "Hello world")
         assert valid
         assert score == -1.0
 
     def test_exceed_limit_with_truncate(self):
-        """Test token count exceeds limit and is truncated."""
         scanner = NativeTokenLimitScanner(limit=5)
         text = " ".join(["word"] * 50)
         output, valid, score = scanner.scan("", text)
@@ -293,7 +278,6 @@ class TestNativeTokenLimitScanner:
         assert scanner.scan("", "hello world") == ("hello world", False, 1.0)
 
     def test_model_name_precedence(self):
-        """Test model_name takes precedence over encoding_name."""
         scanner = NativeTokenLimitScanner(
             limit=100, encoding_name="cl100k_base", model_name="gpt-3.5-turbo"
         )
@@ -302,7 +286,6 @@ class TestNativeTokenLimitScanner:
         assert score == -1.0
 
     def test_empty_output(self):
-        """Test empty output."""
         scanner = NativeTokenLimitScanner(limit=100)
         output, valid, score = scanner.scan("", "")
         assert valid
