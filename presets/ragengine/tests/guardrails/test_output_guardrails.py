@@ -43,6 +43,7 @@ from ragengine.guardrails.scanner_schemas import (
 from ragengine.metrics.prometheus_metrics import (
     guardrails_response_actions_total,
     guardrails_response_scanner_hits_total,
+    guardrails_scanner_latency_seconds,
     output_guardrails_policy_load_total,
     output_guardrails_scanner_build_total,
 )
@@ -183,6 +184,33 @@ def _patch_scan_output(monkeypatch, fn):
 
 def _counter_value(metric, **labels) -> float:
     return metric.labels(**labels)._value.get()
+
+
+def _histogram_count(metric, **labels) -> float:
+    return sum(bucket.get() for bucket in metric.labels(**labels)._buckets)
+
+
+def test_guard_response_records_buffered_scanner_latency():
+    guardrails = OutputGuardrails(
+        enabled=True,
+        scanner_configs=(_regex_cfg(patterns=("blocked",)),),
+    )
+    before = _histogram_count(
+        guardrails_scanner_latency_seconds,
+        scanner_type="regex",
+        mode="buffered",
+    )
+
+    guardrails.guard_response(_make_response("safe output"), {"messages": []})
+
+    assert (
+        _histogram_count(
+            guardrails_scanner_latency_seconds,
+            scanner_type="regex",
+            mode="buffered",
+        )
+        == before + 1
+    )
 
 
 # ---------------------------------------------------------------------------

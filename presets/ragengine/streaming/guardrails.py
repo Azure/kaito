@@ -20,6 +20,7 @@ from fastapi import HTTPException
 from guardrail_core.scanning import scan_output
 
 from ragengine.guardrails import OutputGuardrails
+from ragengine.metrics.prometheus_metrics import guardrails_scanner_latency_seconds
 from ragengine.streaming.buffer_window import StreamingBufferWindow, WindowScanResult
 from ragengine.streaming.openai import (
     OpenAIChatChunkParseStatus,
@@ -234,11 +235,11 @@ class _LLMGuardWindowScanner:
                     )
                 continue
 
-            scanner_output, results_valid, _ = scan_output(
-                [scanner],
+            scanner_output, results_valid, _ = _scan_output_with_metrics(
+                scanner_config.type,
+                scanner,
                 self._prompt,
                 sanitized_text,
-                fail_fast=False,
             )
             if not isinstance(scanner_output, str):
                 return WindowScanResult(blocked=True)
@@ -263,11 +264,11 @@ class _LLMGuardWindowScanner:
                     return WindowScanResult(blocked=True)
                 continue
 
-            scanner_output, results_valid, _ = scan_output(
-                [scanner],
+            scanner_output, results_valid, _ = _scan_output_with_metrics(
+                scanner_config.type,
+                scanner,
                 self._prompt,
                 sanitized_text,
-                fail_fast=False,
             )
             if not isinstance(scanner_output, str):
                 return WindowScanResult(blocked=True)
@@ -346,7 +347,12 @@ def _redact_match_spans(text: str, spans: tuple[tuple[int, int], ...]) -> str:
 
 
 def _redact_secrets_and_verify(scanner: Any, prompt: str, text: str) -> str | None:
-    sanitized, results_valid, _ = scan_output([scanner], prompt, text, fail_fast=False)
+    sanitized, results_valid, _ = _scan_output_with_metrics(
+        "secrets",
+        scanner,
+        prompt,
+        text,
+    )
     if not isinstance(sanitized, str):
         return None
     if all(results_valid.values()):
@@ -354,8 +360,11 @@ def _redact_secrets_and_verify(scanner: Any, prompt: str, text: str) -> str | No
     if sanitized == text or len(sanitized) > len(text):
         return None
 
-    verified, verified_valid, _ = scan_output(
-        [scanner], prompt, sanitized, fail_fast=False
+    verified, verified_valid, _ = _scan_output_with_metrics(
+        "secrets",
+        scanner,
+        prompt,
+        sanitized,
     )
     if (
         not isinstance(verified, str)
@@ -365,6 +374,19 @@ def _redact_secrets_and_verify(scanner: Any, prompt: str, text: str) -> str | No
         return None
 
     return sanitized
+
+
+def _scan_output_with_metrics(
+    scanner_type: str,
+    scanner: Any,
+    prompt: str,
+    output: str,
+) -> tuple[str | None, dict[str, bool], dict[str, float]]:
+    with guardrails_scanner_latency_seconds.labels(
+        scanner_type=scanner_type,
+        mode="streaming",
+    ).time():
+        return scan_output([scanner], prompt, output, fail_fast=False)
 
 
 async def _flush_window_or_block(

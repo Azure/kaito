@@ -280,6 +280,41 @@ values are intentionally not treated as guaranteed detections.
 Secrets are scanned in memory with isolated detector instances. Model output is
 not written to temporary files during detection.
 
+Runtime scanner latency is exported as
+`ragengine_guardrails_scanner_latency_seconds`, labeled only by scanner type and
+`buffered` or `streaming` mode. Provider names, finding locations, and secret
+values are not metric labels.
+
+To benchmark 10, 50, and 100 concurrent streams with repeated streaming
+re-verification:
+
+```bash
+PYTHONPATH=guardrail_core .venv/bin/python \
+	benchmarks/guardrails/secrets_benchmark.py \
+	--output /tmp/secrets-current.json
+```
+
+The report includes scan and re-verification P50/P95/P99 latency, throughput,
+process CPU utilization, peak RSS, and Linux `/proc/self/io` read/write bytes.
+Each concurrency level runs in a fresh process.
+
+To compare the file-based PR5 implementation with the in-memory implementation,
+create a PR5 worktree and use its package through `PYTHONPATH`:
+
+```bash
+git worktree add /tmp/kaito-pr5 fork/refactor/guardrails-secrets-module-p5
+PYTHONPATH=/tmp/kaito-pr5/guardrail_core .venv/bin/python \
+	benchmarks/guardrails/secrets_benchmark.py \
+	--output /tmp/secrets-pr5.json
+PYTHONPATH=guardrail_core .venv/bin/python \
+	benchmarks/guardrails/secrets_benchmark.py \
+	--baseline /tmp/secrets-pr5.json \
+	--output /tmp/secrets-pr6.json
+```
+
+Positive throughput change is an improvement. Negative latency and CPU changes
+are improvements. In-memory scanning should report zero file write bytes.
+
 ### `sensitive`
 
 Purpose:

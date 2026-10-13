@@ -30,6 +30,7 @@ from ragengine.metrics.prometheus_metrics import (
     STATUS_SUCCESS,
     guardrails_response_actions_total,
     guardrails_response_scanner_hits_total,
+    guardrails_scanner_latency_seconds,
     output_guardrails_policy_load_total,
     output_guardrails_scanner_build_total,
 )
@@ -150,9 +151,13 @@ class OutputGuardrails:
                 triggered_scanners: list[dict[str, Any]] = []
                 for parsed, scanner in built_scanners:
                     scanner_action_on_hit = parsed.action_on_hit or self.action_on_hit
-                    sanitized_output, results_valid, results_score = scan_output(
-                        [scanner], prompt, sanitized_output, fail_fast=False
-                    )
+                    with guardrails_scanner_latency_seconds.labels(
+                        scanner_type=parsed.type,
+                        mode="buffered",
+                    ).time():
+                        sanitized_output, results_valid, results_score = scan_output(
+                            [scanner], prompt, sanitized_output, fail_fast=False
+                        )
                     if all(results_valid.values()):
                         continue
 

@@ -311,6 +311,7 @@ RELOAD_RESULT_FAILURE = "failure"
 RELOAD_RESULT_NOOP = "noop"
 GUARDRAILS_SCANNER_TYPE_LABEL = "scanner_type"
 GUARDRAILS_FINAL_ACTION_LABEL = "final_action"
+GUARDRAILS_MODE_LABEL = "mode"
 
 guardrails_policy_reload_total = Counter(
     "guardrails_policy_reload_total",
@@ -326,6 +327,12 @@ guardrails_response_actions_total = Counter(
     "ragengine_guardrails_response_actions_total",
     "Count of final output guardrails actions while scanning responses.",
     labelnames=[GUARDRAILS_FINAL_ACTION_LABEL],
+)
+guardrails_scanner_latency_seconds = Histogram(
+    "ragengine_guardrails_scanner_latency_seconds",
+    "Latency of output guardrail scanner executions.",
+    labelnames=[GUARDRAILS_SCANNER_TYPE_LABEL, GUARDRAILS_MODE_LABEL],
+    buckets=(0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5),
 )
 guardrails_policy_loaded_timestamp = Gauge(
     "guardrails_policy_loaded_timestamp_seconds",

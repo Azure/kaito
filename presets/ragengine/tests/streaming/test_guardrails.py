@@ -28,6 +28,9 @@ from ragengine.guardrails.scanner_schemas import (  # noqa: E402
     SecretsConfig,
     SensitiveConfig,
 )
+from ragengine.metrics.prometheus_metrics import (  # noqa: E402
+    guardrails_scanner_latency_seconds,
+)
 from ragengine.streaming.guardrails import (  # noqa: E402
     STREAMING_GUARDRAILS_SUPPORTED_SCANNERS,
     _redact_secrets_and_verify,
@@ -89,6 +92,10 @@ def _streaming_guardrails(*scanner_configs):
         block_message="blocked-by-policy",
         scanner_configs=scanner_configs,
     )
+
+
+def _histogram_count(metric, **labels) -> float:
+    return sum(bucket.get() for bucket in metric.labels(**labels)._buckets)
 
 
 async def _apply_text(text, guardrails, *, finish_reason=None):
@@ -350,9 +357,22 @@ def test_redact_secrets_and_verify_scans_once_then_verifies_clean(monkeypatch):
     monkeypatch.setattr(
         "ragengine.streaming.guardrails.scan_output", scan_once_then_verify
     )
+    before = _histogram_count(
+        guardrails_scanner_latency_seconds,
+        scanner_type="secrets",
+        mode="streaming",
+    )
 
     assert _redact_secrets_and_verify(object(), "prompt", "secret") == "******"
     assert scan_count == 2
+    assert (
+        _histogram_count(
+            guardrails_scanner_latency_seconds,
+            scanner_type="secrets",
+            mode="streaming",
+        )
+        == before + 2
+    )
 
 
 @pytest.mark.asyncio
