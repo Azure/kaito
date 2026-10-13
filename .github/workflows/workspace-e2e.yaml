@@ -18,7 +18,7 @@ on:
         description: "The azure location to run the e2e test in"
         required: false
         type: string
-        default: "swedencentral"
+        default: "polandcentral"
 
 env:
   GO_VERSION: "1.26.9"
@@ -39,4 +39,4 @@ jobs:
       git_sha: ${{ github.event.pull_request.head.sha || github.sha }}
       node_provisioner: gpuprovisioner
       ginkgo_label: ${{ inputs.ginkgo_label || '' }}
-      region: ${{ inputs.region || 'swedencentral' }}
+      region: ${{ inputs.region || 'polandcentral' }}
