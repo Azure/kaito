@@ -212,11 +212,7 @@ class NativeRegexScanner:
 
 
 class NativeInvisibleTextScanner:
-    """KAITO-owned scanner to detect and remove invisible Unicode characters.
-
-    Detects non-printable, zero-width, and control characters that can hide
-    steganographic content or malicious instructions in model output.
-    """
+    """Remove Unicode characters that can invisibly hide or obfuscate text."""
 
     def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
         """Scan output for invisible or non-printable Unicode characters.
