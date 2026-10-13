@@ -15,6 +15,9 @@
 
 All scanners implement the KAITO output guardrail scanner interface:
     scan(prompt: str, output: str) -> tuple[str, bool, float]
+
+Deterministic scanners preserve legacy scores: -1.0 for no finding, 0.0 for
+neutral, and 1.0 for a finding.
 """
 
 import hashlib
@@ -23,6 +26,7 @@ import os
 import re
 import tempfile
 import threading
+import unicodedata
 from enum import StrEnum
 
 import json_repair
@@ -214,8 +218,33 @@ class NativeRegexScanner:
             return output, False, 1.0
 
 
+class NativeInvisibleTextScanner:
+    """Remove Unicode characters that can invisibly hide or obfuscate text."""
+
+    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+        del prompt
+
+        if not any(ord(char) > 127 for char in output):
+            return output, True, -1.0
+
+        invisible_chars = []
+        for i, char in enumerate(output):
+            category = unicodedata.category(char)
+            # Match llm-guard's format, private-use, and unassigned categories.
+            if category in ("Cf", "Co", "Cn"):
+                invisible_chars.append(i)
+
+        if not invisible_chars:
+            return output, True, 0.0
+
+        sanitized = "".join(
+            char for i, char in enumerate(output) if i not in invisible_chars
+        )
+        return sanitized, False, 1.0
+
+
 class NativeJSONScanner:
-    """KAITO-owned JSON validation and repair scanner."""
+    """Validate and optionally repair JSON objects in output text."""
 
     def __init__(
         self,
@@ -275,6 +304,90 @@ class NativeJSONScanner:
             )
         except ValueError:
             return json_string
+
+
+class NativeReadingTimeScanner:
+    """Enforce a 200-word-per-minute reading-time limit on output."""
+
+    _DEFAULT_READING_SPEED = 200
+
+    def __init__(
+        self,
+        max_time: float,
+        truncate: bool = False,
+    ) -> None:
+        self.max_time = max_time
+        self.truncate = truncate
+
+    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+        del prompt
+
+        if output.strip() == "":
+            return output, True, -1.0
+
+        words = output.split()
+        word_count = len(words)
+        reading_time = word_count / self._DEFAULT_READING_SPEED
+
+        if reading_time <= self.max_time:
+            return output, True, -1.0
+
+        if not self.truncate:
+            return output, False, 1.0
+
+        max_words = int(self.max_time * self._DEFAULT_READING_SPEED)
+        truncated = " ".join(words[:max_words])
+
+        return truncated, False, 1.0
+
+
+class NativeTokenLimitScanner:
+    """Enforce a strict token limit using tiktoken."""
+
+    def __init__(
+        self,
+        limit: int,
+        encoding_name: str = "cl100k_base",
+        model_name: str | None = None,
+    ) -> None:
+        self.limit = limit
+        self.encoding_name = encoding_name
+        self.model_name = model_name
+        self._tokenizer = None
+
+    def _get_tokenizer(self):
+        if self._tokenizer is None:
+            try:
+                import tiktoken
+
+                if self.model_name:
+                    self._tokenizer = tiktoken.encoding_for_model(self.model_name)
+                else:
+                    self._tokenizer = tiktoken.get_encoding(self.encoding_name)
+            except ImportError:
+                raise ImportError(
+                    "tiktoken is required for NativeTokenLimitScanner. "
+                    "Install it with: pip install tiktoken"
+                )
+        return self._tokenizer
+
+    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+        del prompt
+
+        if output.strip() == "":
+            return output, True, -1.0
+
+        tokenizer = self._get_tokenizer()
+        tokens = tokenizer.encode(output)
+        token_count = len(tokens)
+
+        if token_count < self.limit:
+            return output, True, -1.0
+
+        truncated_tokens = tokens[: self.limit]
+        truncated_output = tokenizer.decode(truncated_tokens)
+
+        return truncated_output, False, 1.0
 
 
 class NativeSecretsScanner:
