@@ -150,14 +150,14 @@ gpu-feature-discovery:
   gfd:
     enabled: true
 local-csi-driver:
+  # Leave driver/manager tags unset so they track the subchart appVersion;
+  # the chart templates pass flags that only the matching image understands.
   image:
     driver:
       repository: mcr.microsoft.com/acstor/local-csi-driver
-      tag: v0.3.0
       pullPolicy: Always
     manager:
       repository: mcr.microsoft.com/acstor/local-csi-manager
-      tag: v0.3.0
       pullPolicy: Always
     csiProvisioner:
       pullPolicy: Always
