@@ -15,6 +15,9 @@
 
 All scanners implement the KAITO output guardrail scanner interface:
     scan(prompt: str, output: str) -> tuple[str, bool, float]
+
+Deterministic scanners preserve legacy scores: -1.0 for no finding, 0.0 for
+neutral, and 1.0 for a finding.
 """
 
 import hashlib
