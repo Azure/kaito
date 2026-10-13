@@ -29,7 +29,6 @@ import re
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-import llm_guard.input_scanners as llm_guard_input_scanners
 import llm_guard.output_scanners as llm_guard_output_scanners
 
 # Allowed match_type values derived from enums in guardrail_core.native_scanners
@@ -129,36 +128,6 @@ class SensitiveConfig:
             detectors=self.detectors,
             redact=(action_on_hit == "redact"),
         )
-
-
-# Adapts llm_guard InvisibleText for model output scanning.
-class InvisibleTextOutputAdapter:
-    def __init__(self) -> None:
-        self._scanner = llm_guard_input_scanners.InvisibleText()
-
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
-        sanitized_output, is_valid, score = self._scanner.scan(output)
-        return sanitized_output, is_valid, score
-
-
-# Adapts llm_guard TokenLimit to limit model output token count.
-class TokenLimitOutputAdapter:
-    def __init__(
-        self,
-        *,
-        limit: int,
-        encoding_name: str = "cl100k_base",
-        model_name: str | None = None,
-    ) -> None:
-        self._scanner = llm_guard_input_scanners.TokenLimit(
-            limit=limit,
-            encoding_name=encoding_name,
-            model_name=model_name,
-        )
-
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
-        sanitized_output, is_valid, score = self._scanner.scan(output)
-        return sanitized_output, is_valid, score
 
 
 @dataclass
@@ -272,8 +241,6 @@ class RegexConfig:
 
 
 @dataclass
-# Detects and removes invisible or non-printable Unicode characters that can
-# hide instructions or other steganographic content in model output.
 class InvisibleTextConfig:
     supports_redact: ClassVar[bool] = True
 
@@ -284,13 +251,12 @@ class InvisibleTextConfig:
         return cls()
 
     def build(self, action_on_hit: str) -> Any:
-        return InvisibleTextOutputAdapter()
+        from guardrail_core.native_scanners import NativeInvisibleTextScanner
+
+        return NativeInvisibleTextScanner()
 
 
 @dataclass
-# Limits the token count of model output. Outputs that exceed limit are marked
-# invalid. This counts tokens, not characters or words; encoding_name and
-# model_name control which tokenizer is used for counting.
 class TokenLimitConfig:
     supports_redact: ClassVar[bool] = True
     limit: int = 4096
@@ -318,7 +284,9 @@ class TokenLimitConfig:
         return cls(limit=limit, encoding_name=encoding_name, model_name=model_name)
 
     def build(self, action_on_hit: str) -> Any:
-        return TokenLimitOutputAdapter(
+        from guardrail_core.native_scanners import NativeTokenLimitScanner
+
+        return NativeTokenLimitScanner(
             limit=self.limit,
             encoding_name=self.encoding_name,
             model_name=self.model_name,
@@ -348,14 +316,9 @@ class JSONConfig:
 
 
 @dataclass
-# Enforces a reading-time limit for the output using llm_guard's average
-# reading-speed heuristic (about 200 words per minute). max_time is expressed
-# in minutes. If truncate is true, outputs that exceed the limit are shortened
-# to fit; otherwise they are marked invalid.
 class ReadingTimeConfig:
     supports_redact: ClassVar[bool] = True
-    # Maximum allowed reading time, expressed in fractional minutes. For
-    # example, 0.25 means one quarter of a minute (15 seconds).
+    # Maximum reading time in minutes.
     max_time: float
     truncate: bool = False
 
@@ -370,7 +333,9 @@ class ReadingTimeConfig:
         return cls(max_time=float(max_time), truncate=truncate)
 
     def build(self, action_on_hit: str) -> Any:
-        return llm_guard_output_scanners.ReadingTime(
+        from guardrail_core.native_scanners import NativeReadingTimeScanner
+
+        return NativeReadingTimeScanner(
             max_time=self.max_time,
             truncate=self.truncate,
         )
