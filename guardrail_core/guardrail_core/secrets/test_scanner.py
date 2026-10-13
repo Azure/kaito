@@ -13,10 +13,15 @@
 
 """Tests for the KAITO-owned secrets scanner."""
 
+import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 
 import pytest
+from detect_secrets.settings import get_settings
 
+import guardrail_core.secrets.detectors as detectors_module
 from guardrail_core.secrets import NativeSecretsScanner
 
 _AWS_KEY = "AKIA" + "A" * 16
@@ -163,3 +168,56 @@ def test_concurrent_scans_preserve_detection():
 
     for actual, expected in results:
         assert actual == expected
+
+
+def test_scan_does_not_write_model_output_to_disk(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        del args, kwargs
+        raise AssertionError("scanner must not create temporary files")
+
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", fail_if_called)
+
+    assert NativeSecretsScanner().scan("", _AWS_KEY) == ("******", False, 1.0)
+
+
+def test_scan_does_not_mutate_global_detect_secrets_settings():
+    settings = get_settings()
+    plugins_before = deepcopy(settings.plugins)
+    filters_before = deepcopy(settings.filters)
+
+    NativeSecretsScanner().scan("", _AWS_KEY)
+
+    assert settings.plugins == plugins_before
+    assert settings.filters == filters_before
+
+
+def test_concurrent_scans_are_not_serialized(monkeypatch):
+    barrier = threading.Barrier(2)
+    instance_ids = set()
+    instance_lock = threading.Lock()
+
+    class ConcurrentPlugin:
+        def __init__(self):
+            with instance_lock:
+                instance_ids.add(id(self))
+
+        def analyze_line(self, **kwargs):
+            del kwargs
+            barrier.wait(timeout=2)
+            return set()
+
+    monkeypatch.setattr(
+        detectors_module,
+        "_BUILT_IN_PLUGIN_TYPES",
+        (ConcurrentPlugin,),
+    )
+
+    scanner = NativeSecretsScanner()
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: scanner.scan("", "plain text"), range(2)))
+
+    assert results == [
+        ("plain text", True, -1.0),
+        ("plain text", True, -1.0),
+    ]
+    assert len(instance_ids) == 2
