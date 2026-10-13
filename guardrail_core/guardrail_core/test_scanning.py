@@ -13,7 +13,7 @@
 
 """Tests for KAITO-owned scanner orchestration."""
 
-from guardrail_core.scanning import scan_output
+from guardrail_core.scanning import ScanResult, scan_output
 
 
 class _ReplacingScanner:
@@ -23,21 +23,25 @@ class _ReplacingScanner:
         self._valid = valid
         self._score = score
 
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+    def scan(self, prompt: str, output: str) -> ScanResult:
         del prompt
-        return output.replace(self._old, self._new), self._valid, self._score
+        return ScanResult(
+            output.replace(self._old, self._new),
+            self._valid,
+            self._score,
+        )
 
 
 class _FailingScanner:
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+    def scan(self, prompt: str, output: str) -> ScanResult:
         del prompt
-        return f"{output}-failed", False, 1.0
+        return ScanResult(f"{output}-failed", False, 1.0)
 
 
 class _PassingScanner:
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+    def scan(self, prompt: str, output: str) -> ScanResult:
         del prompt
-        return f"{output}-passed", True, -1.0
+        return ScanResult(f"{output}-passed", True, -1.0)
 
 
 def test_scan_output_runs_scanners_sequentially():

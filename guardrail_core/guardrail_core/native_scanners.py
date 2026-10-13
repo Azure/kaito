@@ -14,7 +14,7 @@
 """KAITO-owned native guardrails scanners.
 
 All scanners implement the KAITO output guardrail scanner interface:
-    scan(prompt: str, output: str) -> tuple[str, bool, float]
+    scan(prompt: str, output: str) -> ScanResult
 
 Deterministic scanners preserve legacy scores: -1.0 for no finding, 0.0 for
 neutral, and 1.0 for a finding.
@@ -33,6 +33,8 @@ import json_repair
 import regex
 from detect_secrets.core.secrets_collection import SecretsCollection
 from detect_secrets.settings import default_settings
+
+from guardrail_core.scanning import ScanResult
 
 _JSON_PATTERN = r"(?<!\\)(?:\\\\)*\{(?:[^{}]|(?R))*\}"
 # Compatibility patterns for token formats not fully detected by the currently
@@ -79,7 +81,7 @@ class NativeBanSubstringsScanner:
         self.contains_all = contains_all
         self.redact = redact
 
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+    def scan(self, prompt: str, output: str) -> ScanResult:
         """Scan output for banned substrings.
 
         Args:
@@ -110,7 +112,7 @@ class NativeBanSubstringsScanner:
                     found_substrings.append(substring)
 
         if self.contains_all and len(found_substrings) < len(self.substrings):
-            return output, True, 0.0
+            return ScanResult(output, True, 0.0)
 
         if found_substrings:
             if self.redact:
@@ -136,11 +138,11 @@ class NativeBanSubstringsScanner:
                         sanitized[:match_start] + "[REDACTED]" + sanitized[match_end:]
                     )
 
-                return sanitized, False, 1.0
+                return ScanResult(sanitized, False, 1.0)
             else:
-                return output, False, 1.0
+                return ScanResult(output, False, 1.0)
 
-        return output, True, -1.0
+        return ScanResult(output, True, -1.0)
 
 
 class NativeRegexScanner:
@@ -159,7 +161,7 @@ class NativeRegexScanner:
         self.match_type = match_type
         self.redact = redact
 
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+    def scan(self, prompt: str, output: str) -> ScanResult:
         """Scan output for regex pattern matches.
 
         Args:
@@ -193,7 +195,7 @@ class NativeRegexScanner:
             # First matching pattern found - handle and return
             if not self.is_blocked:
                 # Allow-list: match found = valid, score -1.0
-                return output, True, -1.0
+                return ScanResult(output, True, -1.0)
 
             # Block-list: pattern matched = invalid
             if self.redact:
@@ -205,27 +207,27 @@ class NativeRegexScanner:
                         + "[REDACTED]"
                         + sanitized[match.end() :]
                     )
-                return sanitized, False, 1.0
+                return ScanResult(sanitized, False, 1.0)
             else:
-                return output, False, 1.0
+                return ScanResult(output, False, 1.0)
 
         # All patterns checked, none matched
         if self.is_blocked:
             # Block-list: no block patterns matched = valid
-            return output, True, -1.0
+            return ScanResult(output, True, -1.0)
         else:
             # Allow-list: no allowed patterns matched = invalid, score 1.0
-            return output, False, 1.0
+            return ScanResult(output, False, 1.0)
 
 
 class NativeInvisibleTextScanner:
     """Remove Unicode characters that can invisibly hide or obfuscate text."""
 
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+    def scan(self, prompt: str, output: str) -> ScanResult:
         del prompt
 
         if not any(ord(char) > 127 for char in output):
-            return output, True, -1.0
+            return ScanResult(output, True, -1.0)
 
         invisible_chars = []
         for i, char in enumerate(output):
@@ -235,12 +237,12 @@ class NativeInvisibleTextScanner:
                 invisible_chars.append(i)
 
         if not invisible_chars:
-            return output, True, 0.0
+            return ScanResult(output, True, 0.0)
 
         sanitized = "".join(
             char for i, char in enumerate(output) if i not in invisible_chars
         )
-        return sanitized, False, 1.0
+        return ScanResult(sanitized, False, 1.0)
 
 
 class NativeJSONScanner:
@@ -255,11 +257,11 @@ class NativeJSONScanner:
         self.repair = repair
         self._pattern = regex.compile(_JSON_PATTERN, re.DOTALL)
 
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+    def scan(self, prompt: str, output: str) -> ScanResult:
         del prompt
 
         if output.strip() == "":
-            return output, True, -1.0
+            return ScanResult(output, True, -1.0)
 
         json_candidates = self._pattern.findall(output)
         valid_jsons = []
@@ -279,12 +281,12 @@ class NativeJSONScanner:
             output = output.replace(json_candidate, repaired_json)
 
         if len(valid_jsons) < self.required_elements:
-            return output, False, 1.0
+            return ScanResult(output, False, 1.0)
 
         if len(valid_jsons) != len(json_candidates):
-            return output, False, 1.0
+            return ScanResult(output, False, 1.0)
 
-        return output, True, -1.0
+        return ScanResult(output, True, -1.0)
 
     @staticmethod
     def _is_valid_json(json_string: str) -> bool:
@@ -319,26 +321,26 @@ class NativeReadingTimeScanner:
         self.max_time = max_time
         self.truncate = truncate
 
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+    def scan(self, prompt: str, output: str) -> ScanResult:
         del prompt
 
         if output.strip() == "":
-            return output, True, -1.0
+            return ScanResult(output, True, -1.0)
 
         words = output.split()
         word_count = len(words)
         reading_time = word_count / self._DEFAULT_READING_SPEED
 
         if reading_time <= self.max_time:
-            return output, True, -1.0
+            return ScanResult(output, True, -1.0)
 
         if not self.truncate:
-            return output, False, 1.0
+            return ScanResult(output, False, 1.0)
 
         max_words = int(self.max_time * self._DEFAULT_READING_SPEED)
         truncated = " ".join(words[:max_words])
 
-        return truncated, False, 1.0
+        return ScanResult(truncated, False, 1.0)
 
 
 class NativeTokenLimitScanner:
@@ -371,23 +373,23 @@ class NativeTokenLimitScanner:
                 )
         return self._tokenizer
 
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+    def scan(self, prompt: str, output: str) -> ScanResult:
         del prompt
 
         if output.strip() == "":
-            return output, True, -1.0
+            return ScanResult(output, True, -1.0)
 
         tokenizer = self._get_tokenizer()
         tokens = tokenizer.encode(output)
         token_count = len(tokens)
 
         if token_count < self.limit:
-            return output, True, -1.0
+            return ScanResult(output, True, -1.0)
 
         truncated_tokens = tokens[: self.limit]
         truncated_output = tokenizer.decode(truncated_tokens)
 
-        return truncated_output, False, 1.0
+        return ScanResult(truncated_output, False, 1.0)
 
 
 class NativeSecretsScanner:
@@ -413,7 +415,7 @@ class NativeSecretsScanner:
         """
         self._redact_mode = redact_mode
 
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+    def scan(self, prompt: str, output: str) -> ScanResult:
         """Scan output for secrets and redact if found.
 
         Args:
@@ -428,11 +430,11 @@ class NativeSecretsScanner:
         """
         del prompt
         if output.strip() == "":
-            return output, True, -1.0
+            return ScanResult(output, True, -1.0)
 
         secret_values = self._detect_secret_values(output)
         if not secret_values:
-            return output, True, -1.0
+            return ScanResult(output, True, -1.0)
 
         sanitized_output = output
         for secret_value in sorted(
@@ -442,7 +444,7 @@ class NativeSecretsScanner:
             replacement = self._redact_value(secret_value, self._redact_mode)
             sanitized_output = sanitized_output.replace(secret_value, replacement)
 
-        return sanitized_output, False, 1.0
+        return ScanResult(sanitized_output, False, 1.0)
 
     @staticmethod
     def _redact_value(value: str, redact_mode: str) -> str:

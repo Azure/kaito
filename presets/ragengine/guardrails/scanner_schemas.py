@@ -29,6 +29,8 @@ import re
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
+from guardrail_core.scanning import ScanResult
+
 # Allowed match_type values derived from enums in guardrail_core.native_scanners
 _BAN_SUBSTRINGS_MATCH_TYPES = frozenset(("word", "str"))
 _REGEX_MATCH_TYPES = frozenset(("search", "fullmatch", "all"))
@@ -53,20 +55,20 @@ class _PatternPIIScanner:
         self._detectors = list(detectors)
         self._redact = redact
 
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+    def scan(self, prompt: str, output: str) -> ScanResult:
         del prompt
         if output.strip() == "":
-            return output, True, -1.0
+            return ScanResult(output, True, -1.0)
 
         matches = _collect_sensitive_matches(output, self._detectors)
         if not matches:
-            return output, True, -1.0
+            return ScanResult(output, True, -1.0)
 
         sanitized_output = output
         if self._redact:
             sanitized_output = _redact_sensitive_matches(output, matches)
 
-        return sanitized_output, False, 1.0
+        return ScanResult(sanitized_output, False, 1.0)
 
 
 @dataclass

@@ -14,11 +14,19 @@
 """KAITO-owned guardrail scanner orchestration."""
 
 from collections.abc import Sequence
-from typing import Protocol
+from typing import NamedTuple, Protocol
+
+
+class ScanResult(NamedTuple):
+    """Result returned by a single guardrail scanner."""
+
+    output: str
+    valid: bool
+    score: float
 
 
 class Scanner(Protocol):
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]: ...
+    def scan(self, prompt: str, output: str) -> ScanResult: ...
 
 
 def scan_output(
@@ -39,14 +47,15 @@ def scan_output(
         return output, results_valid, results_score
 
     for scanner in scanners:
-        sanitized_output, is_valid, risk_score = scanner.scan(
+        result = scanner.scan(
             prompt,
             sanitized_output,
         )
+        sanitized_output = result.output
         scanner_name = type(scanner).__name__
-        results_valid[scanner_name] = is_valid
-        results_score[scanner_name] = risk_score
-        if fail_fast and not is_valid:
+        results_valid[scanner_name] = result.valid
+        results_score[scanner_name] = result.score
+        if fail_fast and not result.valid:
             break
 
     return sanitized_output, results_valid, results_score
