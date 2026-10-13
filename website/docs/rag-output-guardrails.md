@@ -259,7 +259,10 @@ Supported fields:
 
 - `redact_mode`: optional string, one of `all`, `partial`, `hash`; defaults to `all`
 
-Guaranteed provider coverage:
+Validated provider coverage:
+
+Built-in coverage reflects behavior validated against the pinned
+`bc-detect-secrets` version.
 
 | Provider or format | Detection source | Supported formats |
 | --- | --- | --- |
