@@ -221,8 +221,10 @@ func TestGenerateFromConfigAppliesReferenceModelFamily(t *testing.T) {
 	assert.Equal(t, "custom-ref", hinted.Metadata.Name, "the reference must not change the model identity")
 	assert.Equal(t, "deepseek_v32", hinted.Metadata.ToolCallParser)
 	assert.Equal(t, "tool-chat-deepseekv3.jinja", hinted.Metadata.ChatTemplate)
-	assert.Equal(t, "deepseek_v32", hinted.VLLM.ModelRunParams["tokenizer_mode"])
-	assert.Equal(t, "False", hinted.VLLM.ModelRunParams["kernel-config.enable_flashinfer_autotune"])
+	assert.Equal(t, "auto", hinted.VLLM.ModelRunParams["tokenizer_mode"],
+		"tokenizer mode must come from the custom model architecture")
+	assert.NotContains(t, hinted.VLLM.ModelRunParams, "kernel-config.enable_flashinfer_autotune",
+		"architecture-specific runtime policy must not be inherited from a reference model")
 	assert.Nil(t, hinted.SpeculativeDecoding, "speculative decoding is never inherited from a reference model")
 }
 
