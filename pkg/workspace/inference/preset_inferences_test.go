@@ -22,14 +22,21 @@ import (
 	"time"
 
 	"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	nodev1 "k8s.io/api/node/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	"github.com/kaito-project/kaito/api/v1beta1"
@@ -1442,6 +1449,87 @@ func TestInjectRoutingSidecar(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInjectLMCacheSidecar(t *testing.T) {
+	spec := &corev1.PodSpec{
+		Containers: []corev1.Container{{
+			Name:    "workspace",
+			Image:   GetBaseImageName(),
+			Command: []string{"/bin/sh", "-c", "python3 /workspace/vllm/inference_api.py --tensor-parallel-size=2"},
+			VolumeMounts: []corev1.VolumeMount{{
+				Name: "config-volume", MountPath: utils.DefaultConfigMapMountPath,
+			}},
+		}},
+	}
+
+	injectLMCacheSidecar(spec, "workspace")
+
+	assert.Equal(t, lmCacheRuntimeClassName, *spec.RuntimeClassName)
+	require.Len(t, spec.InitContainers, 1)
+	sidecar := spec.InitContainers[0]
+	assert.Equal(t, lmCacheSidecarName, sidecar.Name)
+	assert.Equal(t, GetBaseImageName(), sidecar.Image)
+	require.NotNil(t, sidecar.RestartPolicy)
+	assert.Equal(t, corev1.ContainerRestartPolicyAlways, *sidecar.RestartPolicy)
+	assert.Empty(t, sidecar.Resources.Requests)
+	assert.Contains(t, sidecar.Args, "--isolated-ipc")
+	assert.Contains(t, sidecar.Args, "--tensor-parallel-size=2")
+	assert.Contains(t, sidecar.Args, "--config-file=/mnt/config/inference_config.yaml")
+	assert.Equal(t, intstr.FromString("lmcache-http"), sidecar.StartupProbe.HTTPGet.Port)
+
+	main := spec.Containers[0]
+	assert.Contains(t, main.Env, corev1.EnvVar{Name: lmCacheDeploymentModeEnvName, Value: lmCacheDeploymentModeSidecar})
+	require.NotNil(t, main.LivenessProbe.Exec)
+	assert.Contains(t, main.LivenessProbe.Exec.Command, "--health-check")
+}
+
+func TestLMCacheWorkloadEligibility(t *testing.T) {
+	originalVLLM := featuregates.FeatureGates[consts.FeatureFlagVLLM]
+	featuregates.FeatureGates[consts.FeatureFlagVLLM] = true
+	defer func() { featuregates.FeatureGates[consts.FeatureFlagVLLM] = originalVLLM }()
+
+	workspace := &v1beta1.Workspace{}
+	spec := &corev1.PodSpec{Containers: []corev1.Container{{
+		Command: []string{"/bin/sh", "-c", "python3 /workspace/vllm/inference_api.py --tensor-parallel-size=1"},
+	}}}
+
+	eligible, reason := isLMCacheWorkloadEligible(workspace, spec, false)
+	assert.True(t, eligible, reason)
+
+	spec.Containers[0].Command[2] += " --kaito-kv-cache-cpu-memory-utilization=0.5"
+	eligible, reason = isLMCacheWorkloadEligible(workspace, spec, false)
+	assert.True(t, eligible, reason)
+
+	spec.Containers[0].Command[2] = "python3 /workspace/vllm/inference_api.py --tensor-parallel-size=1 --kaito-kv-cache-cpu-memory-utilization=0"
+	eligible, reason = isLMCacheWorkloadEligible(workspace, spec, false)
+	assert.False(t, eligible)
+	assert.Equal(t, "CPU KV offload is disabled", reason)
+
+	workspace.Resource.Partition = &v1beta1.PartitionSpec{Mode: v1beta1.PartitionModeMIG}
+	eligible, reason = isLMCacheWorkloadEligible(workspace, spec, false)
+	assert.False(t, eligible)
+	assert.Equal(t, "MIG is unsupported", reason)
+}
+
+func TestLMCachePlatformReady(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, nodev1.AddToScheme(scheme))
+	runtimeClass := &nodev1.RuntimeClass{ObjectMeta: metav1.ObjectMeta{Name: lmCacheRuntimeClassName}}
+	clusterPolicy := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "nvidia.com/v1",
+		"kind":       "ClusterPolicy",
+		"metadata":   map[string]interface{}{"name": "cluster-policy"},
+		"status":     map[string]interface{}{"state": "ready"},
+	}}
+	clusterPolicy.SetGroupVersionKind(schema.GroupVersionKind{Group: "nvidia.com", Version: "v1", Kind: "ClusterPolicy"})
+	kubeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(runtimeClass, clusterPolicy).Build()
+
+	SetNativeSidecarsSupported(true)
+	t.Cleanup(func() { SetNativeSidecarsSupported(false) })
+	ready, reason := isLMCachePlatformReady(context.Background(), kubeClient)
+
+	assert.True(t, ready, reason)
 }
 
 // fakeNodeProvisioner is a minimal NodeProvisioner used to drive

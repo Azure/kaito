@@ -15,24 +15,22 @@ import argparse
 import collections
 import logging
 import os
+import shutil
 import socket
 import subprocess
 import sys
 import threading
 import time
-from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any
 
-import psutil
 import rate_limit
 import uvloop
 import vllm.entrypoints.launchers.api_server.entry as api_server_entry
 import vllm.entrypoints.launchers.cli_args as launcher_cli_args
-import yaml
 from _workarounds import model_asset_prefetch
 from huggingface_hub import HfFileSystem, scan_cache_dir
+from kaito_config import KaitoConfig
 from prometheus_client import CONTENT_TYPE_LATEST, Gauge, generate_latest
 from vllm.entrypoints.openai.models.protocol import LoRAModulePath
 from vllm.utils.argparse_utils import FlexibleArgumentParser
@@ -66,6 +64,13 @@ kaito_max_concurrent_requests = Gauge(
     "Resolved vLLM maximum number of concurrent sequences",
     registry=_registry,
 )
+
+LMCACHE_DEPLOYMENT_MODE_ENV = "KAITO_LMCACHE_DEPLOYMENT_MODE"
+LMCACHE_DEPLOYMENT_MODE_SIDECAR = "sidecar"
+LMCACHE_HOST = "127.0.0.1"
+LMCACHE_PORT = 5555
+LMCACHE_SERVER_GENERATION_FILE = "/var/run/kaito-lmcache/server-generation"
+LMCACHE_CLIENT_GENERATION_FILE = "/var/run/kaito-lmcache/client-generation"
 
 
 class KAITOArgumentParser(argparse.ArgumentParser):
@@ -171,34 +176,6 @@ class KAITOArgumentParser(argparse.ArgumentParser):
         super().print_help(file)
         print("\norignal vLLM server arguments:\n")
         self.vllm_parser.print_help(file)
-
-
-@dataclass
-class KaitoConfig:
-    # Extra arguments for the vllm serving server, will be forwarded to the vllm server.
-    # This should be in key-value format.
-    vllm: dict[str, Any]
-
-    # Maximum number of steps to find the max available seq len fitting in the GPU memory.
-    max_probe_steps: int
-
-    # Optional: CPU memory utilization for the vllm engine in kv cache offload mode. (default: 0.5, set to 0 to disable)
-    kv_cache_cpu_memory_utilization: float
-
-    @staticmethod
-    def from_yaml(yaml_file: str) -> "KaitoConfig":
-        with open(yaml_file) as file:
-            config_data = yaml.safe_load(file)
-        return KaitoConfig(
-            vllm=config_data.get("vllm", {}),
-            max_probe_steps=config_data.get("max_probe_steps", 6),
-            kv_cache_cpu_memory_utilization=config_data.get(
-                "kv_cache_cpu_memory_utilization", 0.5
-            ),
-        )
-
-    def to_yaml(self) -> str:
-        return yaml.dump(self.__dict__)
 
 
 def _model_repo_path(model_id: str | None, cache_dir: str) -> str | None:
@@ -514,7 +491,9 @@ def set_kv_transfer_config_if_applicable(args: argparse.Namespace) -> None:
     """
     Set KV transfer config and optionally enable KV cache offloading to CPU RAM.
     - When KAITO_INFERENCE_ROLE is set: use NixlConnector (kv_both + fail policy).
-    - When kaito_kv_cache_cpu_memory_utilization is set: use LMCacheConnectorV1 with CPU offload.
+    - When kaito_kv_cache_cpu_memory_utilization is set: use LMCacheMPConnector with CPU offload.
+
+    User-provided KV transfer configs own their server lifecycle.
     """
     # Configure kv_transfer_config for P/D disaggregation using NixlConnector.
     inference_role = os.environ.get("KAITO_INFERENCE_ROLE", "")
@@ -534,28 +513,58 @@ def set_kv_transfer_config_if_applicable(args: argparse.Namespace) -> None:
         )
         return
 
-    os.environ["LMCACHE_CHUNK_SIZE"] = "256"
-    os.environ["LMCACHE_LOCAL_CPU"] = "True"
-    available_memory_gb = (
-        psutil.virtual_memory().total - psutil.virtual_memory().used
-    ) / (1024**3)
-    logger.info(
-        f"Offload KV cache to CPU RAM, size limit: {available_memory_gb} * {args.kaito_kv_cache_cpu_memory_utilization} GB split among {args.tensor_parallel_size} GPUs"
-    )
+    if os.environ.get(LMCACHE_DEPLOYMENT_MODE_ENV) != LMCACHE_DEPLOYMENT_MODE_SIDECAR:
+        logger.info("Managed LMCache sidecar is unavailable; CPU KV offload disabled.")
+        return
 
-    # When using tensor parallelism, the KV cache CPU memory allocation must be divided evenly
-    # across all GPUs. Each GPU should only allocate its portion (1/tensor_parallel_size) of the
-    # total available CPU memory to prevent OOM.
-    os.environ["LMCACHE_MAX_LOCAL_CPU_SIZE"] = (
-        f"{available_memory_gb * args.kaito_kv_cache_cpu_memory_utilization / args.tensor_parallel_size}"
-    )
-
-    # Default to LMCacheConnectorV1 when CPU offload is enabled but no kv_transfer_config set.
+    # Default to the HMA-capable multiprocess connector when CPU offload is enabled.
     if args.kv_transfer_config is None:
-        args.kv_transfer_config = {
-            "kv_connector": "LMCacheConnectorV1",
-            "kv_role": "kv_both",
+        extra_config = {
+            "lmcache.mp.host": f"tcp://{LMCACHE_HOST}",
+            "lmcache.mp.port": LMCACHE_PORT,
+            "lmcache.mp.isolated_ipc": True,
         }
+        args.kv_transfer_config = {
+            "kv_connector": "LMCacheMPConnector",
+            "kv_connector_module_path": "lmcache.integration.vllm.lmcache_mp_connector",
+            "kv_role": "kv_both",
+            "kv_connector_extra_config": extra_config,
+        }
+        return
+
+
+def wait_for_lmcache_mp_server(timeout_seconds: float = 30) -> None:
+    """Wait until the externally managed LMCache MP server accepts connections."""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection((LMCACHE_HOST, LMCACHE_PORT), timeout=0.5):
+                logger.info(
+                    "LMCache MP server is ready on %s:%d", LMCACHE_HOST, LMCACHE_PORT
+                )
+                return
+        except OSError:
+            time.sleep(0.1)
+    raise TimeoutError(
+        f"LMCache MP server did not become ready within {timeout_seconds} seconds"
+    )
+
+
+def record_lmcache_server_generation(timeout_seconds: float = 10) -> None:
+    """Record the generation that this vLLM process registered against."""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            shutil.copyfile(
+                LMCACHE_SERVER_GENERATION_FILE,
+                LMCACHE_CLIENT_GENERATION_FILE,
+            )
+            return
+        except FileNotFoundError:
+            time.sleep(0.1)
+    raise TimeoutError(
+        f"LMCache server generation was not available within {timeout_seconds} seconds"
+    )
 
 
 def configure_middlewares(args: argparse.Namespace) -> None:
@@ -584,6 +593,13 @@ if __name__ == "__main__":
         args.lora_modules = load_lora_adapters(args.kaito_adapters_dir)
 
     set_kv_transfer_config_if_applicable(args)
+    if (
+        args.kv_transfer_config is not None
+        and os.environ.get(LMCACHE_DEPLOYMENT_MODE_ENV)
+        == LMCACHE_DEPLOYMENT_MODE_SIDECAR
+    ):
+        wait_for_lmcache_mp_server()
+        record_lmcache_server_generation()
 
     logger.info(f"Starting server on port {args.port}")
 

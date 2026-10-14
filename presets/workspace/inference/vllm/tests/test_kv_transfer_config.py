@@ -23,7 +23,10 @@ from unittest.mock import patch
 parent_dir = str(Path(__file__).resolve().parent.parent)
 sys.path.insert(0, parent_dir)
 
-from inference_api import set_kv_transfer_config_if_applicable  # noqa: E402, I001
+from inference_api import (  # noqa: E402, I001
+    set_kv_transfer_config_if_applicable,
+    wait_for_lmcache_mp_server,
+)
 
 
 def _make_args(**kwargs):
@@ -70,15 +73,31 @@ class TestSetKvTransferConfig:
             set_kv_transfer_config_if_applicable(args)
         assert args.kv_transfer_config is None
 
-    def test_lmcache_default_when_offload_enabled_no_role(self):
-        """When CPU offload enabled but no role, should default to LMCacheConnectorV1."""
+    def test_no_managed_connector_without_sidecar_mode(self):
         args = _make_args(kaito_kv_cache_cpu_memory_utilization=0.5)
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("KAITO_INFERENCE_ROLE", None)
             set_kv_transfer_config_if_applicable(args)
+        assert args.kv_transfer_config is None
+
+    def test_lmcache_sidecar_uses_isolated_ipc_without_local_server(self):
+        args = _make_args(kaito_kv_cache_cpu_memory_utilization=0.5)
+        with patch.dict(
+            os.environ,
+            {"KAITO_LMCACHE_DEPLOYMENT_MODE": "sidecar"},
+            clear=True,
+        ):
+            set_kv_transfer_config_if_applicable(args)
+
         assert args.kv_transfer_config == {
-            "kv_connector": "LMCacheConnectorV1",
+            "kv_connector": "LMCacheMPConnector",
+            "kv_connector_module_path": "lmcache.integration.vllm.lmcache_mp_connector",
             "kv_role": "kv_both",
+            "kv_connector_extra_config": {
+                "lmcache.mp.host": "tcp://127.0.0.1",
+                "lmcache.mp.port": 5555,
+                "lmcache.mp.isolated_ipc": True,
+            },
         }
 
     def test_nixl_not_overridden_by_offload(self):
@@ -95,3 +114,11 @@ class TestSetKvTransferConfig:
         with patch.dict(os.environ, {"KAITO_INFERENCE_ROLE": "decode"}):
             set_kv_transfer_config_if_applicable(args)
         assert args.kv_transfer_config == user_config
+
+
+class TestLMCacheMPServer:
+    def test_wait_for_sidecar_server(self):
+        with patch("inference_api.socket.create_connection") as connect:
+            wait_for_lmcache_mp_server(timeout_seconds=1)
+
+        connect.assert_called_once_with(("127.0.0.1", 5555), timeout=0.5)

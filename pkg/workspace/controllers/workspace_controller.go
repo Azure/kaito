@@ -31,12 +31,15 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	nodev1 "k8s.io/api/node/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
@@ -79,6 +82,8 @@ const (
 	revisionHashSuffix      = 5
 )
 
+// +kubebuilder:rbac:groups=node.k8s.io,resources=runtimeclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=nvidia.com,resources=clusterpolicies,verbs=get;list;watch
 type WorkspaceReconciler struct {
 	client.Client
 	Log      logr.Logger
@@ -791,6 +796,17 @@ func syncInferenceMutablePodSpec(existingSpec, desiredSpec *corev1.PodSpec) {
 	existingSpec.Volumes = desiredSpec.Volumes
 }
 
+func hasLMCacheSidecar(spec *corev1.PodSpec) bool {
+	for i := range spec.InitContainers {
+		if spec.InitContainers[i].Name == "lmcache-mp-server" &&
+			spec.InitContainers[i].RestartPolicy != nil &&
+			*spec.InitContainers[i].RestartPolicy == corev1.ContainerRestartPolicyAlways {
+			return true
+		}
+	}
+	return false
+}
+
 // shouldUpgradeBaseImage checks if an auto-upgrade has been requested via the upgrade label
 // and the image hasn't been updated yet. The label value must match the controller's
 // current desired base image tag to prevent stale labels from triggering upgrades.
@@ -815,11 +831,21 @@ func (c *WorkspaceReconciler) syncWorkspaceStatus(ctx context.Context, key types
 		return err
 	}
 
-	inferenceReady, hasBenchmarkProbe, infFailReason, infFailMsg, err := c.collectInferenceReadyStatus(ctx, wObj)
+	inferenceReady, hasBenchmarkProbe, lmCacheEnabled, infFailReason, infFailMsg, err := c.collectInferenceReadyStatus(ctx, wObj)
 	if err != nil {
 		return err
 	}
 	infFailReason, infFailMsg = streamingValidationReason(reconcileErr, infFailReason, infFailMsg)
+	lmCacheStatus, lmCacheReason, lmCacheMessage := metav1.ConditionFalse, "LMCacheDisabled", "managed LMCache is disabled for this workload or cluster platform"
+	if lmCacheEnabled {
+		lmCacheReason = "LMCacheNotReady"
+		lmCacheMessage = "waiting for managed LMCache sidecar readiness"
+		if inferenceReady {
+			lmCacheStatus = metav1.ConditionTrue
+			lmCacheReason = "LMCacheReady"
+			lmCacheMessage = "managed LMCache sidecar is ready"
+		}
+	}
 
 	tuningSnapshot, err := c.collectTuningStatusSnapshot(ctx, wObj)
 	if err != nil {
@@ -873,6 +899,9 @@ func (c *WorkspaceReconciler) syncWorkspaceStatus(ctx context.Context, key types
 
 		if wObj.Inference != nil {
 			status.MaxModelLen = maxModelLen
+			setWorkspaceCondition(status, wObj.GetGeneration(), appendReconcileErrMessage,
+				kaitov1beta1.WorkspaceConditionTypeLMCacheReady,
+				lmCacheStatus, lmCacheReason, lmCacheMessage)
 			if modelstreaming.ModelStreamingEnabled(wObj) && wObj.Inference.Preset != nil {
 
 				mirrorKey := modelstreaming.ModelMirrorKey(wObj)
@@ -954,17 +983,17 @@ func (c *WorkspaceReconciler) collectNodeStatusSnapshot(ctx context.Context, wOb
 // collectInferenceReadyStatus reports whether the inference workload is ready and
 // whether its StatefulSet carries the benchmark startup probe (false for legacy,
 // pre-benchmark-feature workspaces).
-func (c *WorkspaceReconciler) collectInferenceReadyStatus(ctx context.Context, wObj *kaitov1beta1.Workspace) (inferenceReady bool, hasBenchmarkProbe bool, failReason, failMsg string, err error) {
+func (c *WorkspaceReconciler) collectInferenceReadyStatus(ctx context.Context, wObj *kaitov1beta1.Workspace) (inferenceReady bool, hasBenchmarkProbe bool, lmCacheEnabled bool, failReason, failMsg string, err error) {
 	if wObj.Inference == nil {
-		return false, false, "", "", nil
+		return false, false, false, "", "", nil
 	}
 
 	ss := &appsv1.StatefulSet{}
 	if err := c.Get(ctx, types.NamespacedName{Name: wObj.Name, Namespace: wObj.Namespace}, ss); err != nil {
 		if apierrors.IsNotFound(err) {
-			return false, false, "", "", nil
+			return false, false, false, "", "", nil
 		}
-		return false, false, "", "", err
+		return false, false, false, "", "", err
 	}
 
 	replicas := int32(1)
@@ -981,7 +1010,7 @@ func (c *WorkspaceReconciler) collectInferenceReadyStatus(ctx context.Context, w
 		failReason, failMsg = c.classifyInferencePodFailure(ctx, wObj)
 	}
 
-	return ready, hasBenchmarkStartupProbe(ss), failReason, failMsg, nil
+	return ready, hasBenchmarkStartupProbe(ss), hasLMCacheSidecar(&ss.Spec.Template.Spec), failReason, failMsg, nil
 }
 
 // Inference not-ready reason constants. These are stable enum values surfaced on
@@ -1737,6 +1766,16 @@ func (c *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		bldr = bldr.Watches(&kaitov1alpha1.ModelMirror{},
 			enqueueWorkspacesForModelMirror(c.Client),
 		)
+	}
+
+	lmCachePlatformHandler := enqueueAllWorkspacesForLMCachePlatform(c.Client)
+	bldr = bldr.Watches(&nodev1.RuntimeClass{}, lmCachePlatformHandler)
+	if _, err := mgr.GetRESTMapper().RESTMapping(schema.GroupKind{Group: "nvidia.com", Kind: "ClusterPolicy"}, "v1"); err == nil {
+		clusterPolicy := &unstructured.Unstructured{}
+		clusterPolicy.SetGroupVersionKind(schema.GroupVersionKind{Group: "nvidia.com", Version: "v1", Kind: "ClusterPolicy"})
+		bldr = bldr.Watches(clusterPolicy, lmCachePlatformHandler)
+	} else {
+		klog.V(4).InfoS("GPU Operator ClusterPolicy watch disabled", "error", err)
 	}
 
 	bldr = bldr.WithOptions(controller.Options{MaxConcurrentReconciles: 5})

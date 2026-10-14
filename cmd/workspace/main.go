@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -61,6 +63,7 @@ import (
 	karpenterutils "github.com/kaito-project/kaito/pkg/utils/karpenter"
 	"github.com/kaito-project/kaito/pkg/version"
 	"github.com/kaito-project/kaito/pkg/workspace/controllers"
+	workspaceinference "github.com/kaito-project/kaito/pkg/workspace/inference"
 	"github.com/kaito-project/kaito/pkg/workspace/inference/modelstreaming"
 	"github.com/kaito-project/kaito/pkg/workspace/inference/modelstreaming/registry"
 	"github.com/kaito-project/kaito/pkg/workspace/webhooks"
@@ -217,6 +220,20 @@ func main() {
 	ctx := withShutdownSignal(context.Background())
 
 	cfg := ctrl.GetConfigOrDie()
+	discoveryClient, discoveryErr := discovery.NewDiscoveryClientForConfig(cfg)
+	nativeSidecarsSupported := false
+	if discoveryErr == nil {
+		if serverVersion, serverVersionErr := discoveryClient.ServerVersion(); serverVersionErr == nil {
+			major, majorErr := strconv.Atoi(strings.TrimRight(serverVersion.Major, "+"))
+			minor, minorErr := strconv.Atoi(strings.TrimRight(serverVersion.Minor, "+"))
+			nativeSidecarsSupported = majorErr == nil && minorErr == nil && (major > 1 || major == 1 && minor >= 29)
+		} else {
+			klog.ErrorS(serverVersionErr, "unable to determine Kubernetes version; LMCache native sidecar disabled")
+		}
+	} else {
+		klog.ErrorS(discoveryErr, "unable to create discovery client; LMCache native sidecar disabled")
+	}
+	workspaceinference.SetNativeSidecarsSupported(nativeSidecarsSupported)
 	cfg.UserAgent = workspaceController
 	setRestConfig(cfg, kubeClientQPS, kubeClientBurst)
 

@@ -16,7 +16,34 @@ package utils
 import (
 	"strconv"
 	"strings"
+
+	"gopkg.in/yaml.v2"
 )
+
+type inferenceRuntimeConfig struct {
+	VLLM                        map[string]interface{} `yaml:"vllm"`
+	KVCacheCPUMemoryUtilization *float64               `yaml:"kv_cache_cpu_memory_utilization"`
+}
+
+// ParseKVCacheCPUUtilization returns an explicitly configured CPU KV-cache
+// utilization. An absent field is reported as not found so runtime defaults can apply.
+func ParseKVCacheCPUUtilization(content string) (float64, bool) {
+	config := inferenceRuntimeConfig{}
+	if err := yaml.Unmarshal([]byte(content), &config); err != nil || config.KVCacheCPUMemoryUtilization == nil {
+		return 0, false
+	}
+	return *config.KVCacheCPUMemoryUtilization, true
+}
+
+// HasVLLMConfigKey reports whether the vLLM section explicitly owns a runtime flag.
+func HasVLLMConfigKey(content, key string) bool {
+	config := inferenceRuntimeConfig{}
+	if err := yaml.Unmarshal([]byte(content), &config); err != nil {
+		return false
+	}
+	_, found := config.VLLM[key]
+	return found
+}
 
 // ParseExplicitMaxModelLen scans YAML content for a top-level (under vllm:) 'max-model-len:' value.
 // Returns (value,true) only if an explicit non-empty positive integer is found; otherwise (0,false).

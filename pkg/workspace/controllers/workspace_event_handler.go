@@ -132,3 +132,26 @@ func enqueueWorkspacesForModelMirror(kubeClient client.Client) handler.EventHand
 			return requests
 		})
 }
+
+// enqueueAllWorkspacesForLMCachePlatform reevaluates sidecar eligibility when
+// the cluster-scoped NVIDIA runtime stack changes.
+func enqueueAllWorkspacesForLMCachePlatform(kubeClient client.Client) handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(
+		func(ctx context.Context, _ client.Object) []reconcile.Request {
+			wsList := &kaitov1beta1.WorkspaceList{}
+			if err := kubeClient.List(ctx, wsList); err != nil {
+				klog.ErrorS(err, "failed to list workspaces for LMCache platform watch")
+				return nil
+			}
+
+			requests := make([]reconcile.Request, 0, len(wsList.Items))
+			for i := range wsList.Items {
+				ws := &wsList.Items[i]
+				if ws.Inference == nil || ws.Inference.Preset == nil {
+					continue
+				}
+				requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(ws)})
+			}
+			return requests
+		})
+}

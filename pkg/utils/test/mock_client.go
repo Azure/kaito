@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	nodev1 "k8s.io/api/node/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -86,6 +88,15 @@ func (m *MockClient) Get(ctx context.Context, key types.NamespacedName, obj k8sC
 	//make any necessary changes to the object
 	if m.UpdateCb != nil {
 		m.UpdateCb(key)
+	}
+
+	if _, ok := obj.(*nodev1.RuntimeClass); ok {
+		relevantMap := m.ensureMapForType(reflect.TypeOf(obj))
+		if val, found := relevantMap[key]; found {
+			reflect.ValueOf(obj).Elem().Set(reflect.ValueOf(val).Elem())
+			return nil
+		}
+		return apierrors.NewNotFound(schema.GroupResource{Group: "node.k8s.io", Resource: "runtimeclasses"}, key.Name)
 	}
 
 	m.GetObjectFromMap(obj, key)

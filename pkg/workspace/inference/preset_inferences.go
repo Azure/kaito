@@ -26,9 +26,12 @@ import (
 	"gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	nodev1 "k8s.io/api/node/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
@@ -92,9 +95,21 @@ const (
 	// defaultCudaHomePath is the default location to install CUDA toolkit and used as
 	// CUDA_HOME.
 	defaultCudaHomePath = "/opt/kaito/cuda/129"
+
+	lmCacheRuntimeClassName       = "nvidia"
+	lmCacheSidecarName            = "lmcache-mp-server"
+	lmCacheRuntimeVolumeName      = "lmcache-runtime"
+	lmCacheRuntimeMountPath       = "/var/run/kaito-lmcache"
+	lmCacheDeploymentModeEnvName  = "KAITO_LMCACHE_DEPLOYMENT_MODE"
+	lmCacheDeploymentModeSidecar  = "sidecar"
+	lmCacheServerPort             = 5555
+	lmCacheHTTPPort               = 8080
+	lmCacheSidecarStartupAttempts = 60
 )
 
 var (
+	nativeSidecarsSupported bool
+
 	containerPorts = []corev1.ContainerPort{
 		{
 			Name:          "http",
@@ -135,6 +150,12 @@ var (
 		PeriodSeconds:       10,
 	}
 )
+
+// SetNativeSidecarsSupported records whether the API server supports stable or
+// enabled native sidecar containers (Kubernetes 1.29+).
+func SetNativeSidecarsSupported(supported bool) {
+	nativeSidecarsSupported = supported
+}
 
 func defaultTolerations(ws *v1beta1.Workspace) []corev1.Toleration {
 	tolerations := []corev1.Toleration{
@@ -273,6 +294,7 @@ func GeneratePresetInference(ctx context.Context, workspaceObj *v1beta1.Workspac
 	if v1beta1.ShouldRunBenchmark(workspaceObj) {
 		podOpts = append(podOpts, SetBenchmarkConfig(distributed))
 	}
+	podOpts = append(podOpts, ConfigureLMCacheSidecar(distributed))
 
 	ssOpts := []generator.TypedManifestModifier[generator.WorkspaceGeneratorContext, appsv1.StatefulSet]{
 		manifests.GenerateStatefulSetManifest(revisionNum, numNodes),
@@ -313,6 +335,203 @@ func GeneratePresetInference(ctx context.Context, workspaceObj *v1beta1.Workspac
 	workload, err := generator.GenerateManifest(gctx, ssOpts...)
 	result := &PresetInferenceResult{Workload: workload}
 	return result, err
+}
+
+// ConfigureLMCacheSidecar injects LMCache as a native Kubernetes sidecar when
+// the resolved workload and cluster runtime support multiprocess CPU KV offload.
+func ConfigureLMCacheSidecar(distributed bool) generator.TypedManifestModifier[generator.WorkspaceGeneratorContext, corev1.PodSpec] {
+	return func(ctx *generator.WorkspaceGeneratorContext, spec *corev1.PodSpec) error {
+		eligible, reason := isLMCacheWorkloadEligible(ctx.Workspace, spec, distributed)
+		if !eligible {
+			klog.V(4).InfoS("LMCache sidecar disabled", "workspace", klog.KObj(ctx.Workspace), "reason", reason)
+			return nil
+		}
+		if eligible, reason := isLMCacheUserConfigEligible(ctx.Ctx, ctx.KubeClient, ctx.Workspace); !eligible {
+			klog.V(4).InfoS("LMCache sidecar disabled", "workspace", klog.KObj(ctx.Workspace), "reason", reason)
+			return nil
+		}
+		if ready, reason := isLMCachePlatformReady(ctx.Ctx, ctx.KubeClient); !ready {
+			klog.InfoS("LMCache sidecar disabled", "workspace", klog.KObj(ctx.Workspace), "reason", reason)
+			return nil
+		}
+
+		injectLMCacheSidecar(spec, ctx.Workspace.Name)
+		return nil
+	}
+}
+
+func isLMCacheUserConfigEligible(ctx context.Context, kubeClient client.Client, workspace *v1beta1.Workspace) (bool, string) {
+	if workspace.Inference == nil || workspace.Inference.Config == "" {
+		return true, ""
+	}
+	configMap := &corev1.ConfigMap{}
+	if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: workspace.Namespace, Name: workspace.Inference.Config}, configMap); err != nil {
+		return false, "inference config is unavailable"
+	}
+	configData, found := configMap.Data[utils.InferenceConfigKey]
+	if !found {
+		return true, ""
+	}
+	if utilization, configured := utils.ParseKVCacheCPUUtilization(configData); configured && utilization <= 0 {
+		return false, "CPU KV offload is disabled in inference config"
+	}
+	if utils.HasVLLMConfigKey(configData, "kv-transfer-config") {
+		return false, "custom KV connector configuration owns its server lifecycle"
+	}
+	return true, ""
+}
+
+func isLMCacheWorkloadEligible(workspace *v1beta1.Workspace, spec *corev1.PodSpec, distributed bool) (bool, string) {
+	if v1beta1.GetWorkspaceRuntimeName(workspace) != pkgmodel.RuntimeNameVLLM {
+		return false, "runtime is not vLLM"
+	}
+	if distributed {
+		return false, "multi-node pipeline parallelism is unsupported"
+	}
+	if partition := workspace.Resource.Partition; partition != nil && partition.Mode == v1beta1.PartitionModeMIG {
+		return false, "MIG is unsupported"
+	}
+	if workspace.Labels[v1beta1.LabelInferenceRole] != "" {
+		return false, "prefill/decode disaggregation owns the KV connector"
+	}
+	if len(spec.Containers) == 0 {
+		return false, "inference container is missing"
+	}
+
+	command := strings.Join(spec.Containers[0].Command, " ")
+	if value, found := resolveCommandFlag(command, "kaito-kv-cache-cpu-memory-utilization"); found {
+		if utilization, err := strconv.ParseFloat(value, 64); err == nil && utilization <= 0 {
+			return false, "CPU KV offload is disabled"
+		}
+	}
+	if strings.Contains(command, "--kv-transfer-config") {
+		return false, "custom KV connector configuration owns its server lifecycle"
+	}
+	if strings.Contains(command, "--data-parallel-size") {
+		return false, "data parallelism is unsupported"
+	}
+	return true, ""
+}
+
+func isLMCachePlatformReady(ctx context.Context, kubeClient client.Client) (bool, string) {
+	if !nativeSidecarsSupported {
+		return false, "Kubernetes native sidecars are unsupported"
+	}
+	runtimeClass := &nodev1.RuntimeClass{}
+	if err := kubeClient.Get(ctx, client.ObjectKey{Name: lmCacheRuntimeClassName}, runtimeClass); err != nil {
+		return false, "RuntimeClass nvidia is unavailable"
+	}
+
+	policies := &unstructured.UnstructuredList{}
+	policies.SetGroupVersionKind(schema.GroupVersionKind{
+		Group: "nvidia.com", Version: "v1", Kind: "ClusterPolicyList",
+	})
+	if err := kubeClient.List(ctx, policies); err != nil {
+		return false, "GPU Operator ClusterPolicy is unavailable"
+	}
+	for i := range policies.Items {
+		state, _, _ := unstructured.NestedString(policies.Items[i].Object, "status", "state")
+		if strings.EqualFold(state, "ready") {
+			return true, ""
+		}
+	}
+	return false, "GPU Operator ClusterPolicy is not Ready"
+}
+
+func injectLMCacheSidecar(spec *corev1.PodSpec, mainContainerName string) {
+	mainIndex := -1
+	for i := range spec.Containers {
+		if spec.Containers[i].Name == mainContainerName {
+			mainIndex = i
+			break
+		}
+	}
+	if mainIndex < 0 {
+		return
+	}
+
+	spec.RuntimeClassName = ptr.To(lmCacheRuntimeClassName)
+	spec.Volumes = append(spec.Volumes, corev1.Volume{
+		Name:         lmCacheRuntimeVolumeName,
+		VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+	})
+	runtimeMount := corev1.VolumeMount{Name: lmCacheRuntimeVolumeName, MountPath: lmCacheRuntimeMountPath}
+	mainContainer := &spec.Containers[mainIndex]
+	mainContainer.VolumeMounts = append(mainContainer.VolumeMounts, runtimeMount)
+	mainContainer.Env = append(mainContainer.Env, corev1.EnvVar{
+		Name: lmCacheDeploymentModeEnvName, Value: lmCacheDeploymentModeSidecar,
+	})
+	mainContainer.LivenessProbe = &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{
+			"python3", "/workspace/vllm/lmcache_server.py", "--health-check",
+		}}},
+		PeriodSeconds: 10, FailureThreshold: 3,
+	}
+
+	args := []string{"--isolated-ipc", "--tensor-parallel-size=" + resolveTensorParallelSize(mainContainer.Command)}
+	sidecarMounts := []corev1.VolumeMount{runtimeMount}
+	for _, mount := range mainContainer.VolumeMounts {
+		if mount.MountPath == utils.DefaultConfigMapMountPath {
+			sidecarMounts = append(sidecarMounts, mount)
+			args = append(args, "--config-file="+utils.DefaultConfigMapMountPath+"/"+utils.InferenceConfigKey)
+			break
+		}
+	}
+
+	restartAlways := corev1.ContainerRestartPolicyAlways
+	allowPrivilegeEscalation := false
+	spec.InitContainers = append(spec.InitContainers, corev1.Container{
+		Name:          lmCacheSidecarName,
+		Image:         GetBaseImageName(),
+		Command:       []string{"python3", "/workspace/vllm/lmcache_server.py"},
+		Args:          args,
+		RestartPolicy: &restartAlways,
+		Env: []corev1.EnvVar{
+			{Name: "NVIDIA_VISIBLE_DEVICES", Value: "all"},
+			{Name: "NVIDIA_DRIVER_CAPABILITIES", Value: "all"},
+		},
+		Ports: []corev1.ContainerPort{
+			{Name: "lmcache", ContainerPort: lmCacheServerPort},
+			{Name: "lmcache-http", ContainerPort: lmCacheHTTPPort},
+		},
+		StartupProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{HTTPGet: &corev1.HTTPGetAction{
+				Path: "/healthcheck", Port: intstr.FromString("lmcache-http"),
+			}},
+			PeriodSeconds: 5, FailureThreshold: lmCacheSidecarStartupAttempts,
+		},
+		ReadinessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{HTTPGet: &corev1.HTTPGetAction{
+				Path: "/healthcheck", Port: intstr.FromString("lmcache-http"),
+			}},
+			PeriodSeconds: 5, FailureThreshold: 3,
+		},
+		SecurityContext: &corev1.SecurityContext{
+			AllowPrivilegeEscalation: &allowPrivilegeEscalation,
+			Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+		},
+		VolumeMounts: sidecarMounts,
+	})
+}
+
+func resolveTensorParallelSize(command []string) string {
+	if value, found := resolveCommandFlag(strings.Join(command, " "), "tensor-parallel-size"); found {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			return value
+		}
+	}
+	klog.Warning("LMCache sidecar could not resolve tensor-parallel-size; defaulting to 1")
+	return "1"
+}
+
+func resolveCommandFlag(command, name string) (string, bool) {
+	prefix := "--" + name + "="
+	for _, field := range strings.Fields(command) {
+		if strings.HasPrefix(field, prefix) {
+			return strings.TrimPrefix(field, prefix), true
+		}
+	}
+	return "", false
 }
 
 func getGPUConfig(ctx *generator.WorkspaceGeneratorContext) (*sku.GPUConfig, error) {
