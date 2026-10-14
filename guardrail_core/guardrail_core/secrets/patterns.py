@@ -16,10 +16,11 @@
 import re
 
 _TOKEN_END = r"(?=['\"\n\r\s`;]|$)"
+_GITHUB_TOKEN_END = r"(?![0-9A-Za-z_])"
 
 GITHUB_TOKEN_PATTERNS = (
-    re.compile(r"(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36}"),
-    re.compile(r"github_pat_[0-9A-Za-z_]{82}"),
+    re.compile(rf"(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{{36}}{_GITHUB_TOKEN_END}"),
+    re.compile(rf"github_pat_[0-9A-Za-z_]{{82}}{_GITHUB_TOKEN_END}"),
 )
 
 GCP_API_KEY_PATTERNS = (

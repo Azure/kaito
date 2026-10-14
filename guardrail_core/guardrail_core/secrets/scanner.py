@@ -22,7 +22,10 @@ from detect_secrets.core.secrets_collection import SecretsCollection
 from detect_secrets.settings import default_settings
 
 from guardrail_core.scanning import ScanResult
-from guardrail_core.secrets.providers import detect_kaito_provider_secrets
+from guardrail_core.secrets.providers import (
+    BUILTIN_SECRET_TYPES_OVERRIDDEN_BY_KAITO,
+    detect_kaito_provider_secrets,
+)
 
 # detect-secrets settings are process-global, so scans must be serialized.
 _DETECT_SECRETS_SETTINGS_LOCK = threading.Lock()
@@ -84,7 +87,10 @@ class NativeSecretsScanner:
             found_secret.secret_value
             for file_path in secrets.files
             for found_secret in secrets[file_path]
-            if found_secret.secret_value
+            if (
+                found_secret.secret_value
+                and found_secret.type not in BUILTIN_SECRET_TYPES_OVERRIDDEN_BY_KAITO
+            )
         }
         secret_values.update(detect_kaito_provider_secrets(text))
         return secret_values

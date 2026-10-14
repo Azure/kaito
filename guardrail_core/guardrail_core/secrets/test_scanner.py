@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+import guardrail_core.secrets.scanner as scanner_module
 from guardrail_core.secrets import NativeSecretsScanner
 
 _AWS_KEY = "AKIA" + "A" * 16
@@ -106,6 +107,43 @@ def test_ignores_provider_near_matches(provider, near_match):
     scanner = NativeSecretsScanner()
 
     assert scanner._detect_secret_values(near_match) == set()
+
+
+@pytest.mark.parametrize(
+    "overlong_token",
+    [
+        "ghp_" + "A" * 37,
+        "github_pat_" + "A" * 83,
+    ],
+)
+def test_ignores_overlong_github_tokens(overlong_token):
+    scanner = NativeSecretsScanner()
+
+    assert scanner._detect_secret_values(overlong_token) == set()
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        _GITHUB_TOKEN,
+        _GITHUB_FINE_GRAINED_TOKEN,
+    ],
+)
+def test_detects_github_tokens_before_punctuation(token):
+    scanner = NativeSecretsScanner()
+
+    assert token in scanner._detect_secret_values(f"{token},")
+
+
+def test_uses_kaito_patterns_instead_of_builtin_github_finding(monkeypatch):
+    monkeypatch.setattr(
+        scanner_module,
+        "detect_kaito_provider_secrets",
+        lambda text: set(),
+    )
+    scanner = NativeSecretsScanner()
+
+    assert scanner._detect_secret_values(_GITHUB_TOKEN) == set()
 
 
 def test_allows_text_without_secrets():
