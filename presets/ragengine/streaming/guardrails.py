@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from fastapi import HTTPException
-from llm_guard import scan_output
+from guardrail_core.scanning import scan_output
 
 from ragengine.guardrails import OutputGuardrails
 from ragengine.streaming.buffer_window import StreamingBufferWindow, WindowScanResult
