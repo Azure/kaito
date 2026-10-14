@@ -299,7 +299,8 @@ transient_failure_reason() {
 # Prints a non-empty reason when the inference pod is failing for good, so the
 # model can be failed without waiting out its timeout.
 pod_crash_reason() {
-  kubectl get pods -n "$NAMESPACE" -l "kaito.sh/workspace=${1}" -o json 2>/dev/null |
+  local ws="$1" reason previous_sigkills pod_name container_name restarts fatal_line
+  reason="$(kubectl get pods -n "$NAMESPACE" -l "kaito.sh/workspace=${ws}" -o json 2>/dev/null |
     jq -r --argjson maxRestarts "$MAX_CONTAINER_RESTARTS" '
       [ .items[] | .metadata.name as $pod | ((.status.containerStatuses // []) + (.status.initContainerStatuses // []))[]
         | { pod: $pod,
@@ -315,7 +316,34 @@ pod_crash_reason() {
           elif (.restarts >= $maxRestarts) then
             "\(.pod)/\(.name) crash-looping (\(.restarts) restarts)"
           else empty end)
-      | .[0] // ""'
+      | .[0] // ""' || true)"
+  if [[ -n "$reason" ]]; then
+    printf '%s' "$reason"
+    return
+  fi
+
+  # Exit 137 can be a legitimate probe kill while a large model downloads, but
+  # it is terminal when the previous container already reported an engine-init
+  # failure. Detect that case after the first restart instead of burning the
+  # entire per-model timeout.
+  previous_sigkills="$(kubectl get pods -n "$NAMESPACE" -l "kaito.sh/workspace=${ws}" -o json 2>/dev/null |
+    jq -r '
+      .items[] | .metadata.name as $pod
+      | ((.status.containerStatuses // []) + (.status.initContainerStatuses // []))[]
+      | select(.restartCount > 0 and .lastState.terminated.exitCode == 137)
+      | [$pod, .name, (.restartCount | tostring)] | @tsv' || true)"
+  while IFS=$'\t' read -r pod_name container_name restarts; do
+    [[ -n "$pod_name" && -n "$container_name" ]] || continue
+    fatal_line="$(kubectl logs -n "$NAMESPACE" "$pod_name" -c "$container_name" \
+      --previous --tail="$DIAG_LOG_LINES" 2>/dev/null |
+      grep -m1 -E 'EngineCore failed to start|Engine core initialization failed|Could not find nvcc|RuntimeError: Worker failed with error' |
+      cut -c1-500 || true)"
+    if [[ -n "$fatal_line" ]]; then
+      printf '%s/%s failed during startup before exit 137 after %s restart(s): %s' \
+        "$pod_name" "$container_name" "$restarts" "$fatal_line"
+      return
+    fi
+  done <<<"$previous_sigkills"
 }
 
 # Reasons the workspace controller sets on InferenceReady when the workload cannot
@@ -387,7 +415,11 @@ print_diagnostics() {
   # NodeClaim conditions and events carry the real provisioning error (capacity,
   # quota, SKU availability); the workspace condition only says "not ready".
   echo "::group::${ws} — node provisioning (NodePool / NodeClaim)"
-  kubectl get nodepools.karpenter.sh -o wide 2>&1 || true
+  if [[ "${TEST_SUITE:-gpuprovisioner}" == "azkarpenter" ]]; then
+    kubectl get nodepools.karpenter.sh -o wide 2>&1 || true
+  else
+    echo "NodePools are not used by gpu-provisioner."
+  fi
   kubectl get nodeclaims.karpenter.sh \
     -l "$(nodeclaim_selector "$ws")" \
     -o wide 2>&1 || true
@@ -403,8 +435,8 @@ print_diagnostics() {
   echo "--- NodeClaim events ---"
   kubectl get events -A --field-selector involvedObject.kind=NodeClaim \
     --sort-by=.lastTimestamp 2>&1 | tail -n 20 || true
-  # gpu-provisioner creates NodeClaims directly and has no NodePools, so the query
-  # above comes back empty for it; only the controller to read logs from differs.
+  # gpu-provisioner creates NodeClaims directly and has no NodePools; only the
+  # controller to read logs from differs.
   local prov_ns prov_label
   if [[ "${TEST_SUITE:-gpuprovisioner}" == "azkarpenter" ]]; then
     prov_ns="${KARPENTER_NAMESPACE:-karpenter}"
@@ -731,7 +763,8 @@ EOF
   if [[ "$status" == "retryable-failure" ]]; then
     if [[ "$transient_failure_retry" -lt "$MAX_RETRIES_FOR_TRANSIENT_FAILURE" ]]; then
       log "RETRYABLE: ${reason}"
-      print_diagnostics "$ws"
+      print_diagnostics "$ws" 2>&1 |
+        tee "${artifact_dir}/diagnostics-attempt-$((transient_failure_retry + 1)).log"
       teardown "$ws"
       log "Retrying ${model} in ${TRANSIENT_FAILURE_RETRY_INTERVAL_SEC}s ($((transient_failure_retry + 1))/${MAX_RETRIES_FOR_TRANSIENT_FAILURE} retries used)..."
       sleep "$TRANSIENT_FAILURE_RETRY_INTERVAL_SEC"
@@ -779,7 +812,7 @@ EOF
       fi
     fi
     log "FAILED: ${reason}"
-    print_diagnostics "$ws"
+    print_diagnostics "$ws" 2>&1 | tee "${artifact_dir}/diagnostics.log"
   fi
 
   record "$target" "$status" "$reason" "$(($(date +%s) - overall_start_epoch))" \
