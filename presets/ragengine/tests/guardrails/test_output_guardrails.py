@@ -18,7 +18,7 @@ import textwrap
 import time
 
 import pytest
-from llm_guard import scan_output
+from guardrail_core.scanning import scan_output
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
@@ -890,12 +890,14 @@ def test_build_scanners_builds_json_and_reading_time():
     scanners = guardrails._build_scanners()
 
     assert len(scanners) == 2
-    import llm_guard.output_scanners as llm_guard_output_scanners
-    from guardrail_core.native_scanners import NativeReadingTimeScanner
+    from guardrail_core.native_scanners import (
+        NativeJSONScanner,
+        NativeReadingTimeScanner,
+    )
 
-    assert isinstance(scanners[0], llm_guard_output_scanners.JSON)
-    assert scanners[0]._required_elements == 2
-    assert scanners[0]._repair is False
+    assert isinstance(scanners[0], NativeJSONScanner)
+    assert scanners[0].required_elements == 2
+    assert scanners[0].repair is False
     assert isinstance(scanners[1], NativeReadingTimeScanner)
     assert scanners[1].max_time == 0.25
     assert scanners[1].truncate is True
