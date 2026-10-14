@@ -20,14 +20,19 @@ import pytest
 from guardrail_core.secrets import NativeSecretsScanner
 
 _AWS_KEY = "AKIA" + "A" * 16
+_AWS_SECRET_ACCESS_KEY = "aB3/" * 10
 _AZURE_KEY = "A" * 86 + "=="
 _GITHUB_TOKEN = "ghp_" + "A" * 36
 _GITHUB_FINE_GRAINED_TOKEN = "github_pat_" + "A" * 82
 _GCP_KEY = "AIza" + "A" * 35
 _OPENAI_KEY = "sk-" + "A" * 20 + "T3BlbkFJ" + "B" * 20
 _OPENAI_PROJECT_KEY = "sk-proj-" + "A" * 80
+_OPENAI_SERVICE_ACCOUNT_KEY = "sk-svcacct-" + "A" * 80
 _SLACK_TOKEN = "-".join(
     ("xoxb", "1234567890", "1234567890", "abcdefghijklmnopqrstuvwx")
+)
+_SLACK_WEBHOOK = "https://" + "/".join(
+    ("hooks.slack.com", "services", "T" + "A" * 8, "B" + "B" * 8, "C" * 24)
 )
 _JWT = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.c2lnbmF0dXJl"
 _PRIVATE_KEY_BODY = "A" * 32
@@ -50,13 +55,24 @@ def test_native_scanners_keeps_compatibility_export():
     ("provider", "text", "expected_secret"),
     [
         ("AWS", _AWS_KEY, _AWS_KEY),
+        (
+            "AWS secret access key",
+            f'aws_secret_access_key = "{_AWS_SECRET_ACCESS_KEY}"',
+            _AWS_SECRET_ACCESS_KEY,
+        ),
         ("Azure", f"AccountKey={_AZURE_KEY}", _AZURE_KEY),
         ("GitHub", _GITHUB_TOKEN, _GITHUB_TOKEN),
         ("GitHub fine-grained", _GITHUB_FINE_GRAINED_TOKEN, _GITHUB_FINE_GRAINED_TOKEN),
         ("GCP", _GCP_KEY, _GCP_KEY),
         ("OpenAI", _OPENAI_KEY, _OPENAI_KEY),
         ("OpenAI project", _OPENAI_PROJECT_KEY, _OPENAI_PROJECT_KEY),
+        (
+            "OpenAI service account",
+            _OPENAI_SERVICE_ACCOUNT_KEY,
+            _OPENAI_SERVICE_ACCOUNT_KEY,
+        ),
         ("Slack", _SLACK_TOKEN, _SLACK_TOKEN),
+        ("Slack webhook", _SLACK_WEBHOOK, _SLACK_WEBHOOK),
         ("JWT", _JWT, _JWT),
         ("Private Key", _PRIVATE_KEY, _PRIVATE_KEY_BODY),
         ("Basic Auth", _BASIC_AUTH_URL, _BASIC_AUTH_PASSWORD),

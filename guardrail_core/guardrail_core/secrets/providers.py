@@ -13,26 +13,16 @@
 
 """Provider-specific secret detection."""
 
-import re
-from dataclasses import dataclass
-
 from guardrail_core.secrets.patterns import (
     GCP_API_KEY_PATTERNS,
     GITHUB_TOKEN_PATTERNS,
     OPENAI_API_KEY_PATTERNS,
 )
 
-
-@dataclass(frozen=True)
-class ProviderPatterns:
-    name: str
-    patterns: tuple[re.Pattern[str], ...]
-
-
 KAITO_PROVIDER_PATTERNS = (
-    ProviderPatterns("GitHub", GITHUB_TOKEN_PATTERNS),
-    ProviderPatterns("GCP", GCP_API_KEY_PATTERNS),
-    ProviderPatterns("OpenAI", OPENAI_API_KEY_PATTERNS),
+    *GITHUB_TOKEN_PATTERNS,
+    *GCP_API_KEY_PATTERNS,
+    *OPENAI_API_KEY_PATTERNS,
 )
 
 
@@ -40,7 +30,6 @@ def detect_kaito_provider_secrets(text: str) -> set[str]:
     """Return secrets matched by KAITO-specific provider patterns."""
     return {
         match.group(0)
-        for provider in KAITO_PROVIDER_PATTERNS
-        for pattern in provider.patterns
+        for pattern in KAITO_PROVIDER_PATTERNS
         for match in pattern.finditer(text)
     }
