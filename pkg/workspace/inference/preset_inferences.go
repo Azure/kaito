@@ -696,6 +696,7 @@ func GenerateInferencePodSpec(gpuConfig *sku.GPUConfig, numNodes int, streamingM
 
 		setInferenceContainers(spec, ctx.Workspace.Name, commands, resourceReq,
 			volumeMounts, mainContainerEnv, readinessTimeout, vllmPort, cudaHome, ports)
+		setVLLMGracefulShutdown(spec, runtimeName, shouldUseDistributedInference(ctx, numNodes))
 
 		applyInferenceRoleEnv(ctx.Workspace.Labels, ctx.Workspace.Name, spec)
 
@@ -928,6 +929,16 @@ func setInferenceContainers(spec *corev1.PodSpec, containerName string, commands
 			},
 		}}, spec.InitContainers...)
 	}
+}
+
+// setVLLMGracefulShutdown gives single-node vLLM pods enough termination grace to
+// finish draining in-flight requests (vLLM --shutdown-timeout) before SIGKILL.
+// Multi-node (Ray) pods are intentionally left unchanged.
+func setVLLMGracefulShutdown(spec *corev1.PodSpec, runtimeName pkgmodel.RuntimeName, distributed bool) {
+	if runtimeName != pkgmodel.RuntimeNameVLLM || distributed {
+		return
+	}
+	spec.TerminationGracePeriodSeconds = ptr.To(vllmTerminationGracePeriodSeconds)
 }
 
 // SetHFToken adds the HF_TOKEN env var to the main inference container if
