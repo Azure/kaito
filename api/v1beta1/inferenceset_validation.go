@@ -37,6 +37,11 @@ func (is *InferenceSet) SupportedVerbs() []admissionregistrationv1.OperationType
 }
 
 func (is *InferenceSet) Validate(ctx context.Context) (errs *apis.FieldError) {
+	if !is.DeletionTimestamp.IsZero() {
+		klog.V(2).InfoS("Skip validation for deleting inferenceset", "inferenceset", fmt.Sprintf("%s/%s", is.Namespace, is.Name))
+		return nil
+	}
+
 	errmsgs := validation.IsDNS1123Label(is.Name)
 	if len(errmsgs) > 0 {
 		errs = errs.Also(apis.ErrInvalidValue(strings.Join(errmsgs, ", "), "name"))

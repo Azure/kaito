@@ -67,6 +67,11 @@ func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
 }
 
 func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
+	if !w.DeletionTimestamp.IsZero() {
+		klog.InfoS("Skip validation for deleting workspace", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
+		return nil
+	}
+
 	errmsgs := validation.IsDNS1123Label(w.Name)
 	if len(errmsgs) > 0 {
 		errs = errs.Also(apis.ErrInvalidValue(strings.Join(errmsgs, ", "), "name"))
