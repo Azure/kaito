@@ -39,6 +39,33 @@ func TestInferenceSetValidate(t *testing.T) {
 	assert.Nil(t, errs)
 }
 
+func TestInferenceSetValidateDeletingSkipsWorkspaceValidation(t *testing.T) {
+	original := ValidateInferenceSetWorkspace
+	t.Cleanup(func() { ValidateInferenceSetWorkspace = original })
+
+	workspaceValidationCalled := false
+	ValidateInferenceSetWorkspace = func(context.Context, *InferenceSet) *apis.FieldError {
+		workspaceValidationCalled = true
+		return apis.ErrGeneric("referenced ConfigMap not found", "inference", "config")
+	}
+
+	now := metav1.Now()
+	old := &InferenceSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-is",
+			Namespace:  "default",
+			Finalizers: []string{"inferenceset.kaito.sh/finalizer"},
+		},
+	}
+	deleting := old.DeepCopy()
+	deleting.DeletionTimestamp = &now
+	deleting.Finalizers = nil
+
+	errs := deleting.Validate(apis.WithinUpdate(context.Background(), old))
+	assert.Nil(t, errs)
+	assert.False(t, workspaceValidationCalled)
+}
+
 func TestInferenceSetSetDefaults(t *testing.T) {
 	is := &InferenceSet{}
 	is.SetDefaults(context.Background())

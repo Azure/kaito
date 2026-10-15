@@ -2459,6 +2459,25 @@ func TestWorkspaceValidateNAPFeatureGate(t *testing.T) {
 	}
 }
 
+func TestWorkspaceValidateDeletingSkipsValidation(t *testing.T) {
+	old := &Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test-workspace",
+			Namespace:   "default",
+			Annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "invalid"},
+			Finalizers:  []string{"workspace.kaito.sh/finalizer"},
+		},
+	}
+	deleting := old.DeepCopy()
+	now := metav1.Now()
+	deleting.DeletionTimestamp = &now
+	deleting.Finalizers = nil
+
+	if errs := deleting.Validate(apis.WithinUpdate(context.Background(), old)); errs != nil {
+		t.Fatalf("Validate() should allow finalizer removal during deletion, got %v", errs)
+	}
+}
+
 func TestWorkspaceValidateUpdate(t *testing.T) {
 	RegisterValidationTestModels()
 
