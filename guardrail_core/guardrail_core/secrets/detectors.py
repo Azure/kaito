@@ -32,16 +32,20 @@ from detect_secrets.plugins.private_key import PrivateKeyDetector
 from detect_secrets.transformers import get_transformed_file
 from detect_secrets.util.code_snippet import CodeSnippet, get_code_snippet
 
-_MODEL_OUTPUT_FILENAME = "model-output.txt"
+_VIRTUAL_MODEL_OUTPUT_FILENAME = "model-output.txt"
 _BUILT_IN_PLUGIN_TYPES = tuple(get_mapping_from_secret_type_to_class().values())
 
 
-class _ModelOutput(StringIO):
-    name = _MODEL_OUTPUT_FILENAME
+class _InMemoryModelOutput(StringIO):
+    name = _VIRTUAL_MODEL_OUTPUT_FILENAME
 
 
 def detect_builtin_secrets(text: str) -> set[str]:
-    """Run isolated detect-secrets plugin instances against in-memory text."""
+    """Preserve pinned detect-secrets scan behavior without disk or global settings.
+
+    SecretsCollection.scan_file() requires a filesystem path. This uses isolated
+    plugin instances while retaining the upstream transformer and filter order.
+    """
     plugins = tuple(plugin_type() for plugin_type in _BUILT_IN_PLUGIN_TYPES)
     raw_lines = text.splitlines(keepends=True) or [text]
     lines = _get_transformed_lines(text) or raw_lines
@@ -51,6 +55,7 @@ def detect_builtin_secrets(text: str) -> set[str]:
     if secret_values:
         return secret_values
 
+    # Match scan_file(): eager transformers run only if the first pass finds nothing.
     eager_lines = _get_transformed_lines(text, use_eager_transformers=True)
     if eager_lines:
         secret_values.update(_detect_line_secrets(eager_lines, raw_lines, plugins))
@@ -61,7 +66,7 @@ def _get_transformed_lines(
     text: str,
     use_eager_transformers: bool = False,
 ) -> list[str] | None:
-    with _ModelOutput(text) as model_output:
+    with _InMemoryModelOutput(text) as model_output:
         return get_transformed_file(
             model_output,
             use_eager_transformers=use_eager_transformers,
@@ -89,7 +94,7 @@ def _detect_line_secrets(
                 continue
 
             findings = plugin.analyze_line(
-                filename=_MODEL_OUTPUT_FILENAME,
+                filename=_VIRTUAL_MODEL_OUTPUT_FILENAME,
                 line=line,
                 line_number=line_number,
                 context=context,
@@ -106,6 +111,7 @@ def _detect_line_secrets(
 
 
 def _detect_private_keys(text: str, plugins: tuple[BasePlugin, ...]) -> set[str]:
+    # PrivateKeyDetector reads whole files, so scan the complete in-memory buffer.
     for plugin in plugins:
         if isinstance(plugin, PrivateKeyDetector):
             return {
@@ -122,9 +128,11 @@ def _normalize_secret(value: str | None) -> str:
 
 
 def _is_line_filtered(line: str, context: CodeSnippet) -> bool:
-    return is_line_allowlisted(_MODEL_OUTPUT_FILENAME, line, context) or (
-        is_indirect_reference(line)
-    )
+    return is_line_allowlisted(
+        _VIRTUAL_MODEL_OUTPUT_FILENAME,
+        line,
+        context,
+    ) or is_indirect_reference(line)
 
 
 def _is_secret_filtered(secret: str, line: str, plugin: BasePlugin) -> bool:
