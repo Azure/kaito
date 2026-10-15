@@ -13,7 +13,10 @@
 
 """In-memory detect-secrets execution."""
 
+from io import StringIO
+
 from detect_secrets.core.plugins.util import get_mapping_from_secret_type_to_class
+from detect_secrets.core.scan import MAX_LINE_LENGTH, MIN_LINE_LENGTH
 from detect_secrets.filters.allowlist import is_line_allowlisted
 from detect_secrets.filters.heuristic import (
     is_indirect_reference,
@@ -26,26 +29,58 @@ from detect_secrets.filters.heuristic import (
 )
 from detect_secrets.plugins.base import BasePlugin
 from detect_secrets.plugins.private_key import PrivateKeyDetector
+from detect_secrets.transformers import get_transformed_file
 from detect_secrets.util.code_snippet import CodeSnippet, get_code_snippet
 
 _MODEL_OUTPUT_FILENAME = "model-output.txt"
-_MIN_LINE_LENGTH = 5
-_MAX_LINE_LENGTH = 100_000
 _BUILT_IN_PLUGIN_TYPES = tuple(get_mapping_from_secret_type_to_class().values())
+
+
+class _ModelOutput(StringIO):
+    name = _MODEL_OUTPUT_FILENAME
 
 
 def detect_builtin_secrets(text: str) -> set[str]:
     """Run isolated detect-secrets plugin instances against in-memory text."""
     plugins = tuple(plugin_type() for plugin_type in _BUILT_IN_PLUGIN_TYPES)
-    lines = text.splitlines() or [text]
-    secret_values: set[str] = set()
+    raw_lines = text.splitlines(keepends=True) or [text]
+    lines = _get_transformed_lines(text) or raw_lines
+    secret_values = _detect_line_secrets(lines, raw_lines, plugins)
+    secret_values.update(_detect_private_keys(text, plugins))
 
+    if secret_values:
+        return secret_values
+
+    eager_lines = _get_transformed_lines(text, use_eager_transformers=True)
+    if eager_lines:
+        secret_values.update(_detect_line_secrets(eager_lines, raw_lines, plugins))
+    return secret_values
+
+
+def _get_transformed_lines(
+    text: str,
+    use_eager_transformers: bool = False,
+) -> list[str] | None:
+    with _ModelOutput(text) as model_output:
+        return get_transformed_file(
+            model_output,
+            use_eager_transformers=use_eager_transformers,
+        )
+
+
+def _detect_line_secrets(
+    lines: list[str],
+    raw_lines: list[str],
+    plugins: tuple[BasePlugin, ...],
+) -> set[str]:
+    secret_values: set[str] = set()
     for line_number, raw_line in enumerate(lines, start=1):
         line = raw_line.strip()
-        if not _MIN_LINE_LENGTH <= len(line) <= _MAX_LINE_LENGTH:
+        if not MIN_LINE_LENGTH <= len(line) <= MAX_LINE_LENGTH:
             continue
 
         context = get_code_snippet(lines=lines, line_number=line_number)
+        raw_context = get_code_snippet(lines=raw_lines, line_number=line_number)
         if _is_line_filtered(line, context):
             continue
 
@@ -58,7 +93,7 @@ def detect_builtin_secrets(text: str) -> set[str]:
                 line=line,
                 line_number=line_number,
                 context=context,
-                raw_context=context,
+                raw_context=raw_context,
             )
             secret_values.update(
                 secret_value
@@ -67,7 +102,6 @@ def detect_builtin_secrets(text: str) -> set[str]:
                 and not _is_secret_filtered(secret_value, line, plugin)
             )
 
-    secret_values.update(_detect_private_keys(text, plugins))
     return secret_values
 
 

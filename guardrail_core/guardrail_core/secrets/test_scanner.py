@@ -13,16 +13,22 @@
 
 """Tests for the KAITO-owned secrets scanner."""
 
+import os
+import subprocess
+import sys
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 
 import pytest
-from detect_secrets.settings import get_settings
+from detect_secrets.core.secrets_collection import SecretsCollection
+from detect_secrets.settings import default_settings, get_settings
 
 import guardrail_core.secrets.detectors as detectors_module
 from guardrail_core.secrets import NativeSecretsScanner
+from guardrail_core.secrets.detectors import detect_builtin_secrets
+from guardrail_core.secrets.providers import detect_kaito_provider_secrets
 
 _AWS_KEY = "AKIA" + "A" * 16
 _AWS_SECRET_ACCESS_KEY = "aB3/" * 10
@@ -46,6 +52,31 @@ _PRIVATE_KEY = (
 )
 _BASIC_AUTH_PASSWORD = "password"
 _BASIC_AUTH_URL = f"https://user:{_BASIC_AUTH_PASSWORD}@internal.test/path"
+_HIGH_ENTROPY_SECRET = "Qm9" + "x7ZpL2vN8cR4tY6uI1oP5aS3dF0gH9jK"
+
+
+def _detect_with_legacy_scan_file(text: str) -> set[str]:
+    secrets = SecretsCollection()
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        delete=False,
+    ) as temp_file:
+        temp_file.write(text)
+        temp_path = temp_file.name
+
+    try:
+        with default_settings():
+            secrets.scan_file(temp_path)
+    finally:
+        os.remove(temp_path)
+
+    return {
+        found_secret.secret_value
+        for file_path in secrets.files
+        for found_secret in secrets[file_path]
+        if found_secret.secret_value
+    }
 
 
 def test_native_scanners_keeps_compatibility_export():
@@ -184,6 +215,71 @@ def test_concurrent_scans_preserve_detection():
 
     for actual, expected in results:
         assert actual == expected
+
+
+@pytest.mark.parametrize(
+    ("case", "text"),
+    [
+        ("positive", _AWS_KEY),
+        ("clean", "ordinary model output"),
+        ("allowlist", f"{_AWS_KEY}  # pragma: allowlist secret"),
+        ("templated", 'password = "${DATABASE_PASSWORD}"'),
+        ("indirect reference", "password = get_secret_key()"),
+        ("high entropy", f'api_token = "{_HIGH_ENTROPY_SECRET}"'),
+        ("private key", _PRIVATE_KEY),
+        ("leading whitespace", f"    {_AWS_KEY}    "),
+        ("multiline context", f"header\naws_access_key_id = {_AWS_KEY}\nfooter"),
+    ],
+)
+def test_in_memory_detection_matches_legacy_scan_file(
+    monkeypatch,
+    case,
+    text,
+):
+    del case
+    legacy_builtin_values = _detect_with_legacy_scan_file(text)
+    new_builtin_values = detect_builtin_secrets(text)
+
+    assert new_builtin_values == legacy_builtin_values
+
+    legacy_scanner = NativeSecretsScanner()
+    monkeypatch.setattr(
+        legacy_scanner,
+        "_detect_secret_values",
+        lambda output: legacy_builtin_values | detect_kaito_provider_secrets(output),
+    )
+
+    assert NativeSecretsScanner().scan("", text) == legacy_scanner.scan("", text)
+
+
+@pytest.mark.parametrize(
+    ("environment_variable", "limit"),
+    [
+        ("CHECKOV_MIN_LINE_LENGTH", "21"),
+        ("CHECKOV_MAX_LINE_LENGTH", "19"),
+    ],
+)
+def test_in_memory_detection_honors_line_length_overrides(
+    environment_variable,
+    limit,
+):
+    environment = {
+        **os.environ,
+        environment_variable: limit,
+    }
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from guardrail_core.secrets.detectors import detect_builtin_secrets;"
+                "secret = 'AKIA' + 'A' * 16;"
+                "assert detect_builtin_secrets(secret) == set()"
+            ),
+        ],
+        check=True,
+        env=environment,
+    )
 
 
 def test_scan_does_not_write_model_output_to_disk(monkeypatch):
