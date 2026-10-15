@@ -14,6 +14,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -234,8 +235,32 @@ func TestGetInferenceCommandVLLMSingleNode(t *testing.T) {
 	}
 	cmd := p.GetInferenceCommand(rc)
 	require.Len(t, cmd, 3)
-	assert.Contains(t, cmd[2], "vllm serve")
+	assert.True(t, strings.HasPrefix(cmd[2], "exec vllm serve"), "vLLM must be PID 1 to receive SIGTERM: %s", cmd[2])
 	assert.Contains(t, cmd[2], "tensor-parallel-size=2")
+	assert.Contains(t, cmd[2], "--shutdown-timeout=50")
+}
+
+func TestGetInferenceCommandVLLMPresetShutdownTimeoutWins(t *testing.T) {
+	p := &PresetParam{
+		RuntimeParam: RuntimeParam{
+			VLLM: VLLMParam{
+				BaseCommand: "vllm serve",
+				ModelRunParams: map[string]string{
+					"shutdown-timeout": "45",
+				},
+			},
+		},
+	}
+
+	cmd := p.GetInferenceCommand(RuntimeContext{
+		RuntimeName: RuntimeNameVLLM,
+		SKUNumGPUs:  1,
+		NumNodes:    1,
+	})
+
+	require.Len(t, cmd, 3)
+	assert.Contains(t, cmd[2], "--shutdown-timeout=45")
+	assert.NotContains(t, cmd[2], "--shutdown-timeout=50")
 }
 
 func TestGetInferenceCommandVLLMKVCacheEventsDefault(t *testing.T) {
@@ -421,6 +446,9 @@ func TestGetInferenceCommandVLLMMultiNode(t *testing.T) {
 	assert.Contains(t, cmd[2], "POD_INDEX")
 	assert.Contains(t, cmd[2], "--ray_cluster_size=2")
 	assert.Contains(t, cmd[2], " && vllm serve")
+	// Graceful drain is single-node only; the multi-node command must stay unchanged.
+	assert.NotContains(t, cmd[2], "shutdown-timeout")
+	assert.NotContains(t, cmd[2], "exec ")
 }
 
 func TestMultiNodeRayCommandRequiresReadyCluster(t *testing.T) {

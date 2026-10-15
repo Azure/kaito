@@ -395,6 +395,18 @@ func TestGeneratePresetInference(t *testing.T) {
 			}
 
 			workloadCmd := strings.Join(statefulset.Spec.Template.Spec.Containers[0].Command, " ")
+			isVLLM := strings.Contains(tc.expectedCmd, "/workspace/vllm/inference_api.py")
+			isDistributed := strings.Contains(workloadCmd, "POD_INDEX")
+
+			// Only single-node vLLM gets the longer grace period for draining.
+			gracePeriod := statefulset.Spec.Template.Spec.TerminationGracePeriodSeconds
+			if isVLLM && !isDistributed {
+				if gracePeriod == nil || *gracePeriod != 60 {
+					t.Errorf("%s: expected terminationGracePeriodSeconds=60, got %v", k, gracePeriod)
+				}
+			} else if gracePeriod != nil {
+				t.Errorf("%s: expected default terminationGracePeriodSeconds, got %d", k, *gracePeriod)
+			}
 
 			mainCmd := strings.Split(workloadCmd, "--")[0]
 			params := toParameterMap(strings.Split(workloadCmd, "--")[1:])
@@ -406,9 +418,13 @@ func TestGeneratePresetInference(t *testing.T) {
 			// fusion pass (its TRT-LLM MNNVL kernel JIT-compiles at runtime and needs
 			// nvcc, which is absent from the runtime image). Inject it into the
 			// expectation so each vLLM case doesn't need to list the flag explicitly.
-			if strings.Contains(tc.expectedCmd, "/workspace/vllm/inference_api.py") {
+			if isVLLM {
 				expectedParams["compilation-config.pass_config.fuse_allreduce_rms"] = "False"
 				expectedParams["kv-events-config"] = `'{"enable_kv_cache_events":true}'`
+				if !isDistributed {
+					expectedParams["shutdown-timeout"] = "50"
+					expectedMaincmd = strings.Replace(expectedMaincmd, "/bin/sh -c python3", "/bin/sh -c exec python3", 1)
+				}
 			}
 
 			if mainCmd != expectedMaincmd {
