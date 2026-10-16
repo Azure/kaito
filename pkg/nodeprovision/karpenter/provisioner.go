@@ -630,11 +630,6 @@ func (p *KarpenterProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *ka
 		return nil, err
 	}
 
-	nodeList, err := nodeprovision.ListWorkspaceNodes(ctx, p.client, p, ws)
-	if err != nil {
-		return nil, fmt.Errorf("listing workspace nodes: %w", err)
-	}
-
 	targetCount := int(ws.Status.TargetNodeCount)
 
 	// NodeClaim condition: are enough karpenter NodeClaims ready?
@@ -677,11 +672,6 @@ func (p *KarpenterProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *ka
 			nodeCond.Reason = "NodesReady"
 			nodeCond.Message = "Enough Nodes are ready with GPU resources"
 		}
-	}
-
-	// Enrich NodesReady with a node-pressure warning (diagnostic only; status unchanged).
-	if w := nodes.NodePressureWarning(nodeList); w != "" {
-		nodeCond.Message = nodeCond.Message + "; warning: " + w
 	}
 
 	// Derive resource condition.
