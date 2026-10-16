@@ -56,6 +56,8 @@ const (
 
 	// PortRayCluster is the default port for communication between the head and worker nodes in a Ray cluster.
 	PortRayCluster = 6379
+
+	vllmShutdownTimeoutSeconds = "50"
 )
 
 // Metadata defines the metadata for a model.
@@ -560,8 +562,13 @@ func (p *PresetParam) buildVLLMInferenceCommand(rc RuntimeContext) []string {
 
 	// Single-node path: no Ray cluster needed.
 	if !rc.DistributedInference || rc.NumNodes == 1 {
+		// Best-effort graceful scale-down: vLLM drains in-flight requests on SIGTERM
+		// for up to this timeout. exec makes vLLM PID 1 so it receives the SIGTERM.
+		if _, configured := p.VLLM.ModelRunParams["shutdown-timeout"]; !configured {
+			p.VLLM.ModelRunParams["shutdown-timeout"] = vllmShutdownTimeoutSeconds
+		}
 		modelCommand := utils.BuildCmdStr(p.VLLM.BaseCommand, p.VLLM.ModelRunParams)
-		return utils.ShellCmd(modelCommand)
+		return utils.ShellCmd("exec " + modelCommand)
 	}
 
 	// Multi-node path: set up a Ray cluster for cross-node parallelism.

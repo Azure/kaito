@@ -86,6 +86,27 @@ kubectl scale inferenceset gemma-4-31b --replicas=3
 
 The controller adds or removes replicas to match the new count. When scaling down, replicas that are not yet ready are removed first. The `InferenceSet` exposes the Kubernetes `scale` subresource, so it can be targeted directly by autoscalers such as HPA or a KEDA `ScaledObject`. For load-based and schedule-based autoscaling, see [Autoscaling Inference with KEDA](./keda-autoscaler-inference.md).
 
+### Graceful scale-down
+
+Single-node vLLM workloads drain gracefully on a best-effort basis when a replica is
+removed. Kubernetes first marks the pod as terminating, which removes it from routing, and
+vLLM then has up to 50 seconds to finish in-flight requests within the pod's 60-second
+termination grace period. Requests that take longer than 50 seconds can still be
+interrupted, and a small routing-event delay can allow a late request to reach a draining
+pod. Multi-node (Ray) inference does not drain and keeps the default termination behavior.
+
+You can override vLLM's drain timeout through the referenced inference ConfigMap:
+
+```yaml
+data:
+  inference_config.yaml: |
+    vllm:
+      shutdown-timeout: 45
+```
+
+ConfigMap parameters are applied after KAITO's defaults, so this value wins. Values above
+50 seconds are not guaranteed to finish within KAITO's fixed pod grace period.
+
 :::note Updating the template
 The `InferenceSet` controller reconciles the replica **count** (scaling) and replica labels. It does not currently perform an in-place rolling update of existing replicas when you edit other `spec.template` fields (such as inference parameters or adapters) — the one exception is the base image, which can be rolled out automatically via [Automatic base image upgrades](#automatic-base-image-upgrades). To apply other template changes today, recreate the `InferenceSet` (or delete individual replicas so the controller recreates them from the updated template).
 :::
@@ -290,4 +311,3 @@ kubectl get inferenceset gemma-4-31b -o jsonpath='{.status.autoUpgrade}'
 - [Autoscaling Inference with KEDA](./keda-autoscaler-inference.md) - Load- and schedule-based autoscaling of an `InferenceSet`.
 - [Gateway API Inference Extension](./gateway-api-inference-extension.md) - KV-cache-aware routing across `InferenceSet` replicas.
 - [Multi-Node Inference](./multi-node-inference.md) - Distributed inference for large models across multiple nodes.
-
