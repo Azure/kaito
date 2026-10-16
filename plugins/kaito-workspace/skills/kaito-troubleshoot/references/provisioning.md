@@ -69,6 +69,22 @@ kubectl --context "${CONTEXT:?}" --request-timeout=30s get nodeclaims.karpenter.
 
 For both provisioners, inspect `Ready` and available lifecycle conditions in order: `Launched`, `Registered`, `Initialized`, checking any observed generation against the resource generation. Record the earliest meaningful reason/message. Quota, authorization, or capacity errors explain failures; `AwaitingReconciliation` alone describes progress. Exclude deleting claims from ready capacity. Some legacy claims have no `Ready` condition: KAITO falls back to a populated `status.nodeName`; corroborate with the live Node rather than inventing a failed condition.
 
+With Karpenter, failed claims are often deleted and recreated, so live claims may only show `AwaitingReconciliation`. On Azure:
+
+- Quota, allocation and SKU errors are recorded on the claim's `Launched=Unknown` condition (for example `SubscriptionQuotaReached` or `AllocationFailure`, and `CreateInstanceFailed` on older providers). The provider then caches the instance type as unavailable, so later attempts fail within seconds with a generic `InsufficientCapacityError` Event (`all requested instance types were unavailable`) and their claims are deleted.
+- The regional vCPU quota is only reported by an `InsufficientCapacityError` Event, and a failure after Azure accepted the instance only by an `AsyncProvisioningError` Event.
+- A node that never registers produces neither; Karpenter sets the NodePool `NodeRegistrationHealthy=False` after two launch or registration timeouts among the last four attempts.
+
+KAITO reports the root cause on the Workspace `NodeClaimReady`/`ResourceReady` conditions while the ready claims do not cover the target. `NodeClaimNotReady` is progress, with the pending lifecycle stage in the message; any other False reason means the latest attempt failed while Karpenter keeps retrying. KAITO reports the first of:
+
+1. a NodePool `ValidationSucceeded=False`;
+2. a missing or `Ready=False` NodeClass;
+3. a failure on a claim, deleting claims included;
+4. the `AsyncProvisioningError` or `InsufficientCapacityError` Warning Events of the pool's claims from the last 4 minutes (listed in the `default` namespace at most every 2 minutes), preferring `AsyncProvisioningError`;
+5. the NodePool's `NodeRegistrationHealthy=False`, only while a claim launched at least 10 minutes ago has not registered, as Karpenter resets it only after several registrations.
+
+Failures that need the user to act are reported as `QuotaExceeded`, `CapacityUnavailable`, `NodeImageInvalid`, `NodeBootstrapFailed` or `NodeConfigurationInvalid`, with the original reason at the start of the message. A generic `InsufficientCapacityError` is reported as `CapacityUnavailable`, as the pool's single instance type has no available offering. Once a specific failure is reported, a generic `InsufficientCapacityError` or progress does not replace it until a new claim launches, as the claim that carried it is deleted and its retries fail before launching. Until a node that never registers is reported, check the node's boot diagnostics.
+
 Account for pre-existing or legacy capacity when the installed provisioner supports it. Current Karpenter can omit a new pool when existing capacity covers the target; the Azure provisioner can also reuse matching nodes. Explain a missing resource only after establishing that additional provisioned capacity is actually required.
 
 ## Check live Nodes

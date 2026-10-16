@@ -427,7 +427,7 @@ func (c *WorkspaceReconciler) reconcileNodes(ctx context.Context, wObj *kaitov1b
 		if needRequeue {
 			return &reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 		}
-		return &reconcile.Result{}, nil
+		return &reconcile.Result{RequeueAfter: nodeClaimStatusResyncInterval}, nil
 	}
 
 	return nil, nil
@@ -1013,6 +1013,10 @@ const (
 // modelMirrorDrainRetryInterval paces retries while a mirror finishes tearing down.
 const modelMirrorDrainRetryInterval = 5 * time.Second
 
+// nodeClaimStatusResyncInterval resyncs the status of a Workspace waiting for NodeClaims, as the provisioning
+// failures it reports also come from Events and time windows that do not trigger a reconcile.
+const nodeClaimStatusResyncInterval = 2 * time.Minute
+
 // errModelMirrorRaced reports a mirror that appeared between this workspace's cached read
 // and its create. It was built from another workspace's spec, so this one must still run
 // validateExistingModelMirror against it; that happens on the next pass, once the cache
@@ -1359,7 +1363,7 @@ func buildReconcileErrMessageAppender(reconcileErr error) func(message string) s
 		if messageCarriesErr(message, reconcileErr.Error()) {
 			return message
 		}
-		return fmt.Sprintf("%s (last reconcile error: %s)", message, reconcileErr.Error())
+		return message + nodeprovision.ReconcileErrorMessagePrefix + reconcileErr.Error() + ")"
 	}
 }
 

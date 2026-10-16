@@ -18,6 +18,8 @@ type ConditionType string
 
 const (
 	// ConditionTypeNodeClaimStatus is the state when checking nodeClaim status.
+	// With the Karpenter node provisioner, while False, NodeClaimNotReady means provisioning is in progress and any
+	// other reason means the latest attempt failed.
 	ConditionTypeNodeClaimStatus = ConditionType("NodeClaimReady")
 
 	// ConditionTypeNodeStatus is the state when checking node status.
@@ -77,4 +79,20 @@ const (
 	// failures the controller can observe, so a bring-your-own deployment has a
 	// single readiness condition for its model rather than two.
 	WorkspaceConditionTypeModelConfigReady = ConditionType("ModelConfigReady")
+)
+
+// Node provisioning failure reasons on the NodeClaimReady and ResourceReady conditions that need the user to act,
+// such as raising a quota or fixing the node configuration. The message starts with the reason reported by the node
+// provisioner, so these stay stable across provisioner versions.
+const (
+	// ReasonQuotaExceeded reports an exhausted subscription vCPU quota (VM SKU family, regional or spot).
+	ReasonQuotaExceeded = "QuotaExceeded"
+	// ReasonCapacityUnavailable reports that the cloud cannot allocate the VM size, or does not offer it.
+	ReasonCapacityUnavailable = "CapacityUnavailable"
+	// ReasonNodeImageInvalid reports a node image that does not exist or is not a valid image reference.
+	ReasonNodeImageInvalid = "NodeImageInvalid"
+	// ReasonNodeBootstrapFailed reports a node that failed its bootstrap script or never registered with the cluster.
+	ReasonNodeBootstrapFailed = "NodeBootstrapFailed"
+	// ReasonNodeConfigurationInvalid reports an invalid NodeClass, NodePool, permission or subnet configuration.
+	ReasonNodeConfigurationInvalid = "NodeConfigurationInvalid"
 )
