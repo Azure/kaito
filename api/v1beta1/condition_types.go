@@ -13,6 +13,12 @@
 
 package v1beta1
 
+import (
+	"k8s.io/apimachinery/pkg/util/sets"
+
+	mmconsts "github.com/kaito-project/kaito/pkg/modelmirror/consts"
+)
+
 // ConditionType is a valid value for Condition.Type.
 type ConditionType string
 
@@ -95,4 +101,54 @@ const (
 	ReasonNodeBootstrapFailed = "NodeBootstrapFailed"
 	// ReasonNodeConfigurationInvalid reports an invalid NodeClass, NodePool, permission or subnet configuration.
 	ReasonNodeConfigurationInvalid = "NodeConfigurationInvalid"
+)
+
+// Inference failure reasons on the InferenceReady condition that need the user to act, such as changing the instance
+// type, the model image or the model configuration.
+const (
+	// ReasonContainerOOMKilled reports an inference container killed for exceeding its memory.
+	ReasonContainerOOMKilled = "ContainerOOMKilled"
+	// ReasonImagePullError reports an inference image that cannot be pulled.
+	ReasonImagePullError = "ImagePullError"
+	// ReasonContainerStartError reports an inference container that cannot be created or started, e.g. a missing Secret.
+	ReasonContainerStartError = "ContainerStartError"
+	// ReasonContainerCrashLoopBackOff reports an inference container that keeps crashing.
+	ReasonContainerCrashLoopBackOff = "ContainerCrashLoopBackOff"
+	// ReasonSASTokenFetchFailed reports a model streaming init container that cannot obtain a SAS token.
+	ReasonSASTokenFetchFailed = "SASTokenFetchFailed"
+	// ReasonModelBundleMismatch reports a streamed model bundle that does not match the deployment's configuration.
+	ReasonModelBundleMismatch = "ModelBundleMismatch"
+	// ReasonModelStreamingStorageClassNotFound reports a missing model streaming StorageClass.
+	ReasonModelStreamingStorageClassNotFound = "ModelStreamingStorageClassNotFound"
+	// ReasonModelStreamingInvalidStorageClass reports a model streaming StorageClass that cannot be used.
+	ReasonModelStreamingInvalidStorageClass = "ModelStreamingInvalidStorageClass"
+	// ReasonModelStreamingServiceAccountInvalid reports an invalid model streaming ServiceAccount.
+	ReasonModelStreamingServiceAccountInvalid = "ModelStreamingServiceAccountInvalid"
+	// ReasonModelStreamingInvalidAnnotations reports invalid model streaming annotations.
+	ReasonModelStreamingInvalidAnnotations = "ModelStreamingInvalidAnnotations"
+)
+
+// ReasonDownloadOOMKilled on the ModelMirrorReady condition reports a model download killed for exceeding its memory.
+const ReasonDownloadOOMKilled = mmconsts.ReasonDownloadOOMKilled
+
+// TerminalReasons are the reasons of a not-ready Workspace that cannot recover without the user acting: the
+// controllers keep retrying, but the same failure recurs until the user changes the configuration or the cloud
+// subscription. An InferenceSet with a replica failing for one of these reasons reports it on InferenceSetReady.
+var TerminalReasons = sets.New(
+	ReasonQuotaExceeded,
+	ReasonCapacityUnavailable,
+	ReasonNodeImageInvalid,
+	ReasonNodeBootstrapFailed,
+	ReasonNodeConfigurationInvalid,
+	ReasonContainerOOMKilled,
+	ReasonImagePullError,
+	ReasonContainerStartError,
+	ReasonContainerCrashLoopBackOff,
+	ReasonSASTokenFetchFailed,
+	ReasonModelBundleMismatch,
+	ReasonModelStreamingStorageClassNotFound,
+	ReasonModelStreamingInvalidStorageClass,
+	ReasonModelStreamingServiceAccountInvalid,
+	ReasonModelStreamingInvalidAnnotations,
+	ReasonDownloadOOMKilled,
 )

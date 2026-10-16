@@ -85,6 +85,14 @@ KAITO reports the root cause on the Workspace `NodeClaimReady`/`ResourceReady` c
 
 Failures that need the user to act are reported as `QuotaExceeded`, `CapacityUnavailable`, `NodeImageInvalid`, `NodeBootstrapFailed` or `NodeConfigurationInvalid`, with the original reason at the start of the message. A generic `InsufficientCapacityError` is reported as `CapacityUnavailable`, as the pool's single instance type has no available offering. Once a specific failure is reported, a generic `InsufficientCapacityError` or progress does not replace it until a new claim launches, as the claim that carried it is deleted and its retries fail before launching. Until a node that never registers is reported, check the node's boot diagnostics.
 
+An InferenceSet's `InferenceSetReady` condition aggregates its not-ready Workspaces:
+
+- Terminal reasons need the user to act and do not recover on their own: the five node provisioning reasons above, `ContainerOOMKilled`, `ImagePullError`, `ContainerStartError`, `ContainerCrashLoopBackOff`, `SASTokenFetchFailed`, `ModelBundleMismatch`, the `ModelStreaming*` validation reasons and `DownloadOOMKilled`.
+- Known in-progress reasons such as `NodeClaimNotReady`, `AwaitingReconciliation`, `ModelMirrorNotReady`, `ModelMirrorPending` or `WorkspaceInferenceStatusPending` are progress; any other reason is a failure.
+- A Workspace's root cause is a condition with a terminal reason; otherwise a failing condition among `ResourceReady`, `NodeClaimReady`, `NodesReady`, `ModelConfigReady` and `ModelMirrorReady`, otherwise the first of them that is False, and `InferenceReady` only once those are ready.
+- Terminal Workspaces are listed first, then failing ones, then progressing ones. Within each, node causes come before model causes (`ModelConfigReady`, `ModelMirrorReady`) and inference causes (`InferenceReady`), as nodes block the later stages, then Workspaces are listed by name. The reason is that of the first listed Workspace, and the message lists up to three Workspaces.
+- An InferenceSet whose `InferenceSetReady` reason is terminal for its current generation is terminated until the failure is fixed.
+
 Account for pre-existing or legacy capacity when the installed provisioner supports it. Current Karpenter can omit a new pool when existing capacity covers the target; the Azure provisioner can also reuse matching nodes. Explain a missing resource only after establishing that additional provisioned capacity is actually required.
 
 ## Check live Nodes

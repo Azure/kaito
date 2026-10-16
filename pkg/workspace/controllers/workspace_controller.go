@@ -988,12 +988,12 @@ func (c *WorkspaceReconciler) collectInferenceReadyStatus(ctx context.Context, w
 // the InferenceReady condition so users and automation can identify the root
 // cause of an inference workload that is not ready.
 const (
-	inferenceReasonSASTokenFetchFailed = "SASTokenFetchFailed"
-	inferenceReasonModelBundleMismatch = "ModelBundleMismatch"
-	inferenceReasonImagePullError      = "ImagePullError"
-	inferenceReasonCrashLoopBackOff    = "ContainerCrashLoopBackOff"
-	inferenceReasonOOMKilled           = "ContainerOOMKilled"
-	inferenceReasonContainerStartError = "ContainerStartError"
+	inferenceReasonSASTokenFetchFailed = kaitov1beta1.ReasonSASTokenFetchFailed
+	inferenceReasonModelBundleMismatch = kaitov1beta1.ReasonModelBundleMismatch
+	inferenceReasonImagePullError      = kaitov1beta1.ReasonImagePullError
+	inferenceReasonCrashLoopBackOff    = kaitov1beta1.ReasonContainerCrashLoopBackOff
+	inferenceReasonOOMKilled           = kaitov1beta1.ReasonContainerOOMKilled
+	inferenceReasonContainerStartError = kaitov1beta1.ReasonContainerStartError
 	inferenceReasonEvicted             = "PodEvicted"
 	inferenceReasonNodeDiskPressure    = "NodeDiskPressure"
 	inferenceReasonNodeMemoryPressure  = "NodeMemoryPressure"
@@ -1002,10 +1002,10 @@ const (
 
 // Model streaming validation failure reasons.
 const (
-	reasonModelStreamingStorageClassNotFound  = "ModelStreamingStorageClassNotFound"
-	reasonModelStreamingInvalidStorageClass   = "ModelStreamingInvalidStorageClass"
-	reasonModelStreamingServiceAccountInvalid = "ModelStreamingServiceAccountInvalid"
-	reasonModelStreamingInvalidAnnotations    = "ModelStreamingInvalidAnnotations"
+	reasonModelStreamingStorageClassNotFound  = kaitov1beta1.ReasonModelStreamingStorageClassNotFound
+	reasonModelStreamingInvalidStorageClass   = kaitov1beta1.ReasonModelStreamingInvalidStorageClass
+	reasonModelStreamingServiceAccountInvalid = kaitov1beta1.ReasonModelStreamingServiceAccountInvalid
+	reasonModelStreamingInvalidAnnotations    = kaitov1beta1.ReasonModelStreamingInvalidAnnotations
 	reasonModelMirrorCreateFailed             = "ModelMirrorCreateFailed"
 	reasonModelMirrorDeleting                 = "ModelMirrorDeleting"
 )

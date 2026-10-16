@@ -883,3 +883,169 @@ func TestSelectWorkspacesToDelete(t *testing.T) {
 		})
 	}
 }
+
+func TestNotReadyCondition(t *testing.T) {
+	ws := func(name string, conds ...v1.Condition) v1beta1.Workspace {
+		return v1beta1.Workspace{ObjectMeta: v1.ObjectMeta{Name: name}, Status: v1beta1.WorkspaceStatus{Conditions: conds}}
+	}
+	cond := func(t v1beta1.ConditionType, s v1.ConditionStatus, reason, msg string) v1.Condition {
+		return v1.Condition{Type: string(t), Status: s, Reason: reason, Message: msg}
+	}
+	resourcesReady := cond(v1beta1.ConditionTypeResourceStatus, v1.ConditionTrue, "workspaceResourceStatusSuccess", "workspace resource is ready")
+	quota := cond(v1beta1.ConditionTypeResourceStatus, v1.ConditionFalse, "CreateInstanceFailed", "vCPU quota reached")
+	provisioning := cond(v1beta1.ConditionTypeResourceStatus, v1.ConditionFalse, "NodeClaimNotReady",
+		"NodeClaim Registered=Unknown (NodeNotFound): Node not registered with cluster")
+	inferencePending := cond(v1beta1.WorkspaceConditionTypeInferenceStatus, v1.ConditionFalse, "WorkspaceInferenceStatusPending", "Inference workload is not ready")
+	imagePull := cond(v1beta1.WorkspaceConditionTypeInferenceStatus, v1.ConditionFalse, "ImagePullError", "image not found")
+	mirrorDeleting := cond(v1beta1.WorkspaceConditionTypeModelMirrorReady, v1.ConditionFalse, "ModelMirrorDeleting", "waiting for the previous mirror")
+	mirrorPending := cond(v1beta1.WorkspaceConditionTypeModelMirrorReady, v1.ConditionFalse, "ModelMirrorPending", "Model download in progress")
+	mirrorDownloadFailed := cond(v1beta1.WorkspaceConditionTypeModelMirrorReady, v1.ConditionFalse, "DownloadFailed", "download job failed")
+	mirrorNotReady := cond(v1beta1.ConditionTypeResourceStatus, v1.ConditionFalse, "ModelMirrorNotReady", "Model download in progress")
+	nodeClaimQuota := cond(v1beta1.ConditionTypeNodeClaimStatus, v1.ConditionFalse, "CreateInstanceFailed", "vCPU quota reached")
+	nodeClaimProvisioning := cond(v1beta1.ConditionTypeNodeClaimStatus, v1.ConditionFalse, "NodeClaimNotReady", "NodeClaim Launched=Unknown (AwaitingReconciliation)")
+	unschedulable := cond(v1beta1.WorkspaceConditionTypeInferenceStatus, v1.ConditionFalse, "Unschedulable", "0/3 nodes are available")
+	nodeClaimQuotaExceeded := cond(v1beta1.ConditionTypeNodeClaimStatus, v1.ConditionFalse, v1beta1.ReasonQuotaExceeded, "CreateInstanceFailed: vCPU quota reached")
+	mirrorOOMKilled := cond(v1beta1.WorkspaceConditionTypeModelMirrorReady, v1.ConditionFalse, v1beta1.ReasonDownloadOOMKilled, "download container was OOMKilled")
+	gpuProvisionerAwaiting := cond(v1beta1.ConditionTypeResourceStatus, v1.ConditionFalse, "AwaitingReconciliation", "object is awaiting reconciliation")
+	streamingStorageClassNotFound := cond(v1beta1.WorkspaceConditionTypeInferenceStatus, v1.ConditionFalse, v1beta1.ReasonModelStreamingStorageClassNotFound, "StorageClass fast not found")
+	succeeded := cond(v1beta1.WorkspaceConditionTypeSucceeded, v1.ConditionTrue, "workspaceSucceeded", "workspace succeeds")
+
+	deleting := ws("ws-0", quota)
+	deleting.DeletionTimestamp = &v1.Time{Time: time.Now()}
+
+	cases := []struct {
+		name            string
+		workspaces      []v1beta1.Workspace
+		ready           int
+		expectedReason  string
+		expectedMessage string
+	}{
+		{
+			name:            "no workspace conditions yet",
+			workspaces:      []v1beta1.Workspace{ws("ws-a")},
+			expectedReason:  "inferencesetNotReady",
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready",
+		},
+		{
+			name:            "provisioning failure of a not ready replica",
+			workspaces:      []v1beta1.Workspace{ws("ws-a", succeeded, resourcesReady), ws("ws-b", quota, inferencePending)},
+			ready:           1,
+			expectedReason:  "CreateInstanceFailed",
+			expectedMessage: "inferenceset is not ready, 1/2 replicas are ready; workspace ws-b ResourceReady=False (CreateInstanceFailed): vCPU quota reached",
+		},
+		{
+			name:            "progress is reported as on the workspace",
+			workspaces:      []v1beta1.Workspace{ws("ws-a", provisioning, inferencePending)},
+			expectedReason:  "NodeClaimNotReady",
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-a ResourceReady=False (NodeClaimNotReady): NodeClaim Registered=Unknown (NodeNotFound): Node not registered with cluster",
+		},
+		{
+			name:            "a failing workspace comes before a progressing one",
+			workspaces:      []v1beta1.Workspace{ws("ws-1", quota), ws("ws-0", provisioning)},
+			expectedReason:  "CreateInstanceFailed",
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-1 ResourceReady=False (CreateInstanceFailed): vCPU quota reached; workspace ws-0 ResourceReady=False (NodeClaimNotReady): NodeClaim Registered=Unknown (NodeNotFound): Node not registered with cluster",
+		},
+		{
+			name:            "progressing nodes come before progressing inference",
+			workspaces:      []v1beta1.Workspace{ws("ws-b", provisioning), ws("ws-a", inferencePending)},
+			expectedReason:  "NodeClaimNotReady",
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-b ResourceReady=False (NodeClaimNotReady): NodeClaim Registered=Unknown (NodeNotFound): Node not registered with cluster; workspace ws-a InferenceReady=False (WorkspaceInferenceStatusPending): Inference workload is not ready",
+		},
+		{
+			name:            "a terminal node failure comes before a terminal inference failure",
+			workspaces:      []v1beta1.Workspace{ws("ws-a", resourcesReady, imagePull), ws("ws-b", nodeClaimQuotaExceeded)},
+			expectedReason:  v1beta1.ReasonQuotaExceeded,
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-b NodeClaimReady=False (QuotaExceeded): CreateInstanceFailed: vCPU quota reached; workspace ws-a InferenceReady=False (ImagePullError): image not found",
+		},
+		{
+			name:            "a terminal model failure comes before a terminal inference failure",
+			workspaces:      []v1beta1.Workspace{ws("ws-a", provisioning, streamingStorageClassNotFound), ws("ws-b", mirrorNotReady, mirrorOOMKilled)},
+			expectedReason:  v1beta1.ReasonDownloadOOMKilled,
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-b ModelMirrorReady=False (DownloadOOMKilled): download container was OOMKilled; workspace ws-a InferenceReady=False (ModelStreamingStorageClassNotFound): StorageClass fast not found",
+		},
+		{
+			name:            "a node provisioning failure is not hidden while the model weights download",
+			workspaces:      []v1beta1.Workspace{ws("ws-a", mirrorNotReady, nodeClaimQuota, mirrorPending, inferencePending)},
+			expectedReason:  "CreateInstanceFailed",
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-a NodeClaimReady=False (CreateInstanceFailed): vCPU quota reached",
+		},
+		{
+			name:            "a model download failure is not hidden while nodes are provisioned",
+			workspaces:      []v1beta1.Workspace{ws("ws-b", provisioning, nodeClaimProvisioning, inferencePending), ws("ws-a", mirrorNotReady, nodeClaimProvisioning, mirrorDownloadFailed)},
+			expectedReason:  "DownloadFailed",
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-a ModelMirrorReady=False (DownloadFailed): download job failed; workspace ws-b ResourceReady=False (NodeClaimNotReady): NodeClaim Registered=Unknown (NodeNotFound): Node not registered with cluster",
+		},
+		{
+			name:            "inference failures caused by resources still progressing are progress",
+			workspaces:      []v1beta1.Workspace{ws("ws-a", provisioning, unschedulable), ws("ws-b", provisioning, inferencePending)},
+			expectedReason:  "NodeClaimNotReady",
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-a ResourceReady=False (NodeClaimNotReady): NodeClaim Registered=Unknown (NodeNotFound): Node not registered with cluster; workspace ws-b ResourceReady=False (NodeClaimNotReady): NodeClaim Registered=Unknown (NodeNotFound): Node not registered with cluster",
+		},
+		{
+			name:            "inference failure once resources are ready",
+			workspaces:      []v1beta1.Workspace{ws("ws-a", resourcesReady, imagePull)},
+			expectedReason:  "ImagePullError",
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-a InferenceReady=False (ImagePullError): image not found",
+		},
+		{
+			name:            "model mirror comes before inference",
+			workspaces:      []v1beta1.Workspace{ws("ws-a", resourcesReady, inferencePending, mirrorDeleting)},
+			expectedReason:  "ModelMirrorDeleting",
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-a ModelMirrorReady=False (ModelMirrorDeleting): waiting for the previous mirror",
+		},
+		{
+			name:            "ignores deleting workspaces",
+			workspaces:      []v1beta1.Workspace{deleting, ws("ws-a", inferencePending)},
+			expectedReason:  "WorkspaceInferenceStatusPending",
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-a InferenceReady=False (WorkspaceInferenceStatusPending): Inference workload is not ready",
+		},
+		{
+			name:            "a workspace without a root cause yet is counted but does not set the reason",
+			workspaces:      []v1beta1.Workspace{ws("ws-a"), ws("ws-b", quota)},
+			expectedReason:  "CreateInstanceFailed",
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-b ResourceReady=False (CreateInstanceFailed): vCPU quota reached; and 1 more",
+		},
+		{
+			name: "lists at most three workspaces, failing ones first",
+			workspaces: []v1beta1.Workspace{
+				ws("ws-a", provisioning), ws("ws-b", provisioning), ws("ws-c", provisioning), ws("ws-d", quota), ws("ws-e", quota),
+			},
+			expectedReason: "CreateInstanceFailed",
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; " +
+				"workspace ws-d ResourceReady=False (CreateInstanceFailed): vCPU quota reached; " +
+				"workspace ws-e ResourceReady=False (CreateInstanceFailed): vCPU quota reached; " +
+				"workspace ws-a ResourceReady=False (NodeClaimNotReady): NodeClaim Registered=Unknown (NodeNotFound): Node not registered with cluster; and 2 more",
+		},
+		{
+			name:            "a gpu-provisioner NodeClaim awaiting reconciliation is progress",
+			workspaces:      []v1beta1.Workspace{ws("ws-a", gpuProvisionerAwaiting), ws("ws-b", quota)},
+			expectedReason:  "CreateInstanceFailed",
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-b ResourceReady=False (CreateInstanceFailed): vCPU quota reached; workspace ws-a ResourceReady=False (AwaitingReconciliation): object is awaiting reconciliation",
+		},
+		{
+			name:            "a terminal workspace comes before a failing one",
+			workspaces:      []v1beta1.Workspace{ws("ws-a", quota), ws("ws-b", nodeClaimQuotaExceeded)},
+			expectedReason:  v1beta1.ReasonQuotaExceeded,
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-b NodeClaimReady=False (QuotaExceeded): CreateInstanceFailed: vCPU quota reached; workspace ws-a ResourceReady=False (CreateInstanceFailed): vCPU quota reached",
+		},
+		{
+			name:            "a terminal model download failure is not hidden by a node failure",
+			workspaces:      []v1beta1.Workspace{ws("ws-a", mirrorNotReady, nodeClaimQuota, mirrorOOMKilled)},
+			expectedReason:  v1beta1.ReasonDownloadOOMKilled,
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-a ModelMirrorReady=False (DownloadOOMKilled): download container was OOMKilled",
+		},
+		{
+			name:            "a terminal inference failure is not hidden while nodes are provisioned",
+			workspaces:      []v1beta1.Workspace{ws("ws-a", provisioning, streamingStorageClassNotFound)},
+			expectedReason:  v1beta1.ReasonModelStreamingStorageClassNotFound,
+			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-a InferenceReady=False (ModelStreamingStorageClassNotFound): StorageClass fast not found",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reason, message := notReadyCondition(tc.workspaces, tc.ready, 2)
+			assert.Equal(t, tc.expectedReason, reason)
+			assert.Equal(t, tc.expectedMessage, message)
+		})
+	}
+}
