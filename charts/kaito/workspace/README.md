@@ -43,7 +43,7 @@ helm install workspace ./charts/kaito/workspace  \
 | karpenterProviders.azure.kind                  | string | `"AKSNodeClass"`                                         | Karpenter NodeClass API kind. |
 | karpenterProviders.azure.version               | string | `"v1beta1"`                                              | Karpenter NodeClass API version. |
 | karpenterProviders.azure.resourceName          | string | `"aksnodeclasses"`                                       | Plural resource name for the NodeClass CRD. Combined with `group` to form the full CRD name. |
-| karpenterProviders.azure.nodeClasses           | list   | (see values.yaml)                                        | NodeClass definitions to create at startup, and the allowlist for the `kaito.sh/node-class-name` annotation. Exactly one entry must have `default: true`. Each entry has `name`, `spec`, and optionally `default: true`. Passed to the controller as `--karpenter-node-classes`, so changing it rolls the Deployment. |
+| karpenterProviders.azure.nodeClasses           | list   | (see values.yaml)                                        | NodeClass definitions to reconcile at startup, and the allowlist for the `kaito.sh/node-class-name` annotation. Exactly one entry must have `default: true`. Each entry has `name`, `spec`, and optionally `default: true`. Passed to the controller as `--karpenter-node-classes`, so changing it rolls the Deployment. |
 | tolerations                                    | list   | `[]`                                                     | Controller pod tolerations.                                   |
 | webhook.port                                   | int    | `9443`                                                   | Webhook HTTPS port. Valid TCP port (1–65535); must not conflict with other container ports. |
 | logging.level                                  | string | `"error"`                                                | Knative zap logging level. Allowed values: `debug`, `info`, `warn`, `error`, `dpanic`, `panic`, `fatal`. |
@@ -61,6 +61,23 @@ helm install workspace ./charts/kaito/workspace  \
 | featureGates.enableInferenceSetController      | bool   | `true`                                                  | Allowed values: `true`, `false`. Enables the InferenceSet controller and its RBAC. |
 | gpu-feature-discovery.nfd.enabled              | bool   | `true`                                                   | Allowed values: `true`, `false`. Set to `false` if NFD is already installed (e.g., via the NVIDIA GPU Operator) to avoid CRD conflicts. Only applies when the GFD subchart is active (`featureGates.disableNodeAutoProvisioning=true`). |
 | gpu-feature-discovery.gfd.enabled              | bool   | `true`                                                   | Allowed values: `true`, `false`. Set to `false` if GFD is already installed (e.g., via the NVIDIA GPU Operator). Only applies when the GFD subchart is active (`featureGates.disableNodeAutoProvisioning=true`). |
+
+## Karpenter NodeClass Updates
+
+When `nodeProvisioner=karpenter`, KAITO reconciles the configured NodeClasses at
+controller startup. Missing resources are created. Existing resources must have
+`karpenter.kaito.sh/managed-by: kaito`; otherwise startup fails without adopting
+them.
+
+The configured `spec` is authoritative: omitted fields are removed, subject to
+defaults applied by the provider API. KAITO also synchronizes its default label,
+while preserving unrelated metadata and status. Changing the chart values rolls
+the controller Deployment and applies the new configuration. Manual edits are
+not continuously reconciled, but may be overwritten on the next restart.
+
+Removing an entry does not delete its NodeClass; it only removes the name from
+the Workspace selection allowlist. Spec updates may trigger Karpenter drift and
+node replacement according to the NodePool disruption policies.
 
 ## NVIDIA GPU Operator Coexistence
 
