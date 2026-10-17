@@ -192,8 +192,8 @@ func SetStreamingConfig(streamingCfg *StreamingConfig, modelID, defaultSA string
 				spec.Containers[i].Env = append(spec.Containers[i].Env, streamingCfg.ProviderEnvVars...)
 
 				// A custom model has no HuggingFace identity, so KAITO_PROCESSOR
-				// would name nothing; the benchmark reads the tokenizer from
-				// vLLM's model-streamer cache instead.
+				// would name nothing; the benchmark uses the tokenizer vLLM
+				// resolved locally instead.
 				if !custommodel.IsCustom(ctx.Workspace.Inference) {
 					spec.Containers[i].Env = append(spec.Containers[i].Env, buildCommonStreamingEnvVars(modelID)...)
 				}

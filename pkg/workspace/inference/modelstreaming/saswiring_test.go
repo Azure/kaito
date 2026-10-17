@@ -207,7 +207,7 @@ func TestSetStreamingConfig_AzurePathUnchanged(t *testing.T) {
 
 // TestSetStreamingConfig_KaitoProcessor verifies that KAITO_PROCESSOR is set
 // from the HuggingFace ID for preset models and omitted for custom models,
-// which the benchmark resolves from vLLM's model-streamer cache. The decision
+// whose benchmark uses the tokenizer vLLM resolved locally. The decision
 // follows the workspace preset, not the model ID, so a HuggingFace org that
 // shares the "custom-" prefix keeps its processor.
 func TestSetStreamingConfig_KaitoProcessor(t *testing.T) {
