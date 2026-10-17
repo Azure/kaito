@@ -135,7 +135,7 @@ func main() {
 	flag.StringVar(&karpenterNodeClassKind, "karpenter-node-class-kind", "AKSNodeClass", "Karpenter NodeClass API kind. Only used when node-provisioner=karpenter.")
 	flag.StringVar(&karpenterNodeClassVersion, "karpenter-node-class-version", "v1beta1", "Karpenter NodeClass API version. Only used when node-provisioner=karpenter.")
 	flag.StringVar(&karpenterNodeClassResourceName, "karpenter-node-class-resource-name", "aksnodeclasses", "Plural resource name for the NodeClass CRD (e.g. aksnodeclasses). Combined with --karpenter-node-class-group to form the full CRD name. Only used when node-provisioner=karpenter.")
-	flag.StringVar(&karpenterNodeClasses, "karpenter-node-classes", "", `JSON array of NodeClasses KAITO creates and lets Workspaces select, e.g. [{"name":"image-family-ubuntu","default":true,"spec":{...}}]. "spec" is passed through to the provider's NodeClass unchanged. Exactly one entry must be default. Required when node-provisioner=karpenter.`)
+	flag.StringVar(&karpenterNodeClasses, "karpenter-node-classes", "", `JSON array of NodeClasses KAITO reconciles at startup and lets Workspaces select, e.g. [{"name":"image-family-ubuntu","default":true,"spec":{...}}]. "spec" authoritatively replaces the provider's NodeClass spec. Existing resources must have karpenter.kaito.sh/managed-by=kaito. Exactly one entry must be default. Required when node-provisioner=karpenter.`)
 	flag.BoolVar(&printVersionAndExit, "version", false, "Print version and exit.")
 	flag.StringVar(&defaultModelMirrorStorageClass, "default-model-mirror-storage-class", "", "StorageClass for ModelMirror PVCs.")
 	flag.StringVar(&defaultStreamingServiceAccount, "default-streaming-service-account", "", "Default ServiceAccount for streaming inference pods.")
@@ -262,7 +262,7 @@ func main() {
 	// This is necessary because nodeProvisioner.Start() runs before mgr.Start(),
 	// and the manager's cached client is not usable until the cache is started.
 	// The direct client is only used for lightweight CRD existence checks and
-	// global AKSNodeClass creation during startup.
+	// global NodeClass reconciliation during startup.
 	directClient, directErr := client.New(cfg, client.Options{Scheme: scheme})
 	if directErr != nil {
 		klog.ErrorS(directErr, "unable to create direct client for provisioner Start")
