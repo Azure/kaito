@@ -21,6 +21,7 @@ import (
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -80,7 +81,7 @@ func NewKarpenterProvisioner(c client.Client, cfg NodeClassConfig) *KarpenterPro
 // Name returns the provisioner name.
 func (p *KarpenterProvisioner) Name() string { return "KarpenterProvisioner" }
 
-// Start verifies that the Karpenter CRDs are installed, creates the configured
+// Start verifies that the Karpenter CRDs are installed, reconciles the configured
 // NodeClass resources, and derives DefaultName.
 // Returns an error if Karpenter is not installed.
 func (p *KarpenterProvisioner) Start(ctx context.Context) error {
@@ -113,7 +114,7 @@ func (p *KarpenterProvisioner) Start(ctx context.Context) error {
 		return fmt.Errorf("no NodeClass definitions configured: --karpenter-node-classes is required when node-provisioner=karpenter")
 	}
 
-	// Create each configured NodeClass and derive DefaultName.
+	// Reconcile each configured NodeClass and derive DefaultName.
 	for _, nc := range p.nodeClassConfig.NodeClasses {
 		if nc.Default {
 			if p.nodeClassConfig.DefaultName != "" {
@@ -123,13 +124,8 @@ func (p *KarpenterProvisioner) Start(ctx context.Context) error {
 			p.nodeClassConfig.DefaultName = nc.Name
 		}
 
-		obj := p.newNodeClassObject(nc)
-		klog.InfoS("Creating NodeClass", "name", nc.Name, "kind", obj.GetKind())
-		if err := p.client.Create(ctx, obj); err != nil {
-			if !apierrors.IsAlreadyExists(err) {
-				return fmt.Errorf("creating NodeClass %q: %w", nc.Name, err)
-			}
-			klog.InfoS("NodeClass already exists", "name", nc.Name)
+		if err := p.reconcileNodeClass(ctx, nc); err != nil {
+			return fmt.Errorf("reconciling NodeClass %q: %w", nc.Name, err)
 		}
 	}
 
@@ -144,10 +140,64 @@ func (p *KarpenterProvisioner) Start(ctx context.Context) error {
 	if err := p.waitForNodeClassReady(ctx, p.nodeClassConfig.DefaultName); err != nil {
 		return fmt.Errorf("default NodeClass %q not ready: %w", p.nodeClassConfig.DefaultName, err)
 	}
-	klog.InfoS("NodeClass resources created",
+	klog.InfoS("NodeClass resources reconciled",
 		"count", len(p.nodeClassConfig.NodeClasses),
 		"default", p.nodeClassConfig.DefaultName)
 	return nil
+}
+
+func (p *KarpenterProvisioner) reconcileNodeClass(ctx context.Context, nc NodeClassSpec) error {
+	desired := p.newNodeClassObject(nc)
+	// Normalize JSON numbers from the CLI to the integer types used by the API.
+	data, err := desired.MarshalJSON()
+	if err != nil {
+		return fmt.Errorf("encoding desired NodeClass: %w", err)
+	}
+	if err := desired.UnmarshalJSON(data); err != nil {
+		return fmt.Errorf("decoding desired NodeClass: %w", err)
+	}
+
+	return retry.OnError(retry.DefaultRetry, func(err error) bool {
+		return apierrors.IsConflict(err) || apierrors.IsAlreadyExists(err)
+	}, func() error {
+		current := &unstructured.Unstructured{}
+		current.SetGroupVersionKind(desired.GroupVersionKind())
+		if err := p.client.Get(ctx, client.ObjectKeyFromObject(desired), current); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
+			if err := p.client.Create(ctx, desired.DeepCopy()); err != nil {
+				return err
+			}
+			klog.InfoS("Created NodeClass", "name", nc.Name, "kind", desired.GetKind())
+			return nil
+		}
+		if current.GetLabels()["karpenter.kaito.sh/managed-by"] != "kaito" {
+			return fmt.Errorf("existing NodeClass must have label karpenter.kaito.sh/managed-by=kaito; refusing to overwrite an externally managed resource")
+		}
+
+		previous := current.DeepCopy()
+		if spec, ok := desired.Object["spec"]; ok {
+			current.Object["spec"] = spec
+		} else {
+			delete(current.Object, "spec")
+		}
+		labels := current.GetLabels()
+		if nc.Default {
+			labels["karpenter.kaito.sh/default"] = "true"
+		} else {
+			delete(labels, "karpenter.kaito.sh/default")
+		}
+		current.SetLabels(labels)
+		if equality.Semantic.DeepEqual(previous.Object, current.Object) {
+			return nil
+		}
+		if err := p.client.Update(ctx, current); err != nil {
+			return err
+		}
+		klog.InfoS("Updated NodeClass", "name", nc.Name, "kind", desired.GetKind())
+		return nil
+	})
 }
 
 // newNodeClassObject renders one flag entry into an unstructured NodeClass.
