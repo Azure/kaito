@@ -54,7 +54,7 @@ spec:
 | `spec.replicas` | No (default `1`) | Desired number of replicas. Set to `0` to scale to zero. |
 | `spec.labelSelector` | Yes | Labels applied to each replica so the controller can identify and manage them. |
 | `spec.nodeCountLimit` | No | Maximum number of GPU nodes that may be created across all replicas. Unlimited if unset. |
-| `spec.template.resource.instanceType` | Yes | GPU node SKU used for every replica. |
+| `spec.template.resource.instanceType` | Yes, unless nodes are bring-your-own (BYO) | GPU node SKU used for every replica. With BYO nodes it is optional and restricts replicas to nodes of that SKU. |
 | `spec.template.inference.preset.name` | Yes | The model to serve — a Hugging Face model card ID or a KAITO preset name. |
 | `spec.template.inference.adapters` | No | One or more LoRA adapters to merge at serving time. |
 | `spec.template.inference.config` | No | Name of a ConfigMap holding custom vLLM runtime parameters. |
@@ -109,6 +109,8 @@ ConfigMap parameters are applied after KAITO's defaults, so this value wins. Val
 
 :::note Updating the template
 The `InferenceSet` controller reconciles the replica **count** (scaling) and replica labels. It does not currently perform an in-place rolling update of existing replicas when you edit other `spec.template` fields (such as inference parameters or adapters) — the one exception is the base image, which can be rolled out automatically via [Automatic base image upgrades](#automatic-base-image-upgrades). To apply other template changes today, recreate the `InferenceSet` (or delete individual replicas so the controller recreates them from the updated template).
+
+`InferenceSet` updates are validated with the same rules as `Workspace` updates. Fields that are immutable on a `Workspace` are also immutable on an `InferenceSet`: `spec.labelSelector`, `spec.template.resource.instanceType` (once set), `spec.template.resource.partition`, `spec.template.inference.preset` (including `presetOptions`), setting or unsetting `spec.template.inference.template`, the `kaito.sh/capacity-type` annotation, the `kaito.sh/model-streaming` annotation (when the `ModelStreaming` feature gate is enabled), and `spec.template.inference.config` for the `custom` preset. To change any of them, create a new `InferenceSet`.
 :::
 
 ## Serving with custom parameters
