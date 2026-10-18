@@ -427,6 +427,52 @@ entries:
           url: https://github.com/kaito-project/kaito/tree/main/examples
       artifacthub.io/prerelease: "false"
     apiVersion: v2
+    appVersion: 0.13.0-rc.2
+    created: "2026-10-18T10:47:29.771501721Z"
+    dependencies:
+    - condition: featureGates.gatewayAPIInferenceExtension
+      name: flux2
+      repository: https://fluxcd-community.github.io/helm-charts
+      version: 2.19.1
+    - condition: featureGates.disableNodeAutoProvisioning
+      name: gpu-feature-discovery
+      repository: https://nvidia.github.io/k8s-device-plugin
+      version: 0.20.1
+    - condition: localCSIDriver.useLocalCSIDriver
+      name: local-csi-driver
+      repository: oci://localcsidriver.azurecr.io/acstor/charts
+      version: 0.4.0
+    - condition: productionstack.enabled
+      name: productionstack
+      repository: oci://mcr.microsoft.com/aks/kaito/helm
+      version: 0.5.0
+    description: A Helm chart to install AI Toolchain Operator Workspace
+    digest: 90e700483b9f1a466209d06ff195d481b52d20ff207e20ac52d1d4df780f0892
+    home: https://github.com/kaito-project/kaito
+    maintainers:
+    - email: vrgf2003@gmail.com
+      name: Fei-Guo
+    - email: zhuangqhc@gmail.com
+      name: zhuangqh
+    - email: chwong719@gmail.com
+      name: chewong
+    name: workspace
+    sources:
+    - https://github.com/kaito-project/kaito
+    type: application
+    urls:
+    - https://kaito-project.github.io/kaito/charts/kaito/workspace-0.13.0-rc.2.tgz
+    version: 0.13.0-rc.2
+  - annotations:
+      artifacthub.io/category: ai-machine-learning
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/links: |
+        - name: Documentation
+          url: https://kaito-project.github.io/kaito/docs/
+        - name: Examples
+          url: https://github.com/kaito-project/kaito/tree/main/examples
+      artifacthub.io/prerelease: "false"
+    apiVersion: v2
     appVersion: 0.13.0-rc.1
     created: "2026-10-12T22:18:04.957523195Z"
     dependencies:
@@ -1481,4 +1527,4 @@ entries:
     urls:
     - https://kaito-project.github.io/kaito/charts/kaito/workspace-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-12T22:18:04.941636624Z"
+generated: "2026-10-18T10:47:29.762238335Z"
