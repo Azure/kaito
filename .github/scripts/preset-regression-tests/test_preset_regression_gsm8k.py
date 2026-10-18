@@ -285,6 +285,7 @@ class PresetRegressionGSM8KTest(unittest.TestCase):
                     **os.environ,
                     "REGRESSION_PROFILE": "standard",
                     "GPU": "",
+                    "MODEL_FILTER": "",
                 },
                 text=True,
             )
@@ -317,6 +318,7 @@ class PresetRegressionGSM8KTest(unittest.TestCase):
                             **os.environ,
                             "REGRESSION_PROFILE": profile,
                             "GPU": "",
+                            "MODEL_FILTER": "",
                         },
                         text=True,
                     )
