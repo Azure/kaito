@@ -739,10 +739,12 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1b
 
 	currentRevisionStr, ok := annotations[kaitov1beta1.WorkspaceRevisionAnnotation]
 	baseImageUpgrade := shouldUpgradeBaseImage(wObj, existingObj, desiredStatefulSet)
+	variantChanged := inferenceImageVariant(workspace.GetInferenceContainerImage(existingObj)) != inferenceImageVariant(workspace.GetInferenceContainerImage(desiredStatefulSet))
 
 	// If the current workload revision matches the one in Workspace and no upgrade is pending,
-	// we do not need to update it.
-	if ok && currentRevisionStr == revisionStr && !baseImageUpgrade {
+	// we do not need to update it. Runtime-only CPU variant changes intentionally bypass
+	// the revision hash, so image-variant drift must still refresh the pod spec.
+	if shouldSkipInferenceWorkloadUpdate(ok, currentRevisionStr, revisionStr, baseImageUpgrade, variantChanged) {
 		return nil
 	}
 
@@ -764,7 +766,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1b
 		syncInferenceMutablePodSpec(
 			&existingObj.Spec.Template.Spec,
 			&desiredStatefulSet.Spec.Template.Spec,
-			inferenceImageVariant(workspace.GetInferenceContainerImage(existingObj)) != inferenceImageVariant(workspace.GetInferenceContainerImage(desiredStatefulSet)),
+			variantChanged,
 		)
 	}
 
@@ -820,6 +822,10 @@ func shouldUpgradeBaseImage(wObj *kaitov1beta1.Workspace, existingObj, desiredSt
 	return upgradeVersion != "" &&
 		upgradeVersion == inference.GetBaseImageTag() &&
 		workspace.GetInferenceContainerImage(existingObj) != workspace.GetInferenceContainerImage(desiredStatefulSet)
+}
+
+func shouldSkipInferenceWorkloadUpdate(hasCurrentRevision bool, currentRevisionStr, desiredRevisionStr string, baseImageUpgrade, variantChanged bool) bool {
+	return hasCurrentRevision && currentRevisionStr == desiredRevisionStr && !baseImageUpgrade && !variantChanged
 }
 
 func (c *WorkspaceReconciler) syncWorkspaceStatus(ctx context.Context, key types.NamespacedName, reconcileErr error) error {
