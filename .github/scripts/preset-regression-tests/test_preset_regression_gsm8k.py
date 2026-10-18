@@ -138,6 +138,13 @@ class PresetRegressionGSM8KTest(unittest.TestCase):
         self.assertEqual(8192, gemma["maxGenTokens"])
         self.assertNotIn("chatTemplateKwargs", gemma)
 
+        glm_name, glm = resolve_profile(config, "zai-org/GLM-5.3")
+        self.assertEqual("chat-thinking-high-v1", glm_name)
+        self.assertEqual(
+            {"enable_thinking": True, "reasoning_effort": "high"},
+            glm["chatTemplateKwargs"],
+        )
+
         nemotron_name, nemotron = resolve_profile(
             config, "nvidia/NVIDIA-Nemotron-Nano-9B-v2"
         )
@@ -151,6 +158,15 @@ class PresetRegressionGSM8KTest(unittest.TestCase):
         kwargs = generation_kwargs(profile)
         self.assertEqual("none", kwargs["reasoning_effort"])
         self.assertNotIn("chat_template_kwargs", kwargs)
+
+    def test_glm_high_reasoning_uses_chat_template_field(self):
+        _, profile = resolve_profile(load_yaml(GSM_CONFIG), "zai-org/GLM-5.3")
+        kwargs = generation_kwargs(profile)
+        self.assertEqual(
+            {"enable_thinking": True, "reasoning_effort": "high"},
+            kwargs["chat_template_kwargs"],
+        )
+        self.assertNotIn("reasoning_effort", kwargs)
 
     def test_duplicate_baseline_identity_is_rejected(self):
         config = load_yaml(GSM_CONFIG)
