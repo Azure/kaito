@@ -74,10 +74,18 @@ karpenterProviders:
         spec:
           imageFamily: "Ubuntu2204"
           osDiskSizeGB: 300
+          gpu:
+            mode: "Driver"
+            nvidia:
+              managementMode: "Managed"
       - name: "image-family-azure-linux"
         spec:
           imageFamily: "AzureLinux"
           osDiskSizeGB: 300
+          gpu:
+            mode: "Driver"
+            nvidia:
+              managementMode: "Managed"
 nvidiaDevicePlugin:
   enabled: true
   daemonsetName: "nvidia-device-plugin-daemonset"
