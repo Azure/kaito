@@ -685,6 +685,20 @@ if __name__ == "__main__":
         )
 
     _wrap_build_and_serve(_configure_runtime_limits)
+
+    def _publish_resolved_tokenizer(engine_client):
+        # For Run:ai URIs vLLM sets model_config.tokenizer to the local
+        # directory it pulled the tokenizer into.
+        try:
+            # Imported here so a broken benchmark script cannot stop serving.
+            from benchmark_entrypoint import publish_resolved_tokenizer
+
+            publish_resolved_tokenizer(engine_client.vllm_config.model_config.tokenizer)
+        except Exception:
+            # The benchmark falls back to its other sources; never block serving.
+            logger.warning("Failed to publish resolved tokenizer", exc_info=True)
+
+    _wrap_build_and_serve(_publish_resolved_tokenizer)
     configure_middlewares(args)
 
     model_asset_prefetch.prefetch_model_assets(args)
