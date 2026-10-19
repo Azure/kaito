@@ -125,7 +125,8 @@ jobs:
           if [ "${{ inputs.node_provisioner }}" == "gpuprovisioner" ]; then
             kubectl logs -n "${{ env.GPU_PROVISIONER_NAMESPACE }}" -l app.kubernetes.io/name=gpu-provisioner -c controller
           else
-            kubectl logs -n "${{ env.KARPENTER_NAMESPACE }}" -l app.kubernetes.io/name=karpenter -c controller
+            # Karpenter is managed by AKS node auto-provisioning and runs in the control plane.
+            kubectl get nodepools.karpenter.sh,aksnodeclasses.karpenter.azure.com
           fi
 
       - name: Log kaito-workspace
