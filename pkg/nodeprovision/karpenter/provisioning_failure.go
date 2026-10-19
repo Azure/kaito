@@ -50,7 +50,8 @@ var (
 	// cached as unavailable after a quota, allocation or SKU failure, or not offered at all.
 	genericInsufficientCapacityMessages = []string{"all requested instance types were unavailable",
 		"no instance types available"}
-	nodeImageInvalidCodes           = sets.New("ImageNotFound", "GalleryImageNotFound")
+	nodeImageInvalidCodes = sets.New("ImageNotFound", "GalleryImageNotFound")
+	// nodeConfigurationInvalidReasons are checked on every reconcile, so a failure they reported is never kept once fixed.
 	nodeConfigurationInvalidReasons = sets.New(NodeClassNotReadyReason, nodePoolValidationFailedReason)
 	nodeConfigurationInvalidCodes   = sets.New("AuthorizationFailed", "LinkedAuthorizationFailed", "SubnetIsFull",
 		"InsufficientSubnetSize")
@@ -106,13 +107,19 @@ func isGenericInsufficientCapacity(reason, message string) bool {
 }
 
 // previousSpecificCause returns the Workspace's current NodeClaimReady failure for its generation unless it is
-// progress.
-func previousSpecificCause(ws *kaitov1beta1.Workspace) (reason, message string, found bool) {
+// progress or an invalid NodeClass or NodePool, which is reported only while it lasts. generic reports a failure
+// classified from a generic insufficient capacity error.
+func previousSpecificCause(ws *kaitov1beta1.Workspace) (reason, message string, generic, found bool) {
 	c := meta.FindStatusCondition(ws.Status.Conditions, string(kaitov1beta1.ConditionTypeNodeClaimStatus))
 	if c == nil || c.Status != metav1.ConditionFalse || c.ObservedGeneration != ws.Generation || c.Reason == "" ||
 		c.Reason == nodeclaim.NodeClaimNotReadyReason || c.Reason == insufficientCapacityEventReason {
-		return "", "", false
+		return "", "", false, false
 	}
 	message, _, _ = strings.Cut(c.Message, nodeprovision.ReconcileErrorMessagePrefix)
-	return c.Reason, message, true
+	// A classified message starts with the original reason.
+	originalReason, originalMessage, _ := strings.Cut(message, ": ")
+	if nodeConfigurationInvalidReasons.Has(originalReason) {
+		return "", "", false, false
+	}
+	return c.Reason, message, isGenericInsufficientCapacity(originalReason, originalMessage), true
 }

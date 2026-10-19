@@ -360,6 +360,65 @@ func TestProvisioningFailure_SpecificCauseOutlivesItsNodeClaim(t *testing.T) {
 	}
 }
 
+// An invalid NodeClass or NodePool is only reported while it lasts, and a generic insufficient capacity error is
+// refreshed by a newer one but still kept over progress.
+func TestProvisioningFailure_PreviousCauseOfFixedOrGenericFailure(t *testing.T) {
+	genericEvent := failureEvent("ice", testNodeClaimName, corev1.EventTypeWarning, insufficientCapacityEventReason, genericInsufficientCapacityMessage, testNow)
+	awaiting := newWorkspaceNodeClaim(testNodeClaimName, awaitingLaunch())
+	const (
+		nodeClassMissing        = `NodeClassNotReady: NodeClass "image-family-ubuntu" is not ready (NotFound): NodeClass does not exist`
+		nodePoolInvalid         = "NodePoolValidationFailed: invalid requirements"
+		olderGenericUnavailable = insufficientCapacityEventReason + ": NodeClaim " + testPoolName + "-hjklm event: insufficient capacity, all requested instance types were unavailable during launch"
+	)
+	testcases := map[string]struct {
+		objs            []client.Object
+		previousReason  string
+		previousMessage string
+		expectedReason  string
+		expectedMessage string
+	}{
+		"fixed NodeClass, retries fail with a generic error": {
+			objs:           []client.Object{genericEvent},
+			previousReason: kaitov1beta1.ReasonNodeConfigurationInvalid, previousMessage: nodeClassMissing + " (last reconcile error: boom)",
+			expectedReason: kaitov1beta1.ReasonCapacityUnavailable, expectedMessage: genericCapacityUnavailableMessage,
+		},
+		"fixed NodeClass, retry awaiting launch": {
+			objs:           []client.Object{awaiting},
+			previousReason: kaitov1beta1.ReasonNodeConfigurationInvalid, previousMessage: nodeClassMissing,
+			expectedReason: nodeclaim.NodeClaimNotReadyReason,
+		},
+		"fixed NodePool, retries fail with a generic error": {
+			objs:           []client.Object{genericEvent},
+			previousReason: kaitov1beta1.ReasonNodeConfigurationInvalid, previousMessage: nodePoolInvalid,
+			expectedReason: kaitov1beta1.ReasonCapacityUnavailable, expectedMessage: genericCapacityUnavailableMessage,
+		},
+		"newer generic error refreshes the message": {
+			objs:           []client.Object{genericEvent},
+			previousReason: kaitov1beta1.ReasonCapacityUnavailable, previousMessage: olderGenericUnavailable,
+			expectedReason: kaitov1beta1.ReasonCapacityUnavailable, expectedMessage: genericCapacityUnavailableMessage,
+		},
+		"generic error is kept over progress": {
+			objs:           []client.Object{awaiting},
+			previousReason: kaitov1beta1.ReasonCapacityUnavailable, previousMessage: olderGenericUnavailable,
+			expectedReason: kaitov1beta1.ReasonCapacityUnavailable, expectedMessage: olderGenericUnavailable,
+		},
+	}
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			p := newFailureTestProvisioner(newFailureTestClient(nil, baseObjects(tc.objs...)...))
+			ws := testWorkspace(1)
+			ws.Status.Conditions = []metav1.Condition{{Type: string(kaitov1beta1.ConditionTypeNodeClaimStatus), Status: metav1.ConditionFalse,
+				Reason: tc.previousReason, Message: tc.previousMessage, ObservedGeneration: 1}}
+
+			nodeClaimCond, _ := nodeClaimConditions(t, p, ws)
+			assert.Equal(t, tc.expectedReason, nodeClaimCond.Reason)
+			if tc.expectedMessage != "" {
+				assert.Equal(t, tc.expectedMessage, nodeClaimCond.Message)
+			}
+		})
+	}
+}
+
 // Events are only reported for the NodePool's own NodeClaims, within the window and after the NodePool was created.
 func TestProvisioningFailure_EventScope(t *testing.T) {
 	testcases := map[string]struct {

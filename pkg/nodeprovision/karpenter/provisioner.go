@@ -733,12 +733,14 @@ func (p *KarpenterProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *ka
 
 // nodeClaimNotReadyCause reports why the NodeClaims are not ready. When the current evidence only shows progress or a
 // generic insufficient capacity error, it keeps the specific failure already reported on the Workspace until a new
-// attempt launches: the NodeClaim that carried that failure is deleted and its retries fail before launching.
+// attempt launches: the NodeClaim that carried that failure is deleted and its retries fail before launching. A
+// failure reported from a generic insufficient capacity error is only kept over progress, so that a newer one
+// refreshes its message.
 func (p *KarpenterProvisioner) nodeClaimNotReadyCause(ctx context.Context, ws *kaitov1beta1.Workspace, snap *nodeReadinessSnapshot) (reason, message string, found bool) {
 	now := p.now()
 	reason, message, inconclusive := p.currentNotReadyCause(ctx, ws, snap, now)
 	if inconclusive && !hasUnregisteredLaunch(snap.allNodeClaims, now, 0) {
-		if previousReason, previousMessage, ok := previousSpecificCause(ws); ok {
+		if previousReason, previousMessage, generic, ok := previousSpecificCause(ws); ok && !(generic && reason == previousReason) {
 			return previousReason, previousMessage, true
 		}
 	}
