@@ -120,7 +120,36 @@ func TestValidateInferenceSetsForMultiRoleInference_UpdateRejectsSelectorChange(
 
 	err := ValidateInferenceSetsForMultiRoleInference(apis.WithinUpdate(context.Background(), old), updated)
 	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "generated child InferenceSet")
-	assert.Contains(t, err.Error(), "labelSelector")
+	assert.Contains(t, err.Error(), "spec.labelSelector")
 	assert.Contains(t, err.Error(), "field is immutable")
+	assert.NotContains(t, err.Error(), "generated child InferenceSet")
+}
+
+func TestValidateInferenceSetsForMultiRoleInference_RemapRoleLocalPaths(t *testing.T) {
+	orig := kaitov1beta1.ValidateInferenceSetWorkspace
+	kaitov1beta1.ValidateInferenceSetWorkspace = func(context.Context, *kaitov1beta1.InferenceSet) *apis.FieldError {
+		return apis.ErrGeneric("field is immutable", "spec.template.resource.instanceType")
+	}
+	t.Cleanup(func() { kaitov1beta1.ValidateInferenceSetWorkspace = orig })
+
+	err := ValidateInferenceSetsForMultiRoleInference(context.Background(), newValidMRI())
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "spec.roles[0].instanceType")
+	assert.Contains(t, err.Error(), "spec.roles[1].instanceType")
+	assert.NotContains(t, err.Error(), "spec.template.resource.instanceType")
+}
+
+func TestValidateInferenceSetsForMultiRoleInference_RemapTopLevelAnnotations(t *testing.T) {
+	orig := kaitov1beta1.ValidateInferenceSetWorkspace
+	kaitov1beta1.ValidateInferenceSetWorkspace = func(context.Context, *kaitov1beta1.InferenceSet) *apis.FieldError {
+		return apis.ErrGeneric("annotation is immutable after creation", "spec.template.metadata.annotations[kaito.sh/capacity-type]")
+	}
+	t.Cleanup(func() { kaitov1beta1.ValidateInferenceSetWorkspace = orig })
+
+	err := ValidateInferenceSetsForMultiRoleInference(context.Background(), newValidMRI())
+	assert.NotNil(t, err)
+	wrapped := err.WrappedErrors()
+	assert.Len(t, wrapped, 1)
+	assert.Equal(t, []string{"metadata.annotations[kaito.sh/capacity-type]"}, wrapped[0].Paths)
+	assert.NotContains(t, err.Error(), "spec.template.metadata.annotations")
 }

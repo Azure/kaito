@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"knative.dev/pkg/apis"
@@ -110,14 +111,60 @@ func ValidateInferenceSetsForMultiRoleInference(ctx context.Context, mri *kaitov
 			isCtx = apis.WithinUpdate(ctx, NewInferenceSetForMultiRoleInference(old, oldRole))
 		}
 		if err := NewInferenceSetForMultiRoleInference(mri, role).Validate(isCtx); err != nil {
-			errs = errs.Also(apis.ErrGeneric(
-				fmt.Sprintf("generated child InferenceSet for role %q is invalid: %v", role.Type, err),
-				fmt.Sprintf("spec.roles[%d]", i),
-			))
+			errs = errs.Also(remapChildInferenceSetErrors(err, i))
 		}
 	}
 
 	return errs
+}
+
+func remapChildInferenceSetErrors(err *apis.FieldError, roleIndex int) (errs *apis.FieldError) {
+	if err == nil {
+		return nil
+	}
+	for _, wrapped := range err.WrappedErrors() {
+		mappedPaths := make([]string, 0, len(wrapped.Paths))
+		for _, path := range wrapped.Paths {
+			mappedPaths = append(mappedPaths, remapChildInferenceSetPath(path, roleIndex))
+		}
+		if len(mappedPaths) == 0 {
+			mappedPaths = []string{fmt.Sprintf("spec.roles[%d]", roleIndex)}
+		}
+		errs = errs.Also(&apis.FieldError{
+			Message: wrapped.Message,
+			Paths:   mappedPaths,
+			Level:   wrapped.Level,
+			Details: wrapped.Details,
+		})
+	}
+	return errs
+}
+
+func remapChildInferenceSetPath(path string, roleIndex int) string {
+	switch {
+	case path == "":
+		return fmt.Sprintf("spec.roles[%d]", roleIndex)
+	case path == "spec.labelSelector" || strings.HasPrefix(path, "spec.labelSelector."):
+		return path
+	case path == "spec.template.resource.labelSelector" || strings.HasPrefix(path, "spec.template.resource.labelSelector."):
+		return strings.Replace(path, "spec.template.resource.labelSelector", "spec.labelSelector", 1)
+	case strings.HasPrefix(path, "spec.template.metadata.annotations["):
+		return strings.Replace(path, "spec.template.", "", 1)
+	case strings.HasPrefix(path, "spec.template.resource.instanceType"):
+		return strings.Replace(path, "spec.template.resource.instanceType", fmt.Sprintf("spec.roles[%d].instanceType", roleIndex), 1)
+	case strings.HasPrefix(path, "spec.template.inference.config"):
+		return strings.Replace(path, "spec.template.inference.config", fmt.Sprintf("spec.roles[%d].runtimeConfig", roleIndex), 1)
+	case strings.HasPrefix(path, "spec.template.inference.preset.presetOptions.modelAccessSecret"):
+		return strings.Replace(path, "spec.template.inference.preset.presetOptions.modelAccessSecret", "spec.model.modelAccessSecret", 1)
+	case strings.HasPrefix(path, "spec.template.inference.presetName"):
+		return strings.Replace(path, "spec.template.inference.presetName", "spec.model.name", 1)
+	case strings.HasPrefix(path, "spec.template.inference.preset"):
+		return strings.Replace(path, "spec.template.inference.preset", "spec.model.name", 1)
+	case strings.HasPrefix(path, "spec.replicas"):
+		return strings.Replace(path, "spec.replicas", fmt.Sprintf("spec.roles[%d].replicas", roleIndex), 1)
+	default:
+		return fmt.Sprintf("spec.roles[%d]", roleIndex)
+	}
 }
 
 func findRoleByType(mri *kaitov1alpha1.MultiRoleInference, roleType kaitov1alpha1.MultiRoleInferenceRoleType) (kaitov1alpha1.MultiRoleInferenceRoleSpec, bool) {
