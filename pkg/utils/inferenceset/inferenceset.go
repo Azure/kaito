@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"maps"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -166,24 +167,42 @@ func NewWorkspaceForInferenceSet(iObj *kaitov1beta1.InferenceSet) *kaitov1beta1.
 			},
 		},
 		Resource: kaitov1beta1.ResourceSpec{
+			InstanceType:  iObj.Spec.Template.Resource.InstanceType,
 			LabelSelector: iObj.Spec.Selector,
 			Partition:     iObj.Spec.Template.Resource.Partition,
 		},
 		Inference: iObj.Spec.Template.Inference.DeepCopy(),
 	}
-	// Only set InstanceType when node auto-provisioning is enabled.
-	// In BYO mode, the Workspace webhook rejects instanceType.
-	if consts.ActiveNodeProvisioner != consts.NodeProvisionerBYO {
-		workspaceObj.Resource.InstanceType = iObj.Spec.Template.Resource.InstanceType
-	}
 	return workspaceObj
 }
 
 // ValidateWorkspaceForInferenceSet validates the child Workspace the given
-// InferenceSet would create, using the Workspace create-time webhook checks.
-// It is wired into api/v1beta1 at startup to run during InferenceSet admission.
+// InferenceSet would create, with the same rules the Workspace webhook applies.
+// Like any knative Validate, it treats the admission baseline in ctx as the
+// previous InferenceSet: on create it applies the Workspace create-time
+// checks; on update it applies the Workspace update-time checks against the
+// Workspace projected from the baseline. Returned errors are rooted at the
+// InferenceSet. It is wired into api/v1beta1 at startup.
 func ValidateWorkspaceForInferenceSet(ctx context.Context, iObj *kaitov1beta1.InferenceSet) *apis.FieldError {
-	return NewWorkspaceForInferenceSet(iObj).ValidateCreate(ctx)
+	ws := NewWorkspaceForInferenceSet(iObj)
+	base, _ := apis.GetBaseline(ctx).(*kaitov1beta1.InferenceSet)
+	if base == nil {
+		return ws.ValidateCreate(ctx).ViaField("spec", "template")
+	}
+
+	oldWs := NewWorkspaceForInferenceSet(base)
+	// spec.labelSelector lives outside the template; validate it at its own
+	// path instead of the projected spec.template.resource.labelSelector.
+	oldWs.Resource.LabelSelector = ws.Resource.LabelSelector
+	errs := kaitov1beta1.ValidateLabelSelectorUpdate(iObj.Spec.Selector, base.Spec.Selector).ViaField("spec")
+
+	templateErrs := ws.ValidateUpdate(ctx, oldWs)
+	if !apiequality.Semantic.DeepEqual(iObj.Spec.Template, base.Spec.Template) {
+		// Replicas created after this update use the new template, so it must
+		// also pass the checks a newly created Workspace would face.
+		templateErrs = templateErrs.Also(ws.ValidateCreate(ctx))
+	}
+	return errs.Also(templateErrs.ViaField("spec", "template"))
 }
 
 func ComputeInferenceSetHash(iObj *kaitov1beta1.InferenceSet) string {

@@ -33,7 +33,6 @@ own sys.stdout if /proc/1/fd/1 is not accessible.
 """
 
 import asyncio
-import hashlib
 import importlib
 import json
 import math
@@ -54,6 +53,8 @@ BENCHMARK_INPUT_LEN = 2048
 BENCHMARK_OUTPUT_LEN = 256
 VLLM_BASE_URL = "http://localhost:5000"
 TOKENIZER_FILES = ("tokenizer.json", "tokenizer_config.json", "tokenizer.model")
+# inference_api.py records vLLM's resolved tokenizer here before serving.
+RESOLVED_TOKENIZER_FILE = Path("/tmp/kaito/resolved_tokenizer")
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -405,13 +406,15 @@ def _iter_config_dicts(config: dict):
 def _resolve_processor() -> str:
     """Resolve the --processor value for guidellm.
 
-    Case 0 — Streamed model: vLLM pulls the tokenizer and other non-weight
-              files of a Run:ai-streamed model into a local cache directory.
-              Use it directly; it needs no network and also works for custom
-              models that have no HuggingFace identity.
+    Case 0 — vLLM's local tokenizer: inference_api.py records the tokenizer
+              vLLM resolved (e.g. the local cache a Run:ai-streamed model was
+              pulled into). Use it when it is a local directory; it needs no
+              network and also works for custom models that have no
+              HuggingFace identity.
     Case 1 — Explicit env override (streaming path): KAITO_PROCESSOR is set by
-              the workspace controller when streaming is active. Combined with
-              HF_TOKEN, the benchmark fetches the tokenizer from HuggingFace.
+              the workspace controller when streaming a HuggingFace preset
+              (not for custom models). Combined with HF_TOKEN, the benchmark
+              fetches the tokenizer from HuggingFace.
     Case 2 — Baked-in model: tokenizer at ``/workspace/weights`` root
               (``config.json`` present directly under weights).
     Case 3 — DAR / HF cache: use ``scan_cache_dir`` to read the repo_id from
@@ -419,8 +422,8 @@ def _resolve_processor() -> str:
     Case 4 — Nothing found: return ``""`` and let guidellm auto-detect from
               ``/v1/models`` (may fail for unknown models).
     """
-    # Case 0: tokenizer already pulled by vLLM's Run:ai model streamer
-    processor = _resolve_processor_from_streamer_cache()
+    # Case 0: local tokenizer directory vLLM itself resolved
+    processor = _resolve_processor_from_vllm()
     if processor:
         return processor
 
@@ -446,55 +449,35 @@ def _resolve_processor() -> str:
     return ""
 
 
-def _resolve_processor_from_streamer_cache() -> str:
-    """Return vLLM's local tokenizer cache for a Run:ai-streamed base model.
+def publish_resolved_tokenizer(tokenizer: str) -> None:
+    """Record the tokenizer vLLM resolved for the startup benchmark.
 
-    vLLM reports the object-storage URI as the model ``root`` in ``/v1/models``
-    and pulls its non-weight files into ``_streamer_cache_dir(root)``.
+    Called by inference_api.py before vLLM accepts traffic, so the file exists
+    whenever the probe sees ``/health`` pass. Reusing vLLM's own resolution
+    avoids re-deriving where it caches remote (e.g. Run:ai-streamed) models.
     """
-    # Imported lazily: the probe only gets here once vLLM is healthy, and the
-    # benchmark loads torch through transformers/guidellm anyway.
-    from vllm.transformers_utils.runai_utils import is_runai_obj_uri
+    RESOLVED_TOKENIZER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = RESOLVED_TOKENIZER_FILE.with_suffix(".tmp")
+    tmp.write_text(tokenizer)
+    os.replace(tmp, RESOLVED_TOKENIZER_FILE)
 
-    # Nothing was ever streamed, so /v1/models cannot name a cached root.
-    if not _streamer_cache_root().is_dir():
-        return ""
+
+def _resolve_processor_from_vllm() -> str:
+    """Return vLLM's resolved tokenizer if it is a local directory."""
     try:
-        with urllib.request.urlopen(f"{VLLM_BASE_URL}/v1/models", timeout=5) as resp:
-            models = json.loads(resp.read()).get("data") or []
-    except Exception as exc:
-        _log(f"streamer_cache_miss reason=models_api_error: {exc}")
+        tokenizer = RESOLVED_TOKENIZER_FILE.read_text().strip()
+    except OSError as exc:
+        _log(f"resolved_tokenizer_miss reason=unreadable: {exc}")
         return ""
-    for model in models:
-        root = model.get("root")
-        # LoRA adapters carry a parent; only base models own the tokenizer.
-        if model.get("parent") or not isinstance(root, str):
-            continue
-        if not is_runai_obj_uri(root):
-            continue
-        cache_dir = _streamer_cache_dir(root)
-        if any((cache_dir / name).is_file() for name in TOKENIZER_FILES):
-            return str(cache_dir)
-        _log(
-            f"streamer_cache_miss root={root} dir={cache_dir} reason=no_tokenizer_files"
-        )
+    path = Path(tokenizer)
+    if path.is_dir():
+        if any((path / name).is_file() for name in TOKENIZER_FILES):
+            return str(path)
+        _log(f"resolved_tokenizer_miss dir={path} reason=no_tokenizer_files")
+    elif path.is_absolute():
+        _log(f"resolved_tokenizer_miss dir={path} reason=not_a_directory")
+    # Hub IDs are left to the existing resolution order.
     return ""
-
-
-def _streamer_cache_root() -> Path:
-    from vllm import envs
-
-    return Path(envs.VLLM_ASSETS_CACHE) / "model_streamer"
-
-
-def _streamer_cache_dir(uri: str) -> Path:
-    """Return the directory vLLM's ObjectStorageModel pulls ``uri`` into.
-
-    vLLM has no side-effect-free accessor (constructing ObjectStorageModel
-    creates the directory and installs signal handlers), so the directory name
-    is derived here and pinned by a test against vLLM's layout.
-    """
-    return _streamer_cache_root() / hashlib.sha256(uri.encode()).hexdigest()[:8]
 
 
 def _resolve_processor_from_hf_cache(cache_dir: Path) -> str:
