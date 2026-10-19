@@ -32,6 +32,17 @@ profiles:
     stopSequences:
       - "</s>"
       - "<|im_end|>"
+  chat-thinking-high-v1:
+    applyChatTemplate: true
+    fewshotAsMultiturn: false
+    temperature: 0
+    maxGenTokens: 8192
+    chatTemplateKwargs:
+      enable_thinking: true
+      reasoning_effort: high
+    stopSequences:
+      - "</s>"
+      - "<|im_end|>"
   mistral-nonthinking-v1:
     applyChatTemplate: true
     fewshotAsMultiturn: false
@@ -45,6 +56,9 @@ profiles:
 
 modelProfileOverrides:
   google/gemma-4-12B-it: chat-nonthinking-v1
+  # GLM-5.3 defaults to max reasoning, which frequently exhausts the 8192-token
+  # generation budget before emitting a final answer. High effort avoids those empty responses.
+  zai-org/GLM-5.3: chat-thinking-high-v1
   # High reasoning effort produced many empty responses within the bounded
   # evaluator; none completed every sample and scored higher on both A100 and H100.
   mistralai/Mistral-Medium-3.5-128B: mistral-nonthinking-v1
