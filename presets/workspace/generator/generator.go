@@ -442,7 +442,8 @@ var (
 	}
 
 	// cudagraphModeByModelAndGPU overrides vLLM's default graph mode for known
-	// incompatibilities. An empty GPU model applies to every GPU.
+	// incompatibilities using model name prefixes. An empty GPU model applies to
+	// every GPU; the longest matching prefix wins within each GPU scope.
 	cudagraphModeByModelAndGPU = map[modelGPUKey]string{
 		{modelName: "nvidia-nemotron-nano-9b-v2", gpuModel: "NVIDIA A10"}:     "FULL_DECODE_ONLY",
 		{modelName: "nvidia-nemotron-3-nano-4b-bf16", gpuModel: "NVIDIA A10"}: "FULL_DECODE_ONLY",
@@ -489,17 +490,22 @@ func ResolveGPUMemoryUtilization(gpuModel string) string {
 	return defaultGPUMemoryUtilization
 }
 
-// ResolveCUDAGraphMode returns a model/GPU-specific CUDA graph mode.
+// ResolveCUDAGraphMode uses the longest model name prefix for the target GPU,
+// falling back to prefixes that apply to every GPU.
 func ResolveCUDAGraphMode(modelName, gpuModel string) (string, bool) {
 	canonicalGPUModel := sku.CanonicalGPUModel(gpuModel)
-	if mode, ok := cudagraphModeByModelAndGPU[modelGPUKey{
-		modelName: modelName,
-		gpuModel:  canonicalGPUModel,
-	}]; ok {
-		return mode, true
+	for _, targetGPUModel := range []string{canonicalGPUModel, ""} {
+		prefixes := make(map[string]string)
+		for key, mode := range cudagraphModeByModelAndGPU {
+			if key.gpuModel == targetGPUModel {
+				prefixes[key.modelName] = mode
+			}
+		}
+		if mode, ok := longestPrefixMatch(modelName, prefixes); ok {
+			return mode, true
+		}
 	}
-	mode, ok := cudagraphModeByModelAndGPU[modelGPUKey{modelName: modelName}]
-	return mode, ok
+	return "", false
 }
 
 // ResolveLinearBackend returns a model/GPU-specific linear backend.

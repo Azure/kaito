@@ -171,7 +171,7 @@ targets:
   evaluated: 128
   emptyResponses: 3
   measuredAt: '2026-10-08'
-- model: deepseek-ai/DeepSeek-V4.1-Flash
+- model: deepseek-ai/DeepSeek-V4.1-Flash-1017
   instanceType: Standard_ND96isr_H100_v5
   nodes: 1
   profile: chat-thinking-v1
@@ -179,7 +179,7 @@ targets:
   correct: 123
   evaluated: 128
   emptyResponses: 0
-  measuredAt: '2026-10-07'
+  measuredAt: '2026-10-17'
 - model: google/gemma-4-12B-it
   instanceType: Standard_NC24ads_A100_v4
   nodes: 1
@@ -525,12 +525,12 @@ targets:
 - model: zai-org/GLM-5.3
   instanceType: Standard_ND96isr_H100_v5
   nodes: 2
-  profile: chat-thinking-v1
+  profile: chat-thinking-high-v1
   accuracy: 0.9375
   correct: 120
   evaluated: 128
-  emptyResponses: 4
-  measuredAt: '2026-10-06'
+  emptyResponses: 1
+  measuredAt: '2026-10-18'
 - model: zai-org/GLM-5.3-Flash
   instanceType: Standard_ND96isr_H100_v5
   nodes: 1
