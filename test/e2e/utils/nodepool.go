@@ -105,15 +105,19 @@ func ValidateNodePoolShape(ctx context.Context, workspaceObj *kaitov1beta1.Works
 
 		// --- Requirements ---
 		reqs := np.Spec.Template.Spec.Requirements
-		gomega.Expect(reqs).To(gomega.HaveLen(2), "Should have 2 requirements")
+		gomega.Expect(reqs).To(gomega.HaveLen(3), "Should have 3 requirements")
 
 		gomega.Expect(reqs[0].Key).To(gomega.Equal(corev1.LabelInstanceTypeStable))
 		gomega.Expect(reqs[0].Operator).To(gomega.Equal(corev1.NodeSelectorOpIn))
 		gomega.Expect(reqs[0].Values).To(gomega.ConsistOf(instanceType))
 
-		gomega.Expect(reqs[1].Key).To(gomega.Equal(consts.AzurePlacementScopeLabel))
+		gomega.Expect(reqs[1].Key).To(gomega.Equal(consts.KarpenterCapacityTypeLabel))
 		gomega.Expect(reqs[1].Operator).To(gomega.Equal(corev1.NodeSelectorOpIn))
-		gomega.Expect(reqs[1].Values).To(gomega.ConsistOf(consts.AzurePlacementRegional))
+		gomega.Expect(reqs[1].Values).To(gomega.ConsistOf(consts.KarpenterCapacityTypeOnDemand))
+
+		gomega.Expect(reqs[2].Key).To(gomega.Equal(consts.AzurePlacementScopeLabel))
+		gomega.Expect(reqs[2].Operator).To(gomega.Equal(corev1.NodeSelectorOpIn))
+		gomega.Expect(reqs[2].Values).To(gomega.ConsistOf(consts.AzurePlacementRegional))
 
 		// --- Taints ---
 		gomega.Expect(np.Spec.Template.Spec.Taints).To(gomega.HaveLen(1), "Should have 1 taint")
@@ -202,13 +206,16 @@ func ValidateInferenceSetNodePoolShape(ctx context.Context, workspaceObj *kaitov
 
 		// --- Requirements ---
 		reqs := np.Spec.Template.Spec.Requirements
-		gomega.Expect(reqs).To(gomega.HaveLen(2))
+		gomega.Expect(reqs).To(gomega.HaveLen(3))
 		gomega.Expect(reqs[0].Key).To(gomega.Equal(corev1.LabelInstanceTypeStable))
 		gomega.Expect(reqs[0].Operator).To(gomega.Equal(corev1.NodeSelectorOpIn))
 		gomega.Expect(reqs[0].Values).To(gomega.ConsistOf(instanceType))
-		gomega.Expect(reqs[1].Key).To(gomega.Equal(consts.AzurePlacementScopeLabel))
+		gomega.Expect(reqs[1].Key).To(gomega.Equal(consts.KarpenterCapacityTypeLabel))
 		gomega.Expect(reqs[1].Operator).To(gomega.Equal(corev1.NodeSelectorOpIn))
-		gomega.Expect(reqs[1].Values).To(gomega.ConsistOf(consts.AzurePlacementRegional))
+		gomega.Expect(reqs[1].Values).To(gomega.ConsistOf(consts.KarpenterCapacityTypeOnDemand))
+		gomega.Expect(reqs[2].Key).To(gomega.Equal(consts.AzurePlacementScopeLabel))
+		gomega.Expect(reqs[2].Operator).To(gomega.Equal(corev1.NodeSelectorOpIn))
+		gomega.Expect(reqs[2].Values).To(gomega.ConsistOf(consts.AzurePlacementRegional))
 
 		// --- Taints ---
 		gomega.Expect(np.Spec.Template.Spec.Taints).To(gomega.HaveLen(1))
