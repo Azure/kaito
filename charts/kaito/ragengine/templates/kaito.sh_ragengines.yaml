@@ -360,8 +360,9 @@ spec:
                       This field must be empty when node auto-provisioning is disabled (BYO scenario).
                     type: string
                   labelSelector:
-                    description: LabelSelector specifies the required labels for the
-                      GPU nodes.
+                    description: |-
+                      LabelSelector specifies the required labels for the GPU nodes. Leave it unset or empty ({}),
+                      together with instanceType, to let BYO mode auto-select the GPU SKU.
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector
@@ -448,8 +449,6 @@ spec:
                     items:
                       type: string
                     type: array
-                required:
-                - labelSelector
                 type: object
               embedding:
                 description: |-

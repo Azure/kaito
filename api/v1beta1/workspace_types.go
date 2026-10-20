@@ -36,7 +36,9 @@ type ResourceSpec struct {
 	// +optional
 	InstanceType string `json:"instanceType,omitempty"`
 
-	// LabelSelector specifies the required labels for the GPU nodes.
+	// LabelSelector specifies the required labels for the GPU nodes. Leave it unset or empty ({}),
+	// together with instanceType, to let BYO mode auto-select the GPU SKU.
+	// +optional
 	LabelSelector *metav1.LabelSelector `json:"labelSelector"`
 
 	// Deprecated: PreferredNodes is deprecated in v1beta1 and will be removed in a future version.

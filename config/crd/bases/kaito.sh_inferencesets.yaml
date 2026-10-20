@@ -512,8 +512,10 @@ spec:
                     type: string
                 type: object
               labelSelector:
-                description: workspace created by InferenceSet controller would use
-                  this label in resource.labelSelector
+                description: |-
+                  Selector is copied into resource.labelSelector of each Workspace created by the
+                  InferenceSet controller to select GPU nodes. Leave it unset or empty ({}), together with
+                  template.resource.instanceType, to let BYO mode auto-select the GPU SKU.
                 properties:
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.
@@ -732,7 +734,6 @@ spec:
                   existing workspaces with new ones.
                 x-kubernetes-preserve-unknown-fields: true
             required:
-            - labelSelector
             - template
             type: object
           status:

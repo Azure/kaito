@@ -134,8 +134,10 @@ type InferenceSetSpec struct {
 	// If not specified, there is no limit on the number of GPU nodes that can be created.
 	// +optional
 	NodeCountLimit int `json:"nodeCountLimit,omitempty"`
-	// workspace created by InferenceSet controller would use this label in resource.labelSelector
-	// +required
+	// Selector is copied into resource.labelSelector of each Workspace created by the
+	// InferenceSet controller to select GPU nodes. Leave it unset or empty ({}), together with
+	// template.resource.instanceType, to let BYO mode auto-select the GPU SKU.
+	// +optional
 	Selector *metav1.LabelSelector `json:"labelSelector"`
 	// UpdateStrategy indicates the strategy to use to replace existing workspaces with new ones.
 	// +optional

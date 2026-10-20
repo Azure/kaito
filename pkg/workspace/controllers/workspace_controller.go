@@ -154,7 +154,7 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	// BYO auto-selection requires a healthy GPU node to identify the effective SKU.
 	// Return an error before workload creation so reconciliation retries with backoff.
 	if featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] &&
-		workspaceObj.Resource.LabelSelector == nil && workspaceObj.Resource.InstanceType == "" {
+		kaitov1beta1.IsEmptyLabelSelector(workspaceObj.Resource.LabelSelector) && workspaceObj.Resource.InstanceType == "" {
 		it, selErr := byoprovisioner.SelectInstanceType(ctx, c.Client, workspaceObj)
 		if selErr != nil {
 			return reconcile.Result{}, selErr

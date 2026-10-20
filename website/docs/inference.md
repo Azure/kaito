@@ -27,7 +27,7 @@ flowchart TD
 
 ## Usage
 
-Deploying a Hugging Face model with `InferenceSet` is straightforward. You just need to specify a Hugging Face model card ID (or a KAITO preset name), the GPU SKU, the desired number of replicas, and a `labelSelector` that the controller applies to each replica. For example:
+Deploying a Hugging Face model with `InferenceSet` is straightforward. You just need to specify a Hugging Face model card ID (or a KAITO preset name), the GPU SKU, the desired number of replicas, and a `labelSelector` that selects GPU nodes for each replica. For example:
 
 ```yaml
 apiVersion: kaito.sh/v1beta1
@@ -52,7 +52,7 @@ spec:
 | Field | Required | Description |
 | --- | --- | --- |
 | `spec.replicas` | No (default `1`) | Desired number of replicas. Set to `0` to scale to zero. |
-| `spec.labelSelector` | Yes | Labels applied to each replica so the controller can identify and manage them. |
+| `spec.labelSelector` | No | GPU node selector copied into each replica Workspace's `resource.labelSelector`. With BYO nodes, leave it unset or empty (`{}`) and `spec.template.resource.instanceType` unset to auto-select the ready GPU SKU with the most GPU memory. |
 | `spec.nodeCountLimit` | No | Maximum number of GPU nodes that may be created across all replicas. Unlimited if unset. |
 | `spec.template.resource.instanceType` | Yes, unless nodes are bring-your-own (BYO) | GPU node SKU used for every replica. With BYO nodes it is optional and restricts replicas to nodes of that SKU. |
 | `spec.template.inference.preset.name` | Yes | The model to serve — a Hugging Face model card ID or a KAITO preset name. |
