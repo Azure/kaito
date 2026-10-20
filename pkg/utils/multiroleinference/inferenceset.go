@@ -141,6 +141,11 @@ func remapChildInferenceSetErrors(err *apis.FieldError, roleIndex int) (errs *ap
 }
 
 func remapChildInferenceSetPath(path string, roleIndex int) string {
+	// Workspace create checks prefix some resource and metadata errors with
+	// spec, while other checks return those paths directly.
+	if strings.HasPrefix(path, "spec.template.spec.") {
+		path = "spec.template." + strings.TrimPrefix(path, "spec.template.spec.")
+	}
 	switch {
 	case path == "":
 		return fmt.Sprintf("spec.roles[%d]", roleIndex)
@@ -156,10 +161,16 @@ func remapChildInferenceSetPath(path string, roleIndex int) string {
 		return strings.Replace(path, "spec.template.config", fmt.Sprintf("spec.roles[%d].runtimeConfig", roleIndex), 1)
 	case strings.HasPrefix(path, "spec.template.inference.config"):
 		return strings.Replace(path, "spec.template.inference.config", fmt.Sprintf("spec.roles[%d].runtimeConfig", roleIndex), 1)
+	case path == "spec.template.inference_config.yaml":
+		// The ConfigMap data key is not a field of the MRI; point to its reference.
+		return fmt.Sprintf("spec.roles[%d].runtimeConfig", roleIndex)
 	case strings.HasPrefix(path, "spec.template.inference.preset.presetOptions.modelAccessSecret"):
 		return strings.Replace(path, "spec.template.inference.preset.presetOptions.modelAccessSecret", "spec.model.modelAccessSecret", 1)
 	case strings.HasPrefix(path, "spec.template.inference.presetName"):
 		return strings.Replace(path, "spec.template.inference.presetName", "spec.model.name", 1)
+	case path == "spec.template.inference.preset":
+		// Workspace immutability compares the whole preset, including its secret.
+		return "spec.model"
 	case strings.HasPrefix(path, "spec.template.inference.preset"):
 		return strings.Replace(path, "spec.template.inference.preset", "spec.model.name", 1)
 	case strings.HasPrefix(path, "spec.replicas"):
