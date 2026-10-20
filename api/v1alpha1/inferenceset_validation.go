@@ -16,6 +16,7 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/robfig/cron/v3"
@@ -24,6 +25,7 @@ import (
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
 
+	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/kaito-project/kaito/pkg/utils/speculativedecoding"
 )
@@ -62,12 +64,17 @@ func (is *InferenceSet) validateCreate() (errs *apis.FieldError) {
 	}
 	errs = errs.Also(is.validateInstanceType().ViaField("template"))
 	errs = errs.Also(validateMaintenanceWindow(is.Spec.AutoUpgrade))
+	errs = errs.Also(kaitov1beta1.ValidateInferenceSetSelectorNotEmpty(is.Spec.Selector))
+	errs = errs.Also(kaitov1beta1.ValidateInferenceSetSelectorMatchesTemplate(is.Spec.Selector, is.Spec.Template.Labels))
 	return errs
 }
 
-func (is *InferenceSet) validateUpdate(_ *InferenceSet) (errs *apis.FieldError) {
+func (is *InferenceSet) validateUpdate(old *InferenceSet) (errs *apis.FieldError) {
 	errs = errs.Also(is.validateInstanceType().ViaField("template"))
 	errs = errs.Also(validateMaintenanceWindow(is.Spec.AutoUpgrade))
+	if !maps.Equal(is.Spec.Template.Labels, old.Spec.Template.Labels) {
+		errs = errs.Also(kaitov1beta1.ValidateInferenceSetSelectorMatchesTemplate(is.Spec.Selector, is.Spec.Template.Labels))
+	}
 	return errs
 }
 

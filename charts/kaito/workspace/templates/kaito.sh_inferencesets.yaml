@@ -513,9 +513,11 @@ spec:
                 type: object
               labelSelector:
                 description: |-
-                  Selector is copied into resource.labelSelector of each Workspace created by the
-                  InferenceSet controller to select GPU nodes. Leave it unset or empty ({}), together with
-                  template.resource.instanceType, to let BYO mode auto-select the GPU SKU.
+                  Selector is a label query over the Workspaces managed by this InferenceSet. It must be
+                  non-empty and match template.metadata.labels; its matchLabels are added to each child
+                  Workspace's labels. It does not select GPU nodes; use template.resource.labelSelector.
+                  For backward compatibility, it is inherited as the node selector with node
+                  auto-provisioning when template.resource.labelSelector is unset or empty.
                 properties:
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.
@@ -686,6 +688,56 @@ spec:
                           InstanceType specifies the GPU node SKU.
                           Required when node auto-provisioning is enabled; must be empty for BYO nodes.
                         type: string
+                      labelSelector:
+                        description: |-
+                          LabelSelector specifies the required labels for the GPU nodes and is copied into
+                          resource.labelSelector of each child Workspace. With BYO nodes, leave it unset or
+                          empty ({}), together with instanceType, to auto-select the GPU SKU. With node
+                          auto-provisioning, an unset or empty value inherits spec.labelSelector.
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: |-
+                                A label selector requirement is a selector that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: |-
+                                    operator represents a key's relationship to a set of values.
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.
+                                  type: string
+                                values:
+                                  description: |-
+                                    values is an array of string values. If the operator is In or NotIn,
+                                    the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                    the values array must be empty. This array is replaced during a strategic
+                                    merge patch.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                              map is equivalent to an element of matchExpressions, whose key field is "key", the
+                              operator is "In", and the values array contains only "value". The requirements are ANDed.
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
                       partition:
                         description: |-
                           Partition specifies GPU partitioning applied to each replica. When set, each
@@ -734,6 +786,7 @@ spec:
                   existing workspaces with new ones.
                 x-kubernetes-preserve-unknown-fields: true
             required:
+            - labelSelector
             - template
             type: object
           status:

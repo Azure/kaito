@@ -1033,6 +1033,51 @@ func TestNewWorkspaceForInferenceSetPropagatesCapacityType(t *testing.T) {
 	assert.Equal(t, consts.KarpenterCapacityTypeSpot, ws.Annotations[kaitov1beta1.AnnotationCapacityType])
 }
 
+func TestNewWorkspaceForInferenceSetSelectors(t *testing.T) {
+	orig := featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning]
+	t.Cleanup(func() { featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = orig })
+
+	specSelector := &metav1.LabelSelector{MatchLabels: map[string]string{"app": "llm"}}
+	nodeSelector := &metav1.LabelSelector{MatchLabels: map[string]string{"pool": "gpu"}}
+
+	tests := []struct {
+		name             string
+		byo              bool
+		resourceSelector *metav1.LabelSelector
+		want             *metav1.LabelSelector
+	}{
+		{name: "NAP inherits spec.labelSelector when unset", want: specSelector},
+		{name: "NAP inherits spec.labelSelector when empty", resourceSelector: &metav1.LabelSelector{}, want: specSelector},
+		{name: "NAP uses template.resource.labelSelector when set", resourceSelector: nodeSelector, want: nodeSelector},
+		{name: "BYO does not inherit spec.labelSelector", byo: true, want: nil},
+		{name: "BYO uses template.resource.labelSelector when set", byo: true, resourceSelector: nodeSelector, want: nodeSelector},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = tt.byo
+			is := &kaitov1beta1.InferenceSet{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"},
+				Spec: kaitov1beta1.InferenceSetSpec{
+					Selector: specSelector,
+					Template: kaitov1beta1.InferenceSetTemplate{
+						ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"team": "ml"}},
+						Resource:   kaitov1beta1.InferenceSetResourceSpec{LabelSelector: tt.resourceSelector},
+					},
+				},
+			}
+
+			ws := NewWorkspaceForInferenceSet(is)
+			assert.Equal(t, tt.want, ws.Resource.LabelSelector)
+			assert.Equal(t, map[string]string{
+				"app":  "llm",
+				"team": "ml",
+				consts.WorkspaceCreatedByInferenceSetLabel: "test-is",
+			}, ws.Labels)
+		})
+	}
+}
+
 func TestValidateWorkspaceForInferenceSet(t *testing.T) {
 	// BYO mode so an empty instanceType is valid and node-listing is skipped.
 	orig := featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning]
@@ -1212,6 +1257,20 @@ func TestValidateWorkspaceForInferenceSet_Update(t *testing.T) {
 			provisioner: consts.NodeProvisionerBYO,
 			mutateNew:   func(is *kaitov1beta1.InferenceSet) { is.Spec.Selector.MatchLabels["app"] = "other" },
 			wantErrOnce: "field is immutable: spec.labelSelector",
+		},
+		{
+			name:        "template.resource.labelSelector change is rejected",
+			provisioner: consts.NodeProvisionerBYO,
+			mutateNew: func(is *kaitov1beta1.InferenceSet) {
+				is.Spec.Template.Resource.LabelSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"pool": "gpu"}}
+			},
+			wantErr: "field is immutable: spec.template.resource.labelSelector",
+		},
+		{
+			name:        "inherited labelSelector change is reported only at spec.labelSelector",
+			provisioner: consts.NodeProvisionerKarpenter,
+			mutateNew:   func(is *kaitov1beta1.InferenceSet) { is.Spec.Selector.MatchLabels["app"] = "other" },
+			wantErrOnce: "labelSelector",
 		},
 		{
 			name:        "preset change is rejected",

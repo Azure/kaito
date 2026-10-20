@@ -116,6 +116,7 @@ func TestInferenceSet_Validate(t *testing.T) {
 				},
 				Spec: InferenceSetSpec{
 					Replicas: ptrInt32(1),
+					Selector: testSelector(),
 				},
 			},
 			oldIS:   nil,
@@ -130,6 +131,7 @@ func TestInferenceSet_Validate(t *testing.T) {
 				},
 				Spec: InferenceSetSpec{
 					Replicas: ptrInt32(1),
+					Selector: testSelector(),
 				},
 			},
 			oldIS:    nil,
@@ -145,6 +147,7 @@ func TestInferenceSet_Validate(t *testing.T) {
 				},
 				Spec: InferenceSetSpec{
 					Replicas: ptrInt32(1),
+					Selector: testSelector(),
 				},
 			},
 			oldIS:    nil,
@@ -160,6 +163,7 @@ func TestInferenceSet_Validate(t *testing.T) {
 				},
 				Spec: InferenceSetSpec{
 					Replicas: ptrInt32(1),
+					Selector: testSelector(),
 				},
 			},
 			oldIS:    nil,
@@ -175,6 +179,7 @@ func TestInferenceSet_Validate(t *testing.T) {
 				},
 				Spec: InferenceSetSpec{
 					Replicas: ptrInt32(1),
+					Selector: testSelector(),
 				},
 			},
 			oldIS: &InferenceSet{
@@ -184,6 +189,7 @@ func TestInferenceSet_Validate(t *testing.T) {
 				},
 				Spec: InferenceSetSpec{
 					Replicas: ptrInt32(1),
+					Selector: testSelector(),
 				},
 			},
 			wantErr: false,
@@ -197,6 +203,7 @@ func TestInferenceSet_Validate(t *testing.T) {
 				},
 				Spec: InferenceSetSpec{
 					Replicas: ptrInt32(0),
+					Selector: testSelector(),
 				},
 			},
 			oldIS:   nil,
@@ -211,6 +218,7 @@ func TestInferenceSet_Validate(t *testing.T) {
 				},
 				Spec: InferenceSetSpec{
 					Replicas: ptrInt32(-1),
+					Selector: testSelector(),
 				},
 			},
 			oldIS:    nil,
@@ -250,6 +258,7 @@ func TestInferenceSet_validateCreate(t *testing.T) {
 			is: &InferenceSet{
 				Spec: InferenceSetSpec{
 					Replicas: ptrInt32(1),
+					Selector: testSelector(),
 				},
 			},
 			wantErr: false,
@@ -259,6 +268,7 @@ func TestInferenceSet_validateCreate(t *testing.T) {
 			is: &InferenceSet{
 				Spec: InferenceSetSpec{
 					Replicas: ptrInt32(0),
+					Selector: testSelector(),
 				},
 			},
 			wantErr: false,
@@ -268,6 +278,7 @@ func TestInferenceSet_validateCreate(t *testing.T) {
 			is: &InferenceSet{
 				Spec: InferenceSetSpec{
 					Replicas: ptrInt32(5),
+					Selector: testSelector(),
 				},
 			},
 			wantErr: false,
@@ -277,6 +288,7 @@ func TestInferenceSet_validateCreate(t *testing.T) {
 			is: &InferenceSet{
 				Spec: InferenceSetSpec{
 					Replicas: ptrInt32(-1),
+					Selector: testSelector(),
 				},
 			},
 			wantErr:  true,
@@ -587,4 +599,8 @@ func TestInferenceSet_validateInstanceType(t *testing.T) {
 			}
 		})
 	}
+}
+
+func testSelector() *metav1.LabelSelector {
+	return &metav1.LabelSelector{MatchLabels: map[string]string{"app": "llm"}}
 }

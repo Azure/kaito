@@ -27,7 +27,7 @@ flowchart TD
 
 ## Usage
 
-Deploying a Hugging Face model with `InferenceSet` is straightforward. You just need to specify a Hugging Face model card ID (or a KAITO preset name), the GPU SKU, the desired number of replicas, and a `labelSelector` that selects GPU nodes for each replica. For example:
+Deploying a Hugging Face model with `InferenceSet` is straightforward. You just need to specify a Hugging Face model card ID (or a KAITO preset name), the GPU SKU, the desired number of replicas, and a `labelSelector` that identifies the replicas, with matching `template.metadata.labels`. For example:
 
 ```yaml
 apiVersion: kaito.sh/v1beta1
@@ -40,6 +40,9 @@ spec:
     matchLabels:
       apps: gemma-4-31b
   template:
+    metadata:
+      labels:
+        apps: gemma-4-31b
     resource:
       instanceType: "Standard_NC24ads_A100_v4"
     inference:
@@ -52,13 +55,48 @@ spec:
 | Field | Required | Description |
 | --- | --- | --- |
 | `spec.replicas` | No (default `1`) | Desired number of replicas. Set to `0` to scale to zero. |
-| `spec.labelSelector` | No | GPU node selector copied into each replica Workspace's `resource.labelSelector`. With BYO nodes, leave it unset or empty (`{}`) and `spec.template.resource.instanceType` unset to auto-select the ready GPU SKU with the most GPU memory. |
+| `spec.labelSelector` | Yes | Non-empty label query over the replica Workspaces. It must match `spec.template.metadata.labels`; its `matchLabels` are added to every replica. With node auto-provisioning, it is also used as the GPU node selector when `spec.template.resource.labelSelector` is unset or empty. |
+| `spec.template.metadata.labels` | No | Labels applied to every replica Workspace. Must not conflict with `spec.labelSelector`. |
 | `spec.nodeCountLimit` | No | Maximum number of GPU nodes that may be created across all replicas. Unlimited if unset. |
 | `spec.template.resource.instanceType` | Yes, unless nodes are bring-your-own (BYO) | GPU node SKU used for every replica. With BYO nodes it is optional and restricts replicas to nodes of that SKU. |
+| `spec.template.resource.labelSelector` | No | GPU node selector copied into each replica Workspace's `resource.labelSelector`. With BYO nodes, leave it unset or empty (`{}`) and `spec.template.resource.instanceType` unset to auto-select the ready GPU SKU with the most GPU memory. See [Selecting BYO nodes](#selecting-byo-nodes). |
 | `spec.template.inference.preset.name` | Yes | The model to serve — a Hugging Face model card ID or a KAITO preset name. |
 | `spec.template.inference.adapters` | No | One or more LoRA adapters to merge at serving time. |
 | `spec.template.inference.config` | No | Name of a ConfigMap holding custom vLLM runtime parameters. |
 | `spec.autoUpgrade` | No | Configures automatic base image upgrades of replicas after a controller upgrade. See [Automatic base image upgrades](#automatic-base-image-upgrades). |
+
+### Selecting BYO nodes
+
+With bring-your-own (BYO) nodes, `spec.labelSelector` does not select GPU nodes. To pin replicas to specific nodes, set `spec.template.resource.labelSelector`:
+
+```yaml
+apiVersion: kaito.sh/v1beta1
+kind: InferenceSet
+metadata:
+  name: phi4-mini
+spec:
+  replicas: 2
+  labelSelector:
+    matchLabels:
+      apps: phi4-mini
+  template:
+    metadata:
+      labels:
+        apps: phi4-mini
+    resource:
+      labelSelector:
+        matchLabels:
+          pool: gpu-a100
+    inference:
+      preset:
+        name: "microsoft/Phi-4-mini-instruct"
+```
+
+Leave `spec.template.resource.labelSelector` unset to auto-select the ready GPU SKU with the most GPU memory.
+
+:::note Upgrading from earlier releases
+Earlier releases used `spec.labelSelector` as the GPU node selector for every replica. With node auto-provisioning, it is still inherited when `spec.template.resource.labelSelector` is unset or empty, so existing InferenceSets behave the same. With BYO nodes, it is no longer inherited: existing replicas keep their node selector, but new replicas use `spec.template.resource.labelSelector` or, if it is unset, auto-select GPU nodes. To keep pinning new replicas, recreate the InferenceSet with the node selector in `spec.template.resource.labelSelector`.
+:::
 
 ### Checking status
 
@@ -110,7 +148,7 @@ ConfigMap parameters are applied after KAITO's defaults, so this value wins. Val
 :::note Updating the template
 The `InferenceSet` controller reconciles the replica **count** (scaling) and replica labels. It does not currently perform an in-place rolling update of existing replicas when you edit other `spec.template` fields (such as inference parameters or adapters) — the one exception is the base image, which can be rolled out automatically via [Automatic base image upgrades](#automatic-base-image-upgrades). To apply other template changes today, recreate the `InferenceSet` (or delete individual replicas so the controller recreates them from the updated template).
 
-`InferenceSet` updates are validated with the same rules as `Workspace` updates. Fields that are immutable on a `Workspace` are also immutable on an `InferenceSet`: `spec.labelSelector`, `spec.template.resource.instanceType` (once set), `spec.template.resource.partition`, `spec.template.inference.preset` (including `presetOptions`), setting or unsetting `spec.template.inference.template`, the `kaito.sh/capacity-type` annotation, the `kaito.sh/model-streaming` annotation (when the `ModelStreaming` feature gate is enabled), and `spec.template.inference.config` for the `custom` preset. To change any of them, create a new `InferenceSet`.
+`InferenceSet` updates are validated with the same rules as `Workspace` updates. Fields that are immutable on a `Workspace` are also immutable on an `InferenceSet`: `spec.labelSelector`, `spec.template.resource.labelSelector`, `spec.template.resource.instanceType` (once set), `spec.template.resource.partition`, `spec.template.inference.preset` (including `presetOptions`), setting or unsetting `spec.template.inference.template`, the `kaito.sh/capacity-type` annotation, the `kaito.sh/model-streaming` annotation (when the `ModelStreaming` feature gate is enabled), and `spec.template.inference.config` for the `custom` preset. To change any of them, create a new `InferenceSet`.
 :::
 
 ## Serving with custom parameters
@@ -143,6 +181,9 @@ spec:
     matchLabels:
       apps: example
   template:
+    metadata:
+      labels:
+        apps: example
     resource:
       instanceType: "Standard_NC24ads_A100_v4"
     inference:
@@ -173,6 +214,9 @@ spec:
     matchLabels:
       apps: phi4-mini
   template:
+    metadata:
+      labels:
+        apps: phi4-mini
     resource:
       instanceType: "Standard_NC24ads_A100_v4"
     inference:
@@ -272,6 +316,9 @@ Auto-upgrade requires two things:
        matchLabels:
          apps: gemma-4-31b
      template:
+       metadata:
+         labels:
+           apps: gemma-4-31b
        resource:
          instanceType: "Standard_NC24ads_A100_v4"
        inference:
