@@ -25,6 +25,8 @@ KAITO_PROVIDER_PATTERNS = (
     *OPENAI_API_KEY_PATTERNS,
 )
 
+BUILTIN_SECRET_TYPES_OVERRIDDEN_BY_KAITO = frozenset({"GitHub Token"})
+
 
 def detect_kaito_provider_secrets(text: str) -> set[str]:
     """Return secrets matched by KAITO-specific provider patterns."""
