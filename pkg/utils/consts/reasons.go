@@ -64,6 +64,48 @@ const (
 // its memory.
 const ReasonDownloadOOMKilled = "DownloadOOMKilled"
 
+// In-progress reasons of a not-ready Workspace condition: the Workspace is still converging, without an observed
+// failure. Any other False reason is a failure. A controller that reports a new in-progress reason must add it here,
+// or an InferenceSet reports it as a failure of its replica.
+const (
+	// ReasonResourceNotReady is reported on ResourceReady while NodeClaimReady or NodesReady is not ready.
+	ReasonResourceNotReady = "workspaceResourceStatusNotReady"
+	// ReasonAwaitingReconciliation is the state Karpenter stamps on a NodeClaim condition it has not reconciled yet.
+	ReasonAwaitingReconciliation = "AwaitingReconciliation"
+	// ReasonNodeClaimNotReady is reported on NodeClaimReady while NodeClaims are provisioning without an observed
+	// failure.
+	ReasonNodeClaimNotReady = "NodeClaimNotReady"
+	// ReasonNodeNotReady is reported on NodesReady while not enough Nodes are ready.
+	ReasonNodeNotReady = "NodeNotReady"
+	// ReasonNodePluginsNotReady is reported on NodesReady while the GPU device plugins are not ready.
+	ReasonNodePluginsNotReady = "NodePluginsNotReady"
+	// ReasonModelMirrorNotReady is reported on ResourceReady while the model weights download.
+	ReasonModelMirrorNotReady = "ModelMirrorNotReady"
+	// ReasonModelMirrorPending is reported on ModelMirrorReady while the download has not reported a result.
+	ReasonModelMirrorPending = "ModelMirrorPending"
+	// ReasonModelMirrorDeleting is reported on ModelMirrorReady while the ModelMirror is deleted.
+	ReasonModelMirrorDeleting = "ModelMirrorDeleting"
+	// ReasonInferencePending is reported on InferenceReady while the inference workload is not ready.
+	ReasonInferencePending = "WorkspaceInferenceStatusPending"
+)
+
+// IsProgressReason reports whether a not-ready Workspace condition reason is in progress rather than a failure.
+func IsProgressReason(reason string) bool {
+	switch reason {
+	case ReasonResourceNotReady,
+		ReasonAwaitingReconciliation,
+		ReasonNodeClaimNotReady,
+		ReasonNodeNotReady,
+		ReasonNodePluginsNotReady,
+		ReasonModelMirrorNotReady,
+		ReasonModelMirrorPending,
+		ReasonModelMirrorDeleting,
+		ReasonInferencePending:
+		return true
+	}
+	return false
+}
+
 // IsTerminatedReason reports whether a not-ready Workspace or InferenceSet reason cannot recover without the user
 // acting: the controllers keep retrying, but the same failure recurs until the user changes the configuration or the
 // cloud subscription. An InferenceSet with a replica failing for one of these reasons reports it on its

@@ -680,19 +680,19 @@ func (p *KarpenterProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *ka
 	nodeClaimCond := metav1.Condition{
 		Type:    string(kaitov1beta1.ConditionTypeNodeClaimStatus),
 		Status:  metav1.ConditionFalse,
-		Reason:  "NodeClaimNotReady",
+		Reason:  consts.ReasonNodeClaimNotReady,
 		Message: "Ready NodeClaims are not enough",
 	}
 	nodeCond := metav1.Condition{
 		Type:    string(kaitov1beta1.ConditionTypeNodeStatus),
 		Status:  metav1.ConditionFalse,
-		Reason:  "NodeNotReady",
+		Reason:  consts.ReasonNodeNotReady,
 		Message: "Not enough Nodes are ready",
 	}
 	resourceCond := metav1.Condition{
 		Type:    string(kaitov1beta1.ConditionTypeResourceStatus),
 		Status:  metav1.ConditionFalse,
-		Reason:  "workspaceResourceStatusNotReady",
+		Reason:  consts.ReasonResourceNotReady,
 		Message: "node claim or node status condition not ready",
 	}
 
@@ -731,7 +731,7 @@ func (p *KarpenterProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *ka
 				nodeCond.Reason = "NodesReady"
 				nodeCond.Message = "Enough Nodes are ready with GPU resources"
 			} else {
-				nodeCond.Reason = "NodePluginsNotReady"
+				nodeCond.Reason = consts.ReasonNodePluginsNotReady
 				nodeCond.Message = "waiting all node plugins to be ready"
 			}
 		} else {

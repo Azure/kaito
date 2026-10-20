@@ -412,7 +412,7 @@ const maxProvisioningErrorMessageLen = 256
 
 // awaitingReconciliationReason is the benign "not yet reconciled" state Karpenter
 // core stamps on freshly-initialized conditions; it is not a provisioning error.
-const awaitingReconciliationReason = "AwaitingReconciliation"
+const awaitingReconciliationReason = consts.ReasonAwaitingReconciliation
 
 // FirstNodeClaimProvisioningState returns the reason/message of the earliest
 // non-True Karpenter lifecycle condition (Launched -> Registered -> Initialized)
@@ -523,7 +523,7 @@ func ParseClassifiedProvisioningMessage(msg string) (originalReason, originalMes
 const nodeClassReadinessUnknownReason = "NodeClassReadinessUnknown"
 
 // NodeClaimNotReadyReason is reported while NodeClaims are provisioning without an observed failure.
-const NodeClaimNotReadyReason = "NodeClaimNotReady"
+const NodeClaimNotReadyReason = consts.ReasonNodeClaimNotReady
 
 // lifecycleStages are the NodeClaim lifecycle conditions in order; an earlier stage causes a later one.
 var lifecycleStages = []string{

@@ -31,6 +31,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -618,7 +619,7 @@ func TestInferenceSetBenchmarkAggregation(t *testing.T) {
 
 			assert.True(t, benchmarkEnabled)
 
-			allBenchmarked := tc.inferenceset.Spec.Replicas != nil && benchmarkedReplicas == int(*tc.inferenceset.Spec.Replicas) && *tc.inferenceset.Spec.Replicas > 0
+			allBenchmarked := tc.inferenceset.Spec.Replicas != nil && benchmarkedReplicas >= int(*tc.inferenceset.Spec.Replicas) && *tc.inferenceset.Spec.Replicas > 0
 			if tc.expectBenchmarkStatus == v1.ConditionTrue {
 				assert.True(t, allBenchmarked)
 			} else {
@@ -678,6 +679,43 @@ func TestInferenceSetScaleFromZeroRetriesPendingExpectations(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, time.Second, result.RequeueAfter)
 	assertWorkspaceCount(t, ctx, cl, inferenceSet, 1)
+}
+
+// A ready Workspace deleted on scale-down stays listed until its finalizer is removed; it is not a replica, so the
+// InferenceSet is ready with the desired number of ready replicas.
+func TestInferenceSetReadyIgnoresDeletingWorkspaces(t *testing.T) {
+	ctx := context.Background()
+	inferenceSet := test.MockInferenceSetWithPreset.DeepCopy()
+	inferenceSet.Spec.Replicas = lo.ToPtr(int32(2))
+
+	objs := []client.Object{inferenceSet}
+	for i := range 3 {
+		ws := utilsinferenceset.NewWorkspaceForInferenceSet(inferenceSet)
+		ws.Name = fmt.Sprintf("%s-%d", inferenceSet.Name, i)
+		ws.GenerateName = ""
+		ws.Finalizers = []string{consts.WorkspaceFinalizer}
+		ws.Status.Conditions = []v1.Condition{{Type: string(v1beta1.WorkspaceConditionTypeSucceeded),
+			Status: v1.ConditionTrue, Reason: "workspaceSucceeded"}}
+		objs = append(objs, ws)
+	}
+
+	scheme := runtime.NewScheme()
+	assert.NoError(t, v1beta1.AddToScheme(scheme))
+	assert.NoError(t, appsv1.AddToScheme(scheme))
+	cl := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(inferenceSet).WithObjects(objs...).Build()
+	reconciler := NewInferenceSetReconciler(cl, scheme, logr.Discard(), nil)
+
+	_, err := reconciler.addOrUpdateInferenceSet(ctx, inferenceSet)
+	assert.NoError(t, err)
+	assertWorkspaceCount(t, ctx, cl, inferenceSet, 3)
+
+	got := &v1beta1.InferenceSet{}
+	assert.NoError(t, cl.Get(ctx, client.ObjectKeyFromObject(inferenceSet), got))
+	assert.Equal(t, 2, got.Status.ReadyReplicas)
+	ready := meta.FindStatusCondition(got.Status.Conditions, string(v1beta1.InferenceSetConditionTypeReady))
+	if assert.NotNil(t, ready) {
+		assert.Equal(t, v1.ConditionTrue, ready.Status, ready.Message)
+	}
 }
 
 func assertWorkspaceCount(t *testing.T, ctx context.Context, cl client.Client, inferenceSet *v1beta1.InferenceSet, expected int) {

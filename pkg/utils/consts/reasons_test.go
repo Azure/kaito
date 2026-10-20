@@ -63,3 +63,29 @@ func TestIsTerminatedReason(t *testing.T) {
 		}
 	}
 }
+
+func TestIsProgressReason(t *testing.T) {
+	progress := []string{
+		"workspaceResourceStatusNotReady",
+		"AwaitingReconciliation",
+		"NodeClaimNotReady",
+		"NodeNotReady",
+		"NodePluginsNotReady",
+		"ModelMirrorNotReady",
+		"ModelMirrorPending",
+		"ModelMirrorDeleting",
+		"WorkspaceInferenceStatusPending",
+	}
+	for _, reason := range progress {
+		if !IsProgressReason(reason) {
+			t.Errorf("IsProgressReason(%q) = false, want true", reason)
+		}
+	}
+
+	notProgress := []string{"", ReasonQuotaExceeded, "CreateInstanceFailed", "Unschedulable", "NodeClaimsReady", "nodeclaimnotready"}
+	for _, reason := range notProgress {
+		if IsProgressReason(reason) {
+			t.Errorf("IsProgressReason(%q) = true, want false", reason)
+		}
+	}
+}

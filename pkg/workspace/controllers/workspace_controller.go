@@ -887,7 +887,7 @@ func (c *WorkspaceReconciler) syncWorkspaceStatus(ctx context.Context, key types
 					resourceConditionStatus = metav1.ConditionFalse
 					setWorkspaceCondition(status, wObj.GetGeneration(), appendReconcileErrMessage,
 						kaitov1beta1.ConditionTypeResourceStatus,
-						metav1.ConditionFalse, "ModelMirrorNotReady", "Model download has not started")
+						metav1.ConditionFalse, consts.ReasonModelMirrorNotReady, "Model download has not started")
 				} else {
 					mirrorStatus, mirrorReason, mirrorMsg := modelMirrorCondition(cr, infFailReason, infFailMsg)
 					setWorkspaceCondition(status, wObj.GetGeneration(), appendReconcileErrMessage,
@@ -898,7 +898,7 @@ func (c *WorkspaceReconciler) syncWorkspaceStatus(ctx context.Context, key types
 						resourceConditionStatus = metav1.ConditionFalse
 						setWorkspaceCondition(status, wObj.GetGeneration(), appendReconcileErrMessage,
 							kaitov1beta1.ConditionTypeResourceStatus,
-							metav1.ConditionFalse, "ModelMirrorNotReady", mirrorMsg)
+							metav1.ConditionFalse, consts.ReasonModelMirrorNotReady, mirrorMsg)
 					}
 				}
 			}
@@ -1007,7 +1007,7 @@ const (
 	reasonModelStreamingServiceAccountInvalid = consts.ReasonModelStreamingServiceAccountInvalid
 	reasonModelStreamingInvalidAnnotations    = consts.ReasonModelStreamingInvalidAnnotations
 	reasonModelMirrorCreateFailed             = "ModelMirrorCreateFailed"
-	reasonModelMirrorDeleting                 = "ModelMirrorDeleting"
+	reasonModelMirrorDeleting                 = consts.ReasonModelMirrorDeleting
 )
 
 // modelMirrorDrainRetryInterval paces retries while a mirror finishes tearing down.
@@ -1308,7 +1308,7 @@ func (c *WorkspaceReconciler) collectTuningStatusSnapshot(ctx context.Context, w
 	return snapshot, nil
 }
 
-const reasonModelMirrorPending = "ModelMirrorPending"
+const reasonModelMirrorPending = consts.ReasonModelMirrorPending
 
 func modelMirrorPendingReason(cr *kaitov1alpha1.ModelMirror) string {
 	cond := meta.FindStatusCondition(cr.Status.Conditions, mmconsts.ConditionTypeReady)
@@ -1448,7 +1448,7 @@ func applyInferenceWorkspaceStatus(ctx context.Context, status *kaitov1beta1.Wor
 
 	// Default to a generic pending reason; override with a specific one (e.g. a failed
 	// SAS token fetch) when the caller detected the cause.
-	inferenceReason, inferenceMessage := "WorkspaceInferenceStatusPending", "Inference workload is not ready"
+	inferenceReason, inferenceMessage := consts.ReasonInferencePending, "Inference workload is not ready"
 	if notReadyReason != "" {
 		inferenceReason, inferenceMessage = notReadyReason, notReadyMessage
 	}
