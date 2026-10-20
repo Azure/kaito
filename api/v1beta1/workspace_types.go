@@ -31,8 +31,8 @@ type ResourceSpec struct {
 	Count *int `json:"count,omitempty"`
 
 	// InstanceType specifies the GPU node SKU.
-	// This field is required when node auto-provisioning is enabled.
-	// This field must be empty when node auto-provisioning is disabled (BYO scenario).
+	// Required when node auto-provisioning is enabled. Optional for BYO nodes, where it
+	// restricts the GPU nodes to those labeled node.kubernetes.io/instance-type=<instanceType>.
 	// +optional
 	InstanceType string `json:"instanceType,omitempty"`
 

@@ -20,7 +20,8 @@ import (
 
 type InferenceSetResourceSpec struct {
 	// InstanceType specifies the GPU node SKU.
-	// Required when node auto-provisioning is enabled; must be empty for BYO nodes.
+	// Required when node auto-provisioning is enabled. Optional for BYO nodes, where it
+	// restricts the GPU nodes to those labeled node.kubernetes.io/instance-type=<instanceType>.
 	// +optional
 	InstanceType string `json:"instanceType,omitempty"`
 
