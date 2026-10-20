@@ -153,3 +153,35 @@ func TestValidateInferenceSetsForMultiRoleInference_RemapTopLevelAnnotations(t *
 	assert.Equal(t, []string{"metadata.annotations[kaito.sh/capacity-type]"}, wrapped[0].Paths)
 	assert.NotContains(t, err.Error(), "spec.template.metadata.annotations")
 }
+
+func TestRemapChildRuntimeConfigErrors(t *testing.T) {
+	for _, path := range []string{"spec.template.config", "spec.template.inference.config"} {
+		t.Run(path, func(t *testing.T) {
+			original := &apis.FieldError{Message: "ConfigMap not found", Paths: []string{path}, Details: "runtime configuration is unavailable"}
+			mapped := remapChildInferenceSetErrors(original, 1)
+			wrapped := mapped.WrappedErrors()
+			if assert.Len(t, wrapped, 1) {
+				assert.Equal(t, &apis.FieldError{
+					Message: original.Message, Paths: []string{"spec.roles[1].runtimeConfig"}, Details: original.Details, Level: original.Level,
+				}, wrapped[0])
+			}
+			assert.Equal(t, []string{path}, original.Paths)
+		})
+	}
+}
+
+func TestValidateInferenceSetsForMultiRoleInference_MissingRuntimeConfig(t *testing.T) {
+	wireWorkspaceValidation(t)
+	useFakeGlobalClient(t)
+	oldVLLM := featuregates.FeatureGates[consts.FeatureFlagVLLM]
+	featuregates.FeatureGates[consts.FeatureFlagVLLM] = true
+	t.Cleanup(func() { featuregates.FeatureGates[consts.FeatureFlagVLLM] = oldVLLM })
+	mri := newValidMRI()
+	mri.Spec.Roles[0].RuntimeConfig = "missing-runtime-config"
+	err := ValidateInferenceSetsForMultiRoleInference(context.Background(), mri)
+	if assert.NotNil(t, err) {
+		assert.Contains(t, err.Error(), "spec.roles[0].runtimeConfig")
+		assert.Contains(t, err.Error(), "missing-runtime-config")
+		assert.NotContains(t, err.Error(), "spec.template.config")
+	}
+}

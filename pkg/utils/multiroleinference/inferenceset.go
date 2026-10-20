@@ -152,6 +152,8 @@ func remapChildInferenceSetPath(path string, roleIndex int) string {
 		return strings.Replace(path, "spec.template.", "", 1)
 	case strings.HasPrefix(path, "spec.template.resource.instanceType"):
 		return strings.Replace(path, "spec.template.resource.instanceType", fmt.Sprintf("spec.roles[%d].instanceType", roleIndex), 1)
+	case path == "spec.template.config" || strings.HasPrefix(path, "spec.template.config."):
+		return strings.Replace(path, "spec.template.config", fmt.Sprintf("spec.roles[%d].runtimeConfig", roleIndex), 1)
 	case strings.HasPrefix(path, "spec.template.inference.config"):
 		return strings.Replace(path, "spec.template.inference.config", fmt.Sprintf("spec.roles[%d].runtimeConfig", roleIndex), 1)
 	case strings.HasPrefix(path, "spec.template.inference.preset.presetOptions.modelAccessSecret"):
