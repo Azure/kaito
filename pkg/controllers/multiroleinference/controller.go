@@ -418,8 +418,23 @@ func (r *MultiRoleInferenceReconciler) reconcileInferenceSet(
 	roleStr := string(role.Type)
 
 	result, err := controllerutil.CreateOrUpdate(ctx, r.Client, desired, func() error {
-		desired.Labels = projected.Labels
-		desired.Spec = projected.Spec
+		// Reconcile only MRI-owned fields. Autoscalers own replicas when the
+		// role leaves them unset; child-only policies such as autoUpgrade must
+		// survive reconciliation as well.
+		if desired.Labels == nil {
+			desired.Labels = make(map[string]string)
+		}
+		for key, value := range projected.Labels {
+			desired.Labels[key] = value
+		}
+		if role.Replicas != nil {
+			desired.Spec.Replicas = projected.Spec.Replicas
+		}
+		desired.Spec.Selector = projected.Spec.Selector
+		desired.Spec.Template.Labels = projected.Spec.Template.Labels
+		desired.Spec.Template.Annotations = projected.Spec.Template.Annotations
+		desired.Spec.Template.Resource = projected.Spec.Template.Resource
+		desired.Spec.Template.Inference = projected.Spec.Template.Inference
 		// Set owner reference so the InferenceSet is garbage-collected with the MRI.
 		if err := controllerutil.SetControllerReference(mri, desired, r.Scheme); err != nil {
 			return err
