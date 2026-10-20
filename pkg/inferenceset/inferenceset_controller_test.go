@@ -884,7 +884,7 @@ func TestSelectWorkspacesToDelete(t *testing.T) {
 	}
 }
 
-func TestNotReadyCondition(t *testing.T) {
+func TestAnalyzeNotReadyWorkspaces(t *testing.T) {
 	ws := func(name string, conds ...v1.Condition) v1beta1.Workspace {
 		return v1beta1.Workspace{ObjectMeta: v1.ObjectMeta{Name: name}, Status: v1beta1.WorkspaceStatus{Conditions: conds}}
 	}
@@ -1043,7 +1043,7 @@ func TestNotReadyCondition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			reason, message := notReadyCondition(tc.workspaces, tc.ready, 2)
+			reason, message := analyzeNotReadyWorkspaces(tc.workspaces, tc.ready, 2)
 			assert.Equal(t, tc.expectedReason, reason)
 			assert.Equal(t, tc.expectedMessage, message)
 		})

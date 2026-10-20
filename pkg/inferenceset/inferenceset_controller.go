@@ -306,9 +306,10 @@ func workspaceRootCause(ws *kaitov1beta1.Workspace) (cause *metav1.Condition, se
 	return nil, rootCauseProgress
 }
 
-// notReadyCondition reports the root causes of not-ready Workspaces, terminal ones first, then failing ones, each
-// with node causes before model and inference ones, taking the first one's reason.
-func notReadyCondition(workspaces []kaitov1beta1.Workspace, readyReplicas int, desiredReplicas int32) (reason, message string) {
+// analyzeNotReadyWorkspaces returns the InferenceSetReady=False reason and message from the root causes of the
+// not-ready Workspaces: terminal ones first, then failing ones, each with node causes before model and inference
+// ones. The reason is the first one's, and the message lists up to maxReportedNotReadyWorkspaces of them.
+func analyzeNotReadyWorkspaces(workspaces []kaitov1beta1.Workspace, readyReplicas int, desiredReplicas int32) (reason, message string) {
 	reason = "inferencesetNotReady"
 	message = fmt.Sprintf("inferenceset is not ready, %d/%d replicas are ready", readyReplicas, desiredReplicas)
 
@@ -698,7 +699,7 @@ func (c *InferenceSetReconciler) addOrUpdateInferenceSet(ctx context.Context, iO
 			return reconcile.Result{}, err
 		}
 	} else {
-		notReadyReason, notReadyMessage := notReadyCondition(wsList.Items, readyReplicas, desiredReplicas)
+		notReadyReason, notReadyMessage := analyzeNotReadyWorkspaces(wsList.Items, readyReplicas, desiredReplicas)
 		if err = inferenceset.UpdateStatusConditionIfNotMatch(ctx, c.Client, iObj, kaitov1beta1.InferenceSetConditionTypeReady, metav1.ConditionFalse,
 			notReadyReason, notReadyMessage); err != nil {
 			klog.ErrorS(err, "failed to update inferenceset status", "inferenceset", klog.KObj(iObj))
