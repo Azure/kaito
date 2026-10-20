@@ -161,11 +161,15 @@ func remapChildInferenceSetPath(path string, roleIndex int) string {
 		return strings.Replace(path, "spec.template.config", fmt.Sprintf("spec.roles[%d].runtimeConfig", roleIndex), 1)
 	case strings.HasPrefix(path, "spec.template.inference.config"):
 		return strings.Replace(path, "spec.template.inference.config", fmt.Sprintf("spec.roles[%d].runtimeConfig", roleIndex), 1)
-	case path == "spec.template.inference_config.yaml":
-		// The ConfigMap data key is not a field of the MRI; point to its reference.
+	case path == "spec.template.inference_config.yaml",
+		path == "spec.template.inference_config.yaml in ConfigMap",
+		path == "spec.template.max-model-len":
+		// ConfigMap content errors point to the MRI's configuration reference.
 		return fmt.Sprintf("spec.roles[%d].runtimeConfig", roleIndex)
 	case strings.HasPrefix(path, "spec.template.inference.preset.presetOptions.modelAccessSecret"):
 		return strings.Replace(path, "spec.template.inference.preset.presetOptions.modelAccessSecret", "spec.model.modelAccessSecret", 1)
+	case path == "spec.template.inference.preset.name":
+		return "spec.model.name"
 	case strings.HasPrefix(path, "spec.template.inference.presetName"):
 		return strings.Replace(path, "spec.template.inference.presetName", "spec.model.name", 1)
 	case path == "spec.template.inference.preset":

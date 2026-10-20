@@ -195,6 +195,14 @@ func TestValidateInferenceSetsForMultiRoleInference_WorkspaceCreateErrorPaths(t 
 	useFakeGlobalClient(t, &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "malformed-runtime-config", Namespace: "default"},
 		Data:       map[string]string{"inference_config.yaml": "vllm: ["},
+	}, &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "missing-runtime-key", Namespace: "default"},
+	}, &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "invalid-context-length", Namespace: "default"},
+		Data:       map[string]string{"inference_config.yaml": "vllm:\n  max-model-len: not-an-integer"},
+	}, &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "excessive-context-length", Namespace: "default"},
+		Data:       map[string]string{"inference_config.yaml": "vllm:\n  max-model-len: 2147483647"},
 	})
 	oldVLLM := featuregates.FeatureGates[consts.FeatureFlagVLLM]
 	oldNAPDisabled := featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning]
@@ -233,6 +241,33 @@ func TestValidateInferenceSetsForMultiRoleInference_WorkspaceCreateErrorPaths(t 
 			message:   "unsupported node image family",
 		},
 		{
+			name: "missing runtime ConfigMap key",
+			mutate: func(mri *kaitov1alpha1.MultiRoleInference) {
+				mri.Spec.Roles[1].RuntimeConfig = "missing-runtime-key"
+			},
+			childPath: "spec.template.inference_config.yaml in ConfigMap",
+			mriPath:   "spec.roles[1].runtimeConfig",
+			message:   "missing field(s)",
+		},
+		{
+			name: "invalid context length",
+			mutate: func(mri *kaitov1alpha1.MultiRoleInference) {
+				mri.Spec.Roles[1].RuntimeConfig = "invalid-context-length"
+			},
+			childPath: "spec.template.max-model-len",
+			mriPath:   "spec.roles[1].runtimeConfig",
+			message:   "must be an integer",
+		},
+		{
+			name: "excessive context length",
+			mutate: func(mri *kaitov1alpha1.MultiRoleInference) {
+				mri.Spec.Roles[1].RuntimeConfig = "excessive-context-length"
+			},
+			childPath: "spec.template.max-model-len",
+			mriPath:   "spec.roles[1].runtimeConfig",
+			message:   "exceeds model's maximum supported context window",
+		},
+		{
 			name: "malformed runtime YAML",
 			mutate: func(mri *kaitov1alpha1.MultiRoleInference) {
 				mri.Spec.Roles[1].RuntimeConfig = "malformed-runtime-config"
@@ -258,6 +293,28 @@ func TestValidateInferenceSetsForMultiRoleInference_WorkspaceCreateErrorPaths(t 
 			assert.NotContains(t, err.Error(), "spec.template.")
 		})
 	}
+}
+
+func TestValidateInferenceSetsForMultiRoleInference_CustomPresetStreamingDisabled(t *testing.T) {
+	t.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
+	wireWorkspaceValidation(t)
+	useFakeGlobalClient(t)
+	oldStreaming := featuregates.FeatureGates[consts.FeatureFlagModelStreaming]
+	featuregates.FeatureGates[consts.FeatureFlagModelStreaming] = false
+	t.Cleanup(func() { featuregates.FeatureGates[consts.FeatureFlagModelStreaming] = oldStreaming })
+
+	mri := newValidMRI()
+	mri.Spec.Model.Name = "custom"
+	childErr := NewInferenceSetForMultiRoleInference(mri, mri.Spec.Roles[1]).Validate(context.Background())
+	require.NotNil(t, childErr)
+	assert.Contains(t, fieldErrorPaths(childErr), "spec.template.inference.preset.name")
+
+	err := ValidateInferenceSetsForMultiRoleInference(context.Background(), mri)
+	require.NotNil(t, err)
+	assert.Contains(t, fieldErrorPaths(err), "spec.model.name")
+	assert.NotContains(t, err.Error(), "spec.model.name.name")
+	assert.NotContains(t, err.Error(), "spec.template.")
+	assert.Contains(t, err.Error(), "feature gate to be enabled")
 }
 
 func TestValidateInferenceSetsForMultiRoleInference_UpdateRejectsSecretChange(t *testing.T) {
