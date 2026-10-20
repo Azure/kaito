@@ -189,13 +189,8 @@ func TestInferenceSetValidateSelector(t *testing.T) {
 			wantErr: "spec.template.metadata.labels[app]",
 		},
 		{
-			name: "matchExpressions satisfied by template labels is accepted",
-			is:   newIS(appIn("llm"), map[string]string{"app": "llm"}),
-		},
-		{
-			name:    "matchExpressions not satisfied by template labels is rejected",
-			is:      newIS(appIn("llm"), nil),
-			wantErr: "labelSelector does not match template.metadata.labels",
+			name: "matchExpressions are not checked against template labels",
+			is:   newIS(appIn("llm"), nil),
 		},
 		{
 			name: "existing empty selector remains updatable",
@@ -203,15 +198,9 @@ func TestInferenceSetValidateSelector(t *testing.T) {
 			is:   newIS(&metav1.LabelSelector{}, nil),
 		},
 		{
-			name: "unchanged mismatched template labels are not rechecked on update",
-			old:  newIS(appIn("llm"), nil),
-			is:   newIS(appIn("llm"), nil),
-		},
-		{
-			name:    "changed template labels must match the selector on update",
-			old:     newIS(appIn("llm"), nil),
-			is:      newIS(appIn("llm"), map[string]string{"app": "other"}),
-			wantErr: "labelSelector does not match template.metadata.labels",
+			name: "template labels are not rechecked on update",
+			old:  newIS(&metav1.LabelSelector{MatchLabels: map[string]string{"app": "llm"}}, nil),
+			is:   newIS(&metav1.LabelSelector{MatchLabels: map[string]string{"app": "llm"}}, map[string]string{"app": "other"}),
 		},
 	}
 

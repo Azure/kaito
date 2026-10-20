@@ -161,7 +161,7 @@ func EffectiveInstanceType(ctx context.Context, c client.Client, ws *kaitov1beta
 	if ws.Resource.InstanceType != "" {
 		return ws.Resource.InstanceType, nil
 	}
-	if kaitov1beta1.IsEmptyLabelSelector(ws.Resource.LabelSelector) {
+	if ws.Resource.AutoSelectsSKU() {
 		return SelectInstanceType(ctx, c, ws)
 	}
 	return "", nil

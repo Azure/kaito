@@ -16,13 +16,11 @@ package v1beta1
 import (
 	"context"
 	"fmt"
-	"maps"
 	"strings"
 
 	"github.com/robfig/cron/v3"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
@@ -51,9 +49,6 @@ func (is *InferenceSet) Validate(ctx context.Context) (errs *apis.FieldError) {
 	} else {
 		klog.V(2).InfoS("Validate update", "inferenceset", fmt.Sprintf("%s/%s", is.Namespace, is.Name))
 		errs = errs.Also(validateInferenceSetMaintenanceWindow(is.Spec.AutoUpgrade).ViaField("spec"))
-		if old, ok := apis.GetBaseline(ctx).(*InferenceSet); ok && !maps.Equal(is.Spec.Template.Labels, old.Spec.Template.Labels) {
-			errs = errs.Also(ValidateInferenceSetSelectorMatchesTemplate(is.Spec.Selector, is.Spec.Template.Labels).ViaField("spec"))
-		}
 	}
 	// Template-level rules (instanceType, partition, annotations, inference
 	// immutability, ...) are enforced by validating the child Workspace this
@@ -77,15 +72,15 @@ func (is *InferenceSet) validateCreate() (errs *apis.FieldError) {
 		errs = errs.Also(apis.ErrInvalidValue(*is.Spec.Replicas, "replicas", "must be non-negative"))
 	}
 	errs = errs.Also(validateInferenceSetMaintenanceWindow(is.Spec.AutoUpgrade))
-	errs = errs.Also(ValidateInferenceSetSelectorNotEmpty(is.Spec.Selector))
-	errs = errs.Also(ValidateInferenceSetSelectorMatchesTemplate(is.Spec.Selector, is.Spec.Template.Labels))
+	errs = errs.Also(validateInferenceSetSelectorNotEmpty(is.Spec.Selector))
+	errs = errs.Also(validateInferenceSetSelectorMatchLabels(is.Spec.Selector, is.Spec.Template.Labels))
 	return errs
 }
 
-// ValidateInferenceSetSelectorNotEmpty rejects an unset or empty spec.labelSelector.
+// validateInferenceSetSelectorNotEmpty rejects an unset or empty spec.labelSelector.
 // It is enforced on create only so existing InferenceSets with an empty
 // (immutable) selector remain updatable. Paths are relative to spec.
-func ValidateInferenceSetSelectorNotEmpty(selector *metav1.LabelSelector) *apis.FieldError {
+func validateInferenceSetSelectorNotEmpty(selector *metav1.LabelSelector) *apis.FieldError {
 	if selector == nil {
 		return apis.ErrMissingField("labelSelector")
 	}
@@ -95,30 +90,20 @@ func ValidateInferenceSetSelectorNotEmpty(selector *metav1.LabelSelector) *apis.
 	return nil
 }
 
-// ValidateInferenceSetSelectorMatchesTemplate verifies that the child Workspace
-// labels, which are template.metadata.labels plus spec.labelSelector.matchLabels,
-// satisfy spec.labelSelector. Paths are relative to spec.
-func ValidateInferenceSetSelectorMatchesTemplate(selector *metav1.LabelSelector, templateLabels map[string]string) (errs *apis.FieldError) {
+// validateInferenceSetSelectorMatchLabels rejects template.metadata.labels that
+// conflict with spec.labelSelector.matchLabels, which are copied onto every child
+// Workspace. matchExpressions are not checked: MultiRoleInference may generate
+// selectors whose expressions describe nodes rather than the template labels.
+// Paths are relative to spec.
+func validateInferenceSetSelectorMatchLabels(selector *metav1.LabelSelector, templateLabels map[string]string) (errs *apis.FieldError) {
 	if selector == nil {
 		return nil
 	}
-	sel, err := metav1.LabelSelectorAsSelector(selector)
-	if err != nil {
-		return apis.ErrInvalidValue(err.Error(), "labelSelector")
-	}
-	merged := maps.Clone(templateLabels)
-	if merged == nil {
-		merged = make(map[string]string, len(selector.MatchLabels))
-	}
 	for k, v := range selector.MatchLabels {
-		if tv, ok := merged[k]; ok && tv != v {
+		if tv, ok := templateLabels[k]; ok && tv != v {
 			errs = errs.Also(apis.ErrInvalidValue(tv, fmt.Sprintf("template.metadata.labels[%s]", k),
 				fmt.Sprintf("must equal labelSelector.matchLabels[%s] %q", k, v)))
 		}
-		merged[k] = v
-	}
-	if errs == nil && !sel.Matches(labels.Set(merged)) {
-		errs = apis.ErrGeneric("labelSelector does not match template.metadata.labels", "template.metadata.labels")
 	}
 	return errs
 }

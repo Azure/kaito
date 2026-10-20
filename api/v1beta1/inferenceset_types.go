@@ -142,8 +142,8 @@ type InferenceSetSpec struct {
 	// +optional
 	NodeCountLimit int `json:"nodeCountLimit,omitempty"`
 	// Selector is a label query over the Workspaces managed by this InferenceSet. It must be
-	// non-empty and match template.metadata.labels; its matchLabels are added to each child
-	// Workspace's labels. It does not select GPU nodes; use template.resource.labelSelector.
+	// non-empty on create, and its matchLabels must not conflict with template.metadata.labels;
+	// they are added to each child Workspace's labels. It does not select GPU nodes; use template.resource.labelSelector.
 	// For backward compatibility, it is inherited as the node selector with node
 	// auto-provisioning when template.resource.labelSelector is unset or empty.
 	// +required
