@@ -22,6 +22,8 @@ func TestIsTerminatedReason(t *testing.T) {
 		ReasonNodeImageInvalid,
 		ReasonNodeBootstrapFailed,
 		ReasonNodeConfigurationInvalid,
+		ReasonNodeClassInvalid,
+		ReasonNodePoolInvalid,
 		ReasonContainerOOMKilled,
 		ReasonImagePullError,
 		ReasonContainerStartError,
@@ -52,6 +54,8 @@ func TestIsTerminatedReason(t *testing.T) {
 		"ModelMirrorPending",
 		"inferencesetNotReady",
 		"quotaexceeded",
+		"NodeClassNotReady",
+		"NodePoolValidationFailed",
 	}
 	for _, reason := range notTerminated {
 		if IsTerminatedReason(reason) {

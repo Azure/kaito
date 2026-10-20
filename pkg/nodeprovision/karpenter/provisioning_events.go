@@ -92,7 +92,7 @@ func (c *nodeClaimEventCache) recent(ctx context.Context, cl client.Client, now 
 	events := []nodeClaimEvent{}
 	for i := range list.Items {
 		e := &list.Items[i]
-		if e.Type != corev1.EventTypeWarning || eventTier(e.Reason) == tierNotAFailure {
+		if e.Type != corev1.EventTypeWarning || eventTier(e.Reason, e.Message) == tierNotAFailure {
 			continue
 		}
 		lastSeen := eventLastSeen(e)
@@ -107,21 +107,27 @@ func (c *nodeClaimEventCache) recent(ctx context.Context, cl client.Client, now 
 	return events
 }
 
-// failureEventTier ranks a provisioning failure Event: an asynchronous provisioning error carries the cloud error that
-// the no-offering insufficient capacity errors of later attempts are a consequence of.
+// failureEventTier ranks a provisioning failure Event: an asynchronous provisioning error or an insufficient capacity
+// error that says why, such as an exhausted regional quota, carries the cloud error that the no-offering insufficient
+// capacity errors of later attempts are a consequence of. Those retries fail within seconds once the provider cached
+// the offering as unavailable, so the newest Event alone would hide the cause.
 type failureEventTier int
 
 const (
 	tierNotAFailure failureEventTier = iota
+	tierNoOffering
 	tierInsufficientCapacity
 	tierAsyncProvisioning
 )
 
-func eventTier(reason string) failureEventTier {
+func eventTier(reason, message string) failureEventTier {
 	switch reason {
 	case asyncProvisioningEventReason:
 		return tierAsyncProvisioning
 	case insufficientCapacityEventReason:
+		if isNoOfferingAvailable(reason, message) {
+			return tierNoOffering
+		}
 		return tierInsufficientCapacity
 	default:
 		return tierNotAFailure
@@ -154,7 +160,8 @@ func isNodePoolNodeClaim(nodeClaimName, nodePoolName string) bool {
 }
 
 // nodePoolFailureEvent returns the provisioning failure Event of the NodePool's NodeClaims that occurred after since,
-// preferring an asynchronous provisioning error to an insufficient capacity error, then the latest.
+// preferring an asynchronous provisioning error, then an insufficient capacity error that says why, then a no-offering
+// one, then the latest.
 func nodePoolFailureEvent(events []nodeClaimEvent, nodePoolName string, since time.Time) (nodeClaimEvent, bool) {
 	var best *nodeClaimEvent
 	for i := range events {
@@ -162,8 +169,8 @@ func nodePoolFailureEvent(events []nodeClaimEvent, nodePoolName string, since ti
 		if !e.lastSeen.After(since) || !isNodePoolNodeClaim(e.nodeClaimName, nodePoolName) {
 			continue
 		}
-		if best == nil || eventTier(e.reason) > eventTier(best.reason) ||
-			eventTier(e.reason) == eventTier(best.reason) && e.lastSeen.After(best.lastSeen) {
+		if best == nil || eventTier(e.reason, e.message) > eventTier(best.reason, best.message) ||
+			eventTier(e.reason, e.message) == eventTier(best.reason, best.message) && e.lastSeen.After(best.lastSeen) {
 			best = e
 		}
 	}

@@ -25,8 +25,14 @@ const (
 	ReasonNodeImageInvalid = "NodeImageInvalid"
 	// ReasonNodeBootstrapFailed reports a node that failed its bootstrap script or never registered with the cluster.
 	ReasonNodeBootstrapFailed = "NodeBootstrapFailed"
-	// ReasonNodeConfigurationInvalid reports an invalid NodeClass, NodePool, permission or subnet configuration.
+	// ReasonNodeConfigurationInvalid reports a permission or subnet configuration that prevents creating the node.
 	ReasonNodeConfigurationInvalid = "NodeConfigurationInvalid"
+	// ReasonNodeClassInvalid reports a NodeClass that is missing or Ready=False, which blocks every launch. It is read
+	// on every reconcile, so it is reported only while it lasts.
+	ReasonNodeClassInvalid = "NodeClassInvalid"
+	// ReasonNodePoolInvalid reports a NodePool rejected by Karpenter's validation, which blocks every launch. It is read
+	// on every reconcile, so it is reported only while it lasts.
+	ReasonNodePoolInvalid = "NodePoolInvalid"
 )
 
 // Inference failure reasons on the Workspace InferenceReady condition that need the user to act, such as changing the
@@ -70,6 +76,8 @@ func IsTerminatedReason(reason string) bool {
 		ReasonNodeImageInvalid,
 		ReasonNodeBootstrapFailed,
 		ReasonNodeConfigurationInvalid,
+		ReasonNodeClassInvalid,
+		ReasonNodePoolInvalid,
 		ReasonContainerOOMKilled,
 		ReasonImagePullError,
 		ReasonContainerStartError,

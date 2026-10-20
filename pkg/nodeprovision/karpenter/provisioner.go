@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/awslabs/operatorpkg/status"
@@ -295,9 +296,35 @@ func (p *KarpenterProvisioner) checkNodeClassReady(ctx context.Context, name str
 		if reason == "" {
 			reason = "NotReady"
 		}
+		if status == metav1.ConditionFalse {
+			if dependents := failedDependentConditions(conditions); dependents != "" {
+				message = dependents
+			}
+		}
 		return &NodeClassNotReadyError{Name: name, Status: status, Reason: reason, Message: nodeclaim.FormatProvisioningMessage(message)}
 	}
 	return &NodeClassNotReadyError{Name: name, Status: metav1.ConditionUnknown, Reason: "NotReady", Message: "NodeClass has no Ready condition"}
+}
+
+// failedDependentConditions describes the False conditions a Ready=False NodeClass depends on, as its Ready condition
+// only names them (e.g. "SubnetsReady=False") while the cause is in their own reason and message.
+func failedDependentConditions(conditions []interface{}) string {
+	failed := make([]string, 0, len(conditions))
+	for _, c := range conditions {
+		cond, ok := c.(map[string]interface{})
+		if !ok || cond["type"] == "Ready" || cond["status"] != "False" {
+			continue
+		}
+		text := fmt.Sprintf("%v=False", cond["type"])
+		if reason, _ := cond["reason"].(string); reason != "" {
+			text += fmt.Sprintf(" (%s)", reason)
+		}
+		if message, _ := cond["message"].(string); message != "" {
+			text += ": " + message
+		}
+		failed = append(failed, text)
+	}
+	return strings.Join(failed, "; ")
 }
 
 // waitForNodeClassReady polls until the NodeClass has a Ready=True condition.
@@ -739,17 +766,20 @@ func (p *KarpenterProvisioner) nodeClaimNotReadyCause(ctx context.Context, ws *k
 	reported, hasReported := reportedCause(ws, snap.allNodeClaims, now)
 
 	// 1. An invalid NodePool or a failed NodeClass blocks every launch, and is read directly on every reconcile:
-	// always replaces the reported cause.
+	// always replaces the reported cause. Its reason already names the NodePool or NodeClass, so the message is
+	// reported as is.
 	nodePool := p.getNodePool(ctx, NodePoolName(ws.Namespace, ws.Name))
 	if c := nodePoolCondition(nodePool, karpenterv1.ConditionTypeValidationSucceeded); c != nil && c.Status == metav1.ConditionFalse {
-		reason, message = provisioningCause(c.Reason, c.Message)
-		return reason, message, true
+		message = c.Message
+		if message == "" {
+			message = c.Reason
+		}
+		return consts.ReasonNodePoolInvalid, nodeclaim.FormatProvisioningMessage(message), true
 	}
 	nodeClassNotReady := p.nodeClassNotReady(ctx, ws)
 	if nodeClassNotReady != nil && nodeClassNotReady.Failed() {
 		// Carries the ProvisionNodes reconcile error, so it is not appended twice.
-		reason, message = provisioningCause(NodeClassNotReadyReason, nodeClassNotReady.Error())
-		return reason, message, true
+		return consts.ReasonNodeClassInvalid, nodeclaim.FormatProvisioningMessage(nodeClassNotReady.Error()), true
 	}
 
 	// 2. A failure on a NodeClaim, or in a recent Event other than no offering, is newer evidence: always replaces

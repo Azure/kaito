@@ -289,6 +289,22 @@ func TestProvisioningFailure_RegionalQuotaEvent(t *testing.T) {
 	assert.True(t, strings.HasPrefix(nodeClaimCond.Message, "InsufficientCapacityError: NodeClaim "+testNodeClaimName), nodeClaimCond.Message)
 }
 
+// Once the provider caches the offering as unavailable after a regional quota error, the retries fail within seconds
+// with no-offering errors, whose newer Events must not hide the quota error.
+func TestProvisioningFailure_RegionalQuotaEventFollowedByNoOffering(t *testing.T) {
+	p := newFailureTestProvisioner(newFailureTestClient(nil, baseObjects(
+		failureEvent("quota", testNodeClaimName, corev1.EventTypeWarning, insufficientCapacityEventReason, regionalQuotaMessage, testNow.Add(-time.Minute)),
+		failureEvent("retry1", testPoolName+"-hjklm", corev1.EventTypeWarning, insufficientCapacityEventReason,
+			strings.ReplaceAll(noOfferingMessage, testNodeClaimName, testPoolName+"-hjklm"), testNow.Add(-30*time.Second)),
+		failureEvent("retry2", testPoolName+"-npqrs", corev1.EventTypeWarning, insufficientCapacityEventReason,
+			strings.ReplaceAll(noOfferingMessage, testNodeClaimName, testPoolName+"-npqrs"), testNow),
+	)...))
+
+	nodeClaimCond := nodeClaimCondition(t, p, 1)
+	assert.Equal(t, consts.ReasonQuotaExceeded, nodeClaimCond.Reason)
+	assert.True(t, strings.HasPrefix(nodeClaimCond.Message, "InsufficientCapacityError: NodeClaim "+testNodeClaimName+" event: insufficient capacity, regional"), nodeClaimCond.Message)
+}
+
 // A no-offering error does not replace the specific cause already reported for the current spec.
 func TestProvisioningFailure_NoOfferingKeepsSpecificCause(t *testing.T) {
 	newProvisioner := func() *KarpenterProvisioner {
@@ -366,8 +382,9 @@ func TestProvisioningFailure_ReportedCauseOfFixedOrNoOfferingFailure(t *testing.
 	noOfferingEvent := failureEvent("ice", testNodeClaimName, corev1.EventTypeWarning, insufficientCapacityEventReason, noOfferingMessage, testNow)
 	awaiting := newWorkspaceNodeClaim(testNodeClaimName, awaitingLaunch())
 	const (
-		nodeClassMissing           = `NodeClassNotReady: NodeClass "image-family-ubuntu" is not ready (NotFound): NodeClass does not exist`
-		nodePoolInvalid            = "NodePoolValidationFailed: invalid requirements"
+		nodeClassMissing           = `NodeClass "image-family-ubuntu" is not ready (NotFound): NodeClass does not exist`
+		nodePoolInvalid            = "invalid requirements"
+		authorizationFailed        = "CreateInstanceFailed: AuthorizationFailed: the client does not have authorization"
 		olderNoOfferingUnavailable = insufficientCapacityEventReason + ": NodeClaim " + testPoolName + "-hjklm event: insufficient capacity, all requested instance types were unavailable during launch"
 	)
 	testcases := map[string]struct {
@@ -379,18 +396,23 @@ func TestProvisioningFailure_ReportedCauseOfFixedOrNoOfferingFailure(t *testing.
 	}{
 		"fixed NodeClass, retries fail with a no-offering error": {
 			objs:           []client.Object{noOfferingEvent},
-			reportedReason: consts.ReasonNodeConfigurationInvalid, reportedMessage: nodeClassMissing + " (last reconcile error: boom)",
+			reportedReason: consts.ReasonNodeClassInvalid, reportedMessage: nodeClassMissing + " (last reconcile error: boom)",
 			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: noOfferingCapacityUnavailableMessage,
 		},
 		"fixed NodeClass, retry awaiting launch": {
 			objs:           []client.Object{awaiting},
-			reportedReason: consts.ReasonNodeConfigurationInvalid, reportedMessage: nodeClassMissing,
+			reportedReason: consts.ReasonNodeClassInvalid, reportedMessage: nodeClassMissing,
 			expectedReason: nodeclaim.NodeClaimNotReadyReason,
 		},
 		"fixed NodePool, retries fail with a no-offering error": {
 			objs:           []client.Object{noOfferingEvent},
-			reportedReason: consts.ReasonNodeConfigurationInvalid, reportedMessage: nodePoolInvalid,
+			reportedReason: consts.ReasonNodePoolInvalid, reportedMessage: nodePoolInvalid,
 			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: noOfferingCapacityUnavailableMessage,
+		},
+		"NodeClaim configuration failure is kept over a no-offering error": {
+			objs:           []client.Object{noOfferingEvent},
+			reportedReason: consts.ReasonNodeConfigurationInvalid, reportedMessage: authorizationFailed,
+			expectedReason: consts.ReasonNodeConfigurationInvalid, expectedMessage: authorizationFailed,
 		},
 		"newer no-offering error refreshes the message": {
 			objs:           []client.Object{noOfferingEvent},
@@ -494,8 +516,14 @@ func TestProvisioningFailure_NodePoolConditions(t *testing.T) {
 		"invalid NodePool blocks every launch": {
 			nodePool:        testNodePool(invalid, unhealthy),
 			objs:            []client.Object{newWorkspaceNodeClaim(testNodeClaimName, quotaLaunchFailure())},
-			expectedReason:  consts.ReasonNodeConfigurationInvalid,
-			expectedMessage: "NodePoolValidationFailed: invalid requirement",
+			expectedReason:  consts.ReasonNodePoolInvalid,
+			expectedMessage: "invalid requirement",
+		},
+		"invalid NodePool without a message": {
+			nodePool: testNodePool(status.Condition{Type: karpenterv1.ConditionTypeValidationSucceeded, Status: metav1.ConditionFalse,
+				Reason: "NodePoolValidationFailed"}),
+			expectedReason:  consts.ReasonNodePoolInvalid,
+			expectedMessage: "NodePoolValidationFailed",
 		},
 		"failed registrations while the current node does not register": {
 			nodePool:        testNodePool(unhealthy),
@@ -596,6 +624,16 @@ func makeNodeClass(name, readyStatus, reason, message string) *unstructured.Unst
 	return obj
 }
 
+func makeNodeClassWithDependents(name string, conditions ...map[string]interface{}) *unstructured.Unstructured {
+	obj := makeNodeClassUnstructured(name)
+	conds := make([]interface{}, 0, len(conditions))
+	for _, c := range conditions {
+		conds = append(conds, c)
+	}
+	obj.Object["status"] = map[string]interface{}{"conditions": conds}
+	return obj
+}
+
 func nodeClassWithoutStatus() *unstructured.Unstructured {
 	obj := makeNodeClassUnstructured(testConfig.DefaultName)
 	delete(obj.Object, "status")
@@ -614,14 +652,24 @@ func TestProvisioningFailure_NodeClass(t *testing.T) {
 	}{
 		"missing": {
 			nodeClaim:       failing,
-			expectedReason:  consts.ReasonNodeConfigurationInvalid,
-			expectedMessage: `NodeClassNotReady: NodeClass "image-family-ubuntu" is not ready (NotFound): NodeClass does not exist`,
+			expectedReason:  consts.ReasonNodeClassInvalid,
+			expectedMessage: `NodeClass "image-family-ubuntu" is not ready (NotFound): NodeClass does not exist`,
 		},
 		"Ready=False": {
 			nodeClass:       makeNodeClass(testConfig.DefaultName, "False", "ImagesNotReady", "failed to resolve images"),
 			nodeClaim:       failing,
-			expectedReason:  consts.ReasonNodeConfigurationInvalid,
-			expectedMessage: `NodeClassNotReady: NodeClass "image-family-ubuntu" is not ready (ImagesNotReady): failed to resolve images`,
+			expectedReason:  consts.ReasonNodeClassInvalid,
+			expectedMessage: `NodeClass "image-family-ubuntu" is not ready (ImagesNotReady): failed to resolve images`,
+		},
+		"Ready=False reports the failed dependent conditions": {
+			nodeClass: makeNodeClassWithDependents(testConfig.DefaultName,
+				map[string]interface{}{"type": "Ready", "status": "False", "reason": "UnhealthyDependents", "message": "SubnetsReady=False"},
+				map[string]interface{}{"type": "ImagesReady", "status": "True", "reason": "ImagesReady"},
+				map[string]interface{}{"type": "SubnetsReady", "status": "False", "reason": "SubnetIDInvalid", "message": "vnetSubnetID does not match the cluster virtual network"},
+			),
+			nodeClaim:       failing,
+			expectedReason:  consts.ReasonNodeClassInvalid,
+			expectedMessage: `NodeClass "image-family-ubuntu" is not ready (UnhealthyDependents): SubnetsReady=False (SubnetIDInvalid): vnetSubnetID does not match the cluster virtual network`,
 		},
 		"Ready=Unknown is progress": {
 			nodeClass:       notReconciled,
@@ -719,8 +767,6 @@ func TestClassifyProvisioningFailure(t *testing.T) {
 		"other invalid parameter":                {reason: "CreateInstanceFailed", message: "ERROR CODE: InvalidParameter\nThe value of parameter osDisk is invalid.", expected: ""},
 		"CSE failure":                            {reason: asyncProvisioningEventReason, message: "Failed to register: creating VM CSE for VM \"v\": ERROR CODE: VMExtensionProvisioningError", expected: consts.ReasonNodeBootstrapFailed},
 		"registration timeouts":                  {reason: registrationFailedReason, message: "Failed to register node", expected: consts.ReasonNodeBootstrapFailed},
-		"NodeClass not ready":                    {reason: NodeClassNotReadyReason, message: "NodeClass is not ready", expected: consts.ReasonNodeConfigurationInvalid},
-		"NodePool validation":                    {reason: nodePoolValidationFailedReason, message: "invalid", expected: consts.ReasonNodeConfigurationInvalid},
 		"authorization":                          {reason: "CreateInstanceFailed", message: "ERROR CODE: LinkedAuthorizationFailed", expected: consts.ReasonNodeConfigurationInvalid},
 		"subnet full":                            {reason: "CreateInstanceFailed", message: "ERROR CODE: SubnetIsFull", expected: consts.ReasonNodeConfigurationInvalid},
 		"no offering":                            {reason: insufficientCapacityEventReason, message: noOfferingMessage, expected: consts.ReasonCapacityUnavailable},
@@ -770,6 +816,14 @@ func TestNodePoolFailureEvent(t *testing.T) {
 	best, ok = nodePoolFailureEvent([]nodeClaimEvent{ice(testNow.Add(-time.Minute), "older"), ice(testNow, "newer")}, testPoolName, since)
 	require.True(t, ok)
 	assert.Equal(t, "newer", best.message, "the latest Event of a tier is reported")
+
+	best, ok = nodePoolFailureEvent([]nodeClaimEvent{ice(testNow.Add(-time.Minute), regionalQuotaMessage), ice(testNow, noOfferingMessage)}, testPoolName, since)
+	require.True(t, ok)
+	assert.Equal(t, regionalQuotaMessage, best.message, "an insufficient capacity error that says why outranks newer no-offering ones")
+
+	best, ok = nodePoolFailureEvent([]nodeClaimEvent{ice(testNow.Add(-time.Minute), regionalQuotaMessage), ice(testNow, noOfferingMessage), async}, testPoolName, since)
+	require.True(t, ok)
+	assert.Equal(t, "async", best.message, "an asynchronous provisioning error outranks every insufficient capacity error")
 
 	_, ok = nodePoolFailureEvent([]nodeClaimEvent{ice(since, "at since")}, testPoolName, since)
 	assert.False(t, ok)

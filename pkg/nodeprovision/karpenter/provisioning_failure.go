@@ -29,10 +29,6 @@ import (
 )
 
 const (
-	// NodeClassNotReadyReason reports a missing or Ready=False NodeClass, which blocks every launch.
-	NodeClassNotReadyReason = "NodeClassNotReady"
-	// nodePoolValidationFailedReason is the NodePool ValidationSucceeded=False reason written by Karpenter.
-	nodePoolValidationFailedReason = "NodePoolValidationFailed"
 	// registrationFailedReason is the NodePool NodeRegistrationHealthy=False reason written by Karpenter when launched
 	// nodes repeatedly fail to register.
 	registrationFailedReason = "RegistrationFailed"
@@ -52,12 +48,12 @@ var (
 	// offering, which do not say why. KAITO NodePools allow a single instance type and capacity type, so its only
 	// offering is either cached as unavailable after an earlier quota, allocation or SKU failure, whose NodeClaim is
 	// deleted, or not offered at all.
-	noOfferingMessages    = []string{"all requested instance types were unavailable", "no instance types available"}
-	nodeImageInvalidCodes = sets.New("ImageNotFound", "GalleryImageNotFound")
-	// nodePoolOrNodeClassReasons report an invalid NodePool or a failed NodeClass, read from their status.
-	nodePoolOrNodeClassReasons    = sets.New(NodeClassNotReadyReason, nodePoolValidationFailedReason)
+	noOfferingMessages            = []string{"all requested instance types were unavailable", "no instance types available"}
+	nodeImageInvalidCodes         = sets.New("ImageNotFound", "GalleryImageNotFound")
 	nodeConfigurationInvalidCodes = sets.New("AuthorizationFailed", "LinkedAuthorizationFailed", "SubnetIsFull",
 		"InsufficientSubnetSize")
+	// nodePoolOrNodeClassReasons report an invalid NodePool or a failed NodeClass, read directly on every reconcile.
+	nodePoolOrNodeClassReasons = sets.New(consts.ReasonNodeClassInvalid, consts.ReasonNodePoolInvalid)
 )
 
 func containsAny(s string, substrings ...string) bool {
@@ -88,7 +84,7 @@ func classifyProvisioningFailure(reason, message string) string {
 		return consts.ReasonNodeImageInvalid
 	case reason == registrationFailedReason || codes.Has("VMExtensionProvisioningError"):
 		return consts.ReasonNodeBootstrapFailed
-	case nodePoolOrNodeClassReasons.Has(reason) || codes.HasAny(nodeConfigurationInvalidCodes.UnsortedList()...):
+	case codes.HasAny(nodeConfigurationInvalidCodes.UnsortedList()...):
 		return consts.ReasonNodeConfigurationInvalid
 	}
 	return ""
@@ -130,12 +126,12 @@ func reportedCause(ws *kaitov1beta1.Workspace, nodeClaims []*karpenterv1.NodeCla
 	if !consts.IsTerminatedReason(c.Reason) {
 		return reportedNotReadyCause{}, false
 	}
-	message, _, _ := strings.Cut(c.Message, nodeprovision.ReconcileErrorMessagePrefix)
-	originalReason, originalMessage := nodeclaim.ParseClassifiedProvisioningMessage(message)
 	// The NodePool and NodeClass are read directly on every reconcile, so a failure of theirs is never kept once fixed.
-	if nodePoolOrNodeClassReasons.Has(originalReason) {
+	if nodePoolOrNodeClassReasons.Has(c.Reason) {
 		return reportedNotReadyCause{}, false
 	}
+	message, _, _ := strings.Cut(c.Message, nodeprovision.ReconcileErrorMessagePrefix)
+	originalReason, originalMessage := nodeclaim.ParseClassifiedProvisioningMessage(message)
 	// The failure of the earlier attempts no longer applies once a new attempt launched.
 	if hasUnregisteredLaunch(nodeClaims, now, 0) {
 		return reportedNotReadyCause{}, false
