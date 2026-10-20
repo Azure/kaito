@@ -32,6 +32,8 @@ from detect_secrets.plugins.private_key import PrivateKeyDetector
 from detect_secrets.transformers import get_transformed_file
 from detect_secrets.util.code_snippet import CodeSnippet, get_code_snippet
 
+from guardrail_core.secrets.providers import BUILTIN_SECRET_TYPES_OVERRIDDEN_BY_KAITO
+
 _VIRTUAL_MODEL_OUTPUT_FILENAME = "model-output.txt"
 _BUILT_IN_PLUGIN_TYPES = tuple(get_mapping_from_secret_type_to_class().values())
 
@@ -103,7 +105,8 @@ def _detect_line_secrets(
             secret_values.update(
                 secret_value
                 for finding in findings
-                if (secret_value := _normalize_secret(finding.secret_value))
+                if finding.type not in BUILTIN_SECRET_TYPES_OVERRIDDEN_BY_KAITO
+                and (secret_value := _normalize_secret(finding.secret_value))
                 and not _is_secret_filtered(secret_value, line, plugin)
             )
 
