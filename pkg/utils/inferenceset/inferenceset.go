@@ -60,23 +60,6 @@ func UpdateStatusConditionIfNotMatch(ctx context.Context, c client.Client, iObj 
 	})
 }
 
-// IsInferenceSetTerminated reports whether the InferenceSet cannot become ready without the user acting, such as
-// raising a quota or fixing the model image: its InferenceSetReady condition reports a replica failing with one of
-// kaitov1beta1.TerminalReasons. It returns that reason and the condition message, which lists the failing replicas.
-// The state is derived from the latest status, so it clears once the failure is gone; a condition not yet computed
-// for the current spec is ignored, as the spec change may have fixed the failure.
-func IsInferenceSetTerminated(iObj *kaitov1beta1.InferenceSet) (terminated bool, reason, message string) {
-	if iObj == nil {
-		return false, "", ""
-	}
-	cond := meta.FindStatusCondition(iObj.Status.Conditions, string(kaitov1beta1.InferenceSetConditionTypeReady))
-	if cond == nil || cond.Status != metav1.ConditionFalse || cond.ObservedGeneration != iObj.GetGeneration() ||
-		!kaitov1beta1.TerminalReasons.Has(cond.Reason) {
-		return false, "", ""
-	}
-	return true, cond.Reason, cond.Message
-}
-
 // UpdateInferenceSetStatus updates the inferenceset status with the provided condition
 func UpdateInferenceSetStatus(ctx context.Context, c client.Client, name *client.ObjectKey, modifyFn func(*kaitov1beta1.InferenceSetStatus) error) error {
 	return retry.OnError(retry.DefaultRetry,

@@ -17,6 +17,8 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	kaitoconsts "github.com/kaito-project/kaito/pkg/utils/consts"
 )
 
 const (
@@ -38,7 +40,7 @@ const (
 	ReasonPVCCreateFailed   = "PVCCreateFailed"
 	ReasonJobCreateFailed   = "JobCreateFailed"
 	ReasonDownloadFailed    = "DownloadFailed"
-	ReasonDownloadOOMKilled = "DownloadOOMKilled"
+	ReasonDownloadOOMKilled = kaitoconsts.ReasonDownloadOOMKilled
 	ReasonDownloadEvicted   = "DownloadEvicted"
 	ReasonDownloadSucceeded = "DownloadSucceeded"
 	ReasonStaticMirror      = "StaticMirror"

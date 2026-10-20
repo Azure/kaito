@@ -1221,11 +1221,11 @@ func TestCollectNodeStatusInfo_SurfacesProvisioningError(t *testing.T) {
 
 	ncCond := byType[string(kaitov1beta1.ConditionTypeNodeClaimStatus)]
 	assert.Equal(t, metav1.ConditionFalse, ncCond.Status)
-	assert.Equal(t, kaitov1beta1.ReasonQuotaExceeded, ncCond.Reason)
+	assert.Equal(t, consts.ReasonQuotaExceeded, ncCond.Reason)
 	assert.Equal(t, "CreateInstanceFailed: creating instance failed, subscription level on-demand vCPU quota for Standard_NC24ads_A100_v4 has been reached", ncCond.Message)
 
 	// The resource condition mirrors the NodeClaim failure cause.
 	resCond := byType[string(kaitov1beta1.ConditionTypeResourceStatus)]
-	assert.Equal(t, kaitov1beta1.ReasonQuotaExceeded, resCond.Reason)
+	assert.Equal(t, consts.ReasonQuotaExceeded, resCond.Reason)
 	assert.Equal(t, "CreateInstanceFailed: creating instance failed, subscription level on-demand vCPU quota for Standard_NC24ads_A100_v4 has been reached", resCond.Message)
 }

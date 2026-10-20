@@ -22,6 +22,7 @@ import (
 
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
 	"github.com/kaito-project/kaito/pkg/nodeprovision"
+	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/kaito-project/kaito/pkg/utils/nodeclaim"
 )
 
@@ -76,17 +77,17 @@ func classifyProvisioningFailure(reason, message string) string {
 	case reason == subscriptionQuotaReachedReason || codes.Has("QuotaExceeded") ||
 		containsAny(lower, "vcpu quota", "lowpriorityquota") ||
 		codes.Has("OperationNotAllowed") && strings.Contains(lower, "quota"):
-		return kaitov1beta1.ReasonQuotaExceeded
+		return consts.ReasonQuotaExceeded
 	case capacityUnavailableReasons.Has(reason) || codes.HasAny(capacityUnavailableCodes.UnsortedList()...) ||
 		containsAny(lower, capacityUnavailableMessages...) || isGenericInsufficientCapacity(reason, message):
-		return kaitov1beta1.ReasonCapacityUnavailable
+		return consts.ReasonCapacityUnavailable
 	case codes.HasAny(nodeImageInvalidCodes.UnsortedList()...) ||
 		codes.Has("InvalidParameter") && strings.Contains(lower, "imagereference"):
-		return kaitov1beta1.ReasonNodeImageInvalid
+		return consts.ReasonNodeImageInvalid
 	case reason == registrationFailedReason || codes.Has("VMExtensionProvisioningError"):
-		return kaitov1beta1.ReasonNodeBootstrapFailed
+		return consts.ReasonNodeBootstrapFailed
 	case nodeConfigurationInvalidReasons.Has(reason) || codes.HasAny(nodeConfigurationInvalidCodes.UnsortedList()...):
-		return kaitov1beta1.ReasonNodeConfigurationInvalid
+		return consts.ReasonNodeConfigurationInvalid
 	}
 	return ""
 }

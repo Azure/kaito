@@ -232,7 +232,7 @@ func TestProvisioningFailure_NodeClaimFailureIsClassified(t *testing.T) {
 
 	nodeClaimCond, resourceCond := nodeClaimConditions(t, p, testWorkspace(1))
 	assert.Equal(t, metav1.ConditionFalse, nodeClaimCond.Status)
-	assert.Equal(t, kaitov1beta1.ReasonQuotaExceeded, nodeClaimCond.Reason)
+	assert.Equal(t, consts.ReasonQuotaExceeded, nodeClaimCond.Reason)
 	assert.Equal(t, "CreateInstanceFailed: "+quotaLaunchMessage, nodeClaimCond.Message)
 	assert.Equal(t, nodeClaimCond.Reason, resourceCond.Reason)
 	assert.Equal(t, nodeClaimCond.Message, resourceCond.Message)
@@ -256,7 +256,7 @@ func TestProvisioningFailure_DeletingNodeClaimFailure(t *testing.T) {
 	deleting := deletingNodeClaim(newWorkspaceNodeClaim(testPoolName+"-hjklm", quotaLaunchFailure()))
 	replacement := newWorkspaceNodeClaim(testNodeClaimName, awaitingLaunch())
 	p := newFailureTestProvisioner(newFailureTestClient(nil, baseObjects(deleting, replacement)...))
-	assert.Equal(t, kaitov1beta1.ReasonQuotaExceeded, nodeClaimCondition(t, p, 1).Reason)
+	assert.Equal(t, consts.ReasonQuotaExceeded, nodeClaimCondition(t, p, 1).Reason)
 
 	live := newWorkspaceNodeClaim(testNodeClaimName, status.Condition{Type: karpenterv1.ConditionTypeLaunched,
 		Status: metav1.ConditionUnknown, Reason: "LaunchFailed", Message: "creating instance failed, TooManyRequests"})
@@ -274,7 +274,7 @@ func TestProvisioningFailure_AsynchronousProvisioningError(t *testing.T) {
 	)...))
 
 	nodeClaimCond := nodeClaimCondition(t, p, 1)
-	assert.Equal(t, kaitov1beta1.ReasonCapacityUnavailable, nodeClaimCond.Reason)
+	assert.Equal(t, consts.ReasonCapacityUnavailable, nodeClaimCond.Reason)
 	assert.True(t, strings.HasPrefix(nodeClaimCond.Message, "AsyncProvisioningError: AllocationFailed: Allocation failed."), nodeClaimCond.Message)
 }
 
@@ -285,7 +285,7 @@ func TestProvisioningFailure_RegionalQuotaEvent(t *testing.T) {
 	)...))
 
 	nodeClaimCond := nodeClaimCondition(t, p, 1)
-	assert.Equal(t, kaitov1beta1.ReasonQuotaExceeded, nodeClaimCond.Reason)
+	assert.Equal(t, consts.ReasonQuotaExceeded, nodeClaimCond.Reason)
 	assert.True(t, strings.HasPrefix(nodeClaimCond.Message, "InsufficientCapacityError: NodeClaim "+testNodeClaimName), nodeClaimCond.Message)
 }
 
@@ -305,24 +305,24 @@ func TestProvisioningFailure_GenericInsufficientCapacityKeepsSpecificCause(t *te
 
 	t.Run("no previous cause", func(t *testing.T) {
 		nodeClaimCond, _ := nodeClaimConditions(t, newProvisioner(), testWorkspace(1))
-		assert.Equal(t, kaitov1beta1.ReasonCapacityUnavailable, nodeClaimCond.Reason)
+		assert.Equal(t, consts.ReasonCapacityUnavailable, nodeClaimCond.Reason)
 		assert.Equal(t, genericCapacityUnavailableMessage, nodeClaimCond.Message)
 	})
 	t.Run("previous specific cause is kept", func(t *testing.T) {
-		ws := withNodeClaimCondition(kaitov1beta1.ReasonQuotaExceeded, "CreateInstanceFailed: quota (last reconcile error: boom)", 1)
+		ws := withNodeClaimCondition(consts.ReasonQuotaExceeded, "CreateInstanceFailed: quota (last reconcile error: boom)", 1)
 		nodeClaimCond, _ := nodeClaimConditions(t, newProvisioner(), ws)
-		assert.Equal(t, kaitov1beta1.ReasonQuotaExceeded, nodeClaimCond.Reason)
+		assert.Equal(t, consts.ReasonQuotaExceeded, nodeClaimCond.Reason)
 		assert.Equal(t, "CreateInstanceFailed: quota", nodeClaimCond.Message)
 	})
 	t.Run("previous cause of an older spec", func(t *testing.T) {
-		ws := withNodeClaimCondition(kaitov1beta1.ReasonQuotaExceeded, "CreateInstanceFailed: quota", 0)
+		ws := withNodeClaimCondition(consts.ReasonQuotaExceeded, "CreateInstanceFailed: quota", 0)
 		nodeClaimCond, _ := nodeClaimConditions(t, newProvisioner(), ws)
-		assert.Equal(t, kaitov1beta1.ReasonCapacityUnavailable, nodeClaimCond.Reason)
+		assert.Equal(t, consts.ReasonCapacityUnavailable, nodeClaimCond.Reason)
 	})
 	t.Run("previous progress", func(t *testing.T) {
 		ws := withNodeClaimCondition(nodeclaim.NodeClaimNotReadyReason, "provisioning", 1)
 		nodeClaimCond, _ := nodeClaimConditions(t, newProvisioner(), ws)
-		assert.Equal(t, kaitov1beta1.ReasonCapacityUnavailable, nodeClaimCond.Reason)
+		assert.Equal(t, consts.ReasonCapacityUnavailable, nodeClaimCond.Reason)
 	})
 }
 
@@ -338,9 +338,9 @@ func TestProvisioningFailure_SpecificCauseOutlivesItsNodeClaim(t *testing.T) {
 		expectedReason   string
 		expectedProgress bool
 	}{
-		"retry not launched yet":                  {objs: []client.Object{awaiting}, targetNodeCount: 1, previousGen: 1, expectedReason: kaitov1beta1.ReasonQuotaExceeded},
-		"no NodeClaim":                            {targetNodeCount: 1, previousGen: 1, expectedReason: kaitov1beta1.ReasonQuotaExceeded},
-		"another replica is ready":                {objs: []client.Object{ready, awaiting}, targetNodeCount: 2, previousGen: 1, expectedReason: kaitov1beta1.ReasonQuotaExceeded},
+		"retry not launched yet":                  {objs: []client.Object{awaiting}, targetNodeCount: 1, previousGen: 1, expectedReason: consts.ReasonQuotaExceeded},
+		"no NodeClaim":                            {targetNodeCount: 1, previousGen: 1, expectedReason: consts.ReasonQuotaExceeded},
+		"another replica is ready":                {objs: []client.Object{ready, awaiting}, targetNodeCount: 2, previousGen: 1, expectedReason: consts.ReasonQuotaExceeded},
 		"a new attempt launched":                  {objs: []client.Object{booting}, targetNodeCount: 1, previousGen: 1, expectedReason: nodeclaim.NodeClaimNotReadyReason, expectedProgress: true},
 		"the cause was reported for another spec": {objs: []client.Object{awaiting}, targetNodeCount: 1, previousGen: 0, expectedReason: nodeclaim.NodeClaimNotReadyReason, expectedProgress: true},
 	}
@@ -349,7 +349,7 @@ func TestProvisioningFailure_SpecificCauseOutlivesItsNodeClaim(t *testing.T) {
 			p := newFailureTestProvisioner(newFailureTestClient(nil, baseObjects(tc.objs...)...))
 			ws := testWorkspace(tc.targetNodeCount)
 			ws.Status.Conditions = []metav1.Condition{{Type: string(kaitov1beta1.ConditionTypeNodeClaimStatus), Status: metav1.ConditionFalse,
-				Reason: kaitov1beta1.ReasonQuotaExceeded, Message: "CreateInstanceFailed: quota", ObservedGeneration: tc.previousGen}}
+				Reason: consts.ReasonQuotaExceeded, Message: "CreateInstanceFailed: quota", ObservedGeneration: tc.previousGen}}
 
 			nodeClaimCond, _ := nodeClaimConditions(t, p, ws)
 			assert.Equal(t, tc.expectedReason, nodeClaimCond.Reason)
@@ -379,28 +379,28 @@ func TestProvisioningFailure_PreviousCauseOfFixedOrGenericFailure(t *testing.T) 
 	}{
 		"fixed NodeClass, retries fail with a generic error": {
 			objs:           []client.Object{genericEvent},
-			previousReason: kaitov1beta1.ReasonNodeConfigurationInvalid, previousMessage: nodeClassMissing + " (last reconcile error: boom)",
-			expectedReason: kaitov1beta1.ReasonCapacityUnavailable, expectedMessage: genericCapacityUnavailableMessage,
+			previousReason: consts.ReasonNodeConfigurationInvalid, previousMessage: nodeClassMissing + " (last reconcile error: boom)",
+			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: genericCapacityUnavailableMessage,
 		},
 		"fixed NodeClass, retry awaiting launch": {
 			objs:           []client.Object{awaiting},
-			previousReason: kaitov1beta1.ReasonNodeConfigurationInvalid, previousMessage: nodeClassMissing,
+			previousReason: consts.ReasonNodeConfigurationInvalid, previousMessage: nodeClassMissing,
 			expectedReason: nodeclaim.NodeClaimNotReadyReason,
 		},
 		"fixed NodePool, retries fail with a generic error": {
 			objs:           []client.Object{genericEvent},
-			previousReason: kaitov1beta1.ReasonNodeConfigurationInvalid, previousMessage: nodePoolInvalid,
-			expectedReason: kaitov1beta1.ReasonCapacityUnavailable, expectedMessage: genericCapacityUnavailableMessage,
+			previousReason: consts.ReasonNodeConfigurationInvalid, previousMessage: nodePoolInvalid,
+			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: genericCapacityUnavailableMessage,
 		},
 		"newer generic error refreshes the message": {
 			objs:           []client.Object{genericEvent},
-			previousReason: kaitov1beta1.ReasonCapacityUnavailable, previousMessage: olderGenericUnavailable,
-			expectedReason: kaitov1beta1.ReasonCapacityUnavailable, expectedMessage: genericCapacityUnavailableMessage,
+			previousReason: consts.ReasonCapacityUnavailable, previousMessage: olderGenericUnavailable,
+			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: genericCapacityUnavailableMessage,
 		},
 		"generic error is kept over progress": {
 			objs:           []client.Object{awaiting},
-			previousReason: kaitov1beta1.ReasonCapacityUnavailable, previousMessage: olderGenericUnavailable,
-			expectedReason: kaitov1beta1.ReasonCapacityUnavailable, expectedMessage: olderGenericUnavailable,
+			previousReason: consts.ReasonCapacityUnavailable, previousMessage: olderGenericUnavailable,
+			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: olderGenericUnavailable,
 		},
 	}
 	for name, tc := range testcases {
@@ -484,19 +484,19 @@ func TestProvisioningFailure_NodePoolConditions(t *testing.T) {
 		"invalid NodePool blocks every launch": {
 			nodePool:        testNodePool(invalid, unhealthy),
 			objs:            []client.Object{newWorkspaceNodeClaim(testNodeClaimName, quotaLaunchFailure())},
-			expectedReason:  kaitov1beta1.ReasonNodeConfigurationInvalid,
+			expectedReason:  consts.ReasonNodeConfigurationInvalid,
 			expectedMessage: "NodePoolValidationFailed: invalid requirement",
 		},
 		"failed registrations while the current node does not register": {
 			nodePool:        testNodePool(unhealthy),
 			objs:            []client.Object{stuck},
-			expectedReason:  kaitov1beta1.ReasonNodeBootstrapFailed,
+			expectedReason:  consts.ReasonNodeBootstrapFailed,
 			expectedMessage: "RegistrationFailed: Failed to register node",
 		},
 		"failed launches while the current node does not register": {
 			nodePool:        testNodePool(quotaUnhealthy),
 			objs:            []client.Object{stuck},
-			expectedReason:  kaitov1beta1.ReasonQuotaExceeded,
+			expectedReason:  consts.ReasonQuotaExceeded,
 			expectedMessage: "CreateInstanceFailed: " + quotaLaunchMessage,
 		},
 		"stale failed registrations while the current node boots": {
@@ -515,7 +515,7 @@ func TestProvisioningFailure_NodePoolConditions(t *testing.T) {
 			nodePool: testNodePool(unhealthy),
 			objs: []client.Object{stuck, failureEvent("ice", testPoolName+"-hjklm", corev1.EventTypeWarning,
 				insufficientCapacityEventReason, genericInsufficientCapacityMessage, testNow)},
-			expectedReason:  kaitov1beta1.ReasonCapacityUnavailable,
+			expectedReason:  consts.ReasonCapacityUnavailable,
 			expectedMessage: genericCapacityUnavailableMessage,
 		},
 	}
@@ -541,23 +541,23 @@ func TestProvisioningFailure_EventListInterval(t *testing.T) {
 	now := testNow
 	p.now = func() time.Time { return now }
 
-	assert.Equal(t, kaitov1beta1.ReasonCapacityUnavailable, nodeClaimCondition(t, p, 1).Reason)
+	assert.Equal(t, consts.ReasonCapacityUnavailable, nodeClaimCondition(t, p, 1).Reason)
 	assert.Equal(t, 1, counter.calls)
 	assert.Equal(t, []string{"involvedObject.kind=NodeClaim,type=Warning"}, counter.selectors)
 
 	now = testNow.Add(time.Minute)
 	require.NoError(t, c.Create(context.Background(), failureEvent("second", testNodeClaimName, corev1.EventTypeWarning,
 		asyncProvisioningEventReason, "Failed to register: ERROR CODE: ImageNotFound", now)))
-	assert.Equal(t, kaitov1beta1.ReasonCapacityUnavailable, nodeClaimCondition(t, p, 1).Reason)
+	assert.Equal(t, consts.ReasonCapacityUnavailable, nodeClaimCondition(t, p, 1).Reason)
 	assert.Equal(t, 1, counter.calls, "Events are not listed again within the interval")
 
 	now = testNow.Add(nodeClaimEventListInterval)
-	assert.Equal(t, kaitov1beta1.ReasonNodeImageInvalid, nodeClaimCondition(t, p, 1).Reason)
+	assert.Equal(t, consts.ReasonNodeImageInvalid, nodeClaimCondition(t, p, 1).Reason)
 	assert.Equal(t, 2, counter.calls)
 
 	counter.err = errors.New("connection refused")
 	now = testNow.Add(2 * nodeClaimEventListInterval)
-	assert.Equal(t, kaitov1beta1.ReasonNodeImageInvalid, nodeClaimCondition(t, p, 1).Reason, "a failed list keeps the previous Events")
+	assert.Equal(t, consts.ReasonNodeImageInvalid, nodeClaimCondition(t, p, 1).Reason, "a failed list keeps the previous Events")
 	assert.Equal(t, 3, counter.calls)
 	now = now.Add(time.Minute)
 	nodeClaimCondition(t, p, 1)
@@ -600,12 +600,12 @@ func TestProvisioningFailure_NodeClass(t *testing.T) {
 		expectedMessage string
 	}{
 		"missing": {
-			expectedReason:  kaitov1beta1.ReasonNodeConfigurationInvalid,
+			expectedReason:  consts.ReasonNodeConfigurationInvalid,
 			expectedMessage: `NodeClassNotReady: NodeClass "image-family-ubuntu" is not ready (NotFound): NodeClass does not exist`,
 		},
 		"Ready=False": {
 			nodeClass:       makeNodeClass(testConfig.DefaultName, "False", "ImagesNotReady", "failed to resolve images"),
-			expectedReason:  kaitov1beta1.ReasonNodeConfigurationInvalid,
+			expectedReason:  consts.ReasonNodeConfigurationInvalid,
 			expectedMessage: `NodeClassNotReady: NodeClass "image-family-ubuntu" is not ready (ImagesNotReady): failed to resolve images`,
 		},
 		"Ready=Unknown is progress": {
@@ -679,30 +679,30 @@ func TestClassifyProvisioningFailure(t *testing.T) {
 		message  string
 		expected string
 	}{
-		"Azure SubscriptionQuotaReached":         {reason: "SubscriptionQuotaReached", message: "subscription level on-demand vCPU quota for X has been reached", expected: kaitov1beta1.ReasonQuotaExceeded},
-		"older Azure SKU family quota":           {reason: "CreateInstanceFailed", message: quotaLaunchMessage, expected: kaitov1beta1.ReasonQuotaExceeded},
-		"spot quota":                             {reason: "CreateInstanceFailed", message: "this subscription has reached the regional vCPU quota for spot (LowPriorityQuota)", expected: kaitov1beta1.ReasonQuotaExceeded},
-		"regional quota Event":                   {reason: insufficientCapacityEventReason, message: regionalQuotaMessage, expected: kaitov1beta1.ReasonQuotaExceeded},
-		"quota error code":                       {reason: "CreateInstanceFailed", message: "ERROR CODE: OperationNotAllowed\nOperation could not be completed as it results in exceeding approved Total Regional Cores quota", expected: kaitov1beta1.ReasonQuotaExceeded},
-		"Azure AllocationFailure":                {reason: "AllocationFailure", message: "unable to allocate resources with selected VM size (X)", expected: kaitov1beta1.ReasonCapacityUnavailable},
-		"Azure SKUNotAvailable":                  {reason: "SKUNotAvailable", message: "VM size X is not supported for this subscription in this location", expected: kaitov1beta1.ReasonCapacityUnavailable},
-		"older Azure zonal allocation":           {reason: "CreateInstanceFailed", message: "unable to allocate resources in the selected zone (1). (will try a different zone to fulfill your request)", expected: kaitov1beta1.ReasonCapacityUnavailable},
-		"older Azure SKU not available":          {reason: "CreateInstanceFailed", message: "the requested SKU is unavailable for instance type X in zone 1 with capacity type spot", expected: kaitov1beta1.ReasonCapacityUnavailable},
-		"asynchronous allocation failure":        {reason: asyncProvisioningEventReason, message: azureAllocationFailedError, expected: kaitov1beta1.ReasonCapacityUnavailable},
-		"AKS machine overconstrained allocation": {reason: asyncProvisioningEventReason, message: "Failed to register: failed to create AKS machine \"m\" during LRO, unhandled provisioning error: code=OverconstrainedAllocationRequest, message=no capacity", expected: kaitov1beta1.ReasonCapacityUnavailable},
-		"VM size not supported":                  {reason: "CreateInstanceFailed", message: "ERROR CODE: VMSizeNotSupported", expected: kaitov1beta1.ReasonCapacityUnavailable},
-		"image not found":                        {reason: "CreateInstanceFailed", message: "ERROR CODE: ImageNotFound\nThe platform image 'x' is not available", expected: kaitov1beta1.ReasonNodeImageInvalid},
-		"gallery image not found":                {reason: "CreateInstanceFailed", message: `{"code": "GalleryImageNotFound", "message": "not found"}`, expected: kaitov1beta1.ReasonNodeImageInvalid},
-		"invalid image reference":                {reason: "CreateInstanceFailed", message: "ERROR CODE: InvalidParameter\nThe value of parameter imageReference is invalid.", expected: kaitov1beta1.ReasonNodeImageInvalid},
+		"Azure SubscriptionQuotaReached":         {reason: "SubscriptionQuotaReached", message: "subscription level on-demand vCPU quota for X has been reached", expected: consts.ReasonQuotaExceeded},
+		"older Azure SKU family quota":           {reason: "CreateInstanceFailed", message: quotaLaunchMessage, expected: consts.ReasonQuotaExceeded},
+		"spot quota":                             {reason: "CreateInstanceFailed", message: "this subscription has reached the regional vCPU quota for spot (LowPriorityQuota)", expected: consts.ReasonQuotaExceeded},
+		"regional quota Event":                   {reason: insufficientCapacityEventReason, message: regionalQuotaMessage, expected: consts.ReasonQuotaExceeded},
+		"quota error code":                       {reason: "CreateInstanceFailed", message: "ERROR CODE: OperationNotAllowed\nOperation could not be completed as it results in exceeding approved Total Regional Cores quota", expected: consts.ReasonQuotaExceeded},
+		"Azure AllocationFailure":                {reason: "AllocationFailure", message: "unable to allocate resources with selected VM size (X)", expected: consts.ReasonCapacityUnavailable},
+		"Azure SKUNotAvailable":                  {reason: "SKUNotAvailable", message: "VM size X is not supported for this subscription in this location", expected: consts.ReasonCapacityUnavailable},
+		"older Azure zonal allocation":           {reason: "CreateInstanceFailed", message: "unable to allocate resources in the selected zone (1). (will try a different zone to fulfill your request)", expected: consts.ReasonCapacityUnavailable},
+		"older Azure SKU not available":          {reason: "CreateInstanceFailed", message: "the requested SKU is unavailable for instance type X in zone 1 with capacity type spot", expected: consts.ReasonCapacityUnavailable},
+		"asynchronous allocation failure":        {reason: asyncProvisioningEventReason, message: azureAllocationFailedError, expected: consts.ReasonCapacityUnavailable},
+		"AKS machine overconstrained allocation": {reason: asyncProvisioningEventReason, message: "Failed to register: failed to create AKS machine \"m\" during LRO, unhandled provisioning error: code=OverconstrainedAllocationRequest, message=no capacity", expected: consts.ReasonCapacityUnavailable},
+		"VM size not supported":                  {reason: "CreateInstanceFailed", message: "ERROR CODE: VMSizeNotSupported", expected: consts.ReasonCapacityUnavailable},
+		"image not found":                        {reason: "CreateInstanceFailed", message: "ERROR CODE: ImageNotFound\nThe platform image 'x' is not available", expected: consts.ReasonNodeImageInvalid},
+		"gallery image not found":                {reason: "CreateInstanceFailed", message: `{"code": "GalleryImageNotFound", "message": "not found"}`, expected: consts.ReasonNodeImageInvalid},
+		"invalid image reference":                {reason: "CreateInstanceFailed", message: "ERROR CODE: InvalidParameter\nThe value of parameter imageReference is invalid.", expected: consts.ReasonNodeImageInvalid},
 		"other invalid parameter":                {reason: "CreateInstanceFailed", message: "ERROR CODE: InvalidParameter\nThe value of parameter osDisk is invalid.", expected: ""},
-		"CSE failure":                            {reason: asyncProvisioningEventReason, message: "Failed to register: creating VM CSE for VM \"v\": ERROR CODE: VMExtensionProvisioningError", expected: kaitov1beta1.ReasonNodeBootstrapFailed},
-		"registration timeouts":                  {reason: registrationFailedReason, message: "Failed to register node", expected: kaitov1beta1.ReasonNodeBootstrapFailed},
-		"NodeClass not ready":                    {reason: NodeClassNotReadyReason, message: "NodeClass is not ready", expected: kaitov1beta1.ReasonNodeConfigurationInvalid},
-		"NodePool validation":                    {reason: nodePoolValidationFailedReason, message: "invalid", expected: kaitov1beta1.ReasonNodeConfigurationInvalid},
-		"authorization":                          {reason: "CreateInstanceFailed", message: "ERROR CODE: LinkedAuthorizationFailed", expected: kaitov1beta1.ReasonNodeConfigurationInvalid},
-		"subnet full":                            {reason: "CreateInstanceFailed", message: "ERROR CODE: SubnetIsFull", expected: kaitov1beta1.ReasonNodeConfigurationInvalid},
-		"generic insufficient capacity":          {reason: insufficientCapacityEventReason, message: genericInsufficientCapacityMessage, expected: kaitov1beta1.ReasonCapacityUnavailable},
-		"no instance types available":            {reason: insufficientCapacityEventReason, message: "NodeClaim x event: insufficient capacity, no instance types available", expected: kaitov1beta1.ReasonCapacityUnavailable},
+		"CSE failure":                            {reason: asyncProvisioningEventReason, message: "Failed to register: creating VM CSE for VM \"v\": ERROR CODE: VMExtensionProvisioningError", expected: consts.ReasonNodeBootstrapFailed},
+		"registration timeouts":                  {reason: registrationFailedReason, message: "Failed to register node", expected: consts.ReasonNodeBootstrapFailed},
+		"NodeClass not ready":                    {reason: NodeClassNotReadyReason, message: "NodeClass is not ready", expected: consts.ReasonNodeConfigurationInvalid},
+		"NodePool validation":                    {reason: nodePoolValidationFailedReason, message: "invalid", expected: consts.ReasonNodeConfigurationInvalid},
+		"authorization":                          {reason: "CreateInstanceFailed", message: "ERROR CODE: LinkedAuthorizationFailed", expected: consts.ReasonNodeConfigurationInvalid},
+		"subnet full":                            {reason: "CreateInstanceFailed", message: "ERROR CODE: SubnetIsFull", expected: consts.ReasonNodeConfigurationInvalid},
+		"generic insufficient capacity":          {reason: insufficientCapacityEventReason, message: genericInsufficientCapacityMessage, expected: consts.ReasonCapacityUnavailable},
+		"no instance types available":            {reason: insufficientCapacityEventReason, message: "NodeClaim x event: insufficient capacity, no instance types available", expected: consts.ReasonCapacityUnavailable},
 		"NodeClass not found":                    {reason: insufficientCapacityEventReason, message: "NodeClaim x event: insufficient capacity, resolving node class, not found", expected: ""},
 		"throttling":                             {reason: "CreateInstanceFailed", message: "ERROR CODE: TooManyRequests", expected: ""},
 	}

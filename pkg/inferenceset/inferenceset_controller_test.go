@@ -904,10 +904,10 @@ func TestNotReadyCondition(t *testing.T) {
 	nodeClaimQuota := cond(v1beta1.ConditionTypeNodeClaimStatus, v1.ConditionFalse, "CreateInstanceFailed", "vCPU quota reached")
 	nodeClaimProvisioning := cond(v1beta1.ConditionTypeNodeClaimStatus, v1.ConditionFalse, "NodeClaimNotReady", "NodeClaim Launched=Unknown (AwaitingReconciliation)")
 	unschedulable := cond(v1beta1.WorkspaceConditionTypeInferenceStatus, v1.ConditionFalse, "Unschedulable", "0/3 nodes are available")
-	nodeClaimQuotaExceeded := cond(v1beta1.ConditionTypeNodeClaimStatus, v1.ConditionFalse, v1beta1.ReasonQuotaExceeded, "CreateInstanceFailed: vCPU quota reached")
-	mirrorOOMKilled := cond(v1beta1.WorkspaceConditionTypeModelMirrorReady, v1.ConditionFalse, v1beta1.ReasonDownloadOOMKilled, "download container was OOMKilled")
+	nodeClaimQuotaExceeded := cond(v1beta1.ConditionTypeNodeClaimStatus, v1.ConditionFalse, consts.ReasonQuotaExceeded, "CreateInstanceFailed: vCPU quota reached")
+	mirrorOOMKilled := cond(v1beta1.WorkspaceConditionTypeModelMirrorReady, v1.ConditionFalse, consts.ReasonDownloadOOMKilled, "download container was OOMKilled")
 	gpuProvisionerAwaiting := cond(v1beta1.ConditionTypeResourceStatus, v1.ConditionFalse, "AwaitingReconciliation", "object is awaiting reconciliation")
-	streamingStorageClassNotFound := cond(v1beta1.WorkspaceConditionTypeInferenceStatus, v1.ConditionFalse, v1beta1.ReasonModelStreamingStorageClassNotFound, "StorageClass fast not found")
+	streamingStorageClassNotFound := cond(v1beta1.WorkspaceConditionTypeInferenceStatus, v1.ConditionFalse, consts.ReasonModelStreamingStorageClassNotFound, "StorageClass fast not found")
 	succeeded := cond(v1beta1.WorkspaceConditionTypeSucceeded, v1.ConditionTrue, "workspaceSucceeded", "workspace succeeds")
 
 	deleting := ws("ws-0", quota)
@@ -954,13 +954,13 @@ func TestNotReadyCondition(t *testing.T) {
 		{
 			name:            "a terminal node failure comes before a terminal inference failure",
 			workspaces:      []v1beta1.Workspace{ws("ws-a", resourcesReady, imagePull), ws("ws-b", nodeClaimQuotaExceeded)},
-			expectedReason:  v1beta1.ReasonQuotaExceeded,
+			expectedReason:  consts.ReasonQuotaExceeded,
 			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-b NodeClaimReady=False (QuotaExceeded): CreateInstanceFailed: vCPU quota reached; workspace ws-a InferenceReady=False (ImagePullError): image not found",
 		},
 		{
 			name:            "a terminal model failure comes before a terminal inference failure",
 			workspaces:      []v1beta1.Workspace{ws("ws-a", provisioning, streamingStorageClassNotFound), ws("ws-b", mirrorNotReady, mirrorOOMKilled)},
-			expectedReason:  v1beta1.ReasonDownloadOOMKilled,
+			expectedReason:  consts.ReasonDownloadOOMKilled,
 			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-b ModelMirrorReady=False (DownloadOOMKilled): download container was OOMKilled; workspace ws-a InferenceReady=False (ModelStreamingStorageClassNotFound): StorageClass fast not found",
 		},
 		{
@@ -1025,19 +1025,19 @@ func TestNotReadyCondition(t *testing.T) {
 		{
 			name:            "a terminal workspace comes before a failing one",
 			workspaces:      []v1beta1.Workspace{ws("ws-a", quota), ws("ws-b", nodeClaimQuotaExceeded)},
-			expectedReason:  v1beta1.ReasonQuotaExceeded,
+			expectedReason:  consts.ReasonQuotaExceeded,
 			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-b NodeClaimReady=False (QuotaExceeded): CreateInstanceFailed: vCPU quota reached; workspace ws-a ResourceReady=False (CreateInstanceFailed): vCPU quota reached",
 		},
 		{
 			name:            "a terminal model download failure is not hidden by a node failure",
 			workspaces:      []v1beta1.Workspace{ws("ws-a", mirrorNotReady, nodeClaimQuota, mirrorOOMKilled)},
-			expectedReason:  v1beta1.ReasonDownloadOOMKilled,
+			expectedReason:  consts.ReasonDownloadOOMKilled,
 			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-a ModelMirrorReady=False (DownloadOOMKilled): download container was OOMKilled",
 		},
 		{
 			name:            "a terminal inference failure is not hidden while nodes are provisioned",
 			workspaces:      []v1beta1.Workspace{ws("ws-a", provisioning, streamingStorageClassNotFound)},
-			expectedReason:  v1beta1.ReasonModelStreamingStorageClassNotFound,
+			expectedReason:  consts.ReasonModelStreamingStorageClassNotFound,
 			expectedMessage: "inferenceset is not ready, 0/2 replicas are ready; workspace ws-a InferenceReady=False (ModelStreamingStorageClassNotFound): StorageClass fast not found",
 		},
 	}

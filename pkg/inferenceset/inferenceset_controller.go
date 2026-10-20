@@ -278,7 +278,7 @@ func workspaceRootCause(ws *kaitov1beta1.Workspace) (cause *metav1.Condition, se
 		return cond
 	}
 	for _, condType := range workspaceTerminalConditions {
-		if cond := notReady(condType); cond != nil && kaitov1beta1.TerminalReasons.Has(cond.Reason) {
+		if cond := notReady(condType); cond != nil && consts.IsTerminatedReason(cond.Reason) {
 			return cond, rootCauseTerminal
 		}
 	}
