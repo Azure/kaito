@@ -1,17 +1,17 @@
 images:
   # base image with no model weights
   - name: base
-    tag: 0.6.2
+    tag: 0.6.3
     runtimeVersion:
       vllm: 0.30.0
       transformers: 5.15.0
 
   # CPU runtime variants built and published alongside the main base image.
   - name: base-tfs-cpu
-    tag: 0.6.1
+    tag: 0.6.3
 
   - name: base-vllm-cpu
-    tag: 0.6.1
+    tag: 0.6.3
     # Tag history:
     # 0.6.2 - resolve startup benchmark tokenizer from vLLM's Run:ai streamer cache
     # 0.6.1 - bump transformers to 5.15.0
