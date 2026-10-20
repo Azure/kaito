@@ -230,6 +230,7 @@ runs:
           az aks create --name "$AZURE_CLUSTER_NAME" --resource-group "$AZURE_RESOURCE_GROUP" \
             --location "$AZURE_LOCATION" --node-vm-size "$AZURE_NODE_VM_SIZE" \
             --kubernetes-version "$AKS_K8S_VERSION" --generate-ssh-keys \
+            --node-provisioning-mode Auto \
             --network-plugin azure --network-plugin-mode overlay --network-dataplane cilium \
             --enable-managed-identity --enable-oidc-issuer --enable-workload-identity -o none
         }
@@ -365,6 +366,7 @@ runs:
         echo "STREAMING_OIDC_ISSUER=$OIDC_ISSUER" >> "$GITHUB_ENV"
 
     - name: Create Identities and Permissions for ${{ inputs.node_provisioner }}
+      if: ${{ inputs.node_provisioner == 'gpuprovisioner' }}
       shell: bash
       run: |
         AZURE_SUBSCRIPTION_ID=$E2E_SUBSCRIPTION_ID \
@@ -373,19 +375,6 @@ runs:
         AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
         AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
         TEST_SUITE: ${{ inputs.node_provisioner }}
-
-    - name: Install karpenter helm chart
-      if: ${{ inputs.node_provisioner == 'azkarpenter' }}
-      shell: bash
-      run: |
-        # Ensure yq v4.30+ is available for envsubst(nu) support required by configure-values.sh
-        sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
-        sudo chmod +x /usr/local/bin/yq
-        AZURE_SUBSCRIPTION_ID=$E2E_SUBSCRIPTION_ID \
-        make azure-karpenter-helm
-      env:
-        AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
-        AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
 
     - name: Install gpu-provisioner helm chart
       if: ${{ inputs.node_provisioner == 'gpuprovisioner' }}

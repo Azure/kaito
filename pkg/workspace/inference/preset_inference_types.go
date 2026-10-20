@@ -25,6 +25,8 @@ const (
 
 	DefaultVLLMMultiNodeHealthCheckCommand = "python3 /workspace/vllm/multi-node-health-check.py"
 	DefaultTransformersMainFile            = "/workspace/tfs/inference_api.py"
+
+	vllmTerminationGracePeriodSeconds = int64(60)
 )
 
 var (

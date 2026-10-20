@@ -15,19 +15,18 @@ package v1beta1
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"knative.dev/pkg/apis"
-
-	"github.com/kaito-project/kaito/pkg/featuregates"
-	"github.com/kaito-project/kaito/pkg/utils/consts"
 )
 
 func TestInferenceSetValidate(t *testing.T) {
+	original := ValidateInferenceSetWorkspace
+	t.Cleanup(func() { ValidateInferenceSetWorkspace = original })
+	ValidateInferenceSetWorkspace = func(context.Context, *InferenceSet) *apis.FieldError { return nil }
+
 	is := &InferenceSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-is",
@@ -37,6 +36,44 @@ func TestInferenceSetValidate(t *testing.T) {
 	}
 	errs := is.Validate(context.Background())
 	assert.Nil(t, errs)
+}
+
+func TestInferenceSetValidateFailsClosedWithoutWorkspaceValidation(t *testing.T) {
+	original := ValidateInferenceSetWorkspace
+	t.Cleanup(func() { ValidateInferenceSetWorkspace = original })
+	ValidateInferenceSetWorkspace = nil
+
+	is := &InferenceSet{ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"}}
+	errs := is.Validate(context.Background())
+	assert.NotNil(t, errs)
+	assert.Contains(t, errs.Error(), "child Workspace validation is not configured")
+}
+
+func TestInferenceSetValidateDeletingSkipsWorkspaceValidation(t *testing.T) {
+	original := ValidateInferenceSetWorkspace
+	t.Cleanup(func() { ValidateInferenceSetWorkspace = original })
+
+	workspaceValidationCalled := false
+	ValidateInferenceSetWorkspace = func(context.Context, *InferenceSet) *apis.FieldError {
+		workspaceValidationCalled = true
+		return apis.ErrGeneric("referenced ConfigMap not found", "inference", "config")
+	}
+
+	now := metav1.Now()
+	old := &InferenceSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-is",
+			Namespace:  "default",
+			Finalizers: []string{"inferenceset.kaito.sh/finalizer"},
+		},
+	}
+	deleting := old.DeepCopy()
+	deleting.DeletionTimestamp = &now
+	deleting.Finalizers = nil
+
+	errs := deleting.Validate(apis.WithinUpdate(context.Background(), old))
+	assert.Nil(t, errs)
+	assert.False(t, workspaceValidationCalled)
 }
 
 func TestInferenceSetSetDefaults(t *testing.T) {
@@ -75,306 +112,26 @@ func TestInferenceSetBenchmarkHelpers(t *testing.T) {
 	_ = ShouldRunInferenceSetBenchmark(is)
 }
 
-func TestInferenceSetMIGImmutable(t *testing.T) {
-	makeIS := func(profile string) *InferenceSet {
-		var p *PartitionSpec
-		if profile != "" {
-			p = &PartitionSpec{Mode: PartitionModeMIG, Profile: profile}
-		}
-		return &InferenceSet{
-			ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"},
-			Spec: InferenceSetSpec{
-				Template: InferenceSetTemplate{
-					Resource: InferenceSetResourceSpec{Partition: p},
-				},
-			},
-		}
+func TestInferenceSetValidatePassesBaselineToWorkspaceValidation(t *testing.T) {
+	original := ValidateInferenceSetWorkspace
+	t.Cleanup(func() { ValidateInferenceSetWorkspace = original })
+
+	var gotBaseline any
+	calls := 0
+	ValidateInferenceSetWorkspace = func(ctx context.Context, _ *InferenceSet) *apis.FieldError {
+		calls++
+		gotBaseline = apis.GetBaseline(ctx)
+		return nil
 	}
 
-	// Unchanged partition is allowed.
-	errs := makeIS("1g.10gb").validateUpdate(makeIS("1g.10gb"))
-	assert.Nil(t, errs)
+	old := &InferenceSet{ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"}}
+	updated := old.DeepCopy()
 
-	// Changing the profile is rejected.
-	errs = makeIS("2g.20gb").validateUpdate(makeIS("1g.10gb"))
-	assert.NotNil(t, errs)
-	assert.Contains(t, errs.Error(), "field is immutable")
+	assert.Nil(t, updated.Validate(context.Background()))
+	assert.Equal(t, 1, calls)
+	assert.Nil(t, gotBaseline)
 
-	// Adding a partition to a non-partitioned set is rejected.
-	errs = makeIS("1g.10gb").validateUpdate(makeIS(""))
-	assert.NotNil(t, errs)
-	assert.Contains(t, errs.Error(), "field is immutable")
-}
-
-func TestInferenceSetCapacityTypeAnnotation(t *testing.T) {
-	originalProvisioner := consts.ActiveNodeProvisioner
-	consts.ActiveNodeProvisioner = consts.NodeProvisionerKarpenter
-	t.Cleanup(func() { consts.ActiveNodeProvisioner = originalProvisioner })
-
-	makeIS := func(value string) *InferenceSet {
-		return &InferenceSet{Spec: InferenceSetSpec{Template: InferenceSetTemplate{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{AnnotationCapacityType: value},
-			},
-		}}}
-	}
-
-	assert.Nil(t, makeIS(consts.KarpenterCapacityTypeSpot).validateCapacityTypeAnnotation())
-	assert.NotNil(t, makeIS("reserved").validateCapacityTypeAnnotation())
-	assert.NotNil(t, makeIS(consts.KarpenterCapacityTypeSpot).
-		validateCapacityTypeAnnotationUpdate(makeIS(consts.KarpenterCapacityTypeOnDemand)))
-	assert.Nil(t, makeIS(consts.KarpenterCapacityTypeOnDemand).
-		validateCapacityTypeAnnotationUpdate(makeIS("reserved")))
-}
-
-func TestInferenceSetAcceleratorImmutable(t *testing.T) {
-	makeIS := func(count *int) *InferenceSet {
-		var p *PartitionSpec
-		if count != nil {
-			p = &PartitionSpec{Mode: PartitionModeAccelerator, Count: count}
-		}
-		return &InferenceSet{
-			ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"},
-			Spec: InferenceSetSpec{
-				Template: InferenceSetTemplate{
-					Resource: InferenceSetResourceSpec{Partition: p},
-				},
-			},
-		}
-	}
-	countOf := func(i int) *int { return &i }
-
-	// Unchanged partition is allowed.
-	errs := makeIS(countOf(2)).validateUpdate(makeIS(countOf(2)))
-	assert.Nil(t, errs)
-
-	// Changing the count is rejected.
-	errs = makeIS(countOf(4)).validateUpdate(makeIS(countOf(2)))
-	assert.NotNil(t, errs)
-	assert.Contains(t, errs.Error(), "field is immutable")
-
-	// Adding a partition to a non-partitioned set is rejected.
-	errs = makeIS(countOf(2)).validateUpdate(makeIS(nil))
-	assert.NotNil(t, errs)
-	assert.Contains(t, errs.Error(), "field is immutable")
-}
-
-func TestInferenceSet_validateInstanceType(t *testing.T) {
-	tests := []struct {
-		name            string
-		nodeProvisioner string
-		instanceType    string
-		wantErr         bool
-		errField        string
-	}{
-		{
-			name:            "BYO mode with empty instanceType - valid",
-			nodeProvisioner: consts.NodeProvisionerBYO,
-			instanceType:    "",
-			wantErr:         false,
-		},
-		{
-			name:            "BYO mode with instanceType set - invalid",
-			nodeProvisioner: consts.NodeProvisionerBYO,
-			instanceType:    "Standard_NC6s_v3",
-			wantErr:         true,
-			errField:        "resource.instanceType",
-		},
-		{
-			name:            "Karpenter mode with instanceType set - valid",
-			nodeProvisioner: consts.NodeProvisionerKarpenter,
-			instanceType:    "Standard_NC6s_v3",
-			wantErr:         false,
-		},
-		{
-			name:            "Karpenter mode with empty instanceType - invalid",
-			nodeProvisioner: consts.NodeProvisionerKarpenter,
-			instanceType:    "",
-			wantErr:         true,
-			errField:        "resource.instanceType",
-		},
-		{
-			name:            "AzureGPU mode with instanceType set - valid",
-			nodeProvisioner: consts.NodeProvisionerAzureGPU,
-			instanceType:    "Standard_NC6s_v3",
-			wantErr:         false,
-		},
-		{
-			name:            "AzureGPU mode with empty instanceType - invalid",
-			nodeProvisioner: consts.NodeProvisionerAzureGPU,
-			instanceType:    "",
-			wantErr:         true,
-			errField:        "resource.instanceType",
-		},
-		{
-			name:            "Unknown provisioner with instanceType - no error",
-			nodeProvisioner: "",
-			instanceType:    "Standard_NC6s_v3",
-			wantErr:         false,
-		},
-		{
-			name:            "Unknown provisioner without instanceType - no error",
-			nodeProvisioner: "",
-			instanceType:    "",
-			wantErr:         false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			orig := consts.ActiveNodeProvisioner
-			consts.ActiveNodeProvisioner = tt.nodeProvisioner
-			defer func() { consts.ActiveNodeProvisioner = orig }()
-
-			is := &InferenceSet{
-				Spec: InferenceSetSpec{
-					Template: InferenceSetTemplate{
-						Resource: InferenceSetResourceSpec{
-							InstanceType: tt.instanceType,
-						},
-					},
-				},
-			}
-			err := is.validateInstanceType()
-			if tt.wantErr {
-				assert.NotNil(t, err)
-				if tt.errField != "" {
-					assert.Contains(t, err.Error(), tt.errField)
-				}
-			} else {
-				assert.Nil(t, err)
-			}
-		})
-	}
-}
-
-func TestInferenceSetValidateSpeculativeDecoding(t *testing.T) {
-	presetTpl := func(name string) InferenceSetTemplate {
-		return InferenceSetTemplate{
-			Inference: InferenceSpec{
-				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName(name)}},
-			},
-		}
-	}
-	tests := []struct {
-		name        string
-		annotations map[string]string
-		template    InferenceSetTemplate
-		wantErr     bool
-	}{
-		{
-			name:        "no annotation - pass",
-			annotations: nil,
-			template:    presetTpl("deepseek-r1-0528"),
-			wantErr:     false,
-		},
-		{
-			name:        "false - pass",
-			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "false"},
-			template:    presetTpl("deepseek-r1-0528"),
-			wantErr:     false,
-		},
-		{
-			name:        "invalid value - rejected",
-			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "yes"},
-			template:    presetTpl("deepseek-r1-0528"),
-			wantErr:     true,
-		},
-		{
-			name:        "true with supported preset - pass",
-			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
-			template:    presetTpl("deepseek-r1-0528"),
-			wantErr:     false,
-		},
-		{
-			name:        "true with second supported preset - pass",
-			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
-			template:    presetTpl("deepseek-v3-0324"),
-			wantErr:     false,
-		},
-		{
-			name:        "true with unsupported preset - accepted (falls back to ngram)",
-			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
-			template:    presetTpl("llama-3.1-8b-instruct"),
-			wantErr:     false,
-		},
-		{
-			name:        "true without preset - rejected",
-			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
-			template:    InferenceSetTemplate{},
-			wantErr:     true,
-		},
-		{
-			name: "true with non-vllm runtime annotation - rejected",
-			annotations: map[string]string{
-				AnnotationEnableSpeculativeDecoding: "true",
-				AnnotationWorkspaceRuntime:          "transformers",
-			},
-			template: presetTpl("deepseek-r1-0528"),
-			wantErr:  true,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			tpl := tc.template
-			tpl.Annotations = tc.annotations
-			is := &InferenceSet{
-				ObjectMeta: metav1.ObjectMeta{Name: "is", Namespace: "default"},
-				Spec:       InferenceSetSpec{Template: tpl},
-			}
-			errs := is.validateSpeculativeDecoding()
-			if (errs != nil) != tc.wantErr {
-				t.Errorf("validateSpeculativeDecoding() err=%v wantErr=%v", errs, tc.wantErr)
-			}
-		})
-	}
-
-	// Feature-gate-off case: with the vLLM feature gate disabled,
-	// EffectiveInferenceRuntime resolves to HuggingFace regardless of the
-	// annotation, so the spec-decoding opt-in must be rejected.
-	t.Run("vllm feature gate disabled - rejected", func(t *testing.T) {
-		orig := featuregates.FeatureGates[consts.FeatureFlagVLLM]
-		featuregates.FeatureGates[consts.FeatureFlagVLLM] = false
-		defer func() { featuregates.FeatureGates[consts.FeatureFlagVLLM] = orig }()
-
-		tpl := presetTpl("deepseek-r1-0528")
-		tpl.Annotations = map[string]string{AnnotationEnableSpeculativeDecoding: "true"}
-		is := &InferenceSet{
-			ObjectMeta: metav1.ObjectMeta{Name: "is", Namespace: "default"},
-			Spec:       InferenceSetSpec{Template: tpl},
-		}
-		if errs := is.validateSpeculativeDecoding(); errs == nil {
-			t.Fatalf("expected rejection when vLLM feature gate is disabled")
-		}
-	})
-}
-
-func TestInferenceSetValidate_SpeculativeDecodingReportedOnceWhenWorkspaceHookPresent(t *testing.T) {
-	orig := ValidateInferenceSetWorkspace
-	defer func() { ValidateInferenceSetWorkspace = orig }()
-
-	ValidateInferenceSetWorkspace = func(ctx context.Context, is *InferenceSet) *apis.FieldError {
-		return apis.ErrInvalidValue(
-			fmt.Sprintf("annotation %s has invalid value %q; expected \"true\" or \"false\"", AnnotationEnableSpeculativeDecoding, "yes"),
-			fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
-		)
-	}
-
-	is := &InferenceSet{
-		ObjectMeta: metav1.ObjectMeta{Name: "is", Namespace: "default"},
-		Spec: InferenceSetSpec{Template: InferenceSetTemplate{
-			ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "yes"}},
-			Inference:  InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName("deepseek-r1-0528")}}},
-			Resource:   InferenceSetResourceSpec{InstanceType: "Standard_NC24ads_A100_v4"},
-		}},
-	}
-
-	errs := is.Validate(context.Background())
-	if errs == nil {
-		t.Fatal("Validate() expected error, got nil")
-	}
-	fieldRef := fmt.Sprintf("spec.template.metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding)
-	if got := strings.Count(errs.Error(), fieldRef); got != 1 {
-		t.Fatalf("expected exactly one validation error for %s, got %d: %v", fieldRef, got, errs)
-	}
+	assert.Nil(t, updated.Validate(apis.WithinUpdate(context.Background(), old)))
+	assert.Equal(t, 2, calls)
+	assert.Same(t, old, gotBaseline)
 }

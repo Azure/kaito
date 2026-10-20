@@ -67,6 +67,11 @@ func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
 }
 
 func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
+	if !w.DeletionTimestamp.IsZero() {
+		klog.InfoS("Skip validation for deleting workspace", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
+		return nil
+	}
+
 	errmsgs := validation.IsDNS1123Label(w.Name)
 	if len(errmsgs) > 0 {
 		errs = errs.Also(apis.ErrInvalidValue(strings.Join(errmsgs, ", "), "name"))
@@ -78,27 +83,34 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		errs = errs.Also(w.ValidateCreate(ctx))
 	} else {
 		klog.InfoS("Validate update", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
-		old := base.(*Workspace)
-		errs = errs.Also(
-			w.validateUpdate(old).ViaField("spec"),
-			w.Resource.validateUpdate(&old.Resource).ViaField("resource"),
-		)
-		if w.GetAnnotations()[AnnotationNodeClassName] != old.GetAnnotations()[AnnotationNodeClassName] {
-			errs = errs.Also(w.validateNodeClassNameAnnotation())
-		}
-		errs = errs.Also(w.validateCapacityTypeAnnotationUpdate(old))
-		if featuregates.FeatureGates[consts.FeatureFlagModelStreaming] {
-			errs = errs.Also(w.validateModelStreamingAnnotationImmutable(old))
-		}
-		if w.Inference != nil {
-			errs = errs.Also(w.Inference.validateUpdate(old.Inference).ViaField("inference"))
-		}
-		// Validate speculative decoding annotation on updates too.
-		errs = errs.Also(w.validateAnnotations())
-		errs = errs.Also(w.validateSpeculativeDecoding(ctx))
-		if w.Tuning != nil {
-			errs = errs.Also(w.Tuning.validateUpdate(old.Tuning).ViaField("tuning"))
-		}
+		errs = errs.Also(w.ValidateUpdate(ctx, base.(*Workspace)))
+	}
+	return errs
+}
+
+// ValidateUpdate runs the validations applied when a Workspace is updated from
+// old. It can also validate a Workspace projected from another resource, such
+// as the child Workspace of an InferenceSet.
+func (w *Workspace) ValidateUpdate(ctx context.Context, old *Workspace) (errs *apis.FieldError) {
+	errs = errs.Also(
+		w.validateUpdate(old).ViaField("spec"),
+		w.Resource.validateUpdate(&old.Resource).ViaField("resource"),
+	)
+	if w.GetAnnotations()[AnnotationNodeClassName] != old.GetAnnotations()[AnnotationNodeClassName] {
+		errs = errs.Also(w.validateNodeClassNameAnnotation())
+	}
+	errs = errs.Also(w.validateCapacityTypeAnnotationUpdate(old))
+	if featuregates.FeatureGates[consts.FeatureFlagModelStreaming] {
+		errs = errs.Also(w.validateModelStreamingAnnotationImmutable(old))
+	}
+	if w.Inference != nil {
+		errs = errs.Also(w.Inference.validateUpdate(old.Inference).ViaField("inference"))
+	}
+	// Validate speculative decoding annotation on updates too.
+	errs = errs.Also(w.validateAnnotations())
+	errs = errs.Also(w.validateSpeculativeDecoding(ctx))
+	if w.Tuning != nil {
+		errs = errs.Also(w.Tuning.validateUpdate(old.Tuning).ViaField("tuning"))
 	}
 	return errs
 }
@@ -917,16 +929,22 @@ func (r *ResourceSpec) validateUpdate(old *ResourceSpec) (errs *apis.FieldError)
 		}
 	}
 
-	newLabels, err0 := metav1.LabelSelectorAsMap(r.LabelSelector)
-	oldLabels, err1 := metav1.LabelSelectorAsMap(old.LabelSelector)
-	if err0 != nil || err1 != nil {
-		errs = errs.Also(apis.ErrGeneric("Only allow matchLabels or 'IN' matchExpression", "labelSelector"))
-	} else {
-		if !reflect.DeepEqual(newLabels, oldLabels) {
-			errs = errs.Also(apis.ErrGeneric("field is immutable", "labelSelector"))
-		}
-	}
+	errs = errs.Also(ValidateLabelSelectorUpdate(r.LabelSelector, old.LabelSelector))
 	return errs
+}
+
+// ValidateLabelSelectorUpdate rejects changes to an immutable labelSelector.
+// Errors are reported at the "labelSelector" path.
+func ValidateLabelSelectorUpdate(selector, old *metav1.LabelSelector) *apis.FieldError {
+	newLabels, err0 := metav1.LabelSelectorAsMap(selector)
+	oldLabels, err1 := metav1.LabelSelectorAsMap(old)
+	if err0 != nil || err1 != nil {
+		return apis.ErrGeneric("Only allow matchLabels or 'IN' matchExpression", "labelSelector")
+	}
+	if !reflect.DeepEqual(newLabels, oldLabels) {
+		return apis.ErrGeneric("field is immutable", "labelSelector")
+	}
+	return nil
 }
 
 func (i *InferenceSpec) validateCreate(ctx context.Context, runtime model.RuntimeName, wsNamespace string) (errs *apis.FieldError) {

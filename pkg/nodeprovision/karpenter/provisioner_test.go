@@ -239,7 +239,11 @@ func TestStart_CreatesNodeClassesAndPublishesAllowlist(t *testing.T) {
 	cfg.NodeClassNames = []string{"image-family-azure-linux", "image-family-ubuntu"}
 
 	// Seed the default so waitForNodeClassReady observes Ready without polling.
-	c := newFakeClientWithCRDs(makeNodeClassUnstructured("image-family-ubuntu"))
+	existing := makeNodeClassUnstructured("image-family-ubuntu")
+	existing.SetLabels(map[string]string{"karpenter.kaito.sh/managed-by": "kaito"})
+	removed := makeNodeClassUnstructured("removed-nodeclass")
+	removed.SetLabels(map[string]string{"karpenter.kaito.sh/managed-by": "kaito", "karpenter.kaito.sh/default": "true"})
+	c := newFakeClientWithCRDs(existing, removed)
 	p := NewKarpenterProvisioner(c, cfg)
 
 	require.NoError(t, p.Start(context.Background()))
@@ -247,12 +251,17 @@ func TestStart_CreatesNodeClassesAndPublishesAllowlist(t *testing.T) {
 
 	// The webhook allowlist must name exactly the NodeClasses that now exist.
 	assert.Equal(t, []string{"image-family-azure-linux", "image-family-ubuntu"}, consts.AllowedNodeClassNames())
-	for _, name := range consts.AllowedNodeClassNames() {
+	for _, entry := range cfg.NodeClasses {
 		obj := &unstructured.Unstructured{}
 		obj.SetGroupVersionKind(schema.GroupVersionKind{Group: cfg.Group, Version: cfg.Version, Kind: cfg.Kind})
-		require.NoError(t, c.Get(context.Background(), client.ObjectKey{Name: name}, obj),
-			"allowlisted NodeClass %q should exist", name)
+		require.NoError(t, c.Get(context.Background(), client.ObjectKey{Name: entry.Name}, obj),
+			"allowlisted NodeClass %q should exist", entry.Name)
+		assert.Equal(t, entry.Spec, obj.Object["spec"])
+		assert.Equal(t, p.newNodeClassObject(entry).GetLabels(), obj.GetLabels())
 	}
+	actualRemoved := removed.DeepCopy()
+	require.NoError(t, c.Get(context.Background(), client.ObjectKeyFromObject(removed), actualRemoved))
+	assert.Equal(t, removed.Object, actualRemoved.Object)
 }
 
 func TestStart_NoDefaultEntry(t *testing.T) {
@@ -264,6 +273,191 @@ func TestStart_NoDefaultEntry(t *testing.T) {
 	err := p.Start(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no NodeClass entry is marked default")
+}
+
+func TestReconcileNodeClass(t *testing.T) {
+	tests := []struct {
+		name         string
+		desired      NodeClassSpec
+		existingSpec map[string]interface{}
+		defaultLabel string
+		wantUpdates  int
+	}{
+		{
+			name: "enable managed GPU",
+			desired: NodeClassSpec{Default: true, Spec: map[string]interface{}{
+				"imageFamily": "Ubuntu2204",
+				"gpu": map[string]interface{}{
+					"mode": "Driver", "nvidia": map[string]interface{}{"managementMode": "Managed"},
+				},
+			}},
+			existingSpec: map[string]interface{}{"imageFamily": "Ubuntu2204"},
+			wantUpdates:  1,
+		},
+		{
+			name:         "remove omitted fields and stale default label",
+			desired:      NodeClassSpec{Spec: map[string]interface{}{"imageFamily": "AzureLinux"}},
+			existingSpec: map[string]interface{}{"imageFamily": "Ubuntu2204", "gpu": map[string]interface{}{"mode": "Driver"}},
+			defaultLabel: "true",
+			wantUpdates:  1,
+		},
+		{
+			name:         "unchanged numeric spec does not update",
+			desired:      NodeClassSpec{Default: true, Spec: map[string]interface{}{"osDiskSizeGB": float64(300)}},
+			existingSpec: map[string]interface{}{"osDiskSizeGB": int64(300)},
+			defaultLabel: "true",
+		},
+		{
+			name:         "default label change alone updates",
+			desired:      NodeClassSpec{Default: true, Spec: map[string]interface{}{"imageFamily": "Ubuntu2204"}},
+			existingSpec: map[string]interface{}{"imageFamily": "Ubuntu2204"},
+			wantUpdates:  1,
+		},
+		{
+			name:         "nil desired spec removes existing spec",
+			existingSpec: map[string]interface{}{"imageFamily": "Ubuntu2204"},
+			wantUpdates:  1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			existing := makeNodeClassUnstructured("test-nodeclass")
+			existing.Object["spec"] = tt.existingSpec
+			labels := map[string]string{"karpenter.kaito.sh/managed-by": "kaito", "external-label": "keep"}
+			if tt.defaultLabel != "" {
+				labels["karpenter.kaito.sh/default"] = tt.defaultLabel
+			}
+			existing.SetLabels(labels)
+			existing.SetAnnotations(map[string]string{"external-annotation": "keep"})
+			existing.SetFinalizers([]string{"external.example/finalizer"})
+			updates := 0
+			c := newFakeClientWithInterceptors(interceptor.Funcs{
+				Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+					updates++
+					return c.Update(ctx, obj, opts...)
+				},
+			}, existing)
+			p := NewKarpenterProvisioner(c, testConfig)
+			tt.desired.Name = existing.GetName()
+			require.NoError(t, p.reconcileNodeClass(ctx, tt.desired))
+			assert.Equal(t, tt.wantUpdates, updates)
+			actual := existing.DeepCopy()
+			require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(existing), actual))
+			expected := p.newNodeClassObject(tt.desired)
+			data, err := expected.MarshalJSON()
+			require.NoError(t, err)
+			require.NoError(t, expected.UnmarshalJSON(data))
+			assert.Equal(t, expected.Object["spec"], actual.Object["spec"])
+			assert.Equal(t, expected.GetLabels()["karpenter.kaito.sh/default"], actual.GetLabels()["karpenter.kaito.sh/default"])
+			assert.Equal(t, "kaito", actual.GetLabels()["karpenter.kaito.sh/managed-by"])
+			assert.Equal(t, "keep", actual.GetLabels()["external-label"])
+			assert.Equal(t, existing.GetAnnotations(), actual.GetAnnotations())
+			assert.Equal(t, existing.GetFinalizers(), actual.GetFinalizers())
+			assert.Equal(t, existing.Object["status"], actual.Object["status"])
+
+			require.NoError(t, p.reconcileNodeClass(ctx, tt.desired))
+			assert.Equal(t, tt.wantUpdates, updates, "second reconciliation should be a no-op")
+		})
+	}
+}
+
+func TestStart_RejectsExternallyManagedNodeClass(t *testing.T) {
+	for _, owner := range []string{"", "another-controller"} {
+		t.Run("owner="+owner, func(t *testing.T) {
+			existing := makeNodeClassUnstructured("image-family-ubuntu")
+			if owner != "" {
+				existing.SetLabels(map[string]string{"karpenter.kaito.sh/managed-by": owner})
+			}
+			cfg := testConfig
+			cfg.DefaultName = ""
+			cfg.NodeClasses = []NodeClassSpec{{Name: existing.GetName(), Default: true}}
+			c := newFakeClientWithCRDs(existing)
+			p := NewKarpenterProvisioner(c, cfg)
+			err := p.Start(context.Background())
+			require.ErrorContains(t, err, "refusing to overwrite")
+			actual := existing.DeepCopy()
+			require.NoError(t, c.Get(context.Background(), client.ObjectKeyFromObject(existing), actual))
+			assert.Equal(t, existing.Object, actual.Object)
+		})
+	}
+}
+
+func TestReconcileNodeClass_RetriesConflicts(t *testing.T) {
+	ctx := context.Background()
+	existing := makeNodeClassUnstructured("test-nodeclass")
+	existing.SetLabels(map[string]string{"karpenter.kaito.sh/managed-by": "kaito"})
+	updates := 0
+	c := newFakeClientWithInterceptors(interceptor.Funcs{
+		Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+			updates++
+			if updates == 1 {
+				concurrent := existing.DeepCopy()
+				require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(existing), concurrent))
+				concurrent.SetAnnotations(map[string]string{"concurrent-change": "keep"})
+				require.NoError(t, c.Update(ctx, concurrent))
+				return apierrors.NewConflict(schema.GroupResource{Group: testConfig.Group, Resource: testConfig.ResourceName}, obj.GetName(), errors.New("conflict"))
+			}
+			return c.Update(ctx, obj, opts...)
+		},
+	}, existing)
+	p := NewKarpenterProvisioner(c, testConfig)
+	require.NoError(t, p.reconcileNodeClass(ctx, NodeClassSpec{Name: existing.GetName(), Default: true}))
+	assert.Equal(t, 2, updates)
+	actual := existing.DeepCopy()
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(existing), actual))
+	assert.Equal(t, "keep", actual.GetAnnotations()["concurrent-change"])
+	assert.Equal(t, "true", actual.GetLabels()["karpenter.kaito.sh/default"])
+}
+
+func TestReconcileNodeClass_CreateRace(t *testing.T) {
+	creates := 0
+	c := newFakeClientWithInterceptors(interceptor.Funcs{
+		Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+			creates++
+			require.NoError(t, c.Create(ctx, obj, opts...))
+			return apierrors.NewAlreadyExists(schema.GroupResource{Group: testConfig.Group, Resource: testConfig.ResourceName}, obj.GetName())
+		},
+	})
+	p := NewKarpenterProvisioner(c, testConfig)
+	require.NoError(t, p.reconcileNodeClass(context.Background(), NodeClassSpec{Name: "test-nodeclass", Default: true}))
+	assert.Equal(t, 1, creates)
+}
+
+func TestReconcileNodeClass_APIErrors(t *testing.T) {
+	apiErr := errors.New("API unavailable")
+	tests := []struct {
+		name  string
+		funcs interceptor.Funcs
+	}{
+		{name: "get", funcs: interceptor.Funcs{
+			Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+				return apiErr
+			},
+		}},
+		{name: "create", funcs: interceptor.Funcs{
+			Get: func(_ context.Context, _ client.WithWatch, key client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+				return apierrors.NewNotFound(schema.GroupResource{Resource: testConfig.ResourceName}, key.Name)
+			},
+			Create: func(context.Context, client.WithWatch, client.Object, ...client.CreateOption) error {
+				return apiErr
+			},
+		}},
+		{name: "update", funcs: interceptor.Funcs{
+			Update: func(context.Context, client.WithWatch, client.Object, ...client.UpdateOption) error {
+				return apiErr
+			},
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			existing := makeNodeClassUnstructured("test-nodeclass")
+			existing.SetLabels(map[string]string{"karpenter.kaito.sh/managed-by": "kaito"})
+			p := NewKarpenterProvisioner(newFakeClientWithInterceptors(tt.funcs, existing), testConfig)
+			err := p.reconcileNodeClass(context.Background(), NodeClassSpec{Name: existing.GetName(), Default: true})
+			require.ErrorIs(t, err, apiErr)
+		})
+	}
 }
 
 // --- ProvisionNodes tests ---
