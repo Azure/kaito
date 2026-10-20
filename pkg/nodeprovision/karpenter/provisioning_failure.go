@@ -15,10 +15,12 @@ package karpenter
 
 import (
 	"strings"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
 	"github.com/kaito-project/kaito/pkg/nodeprovision"
@@ -46,15 +48,15 @@ var (
 	// capacityUnavailableMessages are written by the Azure provider's allocation and SKU error handlers.
 	capacityUnavailableMessages = []string{"unable to allocate resources", "the requested sku is unavailable",
 		"is not supported for this subscription"}
-	// genericInsufficientCapacityMessages are the insufficient capacity errors of a NodeClaim whose instance types have
-	// no available offering. KAITO NodePools allow a single instance type and capacity type, so its only offering is
-	// cached as unavailable after a quota, allocation or SKU failure, or not offered at all.
-	genericInsufficientCapacityMessages = []string{"all requested instance types were unavailable",
-		"no instance types available"}
+	// noOfferingMessages are the insufficient capacity errors of a NodeClaim whose instance types have no available
+	// offering, which do not say why. KAITO NodePools allow a single instance type and capacity type, so its only
+	// offering is either cached as unavailable after an earlier quota, allocation or SKU failure, whose NodeClaim is
+	// deleted, or not offered at all.
+	noOfferingMessages    = []string{"all requested instance types were unavailable", "no instance types available"}
 	nodeImageInvalidCodes = sets.New("ImageNotFound", "GalleryImageNotFound")
-	// nodeConfigurationInvalidReasons are checked on every reconcile, so a failure they reported is never kept once fixed.
-	nodeConfigurationInvalidReasons = sets.New(NodeClassNotReadyReason, nodePoolValidationFailedReason)
-	nodeConfigurationInvalidCodes   = sets.New("AuthorizationFailed", "LinkedAuthorizationFailed", "SubnetIsFull",
+	// nodePoolOrNodeClassReasons report an invalid NodePool or a failed NodeClass, read from their status.
+	nodePoolOrNodeClassReasons    = sets.New(NodeClassNotReadyReason, nodePoolValidationFailedReason)
+	nodeConfigurationInvalidCodes = sets.New("AuthorizationFailed", "LinkedAuthorizationFailed", "SubnetIsFull",
 		"InsufficientSubnetSize")
 )
 
@@ -79,14 +81,14 @@ func classifyProvisioningFailure(reason, message string) string {
 		codes.Has("OperationNotAllowed") && strings.Contains(lower, "quota"):
 		return consts.ReasonQuotaExceeded
 	case capacityUnavailableReasons.Has(reason) || codes.HasAny(capacityUnavailableCodes.UnsortedList()...) ||
-		containsAny(lower, capacityUnavailableMessages...) || isGenericInsufficientCapacity(reason, message):
+		containsAny(lower, capacityUnavailableMessages...) || isNoOfferingAvailable(reason, message):
 		return consts.ReasonCapacityUnavailable
 	case codes.HasAny(nodeImageInvalidCodes.UnsortedList()...) ||
 		codes.Has("InvalidParameter") && strings.Contains(lower, "imagereference"):
 		return consts.ReasonNodeImageInvalid
 	case reason == registrationFailedReason || codes.Has("VMExtensionProvisioningError"):
 		return consts.ReasonNodeBootstrapFailed
-	case nodeConfigurationInvalidReasons.Has(reason) || codes.HasAny(nodeConfigurationInvalidCodes.UnsortedList()...):
+	case nodePoolOrNodeClassReasons.Has(reason) || codes.HasAny(nodeConfigurationInvalidCodes.UnsortedList()...):
 		return consts.ReasonNodeConfigurationInvalid
 	}
 	return ""
@@ -101,26 +103,46 @@ func provisioningCause(reason, message string) (string, string) {
 	return nodeclaim.ValidConditionReason(reason), nodeclaim.FormatProvisioningMessage(message)
 }
 
-// isGenericInsufficientCapacity reports an insufficient capacity error that does not say why the instance type is
-// unavailable, as it follows an earlier failure that the cloud provider cached.
-func isGenericInsufficientCapacity(reason, message string) bool {
-	return reason == insufficientCapacityEventReason && containsAny(strings.ToLower(message), genericInsufficientCapacityMessages...)
+// isNoOfferingAvailable reports an insufficient capacity error that no instance type offering is available, which
+// does not say why.
+func isNoOfferingAvailable(reason, message string) bool {
+	return reason == insufficientCapacityEventReason && containsAny(strings.ToLower(message), noOfferingMessages...)
 }
 
-// previousSpecificCause returns the Workspace's current NodeClaimReady failure for its generation unless it is
-// progress or an invalid NodeClass or NodePool, which is reported only while it lasts. generic reports a failure
-// classified from a generic insufficient capacity error.
-func previousSpecificCause(ws *kaitov1beta1.Workspace) (reason, message string, generic, found bool) {
+// reportedNotReadyCause is the NodeClaimReady failure already reported on the Workspace.
+type reportedNotReadyCause struct {
+	reason  string
+	message string
+	// noOffering reports a failure classified from a no-offering error.
+	noOffering bool
+}
+
+// reportedCause returns the NodeClaimReady failure already reported on the Workspace while it still applies. The
+// NodeClaim that carried a failure is deleted, and its retries often fail before launching with an error that does not
+// say why, so the failure is kept on the Workspace until a new attempt launches.
+func reportedCause(ws *kaitov1beta1.Workspace, nodeClaims []*karpenterv1.NodeClaim, now time.Time) (reportedNotReadyCause, bool) {
 	c := meta.FindStatusCondition(ws.Status.Conditions, string(kaitov1beta1.ConditionTypeNodeClaimStatus))
-	if c == nil || c.Status != metav1.ConditionFalse || c.ObservedGeneration != ws.Generation || c.Reason == "" ||
-		c.Reason == nodeclaim.NodeClaimNotReadyReason || c.Reason == insufficientCapacityEventReason {
-		return "", "", false, false
+	if c == nil || c.Status != metav1.ConditionFalse || c.ObservedGeneration != ws.Generation {
+		return reportedNotReadyCause{}, false
 	}
-	message, _, _ = strings.Cut(c.Message, nodeprovision.ReconcileErrorMessagePrefix)
-	// A classified message starts with the original reason.
-	originalReason, originalMessage, _ := strings.Cut(message, ": ")
-	if nodeConfigurationInvalidReasons.Has(originalReason) {
-		return "", "", false, false
+	// Only a failure that needs the user to act is kept: progress, or a failure KAITO does not classify, says
+	// nothing once its NodeClaim is gone.
+	if !consts.IsTerminatedReason(c.Reason) {
+		return reportedNotReadyCause{}, false
 	}
-	return c.Reason, message, isGenericInsufficientCapacity(originalReason, originalMessage), true
+	message, _, _ := strings.Cut(c.Message, nodeprovision.ReconcileErrorMessagePrefix)
+	originalReason, originalMessage := nodeclaim.ParseClassifiedProvisioningMessage(message)
+	// The NodePool and NodeClass are read directly on every reconcile, so a failure of theirs is never kept once fixed.
+	if nodePoolOrNodeClassReasons.Has(originalReason) {
+		return reportedNotReadyCause{}, false
+	}
+	// The failure of the earlier attempts no longer applies once a new attempt launched.
+	if hasUnregisteredLaunch(nodeClaims, now, 0) {
+		return reportedNotReadyCause{}, false
+	}
+	return reportedNotReadyCause{
+		reason:     c.Reason,
+		message:    message,
+		noOffering: isNoOfferingAvailable(originalReason, originalMessage),
+	}, true
 }

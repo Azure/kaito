@@ -62,9 +62,9 @@ ERROR CODE: AllocationFailed
 const (
 	regionalQuotaMessage = "NodeClaim " + testNodeClaimName + " event: insufficient capacity, regional on-demand vCPU quota limit for subscription has been reached. " +
 		"To scale beyond this limit, please review the quota increase process here: https://learn.microsoft.com/en-us/azure/quotas/regional-quota-requests"
-	genericInsufficientCapacityMessage = "NodeClaim " + testNodeClaimName + " event: insufficient capacity, all requested instance types were unavailable during launch"
-	genericCapacityUnavailableMessage  = insufficientCapacityEventReason + ": " + genericInsufficientCapacityMessage
-	quotaLaunchMessage                 = "creating instance failed, subscription level on-demand vCPU quota for Standard_NC24ads_A100_v4 has been reached (may try provision an alternative instance type)"
+	noOfferingMessage                    = "NodeClaim " + testNodeClaimName + " event: insufficient capacity, all requested instance types were unavailable during launch"
+	noOfferingCapacityUnavailableMessage = insufficientCapacityEventReason + ": " + noOfferingMessage
+	quotaLaunchMessage                   = "creating instance failed, subscription level on-demand vCPU quota for Standard_NC24ads_A100_v4 has been reached (may try provision an alternative instance type)"
 )
 
 // newWorkspaceNodeClaim builds a KAITO-managed NodeClaim of the test NodePool.
@@ -269,7 +269,7 @@ func TestProvisioningFailure_AsynchronousProvisioningError(t *testing.T) {
 	replacement := newWorkspaceNodeClaim(testPoolName+"-hjklm", launchedOK(), awaitingRegistration())
 	p := newFailureTestProvisioner(newFailureTestClient(nil, baseObjects(replacement,
 		failureEvent("async", testNodeClaimName, corev1.EventTypeWarning, asyncProvisioningEventReason, azureAllocationFailedError, testNow.Add(-time.Minute)),
-		failureEvent("ice", testNodeClaimName, corev1.EventTypeWarning, insufficientCapacityEventReason, genericInsufficientCapacityMessage, testNow),
+		failureEvent("ice", testNodeClaimName, corev1.EventTypeWarning, insufficientCapacityEventReason, noOfferingMessage, testNow),
 		failureEvent("normal", testNodeClaimName, corev1.EventTypeNormal, "Launched", "launched", testNow),
 	)...))
 
@@ -289,11 +289,11 @@ func TestProvisioningFailure_RegionalQuotaEvent(t *testing.T) {
 	assert.True(t, strings.HasPrefix(nodeClaimCond.Message, "InsufficientCapacityError: NodeClaim "+testNodeClaimName), nodeClaimCond.Message)
 }
 
-// A generic insufficient capacity error does not replace the specific cause already reported for the current spec.
-func TestProvisioningFailure_GenericInsufficientCapacityKeepsSpecificCause(t *testing.T) {
+// A no-offering error does not replace the specific cause already reported for the current spec.
+func TestProvisioningFailure_NoOfferingKeepsSpecificCause(t *testing.T) {
 	newProvisioner := func() *KarpenterProvisioner {
 		return newFailureTestProvisioner(newFailureTestClient(nil, baseObjects(
-			failureEvent("ice", testNodeClaimName, corev1.EventTypeWarning, insufficientCapacityEventReason, genericInsufficientCapacityMessage, testNow),
+			failureEvent("ice", testNodeClaimName, corev1.EventTypeWarning, insufficientCapacityEventReason, noOfferingMessage, testNow),
 		)...))
 	}
 	withNodeClaimCondition := func(reason, message string, generation int64) *kaitov1beta1.Workspace {
@@ -303,23 +303,23 @@ func TestProvisioningFailure_GenericInsufficientCapacityKeepsSpecificCause(t *te
 		return ws
 	}
 
-	t.Run("no previous cause", func(t *testing.T) {
+	t.Run("no reported cause", func(t *testing.T) {
 		nodeClaimCond, _ := nodeClaimConditions(t, newProvisioner(), testWorkspace(1))
 		assert.Equal(t, consts.ReasonCapacityUnavailable, nodeClaimCond.Reason)
-		assert.Equal(t, genericCapacityUnavailableMessage, nodeClaimCond.Message)
+		assert.Equal(t, noOfferingCapacityUnavailableMessage, nodeClaimCond.Message)
 	})
-	t.Run("previous specific cause is kept", func(t *testing.T) {
+	t.Run("reported specific cause is kept", func(t *testing.T) {
 		ws := withNodeClaimCondition(consts.ReasonQuotaExceeded, "CreateInstanceFailed: quota (last reconcile error: boom)", 1)
 		nodeClaimCond, _ := nodeClaimConditions(t, newProvisioner(), ws)
 		assert.Equal(t, consts.ReasonQuotaExceeded, nodeClaimCond.Reason)
 		assert.Equal(t, "CreateInstanceFailed: quota", nodeClaimCond.Message)
 	})
-	t.Run("previous cause of an older spec", func(t *testing.T) {
+	t.Run("reported cause of an older spec", func(t *testing.T) {
 		ws := withNodeClaimCondition(consts.ReasonQuotaExceeded, "CreateInstanceFailed: quota", 0)
 		nodeClaimCond, _ := nodeClaimConditions(t, newProvisioner(), ws)
 		assert.Equal(t, consts.ReasonCapacityUnavailable, nodeClaimCond.Reason)
 	})
-	t.Run("previous progress", func(t *testing.T) {
+	t.Run("reported progress", func(t *testing.T) {
 		ws := withNodeClaimCondition(nodeclaim.NodeClaimNotReadyReason, "provisioning", 1)
 		nodeClaimCond, _ := nodeClaimConditions(t, newProvisioner(), ws)
 		assert.Equal(t, consts.ReasonCapacityUnavailable, nodeClaimCond.Reason)
@@ -334,22 +334,22 @@ func TestProvisioningFailure_SpecificCauseOutlivesItsNodeClaim(t *testing.T) {
 	testcases := map[string]struct {
 		objs             []client.Object
 		targetNodeCount  int32
-		previousGen      int64
+		reportedGen      int64
 		expectedReason   string
 		expectedProgress bool
 	}{
-		"retry not launched yet":                  {objs: []client.Object{awaiting}, targetNodeCount: 1, previousGen: 1, expectedReason: consts.ReasonQuotaExceeded},
-		"no NodeClaim":                            {targetNodeCount: 1, previousGen: 1, expectedReason: consts.ReasonQuotaExceeded},
-		"another replica is ready":                {objs: []client.Object{ready, awaiting}, targetNodeCount: 2, previousGen: 1, expectedReason: consts.ReasonQuotaExceeded},
-		"a new attempt launched":                  {objs: []client.Object{booting}, targetNodeCount: 1, previousGen: 1, expectedReason: nodeclaim.NodeClaimNotReadyReason, expectedProgress: true},
-		"the cause was reported for another spec": {objs: []client.Object{awaiting}, targetNodeCount: 1, previousGen: 0, expectedReason: nodeclaim.NodeClaimNotReadyReason, expectedProgress: true},
+		"retry not launched yet":                  {objs: []client.Object{awaiting}, targetNodeCount: 1, reportedGen: 1, expectedReason: consts.ReasonQuotaExceeded},
+		"no NodeClaim":                            {targetNodeCount: 1, reportedGen: 1, expectedReason: consts.ReasonQuotaExceeded},
+		"another replica is ready":                {objs: []client.Object{ready, awaiting}, targetNodeCount: 2, reportedGen: 1, expectedReason: consts.ReasonQuotaExceeded},
+		"a new attempt launched":                  {objs: []client.Object{booting}, targetNodeCount: 1, reportedGen: 1, expectedReason: nodeclaim.NodeClaimNotReadyReason, expectedProgress: true},
+		"the cause was reported for another spec": {objs: []client.Object{awaiting}, targetNodeCount: 1, reportedGen: 0, expectedReason: nodeclaim.NodeClaimNotReadyReason, expectedProgress: true},
 	}
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			p := newFailureTestProvisioner(newFailureTestClient(nil, baseObjects(tc.objs...)...))
 			ws := testWorkspace(tc.targetNodeCount)
 			ws.Status.Conditions = []metav1.Condition{{Type: string(kaitov1beta1.ConditionTypeNodeClaimStatus), Status: metav1.ConditionFalse,
-				Reason: consts.ReasonQuotaExceeded, Message: "CreateInstanceFailed: quota", ObservedGeneration: tc.previousGen}}
+				Reason: consts.ReasonQuotaExceeded, Message: "CreateInstanceFailed: quota", ObservedGeneration: tc.reportedGen}}
 
 			nodeClaimCond, _ := nodeClaimConditions(t, p, ws)
 			assert.Equal(t, tc.expectedReason, nodeClaimCond.Reason)
@@ -360,47 +360,57 @@ func TestProvisioningFailure_SpecificCauseOutlivesItsNodeClaim(t *testing.T) {
 	}
 }
 
-// An invalid NodeClass or NodePool is only reported while it lasts, and a generic insufficient capacity error is
-// refreshed by a newer one but still kept over progress.
-func TestProvisioningFailure_PreviousCauseOfFixedOrGenericFailure(t *testing.T) {
-	genericEvent := failureEvent("ice", testNodeClaimName, corev1.EventTypeWarning, insufficientCapacityEventReason, genericInsufficientCapacityMessage, testNow)
+// An invalid NodeClass or NodePool is only reported while it lasts, a no-offering error is refreshed by a newer one
+// but still kept over progress, and an unclassified failure is not kept.
+func TestProvisioningFailure_ReportedCauseOfFixedOrNoOfferingFailure(t *testing.T) {
+	noOfferingEvent := failureEvent("ice", testNodeClaimName, corev1.EventTypeWarning, insufficientCapacityEventReason, noOfferingMessage, testNow)
 	awaiting := newWorkspaceNodeClaim(testNodeClaimName, awaitingLaunch())
 	const (
-		nodeClassMissing        = `NodeClassNotReady: NodeClass "image-family-ubuntu" is not ready (NotFound): NodeClass does not exist`
-		nodePoolInvalid         = "NodePoolValidationFailed: invalid requirements"
-		olderGenericUnavailable = insufficientCapacityEventReason + ": NodeClaim " + testPoolName + "-hjklm event: insufficient capacity, all requested instance types were unavailable during launch"
+		nodeClassMissing           = `NodeClassNotReady: NodeClass "image-family-ubuntu" is not ready (NotFound): NodeClass does not exist`
+		nodePoolInvalid            = "NodePoolValidationFailed: invalid requirements"
+		olderNoOfferingUnavailable = insufficientCapacityEventReason + ": NodeClaim " + testPoolName + "-hjklm event: insufficient capacity, all requested instance types were unavailable during launch"
 	)
 	testcases := map[string]struct {
 		objs            []client.Object
-		previousReason  string
-		previousMessage string
+		reportedReason  string
+		reportedMessage string
 		expectedReason  string
 		expectedMessage string
 	}{
-		"fixed NodeClass, retries fail with a generic error": {
-			objs:           []client.Object{genericEvent},
-			previousReason: consts.ReasonNodeConfigurationInvalid, previousMessage: nodeClassMissing + " (last reconcile error: boom)",
-			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: genericCapacityUnavailableMessage,
+		"fixed NodeClass, retries fail with a no-offering error": {
+			objs:           []client.Object{noOfferingEvent},
+			reportedReason: consts.ReasonNodeConfigurationInvalid, reportedMessage: nodeClassMissing + " (last reconcile error: boom)",
+			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: noOfferingCapacityUnavailableMessage,
 		},
 		"fixed NodeClass, retry awaiting launch": {
 			objs:           []client.Object{awaiting},
-			previousReason: consts.ReasonNodeConfigurationInvalid, previousMessage: nodeClassMissing,
+			reportedReason: consts.ReasonNodeConfigurationInvalid, reportedMessage: nodeClassMissing,
 			expectedReason: nodeclaim.NodeClaimNotReadyReason,
 		},
-		"fixed NodePool, retries fail with a generic error": {
-			objs:           []client.Object{genericEvent},
-			previousReason: consts.ReasonNodeConfigurationInvalid, previousMessage: nodePoolInvalid,
-			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: genericCapacityUnavailableMessage,
+		"fixed NodePool, retries fail with a no-offering error": {
+			objs:           []client.Object{noOfferingEvent},
+			reportedReason: consts.ReasonNodeConfigurationInvalid, reportedMessage: nodePoolInvalid,
+			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: noOfferingCapacityUnavailableMessage,
 		},
-		"newer generic error refreshes the message": {
-			objs:           []client.Object{genericEvent},
-			previousReason: consts.ReasonCapacityUnavailable, previousMessage: olderGenericUnavailable,
-			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: genericCapacityUnavailableMessage,
+		"newer no-offering error refreshes the message": {
+			objs:           []client.Object{noOfferingEvent},
+			reportedReason: consts.ReasonCapacityUnavailable, reportedMessage: olderNoOfferingUnavailable,
+			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: noOfferingCapacityUnavailableMessage,
 		},
-		"generic error is kept over progress": {
+		"no-offering error is kept over progress": {
 			objs:           []client.Object{awaiting},
-			previousReason: consts.ReasonCapacityUnavailable, previousMessage: olderGenericUnavailable,
-			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: olderGenericUnavailable,
+			reportedReason: consts.ReasonCapacityUnavailable, reportedMessage: olderNoOfferingUnavailable,
+			expectedReason: consts.ReasonCapacityUnavailable, expectedMessage: olderNoOfferingUnavailable,
+		},
+		"unclassified failure is not kept": {
+			objs:           []client.Object{awaiting},
+			reportedReason: "LaunchFailed", reportedMessage: "creating instance failed, TooManyRequests",
+			expectedReason: nodeclaim.NodeClaimNotReadyReason,
+		},
+		"unclassified insufficient capacity error is not kept": {
+			objs:           []client.Object{awaiting},
+			reportedReason: insufficientCapacityEventReason, reportedMessage: "NodeClaim " + testPoolName + "-hjklm event: insufficient capacity, resolving node class, not found",
+			expectedReason: nodeclaim.NodeClaimNotReadyReason,
 		},
 	}
 	for name, tc := range testcases {
@@ -408,7 +418,7 @@ func TestProvisioningFailure_PreviousCauseOfFixedOrGenericFailure(t *testing.T) 
 			p := newFailureTestProvisioner(newFailureTestClient(nil, baseObjects(tc.objs...)...))
 			ws := testWorkspace(1)
 			ws.Status.Conditions = []metav1.Condition{{Type: string(kaitov1beta1.ConditionTypeNodeClaimStatus), Status: metav1.ConditionFalse,
-				Reason: tc.previousReason, Message: tc.previousMessage, ObservedGeneration: 1}}
+				Reason: tc.reportedReason, Message: tc.reportedMessage, ObservedGeneration: 1}}
 
 			nodeClaimCond, _ := nodeClaimConditions(t, p, ws)
 			assert.Equal(t, tc.expectedReason, nodeClaimCond.Reason)
@@ -514,9 +524,9 @@ func TestProvisioningFailure_NodePoolConditions(t *testing.T) {
 		"Events come before failed registrations": {
 			nodePool: testNodePool(unhealthy),
 			objs: []client.Object{stuck, failureEvent("ice", testPoolName+"-hjklm", corev1.EventTypeWarning,
-				insufficientCapacityEventReason, genericInsufficientCapacityMessage, testNow)},
+				insufficientCapacityEventReason, noOfferingMessage, testNow)},
 			expectedReason:  consts.ReasonCapacityUnavailable,
-			expectedMessage: genericCapacityUnavailableMessage,
+			expectedMessage: noOfferingCapacityUnavailableMessage,
 		},
 	}
 	for name, tc := range testcases {
@@ -535,7 +545,7 @@ func TestProvisioningFailure_NodePoolConditions(t *testing.T) {
 func TestProvisioningFailure_EventListInterval(t *testing.T) {
 	counter := &eventListCounter{}
 	c := newFailureTestClient(counter, baseObjects(
-		failureEvent("first", testNodeClaimName, corev1.EventTypeWarning, insufficientCapacityEventReason, genericInsufficientCapacityMessage, testNow),
+		failureEvent("first", testNodeClaimName, corev1.EventTypeWarning, insufficientCapacityEventReason, noOfferingMessage, testNow),
 	)...)
 	p := newFailureTestProvisioner(c)
 	now := testNow
@@ -594,29 +604,41 @@ func nodeClassWithoutStatus() *unstructured.Unstructured {
 
 func TestProvisioningFailure_NodeClass(t *testing.T) {
 	failing := newWorkspaceNodeClaim(testNodeClaimName, quotaLaunchFailure())
+	awaiting := newWorkspaceNodeClaim(testNodeClaimName, awaitingLaunch())
+	notReconciled := makeNodeClass(testConfig.DefaultName, "Unknown", "AwaitingReconciliation", "object is awaiting reconciliation")
 	testcases := map[string]struct {
 		nodeClass       client.Object
+		nodeClaim       client.Object
 		expectedReason  string
 		expectedMessage string
 	}{
 		"missing": {
+			nodeClaim:       failing,
 			expectedReason:  consts.ReasonNodeConfigurationInvalid,
 			expectedMessage: `NodeClassNotReady: NodeClass "image-family-ubuntu" is not ready (NotFound): NodeClass does not exist`,
 		},
 		"Ready=False": {
 			nodeClass:       makeNodeClass(testConfig.DefaultName, "False", "ImagesNotReady", "failed to resolve images"),
+			nodeClaim:       failing,
 			expectedReason:  consts.ReasonNodeConfigurationInvalid,
 			expectedMessage: `NodeClassNotReady: NodeClass "image-family-ubuntu" is not ready (ImagesNotReady): failed to resolve images`,
 		},
 		"Ready=Unknown is progress": {
-			nodeClass:       makeNodeClass(testConfig.DefaultName, "Unknown", "AwaitingReconciliation", "object is awaiting reconciliation"),
+			nodeClass:       notReconciled,
+			nodeClaim:       awaiting,
 			expectedReason:  nodeclaim.NodeClaimNotReadyReason,
 			expectedMessage: `NodeClass "image-family-ubuntu" is not ready (AwaitingReconciliation): object is awaiting reconciliation`,
+		},
+		"Ready=Unknown comes after a NodeClaim failure": {
+			nodeClass:       notReconciled,
+			nodeClaim:       failing,
+			expectedReason:  consts.ReasonQuotaExceeded,
+			expectedMessage: "CreateInstanceFailed: " + quotaLaunchMessage,
 		},
 	}
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			objs := []client.Object{testNodePool(), failing}
+			objs := []client.Object{testNodePool(), tc.nodeClaim}
 			if tc.nodeClass != nil {
 				objs = append(objs, tc.nodeClass)
 			}
@@ -701,7 +723,7 @@ func TestClassifyProvisioningFailure(t *testing.T) {
 		"NodePool validation":                    {reason: nodePoolValidationFailedReason, message: "invalid", expected: consts.ReasonNodeConfigurationInvalid},
 		"authorization":                          {reason: "CreateInstanceFailed", message: "ERROR CODE: LinkedAuthorizationFailed", expected: consts.ReasonNodeConfigurationInvalid},
 		"subnet full":                            {reason: "CreateInstanceFailed", message: "ERROR CODE: SubnetIsFull", expected: consts.ReasonNodeConfigurationInvalid},
-		"generic insufficient capacity":          {reason: insufficientCapacityEventReason, message: genericInsufficientCapacityMessage, expected: consts.ReasonCapacityUnavailable},
+		"no offering":                            {reason: insufficientCapacityEventReason, message: noOfferingMessage, expected: consts.ReasonCapacityUnavailable},
 		"no instance types available":            {reason: insufficientCapacityEventReason, message: "NodeClaim x event: insufficient capacity, no instance types available", expected: consts.ReasonCapacityUnavailable},
 		"NodeClass not found":                    {reason: insufficientCapacityEventReason, message: "NodeClaim x event: insufficient capacity, resolving node class, not found", expected: ""},
 		"throttling":                             {reason: "CreateInstanceFailed", message: "ERROR CODE: TooManyRequests", expected: ""},

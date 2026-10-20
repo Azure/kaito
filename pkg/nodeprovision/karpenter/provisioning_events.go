@@ -38,7 +38,7 @@ const (
 	asyncProvisioningEventReason = "AsyncProvisioningError"
 	// insufficientCapacityEventReason is published by Karpenter before it deletes a NodeClaim that failed with an
 	// insufficient capacity error. On Azure, it carries the regional vCPU quota error or, once the provider cached the
-	// offering of an earlier failure as unavailable, a generic "all requested instance types were unavailable" error.
+	// offering of an earlier failure as unavailable, a no-offering "all requested instance types were unavailable" error.
 	// The other Azure quota and allocation errors are only recorded on the NodeClaim's Launched condition.
 	insufficientCapacityEventReason = "InsufficientCapacityError"
 
@@ -108,7 +108,7 @@ func (c *nodeClaimEventCache) recent(ctx context.Context, cl client.Client, now 
 }
 
 // failureEventTier ranks a provisioning failure Event: an asynchronous provisioning error carries the cloud error that
-// the generic insufficient capacity errors of later attempts are a consequence of.
+// the no-offering insufficient capacity errors of later attempts are a consequence of.
 type failureEventTier int
 
 const (

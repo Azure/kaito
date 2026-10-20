@@ -731,73 +731,95 @@ func (p *KarpenterProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *ka
 	return []metav1.Condition{nodeCond, nodeClaimCond, resourceCond}, nil
 }
 
-// nodeClaimNotReadyCause reports why the NodeClaims are not ready. When the current evidence only shows progress or a
-// generic insufficient capacity error, it keeps the specific failure already reported on the Workspace until a new
-// attempt launches: the NodeClaim that carried that failure is deleted and its retries fail before launching. A
-// failure reported from a generic insufficient capacity error is only kept over progress, so that a newer one
-// refreshes its message.
+// nodeClaimNotReadyCause reports why the NodeClaims are not ready. It reads the cause already reported on the
+// Workspace, then checks the current evidence in order of precedence, each step saying whether it replaces the
+// reported cause. A failure that needs the user to act is reported under its KAITO reason.
 func (p *KarpenterProvisioner) nodeClaimNotReadyCause(ctx context.Context, ws *kaitov1beta1.Workspace, snap *nodeReadinessSnapshot) (reason, message string, found bool) {
 	now := p.now()
-	reason, message, inconclusive := p.currentNotReadyCause(ctx, ws, snap, now)
-	if inconclusive && !hasUnregisteredLaunch(snap.allNodeClaims, now, 0) {
-		if previousReason, previousMessage, generic, ok := previousSpecificCause(ws); ok && !(generic && reason == previousReason) {
-			return previousReason, previousMessage, true
-		}
-	}
-	return reason, message, reason != ""
-}
+	reported, hasReported := reportedCause(ws, snap.allNodeClaims, now)
 
-// currentNotReadyCause reports, in order: an invalid NodePool; a missing or not ready NodeClass; a failure on a
-// NodeClaim; a recent provisioning failure Event of the NodePool's NodeClaims; the NodePool's failed node
-// registrations while a launched NodeClaim is not registering; otherwise NodeClaimNotReady with the provisioning
-// progress. A failure that needs the user to act is reported under its KAITO reason. The cause is inconclusive when
-// it is progress or a generic insufficient capacity error.
-func (p *KarpenterProvisioner) currentNotReadyCause(ctx context.Context, ws *kaitov1beta1.Workspace, snap *nodeReadinessSnapshot, now time.Time) (reason, message string, inconclusive bool) {
+	// 1. An invalid NodePool or a failed NodeClass blocks every launch, and is read directly on every reconcile:
+	// always replaces the reported cause.
 	nodePool := p.getNodePool(ctx, NodePoolName(ws.Namespace, ws.Name))
 	if c := nodePoolCondition(nodePool, karpenterv1.ConditionTypeValidationSucceeded); c != nil && c.Status == metav1.ConditionFalse {
 		reason, message = provisioningCause(c.Reason, c.Message)
-		return reason, message, false
+		return reason, message, true
+	}
+	nodeClassNotReady := p.nodeClassNotReady(ctx, ws)
+	if nodeClassNotReady != nil && nodeClassNotReady.Failed() {
+		// Carries the ProvisionNodes reconcile error, so it is not appended twice.
+		reason, message = provisioningCause(NodeClassNotReadyReason, nodeClassNotReady.Error())
+		return reason, message, true
 	}
 
+	// 2. A failure on a NodeClaim, or in a recent Event other than no offering, is newer evidence: always replaces
+	// the reported cause.
+	if reason, message, found := nodeclaim.RawNodeClaimProvisioningFailure(snap.allNodeClaims); found {
+		reason, message = provisioningCause(reason, message)
+		return reason, message, true
+	}
+	event, hasEvent := p.recentFailureEvent(ctx, nodePool, now)
+	if hasEvent && !isNoOfferingAvailable(event.reason, event.message) {
+		reason, message = provisioningCause(event.reason, event.message)
+		return reason, message, true
+	}
+
+	// 3. A no-offering Event does not say why: replaces only a reported no-offering cause, to refresh its message.
+	if hasEvent {
+		if hasReported && !reported.noOffering {
+			return reported.reason, reported.message, true
+		}
+		reason, message = provisioningCause(event.reason, event.message)
+		return reason, message, true
+	}
+
+	// 4. Below is only progress, or failed registrations, which need a launched NodeClaim and so never come with a
+	// reported cause.
+	if hasReported {
+		return reported.reason, reported.message, true
+	}
+
+	// 5. The NodePool's failed registrations, while a launched NodeClaim is not registering either.
+	if c := nodePoolCondition(nodePool, karpenterv1.ConditionTypeNodeRegistrationHealthy); c != nil && c.Status == metav1.ConditionFalse &&
+		hasUnregisteredLaunch(snap.allNodeClaims, now, stuckRegistrationThreshold) {
+		reason, message = provisioningCause(c.Reason, c.Message)
+		return reason, message, true
+	}
+
+	// 6. Progress: a NodeClass that is not reconciled yet, then the NodeClaims.
+	if nodeClassNotReady != nil {
+		return nodeclaim.NodeClaimNotReadyReason, nodeClassNotReady.Error(), true
+	}
+	if message, found := nodeclaim.NodeClaimProvisioningProgress(snap.allNodeClaims); found {
+		return nodeclaim.NodeClaimNotReadyReason, message, true
+	}
+	return "", "", false
+}
+
+// nodeClassNotReady returns why the Workspace's NodeClass is not ready, or nil if it is ready or cannot be checked.
+func (p *KarpenterProvisioner) nodeClassNotReady(ctx context.Context, ws *kaitov1beta1.Workspace) *NodeClassNotReadyError {
 	if nodeClassName, err := resolveNodeClassName(ws, p.nodeClassConfig); err == nil {
 		var notReady *NodeClassNotReadyError
 		if err := p.checkNodeClassReady(ctx, nodeClassName); errors.As(err, &notReady) {
-			// Carries the ProvisionNodes reconcile error, so it is not appended twice.
-			if notReady.Failed() {
-				reason, message = provisioningCause(NodeClassNotReadyReason, notReady.Error())
-				return reason, message, false
-			}
-			return nodeclaim.NodeClaimNotReadyReason, notReady.Error(), true
+			return notReady
 		} else if err != nil {
 			klog.ErrorS(err, "failed to check NodeClass readiness", "nodeClass", nodeClassName, "workspace", klog.KObj(ws))
 		}
 	}
+	return nil
+}
 
-	if reason, message, found := nodeclaim.RawNodeClaimProvisioningFailure(snap.allNodeClaims); found {
-		reason, message = provisioningCause(reason, message)
-		return reason, message, false
+// recentFailureEvent returns the provisioning failure Event of the NodePool's NodeClaims within nodeClaimEventWindow
+// and after the NodePool was created.
+func (p *KarpenterProvisioner) recentFailureEvent(ctx context.Context, nodePool *karpenterv1.NodePool, now time.Time) (nodeClaimEvent, bool) {
+	if nodePool == nil {
+		return nodeClaimEvent{}, false
 	}
-
-	if nodePool != nil {
-		since := now.Add(-nodeClaimEventWindow)
-		if nodePool.CreationTimestamp.After(since) {
-			since = nodePool.CreationTimestamp.Time
-		}
-		if e, ok := nodePoolFailureEvent(p.nodeClaimEvents.recent(ctx, p.client, now), nodePool.Name, since); ok {
-			reason, message = provisioningCause(e.reason, e.message)
-			return reason, message, isGenericInsufficientCapacity(e.reason, e.message)
-		}
-		if c := nodePoolCondition(nodePool, karpenterv1.ConditionTypeNodeRegistrationHealthy); c != nil && c.Status == metav1.ConditionFalse &&
-			hasUnregisteredLaunch(snap.allNodeClaims, now, stuckRegistrationThreshold) {
-			reason, message = provisioningCause(c.Reason, c.Message)
-			return reason, message, false
-		}
+	since := now.Add(-nodeClaimEventWindow)
+	if nodePool.CreationTimestamp.After(since) {
+		since = nodePool.CreationTimestamp.Time
 	}
-
-	if message, found := nodeclaim.NodeClaimProvisioningProgress(snap.allNodeClaims); found {
-		return nodeclaim.NodeClaimNotReadyReason, message, true
-	}
-	return "", "", true
+	return nodePoolFailureEvent(p.nodeClaimEvents.recent(ctx, p.client, now), nodePool.Name, since)
 }
 
 // stuckRegistrationThreshold is how long a launched NodeClaim waits for its node before its NodePool's failed

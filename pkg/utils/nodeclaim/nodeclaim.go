@@ -509,6 +509,16 @@ func FormatClassifiedProvisioningMessage(originalReason, msg string) string {
 	return utils.TruncateMessage(originalReason+": "+compactProvisioningMessage(msg), maxProvisioningErrorMessageLen)
 }
 
+// ParseClassifiedProvisioningMessage splits a message formatted by FormatClassifiedProvisioningMessage into the
+// original reason and the formatted original message. originalReason is empty if msg has no reason in front.
+func ParseClassifiedProvisioningMessage(msg string) (originalReason, originalMessage string) {
+	originalReason, originalMessage, found := strings.Cut(msg, ": ")
+	if !found {
+		return "", msg
+	}
+	return originalReason, originalMessage
+}
+
 // nodeClassReadinessUnknownReason is the Launched reason recorded while the NodeClass is not reconciled yet; it is not an error.
 const nodeClassReadinessUnknownReason = "NodeClassReadinessUnknown"
 

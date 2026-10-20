@@ -707,6 +707,16 @@ func TestFormatClassifiedProvisioningMessage(t *testing.T) {
 	assert.Check(t, len(got) <= maxProvisioningErrorMessageLen+len("..."))
 }
 
+func TestParseClassifiedProvisioningMessage(t *testing.T) {
+	reason, message := ParseClassifiedProvisioningMessage(FormatClassifiedProvisioningMessage("InsufficientCapacityError", "no instance types available"))
+	assert.Equal(t, "InsufficientCapacityError", reason)
+	assert.Equal(t, "no instance types available", message)
+
+	reason, message = ParseClassifiedProvisioningMessage("no reason in front")
+	assert.Equal(t, "", reason)
+	assert.Equal(t, "no reason in front", message)
+}
+
 func TestIsConditionTrue(t *testing.T) {
 	nc := &karpenterv1.NodeClaim{Status: karpenterv1.NodeClaimStatus{Conditions: []status.Condition{
 		{Type: karpenterv1.ConditionTypeLaunched, Status: metav1.ConditionTrue},
