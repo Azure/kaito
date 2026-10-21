@@ -14,6 +14,7 @@
 package karpenter
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
@@ -37,25 +38,11 @@ const (
 )
 
 var (
-	capacityUnavailableReasons = sets.New("AllocationFailure", "ZonalAllocationFailure",
-		"OverconstrainedAllocationFailure", "OverconstrainedZonalAllocationFailure", "SKUNotAvailable")
-	capacityUnavailableCodes = sets.New("AllocationFailed", "ZonalAllocationFailed",
-		"OverconstrainedAllocationRequest", "OverconstrainedZonalAllocationRequest", "SkuNotAvailable", "VMSizeNotSupported")
-	// capacityUnavailableMessages are written by the Azure provider's allocation and SKU error handlers.
-	capacityUnavailableMessages = []string{"unable to allocate resources", "the requested sku is unavailable",
-		"is not supported for this subscription"}
 	// noOfferingMessages are the insufficient capacity errors of a NodeClaim whose instance types have no available
 	// offering, which do not say why. KAITO NodePools allow a single instance type and capacity type, so its only
 	// offering is either cached as unavailable after an earlier quota, allocation or SKU failure, whose NodeClaim is
 	// deleted, or not offered at all.
-	noOfferingMessages    = []string{"all requested instance types were unavailable", "no instance types available"}
-	nodeImageInvalidCodes = sets.New("ImageNotFound", "GalleryImageNotFound")
-	// nodeImageInvalidMessages are written by the Azure provider when the NodeClass has no image for the instance type.
-	nodeImageInvalidMessages = []string{"no compatible images found for instance type"}
-	// nodeConfigurationInvalidCodes are cloud errors that recur on every retry until the user fixes a permission, a
-	// subnet, an Azure Policy, a resource provider registration or a referenced resource.
-	nodeConfigurationInvalidCodes = sets.New("AuthorizationFailed", "LinkedAuthorizationFailed", "SubnetIsFull",
-		"InsufficientSubnetSize", "RequestDisallowedByPolicy", "MissingSubscriptionRegistration", "InvalidResourceReference")
+	noOfferingMessages = []string{"all requested instance types were unavailable", "no instance types available"}
 	// nodeClassResolutionMessages are the insufficient capacity errors the Azure and AWS providers report when they
 	// cannot resolve the NodeClaim's NodeClass. The NodeClass is read directly on every reconcile and reported as
 	// NodeClassInvalid while it is missing, so these errors are either redundant or stale once it is restored.
@@ -63,6 +50,71 @@ var (
 	// nodePoolOrNodeClassReasons report an invalid NodePool or a failed NodeClass, read directly on every reconcile.
 	nodePoolOrNodeClassReasons = sets.New(consts.ReasonNodeClassInvalid, consts.ReasonNodePoolInvalid)
 )
+
+// failurePattern identifies a kind of provisioning failure by its reason, its cloud error codes or its message.
+type failurePattern struct {
+	reasons sets.Set[string]
+	codes   sets.Set[string]
+	// qualifiedCodes are generic cloud error codes that identify the failure only with a message matching the pattern.
+	qualifiedCodes map[string]*regexp.Regexp
+	// messages are lowercase substrings of the message.
+	messages []string
+}
+
+func (p failurePattern) matches(reason, message, lowerMessage string, codes sets.Set[string]) bool {
+	if p.reasons.Has(reason) || codes.HasAny(p.codes.UnsortedList()...) || containsAny(lowerMessage, p.messages...) {
+		return true
+	}
+	for code, pattern := range p.qualifiedCodes {
+		if codes.Has(code) && pattern.MatchString(message) {
+			return true
+		}
+	}
+	return false
+}
+
+// provisioningFailurePatterns are the KAITO reasons of the provisioning failures that need the user to act, in the
+// order they are matched. They match the Launched reasons of recent Azure providers, the messages of their error
+// handlers, which older providers report as CreateInstanceFailed or in Events, and the cloud error codes.
+var provisioningFailurePatterns = []struct {
+	reason  string
+	pattern failurePattern
+}{
+	{reason: consts.ReasonQuotaExceeded, pattern: failurePattern{
+		reasons:        sets.New(subscriptionQuotaReachedReason),
+		codes:          sets.New("QuotaExceeded"),
+		qualifiedCodes: map[string]*regexp.Regexp{"OperationNotAllowed": regexp.MustCompile(`(?i)quota`)},
+		messages:       []string{"vcpu quota", "lowpriorityquota"},
+	}},
+	{reason: consts.ReasonCapacityUnavailable, pattern: failurePattern{
+		reasons: sets.New("AllocationFailure", "OverconstrainedAllocationFailure", "SKUNotAvailable"),
+		codes: sets.New("AllocationFailed", "ZonalAllocationFailed", "OverconstrainedAllocationRequest",
+			"OverconstrainedZonalAllocationRequest", "SkuNotAvailable", "VMSizeNotSupported"),
+		// Written by the Azure provider's allocation and SKU error handlers.
+		messages: []string{"unable to allocate resources", "the requested sku is unavailable",
+			"is not supported for this subscription"},
+	}},
+	{reason: consts.ReasonNodeImageInvalid, pattern: failurePattern{
+		codes: sets.New("ImageNotFound", "GalleryImageNotFound"),
+		// An invalid parameter is the image reference when its message ("The value of parameter imageReference is
+		// invalid") or target names it, rather than when the message only mentions it.
+		qualifiedCodes: map[string]*regexp.Regexp{
+			"InvalidParameter": regexp.MustCompile(`(?i)parameter\s+'?imageReference\b|"target":\s*"imageReference\b`),
+		},
+		// Written by the Azure provider when the NodeClass has no image for the instance type.
+		messages: []string{"no compatible images found for instance type"},
+	}},
+	{reason: consts.ReasonNodeBootstrapFailed, pattern: failurePattern{
+		reasons: sets.New(registrationFailedReason),
+		codes:   sets.New("VMExtensionProvisioningError"),
+	}},
+	{reason: consts.ReasonNodeConfigurationInvalid, pattern: failurePattern{
+		// Recur on every retry until the user fixes a permission, a subnet, an Azure Policy, a resource provider
+		// registration or a referenced resource.
+		codes: sets.New("AuthorizationFailed", "LinkedAuthorizationFailed", "SubnetIsFull", "InsufficientSubnetSize",
+			"RequestDisallowedByPolicy", "MissingSubscriptionRegistration", "InvalidResourceReference"),
+	}},
+}
 
 func containsAny(s string, substrings ...string) bool {
 	for _, sub := range substrings {
@@ -73,31 +125,33 @@ func containsAny(s string, substrings ...string) bool {
 	return false
 }
 
+// zonalCapacityFailure is a synchronous capacity failure in the selected zone. The provider caches only that zone as
+// unavailable and its next attempt, about a second later, tries another zone, so it is not CapacityUnavailable until
+// every zone failed, which the provider reports as a no-offering insufficient capacity error. An asynchronous one is
+// still CapacityUnavailable: its Event outranks the no-offering Events that follow it for nodeClaimEventWindow.
+var zonalCapacityFailure = failurePattern{
+	reasons: sets.New("ZonalAllocationFailure", "OverconstrainedZonalAllocationFailure"),
+	// Written by the Azure provider's zonal allocation error handlers, which older providers report as
+	// CreateInstanceFailed.
+	messages: []string{"in the selected zone"},
+}
+
 // classifyProvisioningFailure returns the KAITO reason of a provisioning failure that needs the user to act, or ""
-// otherwise. It matches the Launched reasons of recent Azure providers, the messages of their error handlers, which
-// older providers report as CreateInstanceFailed or in Events, and the cloud error codes. Any other insufficient
-// capacity error is CapacityUnavailable, as KAITO NodePools have a single offering to fall back on, unless the
-// provider could not resolve the NodeClass.
+// otherwise: the first of provisioningFailurePatterns it matches, unless it is a synchronous capacity failure in a
+// single zone. Any other insufficient capacity error is CapacityUnavailable, as KAITO NodePools have a single offering
+// to fall back on, unless the provider could not resolve the NodeClass.
 func classifyProvisioningFailure(reason, message string) string {
 	codes := nodeclaim.CloudErrorCodes(message)
 	lower := strings.ToLower(message)
-	switch {
-	case reason == subscriptionQuotaReachedReason || codes.Has("QuotaExceeded") ||
-		containsAny(lower, "vcpu quota", "lowpriorityquota") ||
-		codes.Has("OperationNotAllowed") && strings.Contains(lower, "quota"):
-		return consts.ReasonQuotaExceeded
-	case capacityUnavailableReasons.Has(reason) || codes.HasAny(capacityUnavailableCodes.UnsortedList()...) ||
-		containsAny(lower, capacityUnavailableMessages...):
-		return consts.ReasonCapacityUnavailable
-	case codes.HasAny(nodeImageInvalidCodes.UnsortedList()...) ||
-		codes.Has("InvalidParameter") && strings.Contains(lower, "imagereference") ||
-		containsAny(lower, nodeImageInvalidMessages...):
-		return consts.ReasonNodeImageInvalid
-	case reason == registrationFailedReason || codes.Has("VMExtensionProvisioningError"):
-		return consts.ReasonNodeBootstrapFailed
-	case codes.HasAny(nodeConfigurationInvalidCodes.UnsortedList()...):
-		return consts.ReasonNodeConfigurationInvalid
-	case reason == insufficientCapacityEventReason && !isNodeClassResolutionFailure(reason, message):
+	if reason != asyncProvisioningEventReason && zonalCapacityFailure.matches(reason, message, lower, codes) {
+		return ""
+	}
+	for _, p := range provisioningFailurePatterns {
+		if p.pattern.matches(reason, message, lower, codes) {
+			return p.reason
+		}
+	}
+	if reason == insufficientCapacityEventReason && !isNodeClassResolutionFailure(reason, message) {
 		return consts.ReasonCapacityUnavailable
 	}
 	return ""

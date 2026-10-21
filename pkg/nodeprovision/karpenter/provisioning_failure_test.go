@@ -264,6 +264,29 @@ func TestProvisioningFailure_DeletingNodeClaimFailure(t *testing.T) {
 	assert.Equal(t, "LaunchFailed", nodeClaimCondition(t, p, 1).Reason)
 }
 
+// A capacity failure in one zone is not CapacityUnavailable while the provider tries the other zones, until it reports
+// that no offering is available in any zone.
+func TestProvisioningFailure_ZonalCapacityFailure(t *testing.T) {
+	const zonalMessage = "unable to allocate resources in the selected zone (eastus-1). (will try a different zone to fulfill your request)"
+	zonal := newWorkspaceNodeClaim(testNodeClaimName, status.Condition{Type: karpenterv1.ConditionTypeLaunched,
+		Status: metav1.ConditionUnknown, Reason: "ZonalAllocationFailure", Message: zonalMessage})
+	p := newFailureTestProvisioner(newFailureTestClient(nil, baseObjects(zonal)...))
+	nodeClaimCond := nodeClaimCondition(t, p, 1)
+	assert.Equal(t, "ZonalAllocationFailure", nodeClaimCond.Reason)
+	assert.Equal(t, zonalMessage, nodeClaimCond.Message)
+	assert.False(t, consts.IsTerminatedReason(nodeClaimCond.Reason))
+
+	ws := testWorkspace(1)
+	ws.Status.Conditions = []metav1.Condition{{Type: string(kaitov1beta1.ConditionTypeNodeClaimStatus), Status: metav1.ConditionFalse,
+		Reason: "ZonalAllocationFailure", Message: zonalMessage, ObservedGeneration: 1}}
+	retry := newWorkspaceNodeClaim(testPoolName+"-hjklm", awaitingLaunch())
+	p = newFailureTestProvisioner(newFailureTestClient(nil, baseObjects(retry,
+		failureEvent("ice", testNodeClaimName, corev1.EventTypeWarning, insufficientCapacityEventReason, noOfferingMessage, testNow))...))
+	nodeClaimCond, _ = nodeClaimConditions(t, p, ws)
+	assert.Equal(t, consts.ReasonCapacityUnavailable, nodeClaimCond.Reason)
+	assert.Equal(t, noOfferingCapacityUnavailableMessage, nodeClaimCond.Message)
+}
+
 // An asynchronous Azure failure after launch is reported from its AsyncProvisioningError Event.
 func TestProvisioningFailure_AsynchronousProvisioningError(t *testing.T) {
 	replacement := newWorkspaceNodeClaim(testPoolName+"-hjklm", launchedOK(), awaitingRegistration())
@@ -779,7 +802,11 @@ func TestClassifyProvisioningFailure(t *testing.T) {
 		"quota error code":                       {reason: "CreateInstanceFailed", message: "ERROR CODE: OperationNotAllowed\nOperation could not be completed as it results in exceeding approved Total Regional Cores quota", expected: consts.ReasonQuotaExceeded},
 		"Azure AllocationFailure":                {reason: "AllocationFailure", message: "unable to allocate resources with selected VM size (X)", expected: consts.ReasonCapacityUnavailable},
 		"Azure SKUNotAvailable":                  {reason: "SKUNotAvailable", message: "VM size X is not supported for this subscription in this location", expected: consts.ReasonCapacityUnavailable},
-		"older Azure zonal allocation":           {reason: "CreateInstanceFailed", message: "unable to allocate resources in the selected zone (1). (will try a different zone to fulfill your request)", expected: consts.ReasonCapacityUnavailable},
+		"older Azure zonal allocation":           {reason: "CreateInstanceFailed", message: "unable to allocate resources in the selected zone (1). (will try a different zone to fulfill your request)", expected: ""},
+		"Azure ZonalAllocationFailure":           {reason: "ZonalAllocationFailure", message: "unable to allocate resources in the selected zone (eastus-1). (will try a different zone to fulfill your request)", expected: ""},
+		"Azure overconstrained zonal allocation": {reason: "OverconstrainedZonalAllocationFailure", message: "unable to allocate resources in the selected zone (eastus-1) with on-demand capacity type and X VM size.", expected: ""},
+		"Azure overconstrained allocation":       {reason: "OverconstrainedAllocationFailure", message: "unable to allocate resources in all zones with on-demand capacity type and X VM size.", expected: consts.ReasonCapacityUnavailable},
+		"asynchronous zonal allocation failure":  {reason: asyncProvisioningEventReason, message: "Failed to register: unable to allocate resources in the selected zone (1). (will try a different zone to fulfill your request)", expected: consts.ReasonCapacityUnavailable},
 		"older Azure SKU not available":          {reason: "CreateInstanceFailed", message: "the requested SKU is unavailable for instance type X in zone 1 with capacity type spot", expected: consts.ReasonCapacityUnavailable},
 		"asynchronous allocation failure":        {reason: asyncProvisioningEventReason, message: azureAllocationFailedError, expected: consts.ReasonCapacityUnavailable},
 		"AKS machine overconstrained allocation": {reason: asyncProvisioningEventReason, message: "Failed to register: failed to create AKS machine \"m\" during LRO, unhandled provisioning error: code=OverconstrainedAllocationRequest, message=no capacity", expected: consts.ReasonCapacityUnavailable},
@@ -788,6 +815,8 @@ func TestClassifyProvisioningFailure(t *testing.T) {
 		"gallery image not found":                {reason: "CreateInstanceFailed", message: `{"code": "GalleryImageNotFound", "message": "not found"}`, expected: consts.ReasonNodeImageInvalid},
 		"invalid image reference":                {reason: "CreateInstanceFailed", message: "ERROR CODE: InvalidParameter\nThe value of parameter imageReference is invalid.", expected: consts.ReasonNodeImageInvalid},
 		"other invalid parameter":                {reason: "CreateInstanceFailed", message: "ERROR CODE: InvalidParameter\nThe value of parameter osDisk is invalid.", expected: ""},
+		"invalid image reference version":        {reason: "CreateInstanceFailed", message: `{"code": "InvalidParameter", "message": "The image version is invalid.", "target": "imageReference.version"}`, expected: consts.ReasonNodeImageInvalid},
+		"other parameter mentioning the image":   {reason: "CreateInstanceFailed", message: "ERROR CODE: InvalidParameter\nThe value of parameter securityProfile.securityType is invalid. The image referenced by imageReference does not support it.", expected: ""},
 		"CSE failure":                            {reason: asyncProvisioningEventReason, message: "Failed to register: creating VM CSE for VM \"v\": ERROR CODE: VMExtensionProvisioningError", expected: consts.ReasonNodeBootstrapFailed},
 		"registration timeouts":                  {reason: registrationFailedReason, message: "Failed to register node", expected: consts.ReasonNodeBootstrapFailed},
 		"authorization":                          {reason: "CreateInstanceFailed", message: "ERROR CODE: LinkedAuthorizationFailed", expected: consts.ReasonNodeConfigurationInvalid},
