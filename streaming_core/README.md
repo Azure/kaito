@@ -25,7 +25,7 @@ from kaito_streaming.sse import SSEFramer
 from kaito_streaming.openai import parse_openai_chat_sse_event
 
 framer = SSEFramer(max_event_bytes=1024 * 1024)
-for chunk in [b'data: {"choices":[]}\r', b'\n\r', b'\n']:
+for chunk in [b'data: {"choices":[]}\r', b"\n\r", b"\n"]:
     for event in framer.feed(chunk):
         result = parse_openai_chat_sse_event(event)
         print(result.status, result.payload)
