@@ -26,10 +26,12 @@ ENV PYTHONPATH=/app
 
 # Copy requirements.txt first to leverage Docker layer caching
 COPY presets/ragengine/requirements.txt ragengine/requirements.txt
+COPY streaming_core/ streaming_core/
 
 # Install dependencies with pip cache mount for faster rebuilds
 # This allows reusing downloaded packages across builds
 RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install ./streaming_core && \
     pip install -r ragengine/requirements.txt
 
 # Copy the rest of the application code after dependencies are installed
@@ -39,6 +41,8 @@ COPY presets/ragengine/ ragengine/
 
 # Set the final working directory
 WORKDIR /app/ragengine
+
+RUN python -c "from kaito_streaming import openai; from ragengine.streaming.openai import parse_openai_chat_sse_event; from ragengine.streaming.sse import SSEFramer; assert parse_openai_chat_sse_event is openai.parse_openai_chat_sse_event; assert SSEFramer().feed('data: [DONE]\n\n')[0].data == '[DONE]'"
 
 # Build and Push Using Docker with BuildKit (recommended for caching)
 # Enable BuildKit for better caching: export DOCKER_BUILDKIT=1

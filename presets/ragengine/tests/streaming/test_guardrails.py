@@ -11,11 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 import os
 import sys
 
 import pytest
+from kaito_streaming.sse import DEFAULT_MAX_EVENT_BYTES
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
@@ -127,6 +129,210 @@ def _emitted_text(chunks):
         payload = json.loads(chunk.removeprefix("data: ").strip())
         text += payload["choices"][0].get("delta", {}).get("content", "")
     return text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "heartbeat",
+    [": keepalive\n\n", "event: ping\n\n", "\n", "data:\n\n", "data: \t\n\n"],
+)
+async def test_streaming_no_data_is_skipped_without_refusal(heartbeat):
+    async def upstream():
+        yield heartbeat
+        yield 'data: {"choices":[{"index":0,"delta":{"content":"safe"}}]}\n\n'
+        yield "data: [DONE]\n\n"
+
+    chunks = [
+        chunk
+        async for chunk in apply_streaming_guardrails(
+            upstream(), _streaming_guardrails(_ban_substrings_scanner()), {}
+        )
+    ]
+    assert _emitted_text(chunks) == "safe"
+    assert chunks[-1] == "data: [DONE]\n\n"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "choices",
+    [
+        [{"index": 1, "delta": {"role": "assistant"}}],
+        [{"index": -1}],
+        [{"index": 0, "delta": {}}, {"index": 1, "delta": {}}],
+        [{"index": 0, "delta": {"role": "assistant"}}, {"index": 0, "delta": {}}],
+        [{"index": 0, "delta": {}}, {"index": 1, "delta": {"content": "unsafe"}}],
+    ],
+)
+async def test_all_choices_including_non_text_choices_are_validated(choices):
+    async def upstream():
+        yield f"data: {json.dumps({'choices': choices})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    chunks = [
+        chunk
+        async for chunk in apply_streaming_guardrails(
+            upstream(), _streaming_guardrails(_ban_substrings_scanner()), {}
+        )
+    ]
+    assert _emitted_text(chunks) == "blocked-by-policy"
+    assert "content_filter" in chunks[-2]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        b"data:\xff\n\n",
+        b"data:" + b"x" * DEFAULT_MAX_EVENT_BYTES,
+        b"data: unfinished",
+        b"data: unfinished\r",
+        b"data: \xe4\xbd",
+        'data: {"choices": [}\n\n',
+        'data: {"choices":[{"delta":{"content":"unsafe"}}]}\n\n',
+        'data: {"choices":[{"index":true,"delta":{}}]}\n\n',
+        'data: {"choices":[{"index":0,"delta":[]}]} \n\n',
+        'data: {"choices":[{"index":0,"delta":{"content":42}}]}\n\n',
+        'data: {"choices":[{"index":0,"finish_reason":42}]}\n\n',
+        "data: \ud800\n\n",
+    ],
+)
+async def test_invalid_stream_refuses_without_flushing_pending_text(invalid):
+    closed = False
+
+    async def upstream():
+        nonlocal closed
+        try:
+            yield 'data: {"choices":[{"index":0,"delta":{"content":"un"}}]}\n\n'
+            yield invalid
+        finally:
+            closed = True
+
+    chunks = [
+        chunk
+        async for chunk in apply_streaming_guardrails(
+            upstream(), _streaming_guardrails(_ban_substrings_scanner()), {}
+        )
+    ]
+    assert _emitted_text(chunks) == "blocked-by-policy"
+    assert len(chunks) == 3
+    assert "content_filter" in chunks[-2]
+    assert chunks[-1] == "data: [DONE]\n\n"
+    assert closed
+
+
+@pytest.mark.asyncio
+async def test_successful_mixed_stream_closes_upstream_and_preserves_finish():
+    closed = False
+    finish = 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\r\r'
+
+    async def upstream():
+        nonlocal closed
+        try:
+            yield b'data: {"choices":[{"index":0,"delta":{"role":"assistant"}}]}\r\n\r\n'
+            yield 'data: {"choices":[{"index":0,"delta":{"content":"safe"}}]}\n\n'
+            yield 'data: {"choices":[],"usage":{"total_tokens":10}}\n\n'
+            yield finish
+            yield b"data: [DONE]\n\n"
+            pytest.fail("Upstream must not be consumed past DONE")
+        finally:
+            closed = True
+
+    chunks = [
+        chunk
+        async for chunk in apply_streaming_guardrails(
+            upstream(), _streaming_guardrails(_ban_substrings_scanner()), {}
+        )
+    ]
+    assert _emitted_text(chunks) == "safe"
+    assert finish in chunks
+    assert chunks[-1] == "data: [DONE]\n\n"
+    assert closed
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ending", ("\n\n", "\r\r", "\n\r", "\r\n\r"))
+async def test_normal_eof_finishes_framing_before_scanning_holdback(ending):
+    async def upstream():
+        yield 'data: {"choices":[{"index":0,"delta":{"content":"safe"}}]}' + ending
+
+    chunks = [
+        chunk
+        async for chunk in apply_streaming_guardrails(
+            upstream(), _streaming_guardrails(_ban_substrings_scanner()), {}
+        )
+    ]
+    assert _emitted_text(chunks) == "safe"
+    assert "content_filter" not in "".join(chunks)
+
+
+@pytest.mark.asyncio
+async def test_block_hit_closes_upstream_without_consuming_following_chunks():
+    closed = False
+
+    async def upstream():
+        nonlocal closed
+        try:
+            yield f"data: {json.dumps({'choices': [{'index': 0, 'delta': {'content': 'unsafe' * 60}}]})}\n\n"
+            pytest.fail("Upstream must not be consumed after blocking")
+        finally:
+            closed = True
+
+    chunks = [
+        chunk
+        async for chunk in apply_streaming_guardrails(
+            upstream(), _streaming_guardrails(_ban_substrings_scanner()), {}
+        )
+    ]
+    assert _emitted_text(chunks) == "blocked-by-policy"
+    assert closed
+
+
+@pytest.mark.asyncio
+async def test_cancellation_propagates_and_closes_upstream_without_flushing():
+    waiting = asyncio.Event()
+    closed = False
+
+    async def upstream():
+        nonlocal closed
+        try:
+            yield 'data: {"choices":[{"index":0,"delta":{"content":"un"}}]}\n\n'
+            waiting.set()
+            await asyncio.Event().wait()
+        finally:
+            closed = True
+
+    output = apply_streaming_guardrails(
+        upstream(), _streaming_guardrails(_ban_substrings_scanner()), {}
+    )
+    task = asyncio.create_task(anext(output))
+    try:
+        await asyncio.wait_for(waiting.wait(), timeout=1)
+    finally:
+        task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert closed
+    assert [chunk async for chunk in output] == []
+
+
+@pytest.mark.asyncio
+async def test_downstream_close_closes_upstream():
+    closed = False
+
+    async def upstream():
+        nonlocal closed
+        try:
+            yield f"data: {json.dumps({'choices': [{'index': 0, 'delta': {'content': 'a' * 300}}]})}\n\n"
+            await asyncio.Event().wait()
+        finally:
+            closed = True
+
+    output = apply_streaming_guardrails(
+        upstream(), _streaming_guardrails(_ban_substrings_scanner()), {}
+    )
+    assert _emitted_text([await anext(output)]) == "a" * 44
+    await output.aclose()
+    assert closed
 
 
 def test_validate_streaming_guardrails_accepts_block_ban_substrings_policy():

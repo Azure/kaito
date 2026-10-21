@@ -3,7 +3,8 @@
 `kaito-streaming` is an independently installable Python >=3.11 package with no
 runtime dependencies outside the standard library. It provides SSE framing and
 OpenAI chat chunk parsing/building, not scanning, blocking, or holdback policy.
-RAGEngine's existing streaming implementation and callers are unchanged.
+RAGEngine consumes this package through compatibility modules; scanning and
+refusal policy remain in RAGEngine.
 
 ## Installation and development
 
