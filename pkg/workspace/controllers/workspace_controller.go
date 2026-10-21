@@ -426,7 +426,7 @@ func (c *WorkspaceReconciler) reconcileNodes(ctx context.Context, wObj *kaitov1b
 		if needRequeue {
 			return &reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 		}
-		return &reconcile.Result{}, nil
+		return &reconcile.Result{RequeueAfter: nodeClaimStatusResyncInterval}, nil
 	}
 
 	return nil, nil
@@ -886,7 +886,7 @@ func (c *WorkspaceReconciler) syncWorkspaceStatus(ctx context.Context, key types
 					resourceConditionStatus = metav1.ConditionFalse
 					setWorkspaceCondition(status, wObj.GetGeneration(), appendReconcileErrMessage,
 						kaitov1beta1.ConditionTypeResourceStatus,
-						metav1.ConditionFalse, "ModelMirrorNotReady", "Model download has not started")
+						metav1.ConditionFalse, consts.ReasonModelMirrorNotReady, "Model download has not started")
 				} else {
 					mirrorStatus, mirrorReason, mirrorMsg := modelMirrorCondition(cr, infFailReason, infFailMsg)
 					setWorkspaceCondition(status, wObj.GetGeneration(), appendReconcileErrMessage,
@@ -897,7 +897,7 @@ func (c *WorkspaceReconciler) syncWorkspaceStatus(ctx context.Context, key types
 						resourceConditionStatus = metav1.ConditionFalse
 						setWorkspaceCondition(status, wObj.GetGeneration(), appendReconcileErrMessage,
 							kaitov1beta1.ConditionTypeResourceStatus,
-							metav1.ConditionFalse, "ModelMirrorNotReady", mirrorMsg)
+							metav1.ConditionFalse, consts.ReasonModelMirrorNotReady, mirrorMsg)
 					}
 				}
 			}
@@ -987,12 +987,12 @@ func (c *WorkspaceReconciler) collectInferenceReadyStatus(ctx context.Context, w
 // the InferenceReady condition so users and automation can identify the root
 // cause of an inference workload that is not ready.
 const (
-	inferenceReasonSASTokenFetchFailed = "SASTokenFetchFailed"
-	inferenceReasonModelBundleMismatch = "ModelBundleMismatch"
-	inferenceReasonImagePullError      = "ImagePullError"
-	inferenceReasonCrashLoopBackOff    = "ContainerCrashLoopBackOff"
-	inferenceReasonOOMKilled           = "ContainerOOMKilled"
-	inferenceReasonContainerStartError = "ContainerStartError"
+	inferenceReasonSASTokenFetchFailed = consts.ReasonSASTokenFetchFailed
+	inferenceReasonModelBundleMismatch = consts.ReasonModelBundleMismatch
+	inferenceReasonImagePullError      = consts.ReasonImagePullError
+	inferenceReasonCrashLoopBackOff    = consts.ReasonContainerCrashLoopBackOff
+	inferenceReasonOOMKilled           = consts.ReasonContainerOOMKilled
+	inferenceReasonContainerStartError = consts.ReasonContainerStartError
 	inferenceReasonEvicted             = "PodEvicted"
 	inferenceReasonNodeDiskPressure    = "NodeDiskPressure"
 	inferenceReasonNodeMemoryPressure  = "NodeMemoryPressure"
@@ -1001,16 +1001,20 @@ const (
 
 // Model streaming validation failure reasons.
 const (
-	reasonModelStreamingStorageClassNotFound  = "ModelStreamingStorageClassNotFound"
-	reasonModelStreamingInvalidStorageClass   = "ModelStreamingInvalidStorageClass"
-	reasonModelStreamingServiceAccountInvalid = "ModelStreamingServiceAccountInvalid"
-	reasonModelStreamingInvalidAnnotations    = "ModelStreamingInvalidAnnotations"
+	reasonModelStreamingStorageClassNotFound  = consts.ReasonModelStreamingStorageClassNotFound
+	reasonModelStreamingInvalidStorageClass   = consts.ReasonModelStreamingInvalidStorageClass
+	reasonModelStreamingServiceAccountInvalid = consts.ReasonModelStreamingServiceAccountInvalid
+	reasonModelStreamingInvalidAnnotations    = consts.ReasonModelStreamingInvalidAnnotations
 	reasonModelMirrorCreateFailed             = "ModelMirrorCreateFailed"
-	reasonModelMirrorDeleting                 = "ModelMirrorDeleting"
+	reasonModelMirrorDeleting                 = consts.ReasonModelMirrorDeleting
 )
 
 // modelMirrorDrainRetryInterval paces retries while a mirror finishes tearing down.
 const modelMirrorDrainRetryInterval = 5 * time.Second
+
+// nodeClaimStatusResyncInterval resyncs the status of a Workspace waiting for NodeClaims, as the provisioning
+// failures it reports also come from Events and time windows that do not trigger a reconcile.
+const nodeClaimStatusResyncInterval = 2 * time.Minute
 
 // errModelMirrorRaced reports a mirror that appeared between this workspace's cached read
 // and its create. It was built from another workspace's spec, so this one must still run
@@ -1303,7 +1307,7 @@ func (c *WorkspaceReconciler) collectTuningStatusSnapshot(ctx context.Context, w
 	return snapshot, nil
 }
 
-const reasonModelMirrorPending = "ModelMirrorPending"
+const reasonModelMirrorPending = consts.ReasonModelMirrorPending
 
 func modelMirrorPendingReason(cr *kaitov1alpha1.ModelMirror) string {
 	cond := meta.FindStatusCondition(cr.Status.Conditions, mmconsts.ConditionTypeReady)
@@ -1358,7 +1362,7 @@ func buildReconcileErrMessageAppender(reconcileErr error) func(message string) s
 		if messageCarriesErr(message, reconcileErr.Error()) {
 			return message
 		}
-		return fmt.Sprintf("%s (last reconcile error: %s)", message, reconcileErr.Error())
+		return message + nodeprovision.ReconcileErrorMessagePrefix + reconcileErr.Error() + ")"
 	}
 }
 
@@ -1443,7 +1447,7 @@ func applyInferenceWorkspaceStatus(ctx context.Context, status *kaitov1beta1.Wor
 
 	// Default to a generic pending reason; override with a specific one (e.g. a failed
 	// SAS token fetch) when the caller detected the cause.
-	inferenceReason, inferenceMessage := "WorkspaceInferenceStatusPending", "Inference workload is not ready"
+	inferenceReason, inferenceMessage := consts.ReasonInferencePending, "Inference workload is not ready"
 	if notReadyReason != "" {
 		inferenceReason, inferenceMessage = notReadyReason, notReadyMessage
 	}

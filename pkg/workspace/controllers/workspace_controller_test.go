@@ -1462,6 +1462,11 @@ func TestBuildReconcileErrMessageAppender(t *testing.T) {
 
 	withErrAppender := buildReconcileErrMessageAppender(errors.New("boom"))
 	assert.Equal(t, "workspace is ready (last reconcile error: boom)", withErrAppender("workspace is ready"))
+
+	// A NodeClassInvalid message is the ProvisionNodes error itself, truncated when long, so it is not appended twice.
+	nodeClassErr := errors.New(`NodeClass "nc" is not ready (UnhealthyDependents): SubnetsReady=False (SubnetIDInvalid): ` + strings.Repeat("x", 300))
+	truncated := utils.TruncateMessage(nodeClassErr.Error(), 256)
+	assert.Equal(t, truncated, buildReconcileErrMessageAppender(nodeClassErr)(truncated))
 }
 
 func TestApplyInferenceWorkspaceStatus(t *testing.T) {
