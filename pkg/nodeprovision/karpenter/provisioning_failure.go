@@ -52,6 +52,10 @@ var (
 	nodeImageInvalidCodes         = sets.New("ImageNotFound", "GalleryImageNotFound")
 	nodeConfigurationInvalidCodes = sets.New("AuthorizationFailed", "LinkedAuthorizationFailed", "SubnetIsFull",
 		"InsufficientSubnetSize")
+	// nodeClassResolutionMessages are the insufficient capacity errors the Azure and AWS providers report when they
+	// cannot resolve the NodeClaim's NodeClass. They clear once the NodeClass is restored, which is reported as
+	// NodeClassInvalid while it lasts.
+	nodeClassResolutionMessages = []string{"resolving node class", "resolving nodeclass"}
 	// nodePoolOrNodeClassReasons report an invalid NodePool or a failed NodeClass, read directly on every reconcile.
 	nodePoolOrNodeClassReasons = sets.New(consts.ReasonNodeClassInvalid, consts.ReasonNodePoolInvalid)
 )
@@ -67,7 +71,9 @@ func containsAny(s string, substrings ...string) bool {
 
 // classifyProvisioningFailure returns the KAITO reason of a provisioning failure that needs the user to act, or ""
 // otherwise. It matches the Launched reasons of recent Azure providers, the messages of their error handlers, which
-// older providers report as CreateInstanceFailed or in Events, and the cloud error codes.
+// older providers report as CreateInstanceFailed or in Events, and the cloud error codes. Any other insufficient
+// capacity error is CapacityUnavailable, as KAITO NodePools have a single offering to fall back on, unless the
+// provider could not resolve the NodeClass.
 func classifyProvisioningFailure(reason, message string) string {
 	codes := nodeclaim.CloudErrorCodes(message)
 	lower := strings.ToLower(message)
@@ -77,7 +83,7 @@ func classifyProvisioningFailure(reason, message string) string {
 		codes.Has("OperationNotAllowed") && strings.Contains(lower, "quota"):
 		return consts.ReasonQuotaExceeded
 	case capacityUnavailableReasons.Has(reason) || codes.HasAny(capacityUnavailableCodes.UnsortedList()...) ||
-		containsAny(lower, capacityUnavailableMessages...) || isNoOfferingAvailable(reason, message):
+		containsAny(lower, capacityUnavailableMessages...):
 		return consts.ReasonCapacityUnavailable
 	case codes.HasAny(nodeImageInvalidCodes.UnsortedList()...) ||
 		codes.Has("InvalidParameter") && strings.Contains(lower, "imagereference"):
@@ -86,6 +92,8 @@ func classifyProvisioningFailure(reason, message string) string {
 		return consts.ReasonNodeBootstrapFailed
 	case codes.HasAny(nodeConfigurationInvalidCodes.UnsortedList()...):
 		return consts.ReasonNodeConfigurationInvalid
+	case reason == insufficientCapacityEventReason && !containsAny(lower, nodeClassResolutionMessages...):
+		return consts.ReasonCapacityUnavailable
 	}
 	return ""
 }

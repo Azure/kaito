@@ -772,6 +772,10 @@ func TestClassifyProvisioningFailure(t *testing.T) {
 		"no offering":                            {reason: insufficientCapacityEventReason, message: noOfferingMessage, expected: consts.ReasonCapacityUnavailable},
 		"no instance types available":            {reason: insufficientCapacityEventReason, message: "NodeClaim x event: insufficient capacity, no instance types available", expected: consts.ReasonCapacityUnavailable},
 		"NodeClass not found":                    {reason: insufficientCapacityEventReason, message: "NodeClaim x event: insufficient capacity, resolving node class, not found", expected: ""},
+		"AWS NodeClass not found":                {reason: insufficientCapacityEventReason, message: "NodeClaim x event: insufficient capacity, resolving nodeclass, not found", expected: ""},
+		"AWS fleet error":                        {reason: insufficientCapacityEventReason, message: "NodeClaim x event: insufficient capacity, with fleet error(s), InsufficientInstanceCapacity: no capacity", expected: consts.ReasonCapacityUnavailable},
+		"unknown insufficient capacity error":    {reason: insufficientCapacityEventReason, message: "NodeClaim x event: insufficient capacity, a future provider error", expected: consts.ReasonCapacityUnavailable},
+		"unknown error of another reason":        {reason: "CreateInstanceFailed", message: "a future provider error", expected: ""},
 		"throttling":                             {reason: "CreateInstanceFailed", message: "ERROR CODE: TooManyRequests", expected: ""},
 	}
 	for name, tc := range testcases {
