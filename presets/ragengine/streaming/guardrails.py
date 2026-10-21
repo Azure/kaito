@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -18,9 +19,13 @@ from typing import Any
 
 from fastapi import HTTPException
 from guardrail_core.scanning import scan_output
+from guardrail_core.streaming_window import (
+    StreamingBufferWindow,
+    WindowScanError,
+    WindowScanResult,
+)
 
 from ragengine.guardrails import OutputGuardrails
-from ragengine.streaming.buffer_window import StreamingBufferWindow, WindowScanResult
 from ragengine.streaming.openai import (
     OpenAIChatChunkParseStatus,
     build_openai_chat_delta_sse_chunk,
@@ -38,6 +43,7 @@ STREAMING_GUARDRAILS_CAPABILITIES = {
     "sensitive": frozenset({"block", "redact"}),
 }
 STREAMING_GUARDRAILS_SUPPORTED_SCANNERS = frozenset(STREAMING_GUARDRAILS_CAPABILITIES)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -164,6 +170,13 @@ async def apply_streaming_guardrails(
             yield chunk
         if not window.blocked:
             _record_successful_redaction(window, guardrails)
+    except WindowScanError as error:
+        logger.error(
+            "streaming_guardrails_scan_failed error_type=%s",
+            type(error.__cause__).__name__,
+        )
+        async for chunk in _emit_refusal(guardrails):
+            yield chunk
     finally:
         await _aclose(upstream_chunks)
 

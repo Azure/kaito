@@ -149,7 +149,8 @@ rag-service-test: ## Run RAG Engine service tests with pytest.
 	pip install -e ./guardrail_core
 	pip install -r presets/ragengine/requirements-test.txt
 	pip install pytest-cov
-	pytest --cov -o log_cli=true -o log_cli_level=INFO presets/ragengine/tests
+	pytest --cov -o log_cli=true -o log_cli_level=INFO \
+		guardrail_core/guardrail_core/test_streaming_window.py presets/ragengine/tests
 
 .PHONY: tuning-metrics-server-test
 tuning-metrics-server-test: ## Run Tuning Metrics Server tests with pytest.
