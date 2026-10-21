@@ -305,6 +305,29 @@ func TestProvisioningFailure_RegionalQuotaEventFollowedByNoOffering(t *testing.T
 	assert.True(t, strings.HasPrefix(nodeClaimCond.Message, "InsufficientCapacityError: NodeClaim "+testNodeClaimName+" event: insufficient capacity, regional"), nodeClaimCond.Message)
 }
 
+// A NodeClass resolution error is read from the NodeClass instead, so its stale Events, once the NodeClass is
+// restored, do not hide the errors of the current attempts.
+func TestProvisioningFailure_NodeClassResolutionEventIsNotReported(t *testing.T) {
+	resolution := "NodeClaim " + testPoolName + "-hjklm event: insufficient capacity, resolving node class, aksnodeclasses.karpenter.azure.com \"image-family-ubuntu\" not found"
+	t.Run("with a no-offering error", func(t *testing.T) {
+		p := newFailureTestProvisioner(newFailureTestClient(nil, baseObjects(
+			failureEvent("noOffering", testNodeClaimName, corev1.EventTypeWarning, insufficientCapacityEventReason, noOfferingMessage, testNow.Add(-time.Minute)),
+			failureEvent("resolution", testPoolName+"-hjklm", corev1.EventTypeWarning, insufficientCapacityEventReason, resolution, testNow),
+		)...))
+		nodeClaimCond := nodeClaimCondition(t, p, 1)
+		assert.Equal(t, consts.ReasonCapacityUnavailable, nodeClaimCond.Reason)
+		assert.Equal(t, noOfferingCapacityUnavailableMessage, nodeClaimCond.Message)
+	})
+	t.Run("alone", func(t *testing.T) {
+		p := newFailureTestProvisioner(newFailureTestClient(nil, baseObjects(
+			newWorkspaceNodeClaim(testPoolName+"-npqrs", awaitingLaunch()),
+			failureEvent("resolution", testPoolName+"-hjklm", corev1.EventTypeWarning, insufficientCapacityEventReason, resolution, testNow),
+		)...))
+		nodeClaimCond := nodeClaimCondition(t, p, 1)
+		assert.Equal(t, nodeclaim.NodeClaimNotReadyReason, nodeClaimCond.Reason)
+	})
+}
+
 // A no-offering error does not replace the specific cause already reported for the current spec.
 func TestProvisioningFailure_NoOfferingKeepsSpecificCause(t *testing.T) {
 	newProvisioner := func() *KarpenterProvisioner {
@@ -769,6 +792,11 @@ func TestClassifyProvisioningFailure(t *testing.T) {
 		"registration timeouts":                  {reason: registrationFailedReason, message: "Failed to register node", expected: consts.ReasonNodeBootstrapFailed},
 		"authorization":                          {reason: "CreateInstanceFailed", message: "ERROR CODE: LinkedAuthorizationFailed", expected: consts.ReasonNodeConfigurationInvalid},
 		"subnet full":                            {reason: "CreateInstanceFailed", message: "ERROR CODE: SubnetIsFull", expected: consts.ReasonNodeConfigurationInvalid},
+		"Azure Policy denial":                    {reason: "CreateInstanceFailed", message: "ERROR CODE: RequestDisallowedByPolicy\nResource 'x' was disallowed by policy.", expected: consts.ReasonNodeConfigurationInvalid},
+		"resource provider not registered":       {reason: "CreateInstanceFailed", message: `{"code": "MissingSubscriptionRegistration", "message": "The subscription is not registered to use namespace"}`, expected: consts.ReasonNodeConfigurationInvalid},
+		"missing referenced resource":            {reason: "CreateInstanceFailed", message: "ERROR CODE: InvalidResourceReference\nResource /subscriptions/0/subnets/x referenced by resource y was not found.", expected: consts.ReasonNodeConfigurationInvalid},
+		"no compatible image":                    {reason: "CreateInstanceFailed", message: "getting launch template: no compatible images found for instance type Standard_NC24ads_A100_v4", expected: consts.ReasonNodeImageInvalid},
+		"internal server error":                  {reason: "CreateInstanceFailed", message: "ERROR CODE: InternalServerError", expected: ""},
 		"no offering":                            {reason: insufficientCapacityEventReason, message: noOfferingMessage, expected: consts.ReasonCapacityUnavailable},
 		"no instance types available":            {reason: insufficientCapacityEventReason, message: "NodeClaim x event: insufficient capacity, no instance types available", expected: consts.ReasonCapacityUnavailable},
 		"NodeClass not found":                    {reason: insufficientCapacityEventReason, message: "NodeClaim x event: insufficient capacity, resolving node class, not found", expected: ""},

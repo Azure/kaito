@@ -125,6 +125,10 @@ func eventTier(reason, message string) failureEventTier {
 	case asyncProvisioningEventReason:
 		return tierAsyncProvisioning
 	case insufficientCapacityEventReason:
+		// A NodeClass that cannot be resolved is read directly instead, so its Events are not reported.
+		if isNodeClassResolutionFailure(reason, message) {
+			return tierNotAFailure
+		}
 		if isNoOfferingAvailable(reason, message) {
 			return tierNoOffering
 		}

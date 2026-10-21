@@ -48,13 +48,17 @@ var (
 	// offering, which do not say why. KAITO NodePools allow a single instance type and capacity type, so its only
 	// offering is either cached as unavailable after an earlier quota, allocation or SKU failure, whose NodeClaim is
 	// deleted, or not offered at all.
-	noOfferingMessages            = []string{"all requested instance types were unavailable", "no instance types available"}
-	nodeImageInvalidCodes         = sets.New("ImageNotFound", "GalleryImageNotFound")
+	noOfferingMessages    = []string{"all requested instance types were unavailable", "no instance types available"}
+	nodeImageInvalidCodes = sets.New("ImageNotFound", "GalleryImageNotFound")
+	// nodeImageInvalidMessages are written by the Azure provider when the NodeClass has no image for the instance type.
+	nodeImageInvalidMessages = []string{"no compatible images found for instance type"}
+	// nodeConfigurationInvalidCodes are cloud errors that recur on every retry until the user fixes a permission, a
+	// subnet, an Azure Policy, a resource provider registration or a referenced resource.
 	nodeConfigurationInvalidCodes = sets.New("AuthorizationFailed", "LinkedAuthorizationFailed", "SubnetIsFull",
-		"InsufficientSubnetSize")
+		"InsufficientSubnetSize", "RequestDisallowedByPolicy", "MissingSubscriptionRegistration", "InvalidResourceReference")
 	// nodeClassResolutionMessages are the insufficient capacity errors the Azure and AWS providers report when they
-	// cannot resolve the NodeClaim's NodeClass. They clear once the NodeClass is restored, which is reported as
-	// NodeClassInvalid while it lasts.
+	// cannot resolve the NodeClaim's NodeClass. The NodeClass is read directly on every reconcile and reported as
+	// NodeClassInvalid while it is missing, so these errors are either redundant or stale once it is restored.
 	nodeClassResolutionMessages = []string{"resolving node class", "resolving nodeclass"}
 	// nodePoolOrNodeClassReasons report an invalid NodePool or a failed NodeClass, read directly on every reconcile.
 	nodePoolOrNodeClassReasons = sets.New(consts.ReasonNodeClassInvalid, consts.ReasonNodePoolInvalid)
@@ -86,16 +90,23 @@ func classifyProvisioningFailure(reason, message string) string {
 		containsAny(lower, capacityUnavailableMessages...):
 		return consts.ReasonCapacityUnavailable
 	case codes.HasAny(nodeImageInvalidCodes.UnsortedList()...) ||
-		codes.Has("InvalidParameter") && strings.Contains(lower, "imagereference"):
+		codes.Has("InvalidParameter") && strings.Contains(lower, "imagereference") ||
+		containsAny(lower, nodeImageInvalidMessages...):
 		return consts.ReasonNodeImageInvalid
 	case reason == registrationFailedReason || codes.Has("VMExtensionProvisioningError"):
 		return consts.ReasonNodeBootstrapFailed
 	case codes.HasAny(nodeConfigurationInvalidCodes.UnsortedList()...):
 		return consts.ReasonNodeConfigurationInvalid
-	case reason == insufficientCapacityEventReason && !containsAny(lower, nodeClassResolutionMessages...):
+	case reason == insufficientCapacityEventReason && !isNodeClassResolutionFailure(reason, message):
 		return consts.ReasonCapacityUnavailable
 	}
 	return ""
+}
+
+// isNodeClassResolutionFailure reports an insufficient capacity error of a provider that could not resolve the
+// NodeClass.
+func isNodeClassResolutionFailure(reason, message string) bool {
+	return reason == insufficientCapacityEventReason && containsAny(strings.ToLower(message), nodeClassResolutionMessages...)
 }
 
 // provisioningCause returns the reason and message reported for a provisioning failure: a failure that needs the user

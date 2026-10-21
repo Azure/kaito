@@ -21,11 +21,13 @@ const (
 	ReasonQuotaExceeded = "QuotaExceeded"
 	// ReasonCapacityUnavailable reports that the cloud cannot allocate the VM size, or does not offer it.
 	ReasonCapacityUnavailable = "CapacityUnavailable"
-	// ReasonNodeImageInvalid reports a node image that does not exist or is not a valid image reference.
+	// ReasonNodeImageInvalid reports a node image that does not exist or is not a valid image reference, or a NodeClass
+	// with no image compatible with the instance type.
 	ReasonNodeImageInvalid = "NodeImageInvalid"
 	// ReasonNodeBootstrapFailed reports a node that failed its bootstrap script or never registered with the cluster.
 	ReasonNodeBootstrapFailed = "NodeBootstrapFailed"
-	// ReasonNodeConfigurationInvalid reports a permission or subnet configuration that prevents creating the node.
+	// ReasonNodeConfigurationInvalid reports a permission, subnet, Azure Policy, resource provider registration or
+	// referenced resource that prevents creating the node.
 	ReasonNodeConfigurationInvalid = "NodeConfigurationInvalid"
 	// ReasonNodeClassInvalid reports a NodeClass that is missing or Ready=False, which blocks every launch. It is read
 	// on every reconcile, so it is reported only while it lasts.
