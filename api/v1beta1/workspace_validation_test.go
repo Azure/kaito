@@ -765,19 +765,18 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			useFeatureGate: true,
 		},
 		{
-			name: "Invalid - missing labelSelector for BYO mode",
+			name: "Valid - empty labelSelector auto-selects SKU in BYO mode",
 			resourceSpec: &ResourceSpec{
 				InstanceType: "", // Empty instanceType indicates BYO mode
 				Count:        pointerToInt(1),
 				LabelSelector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{}, // Empty match labels instead of nil
+					MatchLabels: map[string]string{}, // Empty match labels are treated like nil
 				},
 			},
 			preset:             true,
 			presetNameOverride: "test-validation-static",
 			runtime:            model.RuntimeNameVLLM,
-			expectErrs:         true,
-			errContent:         "No nodes found matching the specified label selector",
+			expectErrs:         false,
 			testNodes:          []v1.Node{},
 			useFeatureGate:     true,
 		},

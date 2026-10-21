@@ -33,6 +33,7 @@ import (
 
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
+	"github.com/kaito-project/kaito/pkg/featuregates"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
 )
 
@@ -154,6 +155,10 @@ func NewWorkspaceForInferenceSet(iObj *kaitov1beta1.InferenceSet) *kaitov1beta1.
 	if mriParent, ok := iObj.Labels[kaitov1alpha1.LabelMultiRoleInferenceParent]; ok {
 		workspaceLabels[kaitov1alpha1.LabelMultiRoleInferenceParent] = mriParent
 	}
+	// Children must satisfy spec.labelSelector, so its matchLabels always win.
+	if iObj.Spec.Selector != nil {
+		maps.Copy(workspaceLabels, iObj.Spec.Selector.MatchLabels)
+	}
 	workspaceLabels[consts.WorkspaceCreatedByInferenceSetLabel] = iObj.Name
 
 	workspaceObj := &kaitov1beta1.Workspace{
@@ -168,12 +173,23 @@ func NewWorkspaceForInferenceSet(iObj *kaitov1beta1.InferenceSet) *kaitov1beta1.
 		},
 		Resource: kaitov1beta1.ResourceSpec{
 			InstanceType:  iObj.Spec.Template.Resource.InstanceType,
-			LabelSelector: iObj.Spec.Selector,
+			LabelSelector: workspaceNodeSelector(iObj),
 			Partition:     iObj.Spec.Template.Resource.Partition,
 		},
 		Inference: iObj.Spec.Template.Inference.DeepCopy(),
 	}
 	return workspaceObj
+}
+
+// workspaceNodeSelector returns the GPU node selector for child Workspaces:
+// template.resource.labelSelector, or, for backward compatibility with node
+// auto-provisioning only, spec.labelSelector when the former is unset or empty.
+func workspaceNodeSelector(iObj *kaitov1beta1.InferenceSet) *metav1.LabelSelector {
+	selector := iObj.Spec.Template.Resource.LabelSelector
+	if kaitov1beta1.IsEmptyLabelSelector(selector) && !featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] {
+		return iObj.Spec.Selector
+	}
+	return selector
 }
 
 // ValidateWorkspaceForInferenceSet validates the child Workspace the given
@@ -191,10 +207,16 @@ func ValidateWorkspaceForInferenceSet(ctx context.Context, iObj *kaitov1beta1.In
 	}
 
 	oldWs := NewWorkspaceForInferenceSet(base)
-	// spec.labelSelector lives outside the template; validate it at its own
-	// path instead of the projected spec.template.resource.labelSelector.
-	oldWs.Resource.LabelSelector = ws.Resource.LabelSelector
-	errs := kaitov1beta1.ValidateLabelSelectorUpdate(iObj.Spec.Selector, base.Spec.Selector).ViaField("spec")
+	// When both node selectors are inherited from spec.labelSelector, report a
+	// change only at spec.labelSelector instead of the projected template path.
+	if kaitov1beta1.IsEmptyLabelSelector(iObj.Spec.Template.Resource.LabelSelector) &&
+		kaitov1beta1.IsEmptyLabelSelector(base.Spec.Template.Resource.LabelSelector) {
+		oldWs.Resource.LabelSelector = ws.Resource.LabelSelector
+	}
+	var errs *apis.FieldError
+	if !apiequality.Semantic.DeepEqual(iObj.Spec.Selector, base.Spec.Selector) {
+		errs = kaitov1beta1.ValidateLabelSelectorUpdate(iObj.Spec.Selector, base.Spec.Selector).ViaField("spec")
+	}
 
 	templateErrs := ws.ValidateUpdate(ctx, oldWs)
 	if !apiequality.Semantic.DeepEqual(iObj.Spec.Template, base.Spec.Template) {

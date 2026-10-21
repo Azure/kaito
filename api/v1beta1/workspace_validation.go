@@ -656,7 +656,7 @@ func (r *ResourceSpec) validateCreateWithInference(ctx context.Context, inferenc
 
 			// Auto-selected or explicitly requested SKUs may coexist with other GPU
 			// SKUs. Keep strict uniformity only for the legacy explicit-selector path.
-			relaxed := r.LabelSelector == nil || r.InstanceType != ""
+			relaxed := r.AutoSelectsSKU() || r.InstanceType != ""
 			relaxedBYONodeFit = relaxed
 
 			machineCount = len(nodeItems)
