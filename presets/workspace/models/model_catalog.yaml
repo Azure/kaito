@@ -420,8 +420,8 @@ models:
   mambaStateBytesPerLayer: 4341760
   numFullAttnLayers: 11
   numLinearLayers: 34
-- name: deepseek-ai/DeepSeek-V4.1-Flash
-  description: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash
+- name: deepseek-ai/DeepSeek-V4.1-Flash-1017
+  description: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
   license: mit
   pipelineTag: image-text-to-text
   modelFileSize: 475.26Gi
