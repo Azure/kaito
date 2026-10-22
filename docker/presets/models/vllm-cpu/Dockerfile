@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM vllm/vllm-openai-cpu:v0.25.1-x86_64
+FROM vllm/vllm-openai-cpu:v0.30.0-x86_64
 
 ARG VERSION
 
