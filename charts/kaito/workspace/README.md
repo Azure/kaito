@@ -5,7 +5,7 @@
 ```bash
 export REGISTRY=mcr.microsoft.com/aks/kaito
 export IMG_NAME=workspace
-export IMG_TAG=0.13.0-rc.2
+export IMG_TAG=0.13.0-rc.3
 helm install workspace ./charts/kaito/workspace  \
 --set image.repository=${REGISTRY}/${IMG_NAME} --set image.tag=${IMG_TAG} \
 --namespace kaito-workspace --create-namespace
@@ -18,7 +18,7 @@ helm install workspace ./charts/kaito/workspace  \
 | affinity                                       | object | `{}`                                                     | Pod affinity rules.                                           |
 | image.pullPolicy                               | string | `"IfNotPresent"`                                         | Allowed values: `Always`, `IfNotPresent`, `Never`.            |
 | image.repository                               | string | `mcr.microsoft.com/aks/kaito/workspace`                  | Controller image repository.                                  |
-| image.tag                                      | string | `"0.13.0-rc.2"`                                          | Controller image tag.                                         |
+| image.tag                                      | string | `"0.13.0-rc.3"`                                          | Controller image tag.                                         |
 | imagePullSecrets                               | list   | `[]`                                                     | List of image pull secret references (`[{name: <secret>}]`).  |
 | nodeSelector                                   | object | `{"kubernetes.io/os": "linux"}`                          | Controller pod node selector.                                 |
 | podAnnotations                                 | object | `{}`                                                     | Extra annotations added to the controller pod.                |
