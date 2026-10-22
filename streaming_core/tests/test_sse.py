@@ -65,6 +65,32 @@ def test_byte_at_a_time_and_utf8(ending):
     assert b"".join(event.raw_bytes for event in events) == wire
 
 
+def test_initial_utf8_bom_is_ignored_in_parsed_view():
+    wire = b'\xef\xbb\xbfdata: {"choices":[]}\n\n'
+    event = SSEFramer().feed(wire)[0]
+    assert event.raw == 'data: {"choices":[]}'
+    assert event.data == '{"choices":[]}'
+    assert event.raw_bytes == wire
+
+
+def test_initial_utf8_bom_split_across_chunks_is_ignored():
+    wire = b'\xef\xbb\xbfdata: value\n\n'
+    framer = SSEFramer()
+    assert framer.feed(wire[:1]) == []
+    assert framer.feed(wire[1:2]) == []
+    event = framer.feed(wire[2:])[0]
+    assert event.data == "value"
+    assert event.raw_bytes == wire
+
+
+def test_utf8_bom_after_first_event_is_not_ignored():
+    wire = b": comment\n\n\xef\xbb\xbfdata: value\n\n"
+    events = SSEFramer().feed(wire)
+    assert [event.data for event in events] == [None, None]
+    assert events[1].raw == "\ufeffdata: value"
+    assert b"".join(event.raw_bytes for event in events) == wire
+
+
 def test_all_partitions_of_utf8_crlf_event():
     wire = b"data:\xc3\xa9\r\n\n"
     for mask in range(1 << (len(wire) - 1)):

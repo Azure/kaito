@@ -76,6 +76,7 @@ class SSEFramer:
         self._line_size = 0
         self._event_end = 0
         self._pending_cr = False
+        self._at_stream_start = True
         self._closed = False
 
     def feed(self, chunk: bytes) -> list[SSEEvent]:
@@ -142,8 +143,15 @@ class SSEFramer:
             self._line_size = 0
             return
         raw_bytes = bytes(self._buffer)
+        parse_bytes = raw_bytes
+        event_end = self._event_end
+        if self._at_stream_start:
+            self._at_stream_start = False
+            if raw_bytes.startswith(b"\xef\xbb\xbf"):
+                parse_bytes = raw_bytes[3:]
+                event_end -= 3
         try:
-            raw = raw_bytes[: self._event_end].decode("utf-8", errors="strict")
+            raw = parse_bytes[:event_end].decode("utf-8", errors="strict")
         except UnicodeDecodeError as error:
             raise SSEDecodeError(
                 "Invalid UTF-8 in complete SSE event.", raw_bytes

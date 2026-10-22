@@ -13,6 +13,7 @@
 
 import copy
 import json
+import sys
 
 import pytest
 
@@ -72,6 +73,27 @@ def test_done(body):
 
 @pytest.mark.parametrize("data", ("{invalid json}", '{"choices": [}', "not JSON"))
 def test_malformed_json_is_distinct(data):
+    result = parse_openai_chat_sse_event(SSEEvent.from_raw(f"data:{data}"))
+    assert result.status == Status.MALFORMED_JSON
+    assert result.error
+
+
+def test_oversized_integer_is_malformed_json():
+    if not hasattr(sys, "set_int_max_str_digits"):
+        pytest.skip("Python does not enforce a maximum integer string length.")
+    original_limit = sys.get_int_max_str_digits()
+    sys.set_int_max_str_digits(4300)
+    data = '{"choices":[],"x":' + "1" * 5000 + "}"
+    try:
+        result = parse_openai_chat_sse_event(SSEEvent.from_raw(f"data:{data}"))
+    finally:
+        sys.set_int_max_str_digits(original_limit)
+    assert result.status == Status.MALFORMED_JSON
+    assert result.error
+
+
+def test_deeply_nested_json_is_malformed_json():
+    data = '{"choices":' + "[" * 10_000 + "]" * 10_000 + "}"
     result = parse_openai_chat_sse_event(SSEEvent.from_raw(f"data:{data}"))
     assert result.status == Status.MALFORMED_JSON
     assert result.error

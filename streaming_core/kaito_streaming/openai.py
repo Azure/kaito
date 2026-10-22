@@ -53,7 +53,7 @@ def parse_openai_chat_sse_event(event: SSEEvent) -> OpenAIChatChunkParseResult:
         return OpenAIChatChunkParseResult(status=OpenAIChatChunkParseStatus.DONE)
     try:
         payload = json.loads(data)
-    except json.JSONDecodeError as error:
+    except (ValueError, RecursionError) as error:
         return OpenAIChatChunkParseResult(
             status=OpenAIChatChunkParseStatus.MALFORMED_JSON, error=str(error)
         )
