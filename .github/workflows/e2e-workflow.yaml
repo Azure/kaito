@@ -20,7 +20,7 @@ on:
       region:
         type: string
         description: "the azure location to run the e2e test in"
-        default: "swedencentral"
+        default: "polandcentral"
       k8s_version:
         type: string
         default: "1.35"
@@ -42,7 +42,7 @@ jobs:
 
     env:
       TEST_SUITE: ${{ inputs.node_provisioner }}
-      GO_VERSION: "1.26.6"
+      GO_VERSION: "1.26.9"
       KARPENTER_NAMESPACE: "karpenter"
       GPU_PROVISIONER_NAMESPACE: "gpu-provisioner"
 
@@ -125,7 +125,8 @@ jobs:
           if [ "${{ inputs.node_provisioner }}" == "gpuprovisioner" ]; then
             kubectl logs -n "${{ env.GPU_PROVISIONER_NAMESPACE }}" -l app.kubernetes.io/name=gpu-provisioner -c controller
           else
-            kubectl logs -n "${{ env.KARPENTER_NAMESPACE }}" -l app.kubernetes.io/name=karpenter -c controller
+            # Karpenter is managed by AKS node auto-provisioning and runs in the control plane.
+            kubectl get nodepools.karpenter.sh,aksnodeclasses.karpenter.azure.com
           fi
 
       - name: Log kaito-workspace

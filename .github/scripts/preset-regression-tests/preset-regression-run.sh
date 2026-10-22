@@ -47,12 +47,16 @@
 #   TRANSIENT_FAILURE_RETRY_INTERVAL_SEC  wait before recreating a Workspace after
 #                                         a transient failure (default 180)
 #   DIAG_LOG_LINES  pod log lines echoed into the job log on failure (default 200)
+#   KEEP_SUCCESS_ARTIFACTS  retain raw successful benchmark artifacts for baseline collection
+#   PYTHON_BIN  Python interpreter used to create the benchmark virtual environment
 
 set -euo pipefail
 
 GPU="${GPU:?GPU must be set (a10 | a100 | h100)}"
 MODEL_CATALOG_FILE="${MODEL_CATALOG_FILE:-presets/workspace/models/model_catalog.yaml}"
 REGRESSION_CONFIG_FILE="${REGRESSION_CONFIG_FILE:-.github/preset-regression-config.json}"
+GSM8K_CONFIG_FILE="${GSM8K_CONFIG_FILE:-benchmarks/gsm8k/config.yaml}"
+GSM8K_BASELINES_FILE="${GSM8K_BASELINES_FILE:-benchmarks/gsm8k/baselines.yaml}"
 REGRESSION_PROFILE="${REGRESSION_PROFILE:-standard}"
 RESULTS_FILE="${RESULTS_FILE:-results-${GPU}.json}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-artifacts/${GPU}}"
@@ -66,6 +70,7 @@ RESOURCE_READY_TIMEOUT_MINUTES="${RESOURCE_READY_TIMEOUT_MINUTES:-30}"
 INFERENCE_FAILURE_GRACE_MINUTES="${INFERENCE_FAILURE_GRACE_MINUTES:-5}"
 TRANSIENT_FAILURE_RETRY_INTERVAL_SEC="${TRANSIENT_FAILURE_RETRY_INTERVAL_SEC:-180}"
 DIAG_LOG_LINES="${DIAG_LOG_LINES:-200}"
+KEEP_SUCCESS_ARTIFACTS="${KEEP_SUCCESS_ARTIFACTS:-false}"
 
 # Exit 137 is a SIGKILL from the startup/liveness probe, which large models hit
 # legitimately while weights download, so only the restart count catches those.
@@ -79,6 +84,8 @@ MAX_RETRIES_FOR_TRANSIENT_FAILURE=2
 
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
+BENCHMARK_VENV="${WORKDIR}/benchmark-venv"
+BENCHMARK_PYTHON="${BENCHMARK_VENV}/bin/python"
 
 mkdir -p "$ARTIFACT_DIR"
 
@@ -88,7 +95,7 @@ log() { printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 # Build the ordered list of targets for this GPU pool.
 # ---------------------------------------------------------------------------
 targets_file="${WORKDIR}/targets.json"
-bash .github/scripts/preset-regression-matrix.sh >"$targets_file"
+bash .github/scripts/preset-regression-tests/preset-regression-matrix.sh >"$targets_file"
 
 TARGET_COUNT="$(jq 'length' "$targets_file")"
 log "GPU pool '${GPU}': ${TARGET_COUNT} target(s) to process."
@@ -97,7 +104,8 @@ results_file="${WORKDIR}/results.ndjson"
 : >"$results_file"
 
 record() {
-  # record <target-json> <status> <reason> <duration> <actual-nodes> <peak-tpm> <artifacts>
+  # record <target-json> <status> <reason> <duration> <actual-nodes> <peak-tpm> <artifacts> [correctness-json]
+  local correctness="${8:-null}"
   jq -c -n \
     --argjson target "$1" \
     --arg status "$2" \
@@ -106,12 +114,14 @@ record() {
     --arg actualNodes "$5" \
     --arg peakTPM "$6" \
     --arg artifacts "$7" \
+    --argjson correctness "$correctness" \
     '$target + {
        status: $status,
        reason: $reason,
        durationSeconds: $durationSeconds,
        actualNodes: $actualNodes,
        peakTPM: $peakTPM,
+      correctness: $correctness,
        artifacts: $artifacts
      }' >>"$results_file"
 }
@@ -172,6 +182,101 @@ benchmark_metrics_valid() {
   ' "$1" >/dev/null 2>&1
 }
 
+prepare_benchmark_environment() {
+  local lm_eval_version python_bin
+  lm_eval_version="$(yq -r '.benchmark.evaluatorVersion' "$GSM8K_CONFIG_FILE")"
+  python_bin="${PYTHON_BIN:-}"
+  if [[ -z "$python_bin" ]]; then
+    if command -v python3.12 >/dev/null 2>&1; then
+      python_bin="python3.12"
+    else
+      python_bin="python3"
+    fi
+  fi
+  log "Installing lm-eval ${lm_eval_version} for correctness checks..."
+  "$python_bin" -m venv "$BENCHMARK_VENV"
+  "$BENCHMARK_VENV/bin/pip" install --disable-pip-version-check --quiet "lm_eval[api]==${lm_eval_version}"
+}
+
+run_gsm8k() {
+  # run_gsm8k <workspace> <model> <instance-type> <nodes> <artifact-dir>
+  local ws="$1" model="$2" instance_type="$3" nodes="$4" artifact_dir="$5"
+  local served_model port forward_pid result ready attempt evaluator_log forward_log
+  served_model="$(printf '%s' "${model##*/}" | tr '[:upper:]' '[:lower:]')"
+  for attempt in 1 2; do
+    result=0
+    ready=false
+    evaluator_log="${artifact_dir}/gsm8k-evaluator.log"
+    forward_log="${artifact_dir}/gsm8k-port-forward.log"
+    : >"$evaluator_log"
+    port="$($BENCHMARK_PYTHON - <<'PY'
+import socket
+with socket.socket() as sock:
+    sock.bind(("127.0.0.1", 0))
+    print(sock.getsockname()[1])
+PY
+)"
+    kubectl port-forward -n "$NAMESPACE" "service/${ws}" "${port}:80" \
+      >"$forward_log" 2>&1 &
+    forward_pid=$!
+    for _ in $(seq 1 30); do
+      if curl -fsS "http://127.0.0.1:${port}/v1/models" >/dev/null 2>&1; then
+        ready=true
+        break
+      fi
+      if ! kill -0 "$forward_pid" 2>/dev/null; then
+        result=1
+        break
+      fi
+      sleep 1
+    done
+    if [[ "$ready" != true ]]; then
+      result=1
+      jq -n \
+        --arg model "$model" \
+        --arg instanceType "$instance_type" \
+        --argjson nodes "$nodes" \
+        '{model: $model, instanceType: $instanceType, nodes: $nodes,
+          status: "correctness-invalid", passed: false,
+          error: "port-forward did not expose the inference endpoint within 30 seconds"}' \
+        >"${artifact_dir}/gsm8k-summary.json"
+    fi
+
+    if [[ "$result" -eq 0 ]]; then
+      "$BENCHMARK_PYTHON" .github/scripts/preset-regression-tests/preset_regression_gsm8k.py \
+        --model "$model" \
+        --served-model "$served_model" \
+        --endpoint "http://127.0.0.1:${port}/v1/chat/completions" \
+        --instance-type "$instance_type" \
+        --nodes "$nodes" \
+        --config "$GSM8K_CONFIG_FILE" \
+        --baselines "$GSM8K_BASELINES_FILE" \
+        --summary-output "${artifact_dir}/gsm8k-summary.json" \
+        --raw-output "${artifact_dir}/gsm8k-raw.json" \
+        > >(tee "$evaluator_log") 2>&1 || result=$?
+    fi
+    kill "$forward_pid" >/dev/null 2>&1 || true
+    wait "$forward_pid" >/dev/null 2>&1 || true
+    if [[ "$result" -eq 0 ]]; then
+      return 0
+    fi
+    if [[ "$attempt" -eq 1 ]] && grep -Eq \
+      'ClientConnectorError|ServerDisconnectedError|lost connection to pod' \
+      "$evaluator_log" "$forward_log"; then
+      log "GSM8K tunnel disconnected for ${model}; retrying once with a new port-forward..."
+      if [[ -f "$evaluator_log" ]]; then
+        mv "$evaluator_log" "${artifact_dir}/gsm8k-evaluator-attempt-1.log"
+      fi
+      if [[ -f "$forward_log" ]]; then
+        mv "$forward_log" "${artifact_dir}/gsm8k-port-forward-attempt-1.log"
+      fi
+      continue
+    fi
+    break
+  done
+  return "$result"
+}
+
 # Prints a non-empty reason when the Workspace reports a transient failure. Add
 # new retryable condition reasons here without changing the retry lifecycle.
 transient_failure_reason() {
@@ -194,7 +299,8 @@ transient_failure_reason() {
 # Prints a non-empty reason when the inference pod is failing for good, so the
 # model can be failed without waiting out its timeout.
 pod_crash_reason() {
-  kubectl get pods -n "$NAMESPACE" -l "kaito.sh/workspace=${1}" -o json 2>/dev/null |
+  local ws="$1" reason previous_sigkills pod_name container_name restarts fatal_line
+  reason="$(kubectl get pods -n "$NAMESPACE" -l "kaito.sh/workspace=${ws}" -o json 2>/dev/null |
     jq -r --argjson maxRestarts "$MAX_CONTAINER_RESTARTS" '
       [ .items[] | .metadata.name as $pod | ((.status.containerStatuses // []) + (.status.initContainerStatuses // []))[]
         | { pod: $pod,
@@ -210,7 +316,34 @@ pod_crash_reason() {
           elif (.restarts >= $maxRestarts) then
             "\(.pod)/\(.name) crash-looping (\(.restarts) restarts)"
           else empty end)
-      | .[0] // ""'
+      | .[0] // ""' || true)"
+  if [[ -n "$reason" ]]; then
+    printf '%s' "$reason"
+    return
+  fi
+
+  # Exit 137 can be a legitimate probe kill while a large model downloads, but
+  # it is terminal when the previous container already reported an engine-init
+  # failure. Detect that case after the first restart instead of burning the
+  # entire per-model timeout.
+  previous_sigkills="$(kubectl get pods -n "$NAMESPACE" -l "kaito.sh/workspace=${ws}" -o json 2>/dev/null |
+    jq -r '
+      .items[] | .metadata.name as $pod
+      | ((.status.containerStatuses // []) + (.status.initContainerStatuses // []))[]
+      | select(.restartCount > 0 and .lastState.terminated.exitCode == 137)
+      | [$pod, .name, (.restartCount | tostring)] | @tsv' || true)"
+  while IFS=$'\t' read -r pod_name container_name restarts; do
+    [[ -n "$pod_name" && -n "$container_name" ]] || continue
+    fatal_line="$(kubectl logs -n "$NAMESPACE" "$pod_name" -c "$container_name" \
+      --previous --tail="$DIAG_LOG_LINES" 2>/dev/null |
+      grep -m1 -E 'EngineCore failed to start|Engine core initialization failed|Could not find nvcc|RuntimeError: Worker failed with error' |
+      cut -c1-500 || true)"
+    if [[ -n "$fatal_line" ]]; then
+      printf '%s/%s failed during startup before exit 137 after %s restart(s): %s' \
+        "$pod_name" "$container_name" "$restarts" "$fatal_line"
+      return
+    fi
+  done <<<"$previous_sigkills"
 }
 
 # Reasons the workspace controller sets on InferenceReady when the workload cannot
@@ -282,7 +415,11 @@ print_diagnostics() {
   # NodeClaim conditions and events carry the real provisioning error (capacity,
   # quota, SKU availability); the workspace condition only says "not ready".
   echo "::group::${ws} — node provisioning (NodePool / NodeClaim)"
-  kubectl get nodepools.karpenter.sh -o wide 2>&1 || true
+  if [[ "${TEST_SUITE:-gpuprovisioner}" == "azkarpenter" ]]; then
+    kubectl get nodepools.karpenter.sh -o wide 2>&1 || true
+  else
+    echo "NodePools are not used by gpu-provisioner."
+  fi
   kubectl get nodeclaims.karpenter.sh \
     -l "$(nodeclaim_selector "$ws")" \
     -o wide 2>&1 || true
@@ -298,8 +435,8 @@ print_diagnostics() {
   echo "--- NodeClaim events ---"
   kubectl get events -A --field-selector involvedObject.kind=NodeClaim \
     --sort-by=.lastTimestamp 2>&1 | tail -n 20 || true
-  # gpu-provisioner creates NodeClaims directly and has no NodePools, so the query
-  # above comes back empty for it; only the controller to read logs from differs.
+  # gpu-provisioner creates NodeClaims directly and has no NodePools; only the
+  # controller to read logs from differs.
   local prov_ns prov_label
   if [[ "${TEST_SUITE:-gpuprovisioner}" == "azkarpenter" ]]; then
     prov_ns="${KARPENTER_NAMESPACE:-karpenter}"
@@ -534,6 +671,7 @@ EOF
   local resource_deadline=$((start_epoch + RESOURCE_READY_TIMEOUT_MINUTES * 60))
 
   local status="failed" actual_nodes="" peak_tpm=""
+  local correctness_result="null"
   local reason="timed out waiting for WorkspaceSucceeded and BenchmarkCompleted"
   local ws_json="${WORKDIR}/ws.json"
   local stuck_reason="" stuck_since=0
@@ -560,11 +698,10 @@ EOF
       if benchmark_metrics_valid "$ws_json"; then
         status="passed"
         reason=""
+        break
       else
-        status="failed"
-        reason="BenchmarkCompleted=True but status.performance.metrics.peakTokensPerMinute is missing or not positive"
+        log "  BenchmarkCompleted=True; waiting for peak TPM status metric to propagate..."
       fi
-      break
     fi
 
     local resource_status
@@ -580,12 +717,14 @@ EOF
       break
     fi
 
-    local transient_failure
-    transient_failure="$(transient_failure_reason "$ws_json")"
-    if [[ -n "$transient_failure" ]]; then
-      status="retryable-failure"
-      reason="$transient_failure"
-      break
+    if [[ "$resource_status" == "True" ]]; then
+      local transient_failure
+      transient_failure="$(transient_failure_reason "$ws_json")"
+      if [[ -n "$transient_failure" ]]; then
+        status="retryable-failure"
+        reason="$transient_failure"
+        break
+      fi
     fi
 
     local crash
@@ -624,7 +763,8 @@ EOF
   if [[ "$status" == "retryable-failure" ]]; then
     if [[ "$transient_failure_retry" -lt "$MAX_RETRIES_FOR_TRANSIENT_FAILURE" ]]; then
       log "RETRYABLE: ${reason}"
-      print_diagnostics "$ws"
+      print_diagnostics "$ws" 2>&1 |
+        tee "${artifact_dir}/diagnostics-attempt-$((transient_failure_retry + 1)).log"
       teardown "$ws"
       log "Retrying ${model} in ${TRANSIENT_FAILURE_RETRY_INTERVAL_SEC}s ($((transient_failure_retry + 1))/${MAX_RETRIES_FOR_TRANSIENT_FAILURE} retries used)..."
       sleep "$TRANSIENT_FAILURE_RETRY_INTERVAL_SEC"
@@ -640,10 +780,28 @@ EOF
     reason="$ENDPOINT_FAILURE"
   fi
 
+  if [[ "$status" == "passed" && ! "$actual_nodes" =~ ^[1-9][0-9]*$ ]]; then
+    status="failed"
+    reason="Workspace reported an invalid targetNodeCount: ${actual_nodes:-<empty>}"
+  fi
+
   if [[ "$status" == "passed" ]]; then
-    log "PASSED in $((($(date +%s) - start_epoch) / 60))m (peak TPM ${peak_tpm:-n/a})"
-    rm -rf "$artifact_dir"
-    artifact_dir=""
+    log "  running bounded GSM8K correctness profile..."
+    if run_gsm8k "$ws" "$model" "$instance_type" "$actual_nodes" "$artifact_dir"; then
+      correctness_result="$(jq -c . "${artifact_dir}/gsm8k-summary.json")"
+    else
+      correctness_result="$(jq -c . "${artifact_dir}/gsm8k-summary.json" 2>/dev/null || printf 'null')"
+      status="failed"
+      reason="GSM8K correctness check failed: $(jq -r '.error // .status // "evaluator failed"' "${artifact_dir}/gsm8k-summary.json" 2>/dev/null || printf 'evaluator failed')"
+    fi
+  fi
+
+  if [[ "$status" == "passed" ]]; then
+    log "PASSED in $((($(date +%s) - start_epoch) / 60))m (peak TPM ${peak_tpm:-n/a}, GSM8K $(jq -r '.accuracy // "baseline pending"' <<<"$correctness_result"))"
+    if [[ "$KEEP_SUCCESS_ARTIFACTS" != "true" ]]; then
+      rm -rf "$artifact_dir"
+      artifact_dir=""
+    fi
   else
     # Re-read the latest conditions so the report carries the real blocking message.
     if kubectl get workspace "$ws" -n "$NAMESPACE" -o json >"$ws_json" 2>/dev/null; then
@@ -654,14 +812,16 @@ EOF
       fi
     fi
     log "FAILED: ${reason}"
-    print_diagnostics "$ws"
+    print_diagnostics "$ws" 2>&1 | tee "${artifact_dir}/diagnostics.log"
   fi
 
   record "$target" "$status" "$reason" "$(($(date +%s) - overall_start_epoch))" \
-    "$actual_nodes" "$peak_tpm" "$artifact_dir"
+    "$actual_nodes" "$peak_tpm" "$artifact_dir" "$correctness_result"
   teardown "$ws"
   return 0
 }
+
+prepare_benchmark_environment
 
 for i in $(seq 0 "$((TARGET_COUNT - 1))"); do
   run_target "$(jq -c ".[${i}]" "$targets_file")"

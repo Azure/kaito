@@ -56,6 +56,8 @@ const (
 
 	// PortRayCluster is the default port for communication between the head and worker nodes in a Ray cluster.
 	PortRayCluster = 6379
+
+	vllmShutdownTimeoutSeconds = "50"
 )
 
 // Metadata defines the metadata for a model.
@@ -112,8 +114,8 @@ type Metadata struct {
 	// +optional
 	BytesPerToken int `yaml:"bytesPerToken,omitempty"`
 
-	// MambaStateBytesPerSeq is the per-sequence Mamba-2 state cache size in bytes
-	// (single TP rank) for hybrid Mamba/Attention models (e.g. NemotronH). vLLM
+	// MambaStateBytesPerSeq is the per-sequence recurrent state cache size in bytes
+	// (single TP rank) for hybrid Mamba/linear-attention models. vLLM
 	// allocates this for every running sequence on top of the attention KV cache,
 	// so the node estimator reserves it. Zero for pure-attention models.
 	// +optional
@@ -208,6 +210,32 @@ func (m *Metadata) Validate() error {
 	return err
 }
 
+// SpeculativeDecodingConfig defines the speculative decoding configuration
+// for a preset model. It is populated by KAITO maintainers in the
+// speculativeDecodingByPreset map and injected into the vLLM command line
+// when the user enables speculative decoding via annotation.
+type SpeculativeDecodingConfig struct {
+	Method string       `yaml:"method"` // "mtp" / "ngram" / ...
+	MTP    *MTPConfig   `yaml:"mtp,omitempty"`
+	NGram  *NGramConfig `yaml:"ngram,omitempty"`
+	// future: add method-specific sub-configs as real support lands.
+}
+
+// MTPConfig covers vLLM's mtp method, including both the self-contained-head
+// case (where the served checkpoint carries the predictor) and the
+// assistant-checkpoint case, where the draft/assistant checkpoint is passed
+// via the model field.
+type MTPConfig struct {
+	NumSpeculativeTokens int    `yaml:"numSpeculativeTokens"`
+	Model                string `yaml:"model,omitempty"`
+}
+
+// NGramConfig covers the n-gram lookup speculative decoding method.
+type NGramConfig struct {
+	NumSpeculativeTokens int `yaml:"numSpeculativeTokens"`
+	PromptLookupMax      int `yaml:"promptLookupMax"`
+}
+
 // PresetParam defines the preset inference parameters for a model.
 type PresetParam struct {
 	Metadata
@@ -225,6 +253,15 @@ type PresetParam struct {
 	ModelTokenLimit               int            // Maximum number of tokens (context window) supported by the model. Maps to 'max_position_embeddings' in the model's Hugging Face config.json.
 
 	RuntimeParam
+
+	// SpeculativeDecoding holds the preset-tuned speculative decoding
+	// configuration for this preset (e.g. mtp/ngram). A nil value does NOT
+	// mean the preset lacks speculative-decoding support: when a workload
+	// opts in via kaito.sh/enable-speculative-decoding and this field is nil,
+	// applySpeculativeDecoding falls back to the universal ngram default
+	// (see proposal PR #2303). Callers must
+	// not use nil as a feature-support signal.
+	SpeculativeDecoding *SpeculativeDecodingConfig `yaml:"speculativeDecoding,omitempty"`
 
 	// ReadinessTimeout defines the maximum duration for creating the workload.
 	// This timeout accommodates the size of the image, ensuring pull completion
@@ -274,6 +311,18 @@ func (p *PresetParam) DeepCopy() *PresetParam {
 	*out = *p
 	out.RuntimeParam = p.RuntimeParam.DeepCopy()
 	out.TuningPerGPUMemoryRequirement = maps.Clone(p.TuningPerGPUMemoryRequirement)
+	if p.SpeculativeDecoding != nil {
+		sd := *p.SpeculativeDecoding
+		if p.SpeculativeDecoding.MTP != nil {
+			mtp := *p.SpeculativeDecoding.MTP
+			sd.MTP = &mtp
+		}
+		if p.SpeculativeDecoding.NGram != nil {
+			ng := *p.SpeculativeDecoding.NGram
+			sd.NGram = &ng
+		}
+		out.SpeculativeDecoding = &sd
+	}
 	return out
 }
 
@@ -384,31 +433,6 @@ func (p *PresetParam) buildHuggingfaceInferenceCommand() []string {
 	return utils.ShellCmd(torchCommand + " " + modelCommand)
 }
 
-// defaultGPUMemoryUtilization is the --gpu-memory-utilization value KAITO passes
-// to vLLM unless the GPU model overrides it in gpuMemoryUtilizationByGPUModel.
-const defaultGPUMemoryUtilization = "0.92"
-
-// gpuMemoryUtilizationByGPUModel overrides --gpu-memory-utilization for specific
-// GPU models that need extra headroom. Keyed by the exact sku.GPUConfig.GPUModel
-// string (as defined in the SKU table, e.g. "NVIDIA A10").
-var gpuMemoryUtilizationByGPUModel = map[string]string{
-	// On the 24 GiB A10, vLLM's KV-pool profiling under-counts the
-	// prompt-logprobs warmup + CUDA-graph-capture transients for some models
-	// (e.g. gemma-4's huge-vocab final_logit_softcapping copy), so the default
-	// 0.84 leaves too little headroom and OOMs. 0.82 leaves enough slack.
-	"NVIDIA A10": "0.82",
-}
-
-// ResolveGPUMemoryUtilization returns the --gpu-memory-utilization vLLM should be
-// launched with for the given GPU. A per-GPU-model safety cap (clamps down for
-// tight-VRAM GPUs) wins over the default.
-func ResolveGPUMemoryUtilization(gpuModel string) string {
-	if util, ok := gpuMemoryUtilizationByGPUModel[gpuModel]; ok {
-		return util
-	}
-	return defaultGPUMemoryUtilization
-}
-
 func (p *PresetParam) buildVLLMInferenceCommand(rc RuntimeContext) []string {
 	// Determine served-model-name priority:
 	// 1. MRI workspaces: use VLLM.ModelName so all roles share a single model
@@ -438,12 +462,6 @@ func (p *PresetParam) buildVLLMInferenceCommand(rc RuntimeContext) []string {
 	} else if rc.MaxModelLen > 0 {
 		p.VLLM.ModelRunParams["max-model-len"] = strconv.Itoa(rc.MaxModelLen)
 	}
-
-	gpuModel := ""
-	if rc.GPUConfig != nil {
-		gpuModel = rc.GPUConfig.GPUModel
-	}
-	p.VLLM.ModelRunParams["gpu-memory-utilization"] = ResolveGPUMemoryUtilization(gpuModel)
 
 	// Cap --max-num-seqs for hybrid Mamba/Gated-DeltaNet models so vLLM engine init
 	// does not fail when the default (1024) exceeds the available Mamba cache blocks.
@@ -514,13 +532,10 @@ func (p *PresetParam) buildVLLMInferenceCommand(rc RuntimeContext) []string {
 		p.VLLM.ModelRunParams["performance-mode"] = rc.PerformanceMode
 	}
 
-	// Disable LMCache KV cache CPU offloading for models where it is known to be
-	// problematic, either because:
-	//   - the model needs vLLM's hybrid KV cache manager (incompatible with the
-	//     LMCache connector), or
-	//   - LMCache is disabled for this model (see isLMCacheDisabled), or
-	//   - the workload runs on a MIG partition (TODO: support KV cache CPU offloading on MIG).
-	if p.isVLLMHybridKVCacheManagerRequired() || p.isLMCacheDisabled() ||
+	// Disable LMCache KV cache CPU offloading when the model needs vLLM's hybrid
+	// KV cache manager, or when the workload runs on a MIG partition.
+	// TODO: support KV cache CPU offloading on MIG.
+	if p.isVLLMHybridKVCacheManagerRequired() ||
 		(rc.GPUConfig != nil && rc.GPUConfig.IsMIG) {
 		p.VLLM.ModelRunParams["kaito-kv-cache-cpu-memory-utilization"] = "0"
 	}
@@ -547,8 +562,13 @@ func (p *PresetParam) buildVLLMInferenceCommand(rc RuntimeContext) []string {
 
 	// Single-node path: no Ray cluster needed.
 	if !rc.DistributedInference || rc.NumNodes == 1 {
+		// Best-effort graceful scale-down: vLLM drains in-flight requests on SIGTERM
+		// for up to this timeout. exec makes vLLM PID 1 so it receives the SIGTERM.
+		if _, configured := p.VLLM.ModelRunParams["shutdown-timeout"]; !configured {
+			p.VLLM.ModelRunParams["shutdown-timeout"] = vllmShutdownTimeoutSeconds
+		}
 		modelCommand := utils.BuildCmdStr(p.VLLM.BaseCommand, p.VLLM.ModelRunParams)
-		return utils.ShellCmd(modelCommand)
+		return utils.ShellCmd("exec " + modelCommand)
 	}
 
 	// Multi-node path: set up a Ray cluster for cross-node parallelism.
@@ -615,6 +635,19 @@ func (p *PresetParam) buildMultiNodeRayCommand(rc RuntimeContext) []string {
 	p.VLLM.RayWorkerParams["ray_address"] = utils.GetRayLeaderHost(rc.WorkspaceMetadata)
 	p.VLLM.RayWorkerParams["ray_port"] = strconv.Itoa(PortRayCluster)
 
+	// Runtime CUDA provisioning downloads over 1 GiB on each new node. The
+	// workers initialize in parallel, but a cold node can exceed vLLM's default
+	// five-minute Ray join timeout and make an otherwise healthy leader exit.
+	if p.RequiresCUDAToolkit() {
+		const cudaToolkitRayInitTimeout = "900"
+		if _, configured := p.VLLM.RayLeaderParams["ray_init_timeout"]; !configured {
+			p.VLLM.RayLeaderParams["ray_init_timeout"] = cudaToolkitRayInitTimeout
+		}
+		if _, configured := p.VLLM.RayWorkerParams["ray_init_timeout"]; !configured {
+			p.VLLM.RayWorkerParams["ray_init_timeout"] = cudaToolkitRayInitTimeout
+		}
+	}
+
 	rayLeaderCommand := utils.BuildCmdStr(p.VLLM.RayLeaderBaseCommand, p.VLLM.RayLeaderParams)
 	modelRunCommand := utils.BuildCmdStr(p.VLLM.BaseCommand, p.VLLM.ModelRunParams)
 	result := utils.BuildIfElseCmdStr(
@@ -655,22 +688,9 @@ func (p *PresetParam) isVLLMHybridKVCacheManagerRequired() bool {
 		case "NemotronHForCausalLM", "NemotronH_Nano_VL_V2", "NemotronHMTPModel", "NemotronHPuzzleForCausalLM",
 			"Gemma4ForCausalLM", "Gemma4ForConditionalGeneration", "Gemma4UnifiedForConditionalGeneration",
 			"Qwen3_5ForConditionalGeneration", "Qwen3_5MoeForConditionalGeneration",
-			"DeepseekV4ForCausalLM", "DeepseekV32ForCausalLM":
-			return true
-		}
-	}
-	return false
-}
-
-// isLMCacheDisabled returns true for architectures where LMCache needs to be disabled.
-// There is a known bug in LMCache that causes vLLM crashes on request abortion:
-// https://github.com/LMCache/LMCache/issues/3688
-// This bug will crash the vLLM engine during the TPM phase for certain models in KAITO.
-// TODO: remove this once the issue is resolved.
-func (p *PresetParam) isLMCacheDisabled() bool {
-	for _, arch := range p.Architectures {
-		switch arch {
-		case "GptOssForCausalLM":
+			"Qwen4ExpForCausalLM", "Qwen4ExpForConditionalGeneration",
+			"Glm5NextForCausalLM", "Glm5NextForConditionalGeneration", "Glm5NextMTPModel",
+			"DeepseekV4ForCausalLM", "DeepseekV41ForCausalLM", "DeepseekV32ForCausalLM":
 			return true
 		}
 	}
@@ -682,7 +702,7 @@ func (p *PresetParam) isLMCacheDisabled() bool {
 func (p *PresetParam) RequiresDeepGEMM() bool {
 	for _, arch := range p.Architectures {
 		switch arch {
-		case "DeepseekV4ForCausalLM", "DeepseekV32ForCausalLM", "GlmMoeDsaForCausalLM":
+		case "DeepseekV4ForCausalLM", "DeepseekV41ForCausalLM", "DeepseekV32ForCausalLM", "GlmMoeDsaForCausalLM":
 			return true
 		}
 	}
@@ -691,8 +711,19 @@ func (p *PresetParam) RequiresDeepGEMM() bool {
 
 // RequiresFlashInfer returns true for models which require JIT-compilation with nvcc at runtime.
 func (p *PresetParam) RequiresFlashInfer() bool {
-	switch p.Name {
-	case "minimax-m2.7", "mistral-small-4-119b-2603":
+	for _, arch := range p.Architectures {
+		switch arch {
+		case "Glm5NextForCausalLM",
+			"Glm5NextForConditionalGeneration",
+			"KimiK25ForConditionalGeneration",
+			"MiniMaxM2ForCausalLM",
+			"Qwen4ExpForCausalLM",
+			"Qwen4ExpForConditionalGeneration":
+			return true
+		}
+	}
+	// NemotronH checkpoints do not uniformly require FlashInfer.
+	if p.Name == "nvidia-nemotron-3-ultra-550b-a55b-nvfp4" {
 		return true
 	}
 	return false

@@ -29,42 +29,90 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/kaito-project/kaito/pkg/model"
+	"github.com/kaito-project/kaito/pkg/sku"
 )
 
 const (
-	SystemFileDiskSizeGiB  = 80
-	DefaultModelTokenLimit = 2048
-	HuggingFaceWebsite     = "https://huggingface.co"
+	SystemFileDiskSizeGiB            = 80
+	DefaultModelTokenLimit           = 2048
+	HuggingFaceWebsite               = "https://huggingface.co"
+	SpeculativeDecodingMethodMTP     = "mtp"
+	mtpSpeculativeDecodingTokenCount = 1
+	defaultGPUMemoryUtilization      = "0.92"
 )
 
 // Please update the following model-specific configurations when adding new models to model catalog
+
+// specDecoEntry pairs the user-facing preset alias with the KAITO-authored config.
+type specDecoEntry struct {
+	UserFacing string // preset name accepted by GetModelByName, e.g. "deepseek-r1-0528"
+	Config     *model.SpeculativeDecodingConfig
+}
+
+type architectureGPUKey struct {
+	architecture string
+	gpuModel     string
+}
+
+type modelGPUKey struct {
+	modelName string
+	gpuModel  string
+}
+
+func mtpSpecDecoEntry(userFacing string) specDecoEntry {
+	return mtpSpecDecoEntryWithModel(userFacing, "")
+}
+
+func mtpSpecDecoEntryWithModel(userFacing, draftModel string) specDecoEntry {
+	return specDecoEntry{
+		UserFacing: userFacing,
+		Config: &model.SpeculativeDecodingConfig{
+			Method: SpeculativeDecodingMethodMTP,
+			MTP: &model.MTPConfig{
+				NumSpeculativeTokens: mtpSpeculativeDecodingTokenCount,
+				Model:                draftModel,
+			},
+		},
+	}
+}
+
 var (
 	safetensorRegex = regexp.MustCompile(`.*\.safetensors`)
 	binRegex        = regexp.MustCompile(`.*\.bin`)
 	mistralRegex    = regexp.MustCompile(`consolidated.*\.safetensors`)
 	// source: https://github.com/vllm-project/vllm/blob/main/vllm/reasoning/__init__.py
 	reasoningParserModeNamePrefixMap = map[string]string{
-		"deepseek-r1":  "deepseek_r1",
-		"deepseek-v3":  "deepseek_v3",
-		"deepseek-v4":  "deepseek_v4",
-		"ernie-4.5":    "ernie45",
-		"gemma-4":      "gemma4",
-		"glm-4.5":      "glm45",
-		"granite-3.2":  "granite",
-		"holo2":        "holo2",
-		"hunyuan-a13b": "hunyuan_a13b",
-		"kimi-k2":      "kimi_k2",
-		"laguna":       "poolside_v1",
-		"minimax-m2":   "minimax_m2_append_think",
-		"minimax-m3":   "minimax_m3",
-		"mimo":         "mimo",
-		"mistral":      "mistral",
-		"olmo-3":       "olmo3",
-		"qwen3":        "qwen3",
-		"qwq-32b":      "deepseek_r1",
-		"step3":        "step3",
+		"deepseek-r1":   "deepseek_r1",
+		"deepseek-v3":   "deepseek_v3",
+		"deepseek-v4":   "deepseek_v4",
+		"deepseek-v4.1": "deepseek_v41",
+		"ernie-4.5":     "ernie45",
+		"gemma-4":       "gemma4",
+		"glm-4.5":       "glm45",
+		"glm-5.3":       "glm47",
+		"granite-3.2":   "granite",
+		"holo2":         "holo2",
+		"hunyuan-a13b":  "hunyuan_a13b",
+		"hy-v4":         "hy_v4",
+		"inkling":       "inkling",
+		"k2-horizon":    "k2_horizon",
+		"kimi-k2":       "kimi_k2",
+		"kimi-k3":       "kimi_k3",
+		"laguna":        "poolside_v1",
+		"minimax-m2":    "minimax_m2_append_think",
+		"minimax-m3":    "minimax_m3",
+		"mimo":          "mimo",
+		"mistral":       "mistral",
+		"muse-glimmer":  "muse_glimmer",
+		"olmo-3":        "olmo3",
+		"qwen3":         "qwen3",
+		"qwq-32b":       "deepseek_r1",
+		"step3":         "step3",
 	}
 	reasoningParserArchMap = map[string]string{
+		"DeepseekV41ForCausalLM":                  "deepseek_v41",
+		"DeepseekV4ForCausalLM":                   "deepseek_v4",
+		"DeepseekV4ForConditionalGeneration":      "deepseek_v4",
 		"DeepseekV3ForCausalLM":                   "deepseek_v3",
 		"Ernie4_5_VLMoeForConditionalGeneration":  "ernie45",
 		"Ernie4_5_MoeForCausalLM":                 "ernie45",
@@ -72,6 +120,8 @@ var (
 		"Gemma4UnifiedForConditionalGeneration":   "gemma4",
 		"Glm4MoeForCausalLM":                      "glm45",
 		"GlmMoeDsaForCausalLM":                    "glm45",
+		"Glm5NextForCausalLM":                     "glm47",
+		"Glm5NextForConditionalGeneration":        "glm47",
 		"HunYuanMoEV1ForCausalLM":                 "hunyuan_a13b",
 		"GraniteForCausalLM":                      "granite",
 		"KimiK2ForCausalLM":                       "kimi_k2",
@@ -81,6 +131,11 @@ var (
 		"MiniMaxM3SparseForConditionalGeneration": "minimax_m3",
 		"MiMoForCausalLM":                         "mimo",
 		"HYV3ForCausalLM":                         "hy_v3",
+		"HYV4ForCausalLM":                         "hy_v4",
+		"InklingForCausalLM":                      "inkling",
+		"InklingForConditionalGeneration":         "inkling",
+		"K2HorizonForCausalLM":                    "k2_horizon",
+		"KimiK3ForConditionalGeneration":          "kimi_k3",
 		"LagunaForCausalLM":                       "poolside_v1",
 		"Mistral3ForConditionalGeneration":        "mistral",
 		"MistralForCausalLM":                      "mistral",
@@ -90,8 +145,14 @@ var (
 		"OlmoForCausalLM":                         "olmo3",
 		"Qwen3ForCausalLM":                        "qwen3",
 		"Qwen3MoeForCausalLM":                     "qwen3",
+		"Qwen3_5ForCausalLM":                      "qwen3",
 		"Qwen3_5ForConditionalGeneration":         "qwen3",
+		"Qwen3_5MoeForCausalLM":                   "qwen3",
 		"Qwen3_5MoeForConditionalGeneration":      "qwen3",
+		"Qwen4ExpForCausalLM":                     "qwen3",
+		"Qwen4ExpForConditionalGeneration":        "qwen3",
+		"MuseGlimmerForCausalLM":                  "muse_glimmer",
+		"MuseGlimmerForConditionalGeneration":     "muse_glimmer",
 		"GptOssForCausalLM":                       "openai_gptoss",
 		"Step3TextForCausalLM":                    "step3",
 		"Step3VLForConditionalGeneration":         "step3",
@@ -138,8 +199,13 @@ var (
 		"deepseek-v3.1":       "deepseek_v31",
 		"deepseek-v3.2":       "deepseek_v32",
 		"deepseek-v4":         "deepseek_v4",
+		"deepseek-v4.1":       "deepseek_v41",
 		"kimi_k2":             "kimi_k2",
+		"kimi-k3":             "kimi_k3",
+		"k2-horizon":          "k2_horizon",
 		"hunyuan-a13b":        "hunyuan_a13b",
+		"hy-v4":               "hy_v4",
+		"inkling":             "inkling",
 		"longcat":             "longcat",
 		"glm-4":               "glm45",
 		"glm-4.7":             "glm47",
@@ -149,6 +215,7 @@ var (
 		"qwen3.6":             "qwen3_coder",
 		"qwen3.8":             "qwen3_coder",
 		"olmo-3":              "olmo3",
+		"muse-glimmer":        "muse_glimmer",
 		"gigachat3":           "gigachat3",
 		"ernie-4.5":           "ernie45",
 		"phi4-mini":           "phi4_mini_json",
@@ -161,6 +228,9 @@ var (
 
 	// key is model architecture name, value is ToolCallParser mode name
 	toolCallParserArchMap = map[string]string{
+		"DeepseekV41ForCausalLM":                  "deepseek_v41",
+		"DeepseekV4ForCausalLM":                   "deepseek_v4",
+		"DeepseekV4ForConditionalGeneration":      "deepseek_v4",
 		"MistralForCausalLM":                      "mistral",
 		"MistralLarge3ForCausalLM":                "mistral",
 		"LlamaForCausalLM":                        "llama3_json",
@@ -174,13 +244,22 @@ var (
 		"Qwen2ForCausalLM":                        "hermes",
 		"Qwen3ForCausalLM":                        "hermes",
 		"Qwen3MoeForCausalLM":                     "qwen3_xml",
+		"Qwen3_5ForCausalLM":                      "qwen3_coder",
 		"Qwen3_5ForConditionalGeneration":         "qwen3_coder",
+		"Qwen3_5MoeForCausalLM":                   "qwen3_coder",
 		"Qwen3_5MoeForConditionalGeneration":      "qwen3_coder",
+		"Qwen4ExpForCausalLM":                     "qwen3_coder",
+		"Qwen4ExpForConditionalGeneration":        "qwen3_coder",
 		"MiniMaxM2ForCausalLM":                    "minimax_m2",
 		"MiniMaxM3SparseForCausalLM":              "minimax_m3",
 		"MiniMaxM3SparseForConditionalGeneration": "minimax_m3",
 		"MiMoForCausalLM":                         "mimo",
 		"HYV3ForCausalLM":                         "hy_v3",
+		"HYV4ForCausalLM":                         "hy_v4",
+		"InklingForCausalLM":                      "inkling",
+		"InklingForConditionalGeneration":         "inkling",
+		"K2HorizonForCausalLM":                    "k2_horizon",
+		"KimiK3ForConditionalGeneration":          "kimi_k3",
 		"LagunaForCausalLM":                       "poolside_v1",
 		"Lfm2ForCausalLM":                         "lfm2",
 		"Lfm2MoeForCausalLM":                      "lfm2",
@@ -193,6 +272,8 @@ var (
 		"Glm4MoeForCausalLM":                      "glm45",
 		"Glm47MoeForCausalLM":                     "glm47",
 		"GlmMoeDsaForCausalLM":                    "glm47",
+		"Glm5NextForCausalLM":                     "glm47",
+		"Glm5NextForConditionalGeneration":        "glm47",
 		"Gemma3ForCausalLM":                       "functiongemma",
 		"Gemma4ForConditionalGeneration":          "gemma4",
 		"Gemma4UnifiedForConditionalGeneration":   "gemma4",
@@ -208,6 +289,8 @@ var (
 		"KimiK2ForCausalLM":                       "kimi_k2",
 		"KimiK25ForConditionalGeneration":         "kimi_k2",
 		"GigaChat3ForCausalLM":                    "gigachat3",
+		"MuseGlimmerForCausalLM":                  "muse_glimmer",
+		"MuseGlimmerForConditionalGeneration":     "muse_glimmer",
 	}
 
 	// chatTemplatePrefixMap maps model name prefixes to vllm-customized chat templates.
@@ -222,13 +305,17 @@ var (
 		"qwen2.5":     "tool-chat-hermes.jinja",
 	}
 
-	// tokenizerModePrefixMap maps model name prefixes to their vLLM tokenizer mode.
-	tokenizerModePrefixMap = map[string]string{
-		// Use deepseek_v32 tokenizer mode for both DeepSeek R1 and V3 models to avoid special token decoding issues:
-		// https://github.com/kaito-project/kaito/issues/1976
-		"deepseek-r1": "deepseek_v32",
-		"deepseek-v3": "deepseek_v32",
-		"deepseek-v4": "deepseek_v4",
+	tokenizerModeArchMap = map[string]string{
+		"DeepseekV3ForCausalLM":              "deepseek_v32",
+		"DeepseekV32ForCausalLM":             "deepseek_v32",
+		"DeepseekV4ForCausalLM":              "deepseek_v4",
+		"DeepseekV4ForConditionalGeneration": "deepseek_v4",
+		"DeepseekV41ForCausalLM":             "deepseek_v41",
+	}
+
+	tokenizerModeModelOverride = map[string]string{
+		"deepseek-r1-distill-llama-8b": "deepseek_v32",
+		"deepseek-r1-distill-qwen-14b": "deepseek_v32",
 	}
 
 	// vllmAttentionBackendPrefixMap maps model name prefixes to their vLLM attention backend.
@@ -239,18 +326,20 @@ var (
 	// source: https://docs.vllm.ai/en/latest/configuration/engine_args/#-moe-backend
 	vllmMoeBackendOverride = map[string]string{}
 
-	// vllmKVCacheDtypePrefixMap maps model name prefixes to their required vLLM
+	// vllmEngramConfigArchMap maps model architectures to their vLLM Engram configuration.
+	vllmEngramConfigArchMap = map[string]string{
+		// source: https://recipes.vllm.ai/deepseek-ai/DeepSeek-V4.1-Flash?hardware=h100&strategy=single_node_tep
+		"DeepseekV41ForCausalLM": `'{"cpu_offload":true}'`,
+	}
+
+	// vllmKVCacheDtypeArchMap maps model architectures to their required vLLM
 	// kv-cache-dtype. Some architectures only support a specific KV cache format
 	// and assert at engine init otherwise.
 	// source: https://docs.vllm.ai/en/latest/configuration/engine_args/#-kv-cache-dtype
-	vllmKVCacheDtypePrefixMap = map[string]string{
-		// DeepSeek-V4 (Flash, Pro, ...) asserts "only supports fp8 kv-cache format
-		// for now" when the kv-cache-dtype is left at the default "auto".
-		"deepseek-v4": "fp8",
-		// GLM-5.2-FP8's recipe serves with an fp8 kv-cache to roughly halve the KV
-		// footprint (enabling its full context window).
-		// source: https://recipes.vllm.ai/zai-org/GLM-5.2
-		"glm-5.2-fp8": "fp8",
+	vllmKVCacheDtypeArchMap = map[string]string{
+		"DeepseekV4ForCausalLM":              "fp8",
+		"DeepseekV4ForConditionalGeneration": "fp8",
+		"GlmMoeDsaForCausalLM":               "fp8",
 	}
 
 	// vllmGdnPrefillBackendPrefixMap maps model name prefixes to their vLLM GDN prefill backend.
@@ -263,20 +352,33 @@ var (
 		"qwen3.8": "triton",
 	}
 
-	// vllmExpertParallelEnabled maps model name prefixes to enable expert parallelism.
+	// vllmExpertParallelEnabledArchMap lists model architectures that enable expert parallelism.
 	// Expert parallelism distributes MoE experts across TP ranks, which can avoid
 	// FP8 block quantization issues when expert weight dimensions are not divisible
 	// by the quantization block size.
 	// source: https://docs.vllm.ai/en/latest/configuration/engine_args/#-enable-expert-parallel
-	vllmExpertParallelEnabled = map[string]bool{
-		"minimax-m2": true,
+	vllmExpertParallelEnabledArchMap = map[string]bool{
+		"MiniMaxM2ForCausalLM":             true,
+		"Glm5NextForCausalLM":              true,
+		"Glm5NextForConditionalGeneration": true,
+		"DeepseekV41ForCausalLM":           true,
+		// source: https://recipes.vllm.ai/Qwen/Qwen3.8-Flash-Next
+		"Qwen4ExpForCausalLM":              true,
+		"Qwen4ExpForConditionalGeneration": true,
 	}
 
-	// vllmDisableFlashInferAutotunePrefixMap disables vLLM's FlashInfer kernel autotuning
-	vllmDisableFlashInferAutotunePrefixMap = map[string]bool{
+	// vllmDisableFlashInferAutotuneArchMap lists architectures that disable
+	// vLLM's FlashInfer kernel autotuning.
+	vllmDisableFlashInferAutotuneArchMap = map[string]bool{
 		// DeepSeek-V3.2's recipe requires disabling it explicitly.
 		// source: https://recipes.vllm.ai/deepseek-ai/DeepSeek-V3.2
-		"deepseek-v3.2": true,
+		"DeepseekV32ForCausalLM": true,
+		// source: https://recipes.vllm.ai/zai-org/GLM-5.3-Flash
+		"Glm5NextForCausalLM":              true,
+		"Glm5NextForConditionalGeneration": true,
+		// source: https://recipes.vllm.ai/Qwen/Qwen3.8-Flash-Next
+		"Qwen4ExpForCausalLM":              true,
+		"Qwen4ExpForConditionalGeneration": true,
 	}
 
 	// catalogOverrides provides hardcoded values for models whose HuggingFace
@@ -301,7 +403,134 @@ var (
 			PipelineTag:   "text-generation",
 		},
 	}
+
+	// speculativeDecodingByPreset maps lowercased HuggingFace repo names to
+	// their validated, preset-tuned speculative decoding configuration.
+	// Presets absent from this map can still opt into the universal ngram
+	// fallback; this map is only the source of truth for per-preset tuning.
+	// Keys follow the same convention as catalogOverrides.
+	speculativeDecodingByPreset = map[string]specDecoEntry{
+		"deepseek-ai/deepseek-r1-0528":     mtpSpecDecoEntry("deepseek-r1-0528"),
+		"deepseek-ai/deepseek-v3-0324":     mtpSpecDecoEntry("deepseek-v3-0324"),
+		"deepseek-ai/deepseek-v3.2":        mtpSpecDecoEntry("deepseek-ai/DeepSeek-V3.2"),
+		"zai-org/glm-5.2-fp8":              mtpSpecDecoEntry("zai-org/GLM-5.2-FP8"),
+		"nvidia/deepseek-v4-flash-nvfp4":   mtpSpecDecoEntry("nvidia/DeepSeek-V4-Flash-NVFP4"),
+		"xiaomimimo/mimo-7b-base":          mtpSpecDecoEntry("XiaomiMiMo/MiMo-7B-Base"),
+		"qwen/qwen3.5-2b":                  mtpSpecDecoEntry("Qwen/Qwen3.5-2B"),
+		"qwen/qwen3.5-4b":                  mtpSpecDecoEntry("Qwen/Qwen3.5-4B"),
+		"qwen/qwen3.5-9b":                  mtpSpecDecoEntry("Qwen/Qwen3.5-9B"),
+		"qwen/qwen3.5-122b-a10b-gptq-int4": mtpSpecDecoEntry("Qwen/Qwen3.5-122B-A10B-GPTQ-Int4"),
+		"qwen/qwen3.5-122b-a10b":           mtpSpecDecoEntry("Qwen/Qwen3.5-122B-A10B"),
+		"qwen/qwen3.6-35b-a3b-fp8":         mtpSpecDecoEntry("Qwen/Qwen3.6-35B-A3B-FP8"),
+		"qwen/qwen3.6-35b-a3b":             mtpSpecDecoEntry("Qwen/Qwen3.6-35B-A3B"),
+		"qwen/qwen3.6-27b":                 mtpSpecDecoEntry("Qwen/Qwen3.6-27B"),
+		"qwen/qwen3.5-397b-a17b-gptq-int4": mtpSpecDecoEntry("Qwen/Qwen3.5-397B-A17B-GPTQ-Int4"),
+	}
+
+	// maxNumSeqsTargets lists architecture/GPU pairs whose Mamba-cache-block
+	// ceilings should be estimated. The estimator only emits an override when
+	// the calculated ceiling is below vLLM's default.
+	maxNumSeqsTargets = map[architectureGPUKey]struct{}{
+		{architecture: "Qwen3_5ForConditionalGeneration", gpuModel: "NVIDIA H100"}:    {},
+		{architecture: "Qwen3_5MoeForConditionalGeneration", gpuModel: "NVIDIA H100"}: {},
+	}
+
+	// gpuMemoryUtilizationByGPUModel reserves additional runtime headroom on
+	// tight-VRAM GPUs.
+	gpuMemoryUtilizationByGPUModel = map[string]string{
+		"NVIDIA A10": "0.82",
+	}
+
+	// cudagraphModeByModelAndGPU overrides vLLM's default graph mode for known
+	// incompatibilities using model name prefixes. An empty GPU model applies to
+	// every GPU; the longest matching prefix wins within each GPU scope.
+	cudagraphModeByModelAndGPU = map[modelGPUKey]string{
+		{modelName: "nvidia-nemotron-nano-9b-v2", gpuModel: "NVIDIA A10"}:     "FULL_DECODE_ONLY",
+		{modelName: "nvidia-nemotron-3-nano-4b-bf16", gpuModel: "NVIDIA A10"}: "FULL_DECODE_ONLY",
+		{modelName: "deepseek-v4-flash-0731"}:                                 "NONE",
+		{modelName: "deepseek-v4.1-flash", gpuModel: "NVIDIA H100"}:           "FULL_DECODE_ONLY",
+	}
+
+	// linearBackendByModelAndGPU overrides vLLM's default linear backend.
+	linearBackendByModelAndGPU = map[modelGPUKey]string{
+		{modelName: "mistral-medium-3.5-128b", gpuModel: "NVIDIA A100"}: "marlin",
+	}
+
+	// indexerKVDtypeByArchitectureAndGPU configures Qwen's sparse-attention
+	// indexer. Hopper supports FP8; Ampere must use BF16.
+	// source: https://recipes.vllm.ai/Qwen/Qwen3.8-Flash-Next
+	indexerKVDtypeByArchitectureAndGPU = map[architectureGPUKey]string{
+		{architecture: "Qwen4ExpForCausalLM", gpuModel: "NVIDIA H100"}:              "fp8",
+		{architecture: "Qwen4ExpForConditionalGeneration", gpuModel: "NVIDIA H100"}: "fp8",
+		{architecture: "Qwen4ExpForCausalLM", gpuModel: "NVIDIA A100"}:              "bf16",
+		{architecture: "Qwen4ExpForConditionalGeneration", gpuModel: "NVIDIA A100"}: "bf16",
+	}
 )
+
+// SupportsMaxNumSeqsEstimate reports whether max-num-seqs estimation is enabled
+// for any of a model's architectures on the target GPU.
+func SupportsMaxNumSeqsEstimate(architectures []string, gpuModel string) bool {
+	for _, architecture := range architectures {
+		if _, ok := maxNumSeqsTargets[architectureGPUKey{
+			architecture: architecture,
+			gpuModel:     gpuModel,
+		}]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// ResolveGPUMemoryUtilization returns the vLLM GPU memory utilization for the
+// target GPU.
+func ResolveGPUMemoryUtilization(gpuModel string) string {
+	if utilization, ok := gpuMemoryUtilizationByGPUModel[sku.CanonicalGPUModel(gpuModel)]; ok {
+		return utilization
+	}
+	return defaultGPUMemoryUtilization
+}
+
+// ResolveCUDAGraphMode uses the longest model name prefix for the target GPU,
+// falling back to prefixes that apply to every GPU.
+func ResolveCUDAGraphMode(modelName, gpuModel string) (string, bool) {
+	canonicalGPUModel := sku.CanonicalGPUModel(gpuModel)
+	for _, targetGPUModel := range []string{canonicalGPUModel, ""} {
+		prefixes := make(map[string]string)
+		for key, mode := range cudagraphModeByModelAndGPU {
+			if key.gpuModel == targetGPUModel {
+				prefixes[key.modelName] = mode
+			}
+		}
+		if mode, ok := longestPrefixMatch(modelName, prefixes); ok {
+			return mode, true
+		}
+	}
+	return "", false
+}
+
+// ResolveLinearBackend returns a model/GPU-specific linear backend.
+func ResolveLinearBackend(modelName, gpuModel string) (string, bool) {
+	backend, ok := linearBackendByModelAndGPU[modelGPUKey{
+		modelName: modelName,
+		gpuModel:  sku.CanonicalGPUModel(gpuModel),
+	}]
+	return backend, ok
+}
+
+// ResolveIndexerKVDtype returns the sparse-attention indexer dtype for a model's
+// architecture and target GPU.
+func ResolveIndexerKVDtype(architectures []string, gpuModel string) (string, bool) {
+	canonicalGPUModel := sku.CanonicalGPUModel(gpuModel)
+	for _, architecture := range architectures {
+		if dtype, ok := indexerKVDtypeByArchitectureAndGPU[architectureGPUKey{
+			architecture: architecture,
+			gpuModel:     canonicalGPUModel,
+		}]; ok {
+			return dtype, true
+		}
+	}
+	return "", false
+}
 
 type Generator struct {
 	ModelRepo      string
@@ -315,11 +544,42 @@ type Generator struct {
 	ConfigFormat  string
 	TokenizerMode string
 	ModelConfig   map[string]interface{}
+
+	// nameHint, when set, replaces Metadata.Name as the key for the
+	// name-keyed runtime tables, because a custom model's digest name can never
+	// match them. It is only a lookup key: model metadata and sizing still come
+	// from config.json.
+	nameHint string
+}
+
+// ModelNameFromRepo returns the lowercased final path segment of a model
+// repository ID, which is the form the name-keyed tables are keyed on.
+func ModelNameFromRepo(modelRepo string) string {
+	nameParts := strings.Split(modelRepo, "/")
+	return strings.ToLower(nameParts[len(nameParts)-1])
+}
+
+func (g *Generator) familyName() string {
+	if g.nameHint != "" {
+		return g.nameHint
+	}
+	return g.Param.Metadata.Name
+}
+
+// lookupFamilyPrefix returns the value of the longest table prefix of the
+// generator's family name.
+func lookupFamilyPrefix[V any](g *Generator, table map[string]V) (V, bool) {
+	return longestPrefixMatch(g.familyName(), table)
+}
+
+// lookupFamilyExact returns the table value keyed by the generator's family name.
+func lookupFamilyExact[V any](g *Generator, table map[string]V) (V, bool) {
+	v, ok := table[g.familyName()]
+	return v, ok
 }
 
 func NewGenerator(modelRepo, token string) *Generator {
-	nameParts := strings.Split(modelRepo, "/")
-	modelNameSafe := strings.ToLower(nameParts[len(nameParts)-1])
+	modelNameSafe := ModelNameFromRepo(modelRepo)
 
 	gen := &Generator{
 		ModelRepo:     modelRepo,
@@ -567,6 +827,43 @@ func getString(config map[string]interface{}, keys []string) string {
 	return ""
 }
 
+// longestPrefixMatch returns the value of the longest key in table that is a
+// prefix of name.
+func longestPrefixMatch[V any](name string, table map[string]V) (V, bool) {
+	prefixes := make([]string, 0, len(table))
+	for prefix := range table {
+		prefixes = append(prefixes, prefix)
+	}
+	sort.Slice(prefixes, func(i, j int) bool {
+		if len(prefixes[i]) == len(prefixes[j]) {
+			return prefixes[i] > prefixes[j]
+		}
+		return len(prefixes[i]) > len(prefixes[j])
+	})
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(name, prefix) {
+			return table[prefix], true
+		}
+	}
+	var zero V
+	return zero, false
+}
+
+// applyFamilyParsers sets the parsers and chat template selected by the most
+// specific model name prefix, and reports whether the model is excluded from
+// reasoning parsing.
+func (g *Generator) applyFamilyParsers() (nonReasoning bool) {
+	nonReasoning, _ = lookupFamilyExact(g, nonReasoningModels)
+	if !nonReasoning {
+		g.Param.Metadata.ReasoningParser, _ = lookupFamilyPrefix(g, reasoningParserModeNamePrefixMap)
+	}
+	g.Param.Metadata.ToolCallParser, _ = lookupFamilyPrefix(g, toolCallParserModeNamePrefixMap)
+	if template, ok := lookupFamilyPrefix(g, chatTemplatePrefixMap); ok {
+		g.Param.Metadata.ChatTemplate = template
+	}
+	return nonReasoning
+}
+
 func (g *Generator) ParseModelMetadata() {
 	maxPos := getInt(g.ModelConfig, configKeyMap["modelTokenLimit"], DefaultModelTokenLimit)
 
@@ -590,39 +887,15 @@ func (g *Generator) ParseModelMetadata() {
 		}
 	}
 
-	// set reasoning parser based on model name prefix
-	if !nonReasoningModels[g.Param.Metadata.Name] {
-		for prefix, parser := range reasoningParserModeNamePrefixMap {
-			if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
+	nonReasoning := g.applyFamilyParsers()
+
+	// set reasoning parser based on model architecture if not set by name prefix
+	if !nonReasoning && g.Param.Metadata.ReasoningParser == "" {
+		for _, arch := range g.Param.Metadata.Architectures {
+			if parser, ok := reasoningParserArchMap[arch]; ok {
 				g.Param.Metadata.ReasoningParser = parser
 				break
 			}
-		}
-
-		// set reasoning parser based on model architecture if not set by name prefix
-		if g.Param.Metadata.ReasoningParser == "" {
-			for _, arch := range g.Param.Metadata.Architectures {
-				if parser, ok := reasoningParserArchMap[arch]; ok {
-					g.Param.Metadata.ReasoningParser = parser
-					break
-				}
-			}
-		}
-	}
-
-	// set ToolCallParser based on model name prefix
-	// sort the keys of toolCallParserModeNamePrefixMap in reverse alphabetical order and then iterate
-	// this is to ensure that longer (more specific) prefixes are matched first
-	prefixes := make([]string, 0, len(toolCallParserModeNamePrefixMap))
-	for prefix := range toolCallParserModeNamePrefixMap {
-		prefixes = append(prefixes, prefix)
-	}
-	sort.Sort(sort.Reverse(sort.StringSlice(prefixes)))
-
-	for _, prefix := range prefixes {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
-			g.Param.Metadata.ToolCallParser = toolCallParserModeNamePrefixMap[prefix]
-			break
 		}
 	}
 
@@ -633,14 +906,6 @@ func (g *Generator) ParseModelMetadata() {
 				g.Param.Metadata.ToolCallParser = parser
 				break
 			}
-		}
-	}
-
-	// set ChatTemplate based on model name prefix
-	for prefix, template := range chatTemplatePrefixMap {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
-			g.Param.Metadata.ChatTemplate = template
-			break
 		}
 	}
 
@@ -711,7 +976,7 @@ func (g *Generator) calculateKVCacheTokenSize() (int, string) {
 	return tokenSize, attnType
 }
 
-// MambaLayerInfo describes the hybrid (Mamba-2 / Gated DeltaNet) state footprint of
+// MambaLayerInfo describes the hybrid (Mamba-2 / Gated DeltaNet / KDA) state footprint of
 // a model. PerLayerBytes and NumLinearLayers give the total per-sequence state that
 // the node estimator reserves; PerLayerBytes together with NumFullAttnLayers lets the
 // launcher estimate vLLM's Mamba-cache-block ceiling that bounds --max-num-seqs.
@@ -796,14 +1061,33 @@ func gatedDeltaNetStatePerLayer(config map[string]interface{}) int {
 	numKHeads := getInt(config, []string{"linear_num_key_heads"}, 0)
 	numVHeads := getInt(config, []string{"linear_num_value_heads"}, 0)
 	convKernel := getInt(config, []string{"linear_conv_kernel_dim"}, 0)
-	if headKDim == 0 || headVDim == 0 || numKHeads == 0 || numVHeads == 0 || convKernel <= 1 {
-		return 0
-	}
-	const convDtypeBytes = 2 // model dtype (bf16)
-	ssmDtypeBytes := 4       // vLLM keeps the SSM temporal state in float32 by default
+	ssmDtypeBytes := 4 // vLLM keeps the SSM temporal state in float32 by default
 	if d, _ := config["mamba_ssm_dtype"].(string); d == "bfloat16" || d == "float16" {
 		ssmDtypeBytes = 2
 	}
+	return linearAttentionStatePerLayer(headKDim, headVDim, numKHeads, numVHeads, convKernel, ssmDtypeBytes)
+}
+
+// kdaStatePerLayer mirrors vLLM's KDA state shapes for GLM-5.3-Flash.
+func kdaStatePerLayer(config map[string]interface{}) int {
+	linearConfig, ok := config["linear_attn_config"].(map[string]interface{})
+	if !ok {
+		return 0
+	}
+	if _, kda := linearConfig["kda_layers"]; !kda {
+		return 0
+	}
+	numHeads := getInt(linearConfig, []string{"num_heads"}, 0)
+	headDim := getInt(linearConfig, []string{"head_dim"}, 0)
+	convKernel := getInt(linearConfig, []string{"short_conv_kernel_size"}, 4)
+	return linearAttentionStatePerLayer(headDim, headDim, numHeads, numHeads, convKernel, 4)
+}
+
+func linearAttentionStatePerLayer(headKDim, headVDim, numKHeads, numVHeads, convKernel, ssmDtypeBytes int) int {
+	if headKDim == 0 || headVDim == 0 || numKHeads == 0 || numVHeads == 0 || convKernel <= 1 {
+		return 0
+	}
+	const convDtypeBytes = 2
 	convDim := headKDim*numKHeads*2 + headVDim*numVHeads
 	convStateBytes := convDim * (convKernel - 1) * convDtypeBytes
 	temporalStateBytes := numVHeads * headVDim * headKDim * ssmDtypeBytes
@@ -811,12 +1095,15 @@ func gatedDeltaNetStatePerLayer(config map[string]interface{}) int {
 }
 
 // computeMambaLayerInfo returns the hybrid state footprint for a model, handling both
-// Mamba-2 (NemotronH) and Gated DeltaNet (Qwen3.5+) architectures. Returns a zero value
+// Mamba-2 (NemotronH), Gated DeltaNet (Qwen3.5+), and KDA (GLM-5.3-Flash) architectures. Returns a zero value
 // for pure-attention models.
 func computeMambaLayerInfo(config map[string]interface{}) MambaLayerInfo {
 	perLayer := mamba2StatePerLayer(config)
 	if perLayer == 0 {
 		perLayer = gatedDeltaNetStatePerLayer(config)
+	}
+	if perLayer == 0 {
+		perLayer = kdaStatePerLayer(config)
 	}
 	if perLayer == 0 {
 		return MambaLayerInfo{}
@@ -837,6 +1124,55 @@ func computeMambaStateBytesPerSeq(config map[string]interface{}) int {
 	return info.PerLayerBytes * info.NumLinearLayers
 }
 
+// applyFamilyRunParams sets the vLLM run parameters selected by model architecture
+// and name-based family exceptions.
+func (g *Generator) applyFamilyRunParams() {
+	params := g.Param.VLLM.ModelRunParams
+	for _, arch := range g.Param.Metadata.Architectures {
+		if mode, ok := tokenizerModeArchMap[arch]; ok {
+			params["tokenizer_mode"] = mode
+			break
+		}
+	}
+	if mode, ok := lookupFamilyExact(g, tokenizerModeModelOverride); ok {
+		params["tokenizer_mode"] = mode
+	}
+	if backend, ok := lookupFamilyPrefix(g, vllmAttentionBackendPrefixMap); ok {
+		params["attention-backend"] = backend
+	}
+	if backend, ok := lookupFamilyExact(g, vllmMoeBackendOverride); ok {
+		params["moe-backend"] = backend
+	}
+	for _, arch := range g.Param.Metadata.Architectures {
+		if config, ok := vllmEngramConfigArchMap[arch]; ok {
+			params["engram-config"] = config
+			break
+		}
+	}
+	for _, arch := range g.Param.Metadata.Architectures {
+		if dtype, ok := vllmKVCacheDtypeArchMap[arch]; ok {
+			params["kv-cache-dtype"] = dtype
+			break
+		}
+	}
+	if backend, ok := lookupFamilyPrefix(g, vllmGdnPrefillBackendPrefixMap); ok {
+		params["gdn-prefill-backend"] = backend
+	}
+	for _, arch := range g.Param.Metadata.Architectures {
+		if vllmExpertParallelEnabledArchMap[arch] {
+			params["enable-expert-parallel"] = ""
+			break
+		}
+	}
+	// Emitted as --kernel-config.enable_flashinfer_autotune=False.
+	for _, arch := range g.Param.Metadata.Architectures {
+		if vllmDisableFlashInferAutotuneArchMap[arch] {
+			params["kernel-config.enable_flashinfer_autotune"] = "False"
+			break
+		}
+	}
+}
+
 func (g *Generator) FinalizeParams() {
 	g.Param.Metadata.DiskStorageRequirement = g.calculateStorageSize()
 
@@ -849,59 +1185,7 @@ func (g *Generator) FinalizeParams() {
 	g.Param.VLLM.ModelRunParams["config_format"] = g.ConfigFormat
 	g.Param.VLLM.ModelRunParams["tokenizer_mode"] = g.TokenizerMode
 
-	// Override tokenizer mode based on model name prefix
-	for prefix, mode := range tokenizerModePrefixMap {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
-			g.Param.VLLM.ModelRunParams["tokenizer_mode"] = mode
-			break
-		}
-	}
-
-	// Set attention backend based on model name prefix
-	for prefix, backend := range vllmAttentionBackendPrefixMap {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
-			g.Param.VLLM.ModelRunParams["attention-backend"] = backend
-			break
-		}
-	}
-
-	// Set MoE backend based on exact model name match
-	if backend, ok := vllmMoeBackendOverride[g.Param.Metadata.Name]; ok {
-		g.Param.VLLM.ModelRunParams["moe-backend"] = backend
-	}
-
-	// Set kv-cache-dtype based on model name prefix
-	for prefix, dtype := range vllmKVCacheDtypePrefixMap {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
-			g.Param.VLLM.ModelRunParams["kv-cache-dtype"] = dtype
-			break
-		}
-	}
-
-	// Set GDN prefill backend based on model name prefix
-	for prefix, backend := range vllmGdnPrefillBackendPrefixMap {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) {
-			g.Param.VLLM.ModelRunParams["gdn-prefill-backend"] = backend
-			break
-		}
-	}
-
-	// Enable expert parallelism based on model name prefix
-	for prefix, enabled := range vllmExpertParallelEnabled {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) && enabled {
-			g.Param.VLLM.ModelRunParams["enable-expert-parallel"] = ""
-			break
-		}
-	}
-
-	// Disable FlashInfer kernel autotuning for models that explicitly require it.
-	// Emitted as --kernel-config.enable_flashinfer_autotune=False.
-	for prefix, disable := range vllmDisableFlashInferAutotunePrefixMap {
-		if strings.HasPrefix(g.Param.Metadata.Name, prefix) && disable {
-			g.Param.VLLM.ModelRunParams["kernel-config.enable_flashinfer_autotune"] = "False"
-			break
-		}
-	}
+	g.applyFamilyRunParams()
 
 	bpt, attnType := g.calculateKVCacheTokenSize()
 	g.Param.Metadata.BytesPerToken = bpt
@@ -998,6 +1282,11 @@ func (g *Generator) loadFromCatalog() bool {
 		g.TokenizerMode = entry.LoadFormat
 	}
 
+	// Populate speculative decoding config from the per-preset map.
+	if sdEntry, ok := speculativeDecodingByPreset[strings.ToLower(g.ModelRepo)]; ok {
+		g.Param.SpeculativeDecoding = sdEntry.Config
+	}
+
 	return true
 }
 
@@ -1005,6 +1294,10 @@ func (g *Generator) Generate() (*model.PresetParam, error) {
 	if !g.loadFromCatalog() {
 		if err := g.FetchModelMetadata(); err != nil {
 			return nil, err
+		}
+		// Populate speculative decoding config for the non-catalog path.
+		if sdEntry, ok := speculativeDecodingByPreset[strings.ToLower(g.ModelRepo)]; ok {
+			g.Param.SpeculativeDecoding = sdEntry.Config
 		}
 	}
 	if err := validateSupportedConfig(g.ModelConfig); err != nil {

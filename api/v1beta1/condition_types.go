@@ -18,6 +18,8 @@ type ConditionType string
 
 const (
 	// ConditionTypeNodeClaimStatus is the state when checking nodeClaim status.
+	// With the Karpenter node provisioner, while False, NodeClaimNotReady means provisioning is in progress and any
+	// other reason means the latest attempt failed.
 	ConditionTypeNodeClaimStatus = ConditionType("NodeClaimReady")
 
 	// ConditionTypeNodeStatus is the state when checking node status.

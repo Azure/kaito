@@ -16,7 +16,7 @@ permissions:
 
 env:
   OLD_CHART_VERSION: ${{ github.event.inputs.old_chart_version || '0.9.0' }}
-  GO_VERSION: "1.26.6"
+  GO_VERSION: "1.26.9"
 
 jobs:
   chart-upgrade-test:
@@ -104,6 +104,7 @@ jobs:
 
           # Wait for deployment to be rolled out
           kubectl rollout status deploy/kaito-workspace -n kaito-workspace --timeout=300s
+          ./hack/wait-for-daemonsets.sh kaito-workspace
         env:
           REGISTRY: ${{ env.REGISTRY }}
 
@@ -176,7 +177,7 @@ jobs:
               --resource-group "${RG}" \
               --cluster-name "${CLUSTER}" \
               --name byonode \
-              --node-vm-size "Standard_NC24ads_A100_v4" \
+              --node-vm-size "Standard_NV36ads_A10_v5" \
               --node-count 1 \
               --labels apps=byo 2>&1)
             status=$?
@@ -297,6 +298,7 @@ jobs:
 
           # Wait for deployment to be rolled out
           kubectl rollout status deploy/kaito-workspace -n kaito-workspace --timeout=300s
+          ./hack/wait-for-daemonsets.sh kaito-workspace
         env:
           REGISTRY: ${{ env.REGISTRY }}
 

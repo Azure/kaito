@@ -20,7 +20,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"strings"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,6 +34,7 @@ import (
 
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
+	"github.com/kaito-project/kaito/pkg/featuregates"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
 )
 
@@ -153,11 +156,15 @@ func NewWorkspaceForInferenceSet(iObj *kaitov1beta1.InferenceSet) *kaitov1beta1.
 	if mriParent, ok := iObj.Labels[kaitov1alpha1.LabelMultiRoleInferenceParent]; ok {
 		workspaceLabels[kaitov1alpha1.LabelMultiRoleInferenceParent] = mriParent
 	}
+	// Children must satisfy spec.labelSelector, so its matchLabels always win.
+	if iObj.Spec.Selector != nil {
+		maps.Copy(workspaceLabels, iObj.Spec.Selector.MatchLabels)
+	}
 	workspaceLabels[consts.WorkspaceCreatedByInferenceSetLabel] = iObj.Name
 
 	workspaceObj := &kaitov1beta1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: iObj.Name + "-",
+			GenerateName: workspaceGenerateName(iObj.Name),
 			Namespace:    iObj.Namespace,
 			Labels:       workspaceLabels,
 			Annotations:  annotations,
@@ -166,24 +173,76 @@ func NewWorkspaceForInferenceSet(iObj *kaitov1beta1.InferenceSet) *kaitov1beta1.
 			},
 		},
 		Resource: kaitov1beta1.ResourceSpec{
-			LabelSelector: iObj.Spec.Selector,
+			InstanceType:  iObj.Spec.Template.Resource.InstanceType,
+			LabelSelector: workspaceNodeSelector(iObj),
 			Partition:     iObj.Spec.Template.Resource.Partition,
 		},
 		Inference: iObj.Spec.Template.Inference.DeepCopy(),
 	}
-	// Only set InstanceType when node auto-provisioning is enabled.
-	// In BYO mode, the Workspace webhook rejects instanceType.
-	if consts.ActiveNodeProvisioner != consts.NodeProvisionerBYO {
-		workspaceObj.Resource.InstanceType = iObj.Spec.Template.Resource.InstanceType
-	}
 	return workspaceObj
 }
 
+// generatedNameSuffixLength is the number of random characters the API server
+// appends to a GenerateName prefix.
+const generatedNameSuffixLength = 5
+
+// workspaceGenerateName returns the GenerateName prefix for the child
+// Workspaces of the named InferenceSet. The InferenceSet name is truncated so
+// generated Workspace names stay within kaitov1beta1.MaxWorkspaceNameLength;
+// the full InferenceSet name remains on the
+// consts.WorkspaceCreatedByInferenceSetLabel label.
+func workspaceGenerateName(inferenceSetName string) string {
+	maxPrefixLength := kaitov1beta1.MaxWorkspaceNameLength - generatedNameSuffixLength - 1 // 1 for the dash separator
+	if len(inferenceSetName) > maxPrefixLength {
+		inferenceSetName = strings.TrimRight(inferenceSetName[:maxPrefixLength], "-")
+	}
+	return inferenceSetName + "-"
+}
+
+// workspaceNodeSelector returns the GPU node selector for child Workspaces:
+// template.resource.labelSelector, or, for backward compatibility with node
+// auto-provisioning only, spec.labelSelector when the former is unset or empty.
+func workspaceNodeSelector(iObj *kaitov1beta1.InferenceSet) *metav1.LabelSelector {
+	selector := iObj.Spec.Template.Resource.LabelSelector
+	if kaitov1beta1.IsEmptyLabelSelector(selector) && !featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] {
+		return iObj.Spec.Selector
+	}
+	return selector
+}
+
 // ValidateWorkspaceForInferenceSet validates the child Workspace the given
-// InferenceSet would create, using the Workspace create-time webhook checks.
-// It is wired into api/v1beta1 at startup to run during InferenceSet admission.
+// InferenceSet would create, with the same rules the Workspace webhook applies.
+// Like any knative Validate, it treats the admission baseline in ctx as the
+// previous InferenceSet: on create it applies the Workspace create-time
+// checks; on update it applies the Workspace update-time checks against the
+// Workspace projected from the baseline. Returned errors are rooted at the
+// InferenceSet. It is wired into api/v1beta1 at startup.
 func ValidateWorkspaceForInferenceSet(ctx context.Context, iObj *kaitov1beta1.InferenceSet) *apis.FieldError {
-	return NewWorkspaceForInferenceSet(iObj).ValidateCreate(ctx)
+	ws := NewWorkspaceForInferenceSet(iObj)
+	base, _ := apis.GetBaseline(ctx).(*kaitov1beta1.InferenceSet)
+	if base == nil {
+		return ws.ValidateCreate(ctx).ViaField("spec", "template")
+	}
+
+	oldWs := NewWorkspaceForInferenceSet(base)
+	// When both node selectors are inherited from spec.labelSelector, report a
+	// change only at spec.labelSelector instead of the projected template path.
+	if kaitov1beta1.IsEmptyLabelSelector(iObj.Spec.Template.Resource.LabelSelector) &&
+		kaitov1beta1.IsEmptyLabelSelector(base.Spec.Template.Resource.LabelSelector) {
+		oldWs.Resource.LabelSelector = ws.Resource.LabelSelector
+	}
+	var errs *apis.FieldError
+	if !apiequality.Semantic.DeepEqual(iObj.Spec.Selector, base.Spec.Selector) {
+		errs = kaitov1beta1.ValidateLabelSelectorUpdate(iObj.Spec.Selector, base.Spec.Selector).ViaField("spec")
+	}
+
+	templateErrs := ws.ValidateUpdate(ctx, oldWs)
+	if !apiequality.Semantic.DeepEqual(iObj.Spec.Template, base.Spec.Template) {
+		// Replicas created after this update use the new template, so it must
+		// also pass the checks a newly created Workspace would face.
+		templateErrs = templateErrs.Also(ws.ValidateCreate(ctx))
+	}
+	return errs.Also(templateErrs.ViaField("spec", "template"))
 }
 
 func ComputeInferenceSetHash(iObj *kaitov1beta1.InferenceSet) string {

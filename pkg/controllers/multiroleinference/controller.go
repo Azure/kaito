@@ -437,8 +437,9 @@ func (r *MultiRoleInferenceReconciler) reconcileInferenceSet(
 		}
 
 		// LabelSelector — start from the MRI's labelSelector and inject role info.
-		// The InferenceSet controller propagates Spec.Selector to workspace.Resource.LabelSelector,
-		// so role-specific labels must be in the selector to ensure correct node selection.
+		// Template labels below carry the same keys so child Workspaces match it. With node
+		// auto-provisioning, the InferenceSet controller also inherits it as the Workspace
+		// node selector, so role-specific labels land on the provisioned nodes.
 		desired.Spec.Selector = mri.Spec.LabelSelector.DeepCopy()
 		if desired.Spec.Selector == nil {
 			desired.Spec.Selector = &metav1.LabelSelector{}
@@ -463,13 +464,17 @@ func (r *MultiRoleInferenceReconciler) reconcileInferenceSet(
 		// Template metadata annotations: propagate the MRI's own annotations so opt-outs
 		// (e.g. kaito.sh/model-streaming, kaito.sh/disable-benchmark) reach child workspaces.
 		// The InferenceSet controller clones Spec.Template.Annotations onto each workspace.
+		// Preserve nil for the empty case so CreateOrUpdate does not fight API-server
+		// round-tripping of empty maps, while still assigning nil to clear previously
+		// propagated annotations through MRI -> InferenceSet -> Workspace.
+		var templateAnnotations map[string]string
 		if len(mri.Annotations) > 0 {
-			templateAnnotations := make(map[string]string, len(mri.Annotations))
+			templateAnnotations = make(map[string]string, len(mri.Annotations))
 			for k, v := range mri.Annotations {
 				templateAnnotations[k] = v
 			}
-			desired.Spec.Template.Annotations = templateAnnotations
 		}
+		desired.Spec.Template.Annotations = templateAnnotations
 
 		// Resource.
 		desired.Spec.Template.Resource = kaitov1beta1.InferenceSetResourceSpec{

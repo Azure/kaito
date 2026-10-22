@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"sort"
 	"strconv"
@@ -84,10 +85,11 @@ type WorkspaceReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	klogger         klog.Logger
-	expectations    *utils.ControllerExpectations
-	Estimator       estimator.NodesEstimator
-	nodeProvisioner nodeprovision.NodeProvisioner
+	klogger             klog.Logger
+	expectations        *utils.ControllerExpectations
+	Estimator           estimator.NodesEstimator
+	nodeProvisioner     nodeprovision.NodeProvisioner
+	modelMetadataClient modelMetadataHTTPClient
 }
 
 func NewWorkspaceReconciler(client client.Client, scheme *runtime.Scheme, log logr.Logger, Recorder record.EventRecorder,
@@ -95,14 +97,15 @@ func NewWorkspaceReconciler(client client.Client, scheme *runtime.Scheme, log lo
 	expectations := utils.NewControllerExpectations()
 
 	return &WorkspaceReconciler{
-		Client:          client,
-		Scheme:          scheme,
-		Log:             log,
-		klogger:         klog.NewKlogr().WithName("WorkspaceController"),
-		Recorder:        Recorder,
-		expectations:    expectations,
-		Estimator:       &nodesestimator.NodeEstimator{},
-		nodeProvisioner: provisioner,
+		Client:              client,
+		Scheme:              scheme,
+		Log:                 log,
+		klogger:             klog.NewKlogr().WithName("WorkspaceController"),
+		Recorder:            Recorder,
+		expectations:        expectations,
+		Estimator:           &nodesestimator.NodeEstimator{},
+		nodeProvisioner:     provisioner,
+		modelMetadataClient: &http.Client{Timeout: 2 * time.Second},
 	}
 }
 
@@ -150,8 +153,7 @@ func (c *WorkspaceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 
 	// BYO auto-selection requires a healthy GPU node to identify the effective SKU.
 	// Return an error before workload creation so reconciliation retries with backoff.
-	if featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] &&
-		workspaceObj.Resource.LabelSelector == nil && workspaceObj.Resource.InstanceType == "" {
+	if featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] && workspaceObj.Resource.AutoSelectsSKU() {
 		it, selErr := byoprovisioner.SelectInstanceType(ctx, c.Client, workspaceObj)
 		if selErr != nil {
 			return reconcile.Result{}, selErr
@@ -424,7 +426,7 @@ func (c *WorkspaceReconciler) reconcileNodes(ctx context.Context, wObj *kaitov1b
 		if needRequeue {
 			return &reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 		}
-		return &reconcile.Result{}, nil
+		return &reconcile.Result{RequeueAfter: nodeClaimStatusResyncInterval}, nil
 	}
 
 	return nil, nil
@@ -590,6 +592,9 @@ func ComputeHash(w *kaitov1beta1.Workspace) string {
 	encoder.Encode(w.Resource)
 	encoder.Encode(w.Inference)
 	encoder.Encode(w.Tuning)
+	if w.GetAnnotations()[kaitov1beta1.AnnotationEnableSpeculativeDecoding] == "true" {
+		encoder.Encode(true)
+	}
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
@@ -708,12 +713,12 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1b
 	}
 
 	revisionStr := wObj.Annotations[kaitov1beta1.WorkspaceRevisionAnnotation]
-	workloadObj, err := inference.GeneratePresetInference(ctx, wObj, revisionStr, model, c.Client, c.nodeProvisioner)
+	result, err := inference.GeneratePresetInference(ctx, wObj, revisionStr, model, c.Client, c.nodeProvisioner)
 	if err != nil {
 		return err
 	}
 
-	desiredStatefulSet, ok := workloadObj.(*appsv1.StatefulSet)
+	desiredStatefulSet, ok := result.Workload.(*appsv1.StatefulSet)
 	if !ok {
 		return fmt.Errorf("failed to generate statefulset workload for inference")
 	}
@@ -721,7 +726,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1b
 	existingObj := &appsv1.StatefulSet{}
 	if err := resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err != nil {
 		if apierrors.IsNotFound(err) {
-			return resources.CreateResource(ctx, workloadObj, c.Client)
+			return resources.CreateResource(ctx, result.Workload, c.Client)
 		}
 		return err
 	}
@@ -753,12 +758,7 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1b
 	} else {
 		// Selectively update the pod spec fields that are relevant to inference,
 		// and leave the rest unchanged in case user has customized them.
-		desiredPodSpec := desiredStatefulSet.Spec.Template.Spec
-		spec := &existingObj.Spec.Template.Spec
-		spec.Containers[0].Env = desiredPodSpec.Containers[0].Env
-		spec.Containers[0].VolumeMounts = desiredPodSpec.Containers[0].VolumeMounts
-		spec.InitContainers = desiredPodSpec.InitContainers
-		spec.Volumes = desiredPodSpec.Volumes
+		syncInferenceMutablePodSpec(&existingObj.Spec.Template.Spec, &desiredStatefulSet.Spec.Template.Spec)
 	}
 
 	annotations[kaitov1beta1.WorkspaceRevisionAnnotation] = revisionStr
@@ -779,6 +779,15 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1b
 		}
 	}
 	return nil
+}
+
+func syncInferenceMutablePodSpec(existingSpec, desiredSpec *corev1.PodSpec) {
+	existingSpec.Containers[0].Command = desiredSpec.Containers[0].Command
+	existingSpec.Containers[0].Args = desiredSpec.Containers[0].Args
+	existingSpec.Containers[0].Env = desiredSpec.Containers[0].Env
+	existingSpec.Containers[0].VolumeMounts = desiredSpec.Containers[0].VolumeMounts
+	existingSpec.InitContainers = desiredSpec.InitContainers
+	existingSpec.Volumes = desiredSpec.Volumes
 }
 
 // shouldUpgradeBaseImage checks if an auto-upgrade has been requested via the upgrade label
@@ -823,6 +832,7 @@ func (c *WorkspaceReconciler) syncWorkspaceStatus(ctx context.Context, key types
 	benchmarkApplicable := kaitov1beta1.ShouldRunBenchmark(wObj) && hasBenchmarkProbe
 
 	appendReconcileErrMessage := buildReconcileErrMessageAppender(reconcileErr)
+	maxModelLen := c.collectActualMaxModelLen(ctx, wObj, inferenceReady)
 
 	return c.updateWorkspaceStatusIfChanged(ctx, key, func(status *kaitov1beta1.WorkspaceStatus) error {
 		if !wObj.DeletionTimestamp.IsZero() {
@@ -861,6 +871,7 @@ func (c *WorkspaceReconciler) syncWorkspaceStatus(ctx context.Context, key types
 		}
 
 		if wObj.Inference != nil {
+			status.MaxModelLen = maxModelLen
 			if modelstreaming.ModelStreamingEnabled(wObj) && wObj.Inference.Preset != nil {
 
 				mirrorKey := modelstreaming.ModelMirrorKey(wObj)
@@ -875,7 +886,7 @@ func (c *WorkspaceReconciler) syncWorkspaceStatus(ctx context.Context, key types
 					resourceConditionStatus = metav1.ConditionFalse
 					setWorkspaceCondition(status, wObj.GetGeneration(), appendReconcileErrMessage,
 						kaitov1beta1.ConditionTypeResourceStatus,
-						metav1.ConditionFalse, "ModelMirrorNotReady", "Model download has not started")
+						metav1.ConditionFalse, consts.ReasonModelMirrorNotReady, "Model download has not started")
 				} else {
 					mirrorStatus, mirrorReason, mirrorMsg := modelMirrorCondition(cr, infFailReason, infFailMsg)
 					setWorkspaceCondition(status, wObj.GetGeneration(), appendReconcileErrMessage,
@@ -886,7 +897,7 @@ func (c *WorkspaceReconciler) syncWorkspaceStatus(ctx context.Context, key types
 						resourceConditionStatus = metav1.ConditionFalse
 						setWorkspaceCondition(status, wObj.GetGeneration(), appendReconcileErrMessage,
 							kaitov1beta1.ConditionTypeResourceStatus,
-							metav1.ConditionFalse, "ModelMirrorNotReady", mirrorMsg)
+							metav1.ConditionFalse, consts.ReasonModelMirrorNotReady, mirrorMsg)
 					}
 				}
 			}
@@ -976,12 +987,12 @@ func (c *WorkspaceReconciler) collectInferenceReadyStatus(ctx context.Context, w
 // the InferenceReady condition so users and automation can identify the root
 // cause of an inference workload that is not ready.
 const (
-	inferenceReasonSASTokenFetchFailed = "SASTokenFetchFailed"
-	inferenceReasonModelBundleMismatch = "ModelBundleMismatch"
-	inferenceReasonImagePullError      = "ImagePullError"
-	inferenceReasonCrashLoopBackOff    = "ContainerCrashLoopBackOff"
-	inferenceReasonOOMKilled           = "ContainerOOMKilled"
-	inferenceReasonContainerStartError = "ContainerStartError"
+	inferenceReasonSASTokenFetchFailed = consts.ReasonSASTokenFetchFailed
+	inferenceReasonModelBundleMismatch = consts.ReasonModelBundleMismatch
+	inferenceReasonImagePullError      = consts.ReasonImagePullError
+	inferenceReasonCrashLoopBackOff    = consts.ReasonContainerCrashLoopBackOff
+	inferenceReasonOOMKilled           = consts.ReasonContainerOOMKilled
+	inferenceReasonContainerStartError = consts.ReasonContainerStartError
 	inferenceReasonEvicted             = "PodEvicted"
 	inferenceReasonNodeDiskPressure    = "NodeDiskPressure"
 	inferenceReasonNodeMemoryPressure  = "NodeMemoryPressure"
@@ -990,16 +1001,20 @@ const (
 
 // Model streaming validation failure reasons.
 const (
-	reasonModelStreamingStorageClassNotFound  = "ModelStreamingStorageClassNotFound"
-	reasonModelStreamingInvalidStorageClass   = "ModelStreamingInvalidStorageClass"
-	reasonModelStreamingServiceAccountInvalid = "ModelStreamingServiceAccountInvalid"
-	reasonModelStreamingInvalidAnnotations    = "ModelStreamingInvalidAnnotations"
+	reasonModelStreamingStorageClassNotFound  = consts.ReasonModelStreamingStorageClassNotFound
+	reasonModelStreamingInvalidStorageClass   = consts.ReasonModelStreamingInvalidStorageClass
+	reasonModelStreamingServiceAccountInvalid = consts.ReasonModelStreamingServiceAccountInvalid
+	reasonModelStreamingInvalidAnnotations    = consts.ReasonModelStreamingInvalidAnnotations
 	reasonModelMirrorCreateFailed             = "ModelMirrorCreateFailed"
-	reasonModelMirrorDeleting                 = "ModelMirrorDeleting"
+	reasonModelMirrorDeleting                 = consts.ReasonModelMirrorDeleting
 )
 
 // modelMirrorDrainRetryInterval paces retries while a mirror finishes tearing down.
 const modelMirrorDrainRetryInterval = 5 * time.Second
+
+// nodeClaimStatusResyncInterval resyncs the status of a Workspace waiting for NodeClaims, as the provisioning
+// failures it reports also come from Events and time windows that do not trigger a reconcile.
+const nodeClaimStatusResyncInterval = 2 * time.Minute
 
 // errModelMirrorRaced reports a mirror that appeared between this workspace's cached read
 // and its create. It was built from another workspace's spec, so this one must still run
@@ -1292,7 +1307,7 @@ func (c *WorkspaceReconciler) collectTuningStatusSnapshot(ctx context.Context, w
 	return snapshot, nil
 }
 
-const reasonModelMirrorPending = "ModelMirrorPending"
+const reasonModelMirrorPending = consts.ReasonModelMirrorPending
 
 func modelMirrorPendingReason(cr *kaitov1alpha1.ModelMirror) string {
 	cond := meta.FindStatusCondition(cr.Status.Conditions, mmconsts.ConditionTypeReady)
@@ -1347,7 +1362,7 @@ func buildReconcileErrMessageAppender(reconcileErr error) func(message string) s
 		if messageCarriesErr(message, reconcileErr.Error()) {
 			return message
 		}
-		return fmt.Sprintf("%s (last reconcile error: %s)", message, reconcileErr.Error())
+		return message + nodeprovision.ReconcileErrorMessagePrefix + reconcileErr.Error() + ")"
 	}
 }
 
@@ -1432,7 +1447,7 @@ func applyInferenceWorkspaceStatus(ctx context.Context, status *kaitov1beta1.Wor
 
 	// Default to a generic pending reason; override with a specific one (e.g. a failed
 	// SAS token fetch) when the caller detected the cause.
-	inferenceReason, inferenceMessage := "WorkspaceInferenceStatusPending", "Inference workload is not ready"
+	inferenceReason, inferenceMessage := consts.ReasonInferencePending, "Inference workload is not ready"
 	if notReadyReason != "" {
 		inferenceReason, inferenceMessage = notReadyReason, notReadyMessage
 	}

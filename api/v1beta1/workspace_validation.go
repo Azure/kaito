@@ -45,6 +45,7 @@ import (
 	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/kaito-project/kaito/pkg/utils/mig"
 	"github.com/kaito-project/kaito/pkg/utils/plugin"
+	"github.com/kaito-project/kaito/pkg/utils/speculativedecoding"
 	"github.com/kaito-project/kaito/presets/workspace/models"
 )
 
@@ -58,6 +59,21 @@ const (
 	MaxAdaptersNumber              = 10
 )
 
+// MaxWorkspaceNameLength caps new Workspace names. The Workspace's
+// StatefulSet shares its name, and the StatefulSet controller labels each pod
+// with controller-revision-hash=<name>-<hash of up to 10 characters>, which
+// must fit the 63-character label value limit (kubernetes/kubernetes#64023).
+const MaxWorkspaceNameLength = 52
+
+// ValidateWorkspaceNameLength rejects a new Workspace name longer than
+// MaxWorkspaceNameLength.
+func ValidateWorkspaceNameLength(name string) *apis.FieldError {
+	if len(name) > MaxWorkspaceNameLength {
+		return apis.ErrInvalidValue(fmt.Sprintf("must be no more than %d characters", MaxWorkspaceNameLength), "name")
+	}
+	return nil
+}
+
 func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
 	return []admissionregistrationv1.OperationType{
 		admissionregistrationv1.Create,
@@ -66,6 +82,11 @@ func (w *Workspace) SupportedVerbs() []admissionregistrationv1.OperationType {
 }
 
 func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
+	if !w.DeletionTimestamp.IsZero() {
+		klog.InfoS("Skip validation for deleting workspace", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
+		return nil
+	}
+
 	errmsgs := validation.IsDNS1123Label(w.Name)
 	if len(errmsgs) > 0 {
 		errs = errs.Also(apis.ErrInvalidValue(strings.Join(errmsgs, ", "), "name"))
@@ -74,27 +95,38 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 	base := apis.GetBaseline(ctx)
 	if base == nil {
 		klog.InfoS("Validate creation", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
+		errs = errs.Also(ValidateWorkspaceNameLength(w.Name))
 		errs = errs.Also(w.ValidateCreate(ctx))
 	} else {
 		klog.InfoS("Validate update", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
-		old := base.(*Workspace)
-		errs = errs.Also(
-			w.validateUpdate(old).ViaField("spec"),
-			w.Resource.validateUpdate(&old.Resource).ViaField("resource"),
-		)
-		if w.GetAnnotations()[AnnotationNodeClassName] != old.GetAnnotations()[AnnotationNodeClassName] {
-			errs = errs.Also(w.validateNodeClassNameAnnotation())
-		}
-		errs = errs.Also(w.validateCapacityTypeAnnotationUpdate(old))
-		if featuregates.FeatureGates[consts.FeatureFlagModelStreaming] {
-			errs = errs.Also(w.validateModelStreamingAnnotationImmutable(old))
-		}
-		if w.Inference != nil {
-			errs = errs.Also(w.Inference.validateUpdate(old.Inference).ViaField("inference"))
-		}
-		if w.Tuning != nil {
-			errs = errs.Also(w.Tuning.validateUpdate(old.Tuning).ViaField("tuning"))
-		}
+		errs = errs.Also(w.ValidateUpdate(ctx, base.(*Workspace)))
+	}
+	return errs
+}
+
+// ValidateUpdate runs the validations applied when a Workspace is updated from
+// old. It can also validate a Workspace projected from another resource, such
+// as the child Workspace of an InferenceSet.
+func (w *Workspace) ValidateUpdate(ctx context.Context, old *Workspace) (errs *apis.FieldError) {
+	errs = errs.Also(
+		w.validateUpdate(old).ViaField("spec"),
+		w.Resource.validateUpdate(&old.Resource).ViaField("resource"),
+	)
+	if w.GetAnnotations()[AnnotationNodeClassName] != old.GetAnnotations()[AnnotationNodeClassName] {
+		errs = errs.Also(w.validateNodeClassNameAnnotation())
+	}
+	errs = errs.Also(w.validateCapacityTypeAnnotationUpdate(old))
+	if featuregates.FeatureGates[consts.FeatureFlagModelStreaming] {
+		errs = errs.Also(w.validateModelStreamingAnnotationImmutable(old))
+	}
+	if w.Inference != nil {
+		errs = errs.Also(w.Inference.validateUpdate(old.Inference).ViaField("inference"))
+	}
+	// Validate speculative decoding annotation on updates too.
+	errs = errs.Also(w.validateAnnotations())
+	errs = errs.Also(w.validateSpeculativeDecoding(ctx))
+	if w.Tuning != nil {
+		errs = errs.Also(w.Tuning.validateUpdate(old.Tuning).ViaField("tuning"))
 	}
 	return errs
 }
@@ -107,6 +139,7 @@ func (w *Workspace) ValidateCreate(ctx context.Context) (errs *apis.FieldError) 
 	errs = errs.Also(w.validateAnnotations())
 	errs = errs.Also(w.validateNodeClassNameAnnotation())
 	errs = errs.Also(w.validateCapacityTypeAnnotation())
+	errs = errs.Also(w.validateSpeculativeDecoding(ctx))
 	if w.Inference != nil {
 		bypassResourceChecks := false
 		if w.GetAnnotations() != nil {
@@ -160,6 +193,53 @@ func (w *Workspace) validateAnnotations() (errs *apis.FieldError) {
 			))
 		}
 	}
+	return errs
+}
+
+func (w *Workspace) validateSpeculativeDecoding(ctx context.Context) (errs *apis.FieldError) {
+	presetName := ""
+	if w.Inference != nil && w.Inference.Preset != nil {
+		presetName = string(w.Inference.Preset.Name)
+	}
+
+	status, invalidValue := speculativedecoding.ValidateOptIn(
+		w.GetAnnotations(),
+		AnnotationEnableSpeculativeDecoding,
+		presetName,
+		GetWorkspaceRuntimeName(w),
+	)
+	switch status {
+	case speculativedecoding.OptInDisabled:
+		return nil
+	case speculativedecoding.OptInInvalidValue:
+		return errs.Also(apis.ErrInvalidValue(
+			fmt.Sprintf("annotation %s has invalid value %q; expected \"true\" or \"false\"", AnnotationEnableSpeculativeDecoding, invalidValue),
+			fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	case speculativedecoding.OptInMissingPreset:
+		return errs.Also(apis.ErrGeneric(
+			"kaito.sh/enable-speculative-decoding requires a preset inference; remove the annotation or set inference.preset.name",
+			fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	case speculativedecoding.OptInRuntimeMismatch:
+		return errs.Also(apis.ErrGeneric(
+			fmt.Sprintf(
+				"kaito.sh/enable-speculative-decoding requires the vLLM runtime; preset %q is configured for a different runtime",
+				presetName,
+			),
+			fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	}
+
+	// Any preset is accepted: presets registered in generator.speculativeDecodingByPreset
+	// get their preset-tuned config (e.g. mtp for DeepSeek R1/V3/V3.2); everything else
+	// falls back to the universal ngram default at pod-spec generation time.
+	//
+	// Current reachable methods in this PR are only preset-tuned mtp and the
+	// universal ngram fallback; both are allowed under pipeline parallelism.
+	// If KAITO later adds a speculative-decoding method that is not PP-safe,
+	// add an explicit guard here before accepting the annotation.
+
 	return errs
 }
 
@@ -592,7 +672,7 @@ func (r *ResourceSpec) validateCreateWithInference(ctx context.Context, inferenc
 
 			// Auto-selected or explicitly requested SKUs may coexist with other GPU
 			// SKUs. Keep strict uniformity only for the legacy explicit-selector path.
-			relaxed := r.LabelSelector == nil || r.InstanceType != ""
+			relaxed := r.AutoSelectsSKU() || r.InstanceType != ""
 			relaxedBYONodeFit = relaxed
 
 			machineCount = len(nodeItems)
@@ -607,14 +687,18 @@ func (r *ResourceSpec) validateCreateWithInference(ctx context.Context, inferenc
 			groupCount := 0
 			for i := range nodeItems {
 				node := &nodeItems[i]
-				// Try to get GPU configuration from nvidia.com labels first
-				gpuConfig, err := sku.GetGPUConfigFromNodeLabels(node)
+				gpuConfig, err := sku.GetGPUConfigFromNode(node)
 				if err != nil {
 					if relaxed {
 						continue
 					}
-					errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to get GPU config from nvidia labels on node %s: %v", node.Name, err)))
+					errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to get GPU config from known instance type or nvidia labels on node %s: %v", node.Name, err)))
 					return errs
+				}
+				gpuModel := sku.CanonicalGPUModel(gpuConfig.GPUModel)
+				currentGPUModel := ""
+				if skuConfig != nil {
+					currentGPUModel = sku.CanonicalGPUModel(skuConfig.GPUModel)
 				}
 
 				switch {
@@ -626,12 +710,12 @@ func (r *ResourceSpec) validateCreateWithInference(ctx context.Context, inferenc
 						skuConfig = gpuConfig
 						groupCount = 1
 					} else if gpuConfig.GPUMem.Equal(skuConfig.GPUMem) &&
-						gpuConfig.GPUModel == skuConfig.GPUModel &&
+						gpuModel == currentGPUModel &&
 						gpuConfig.GPUCount == skuConfig.GPUCount {
 						groupCount++
 					}
 				default:
-					if gpuConfig.GPUModel != skuConfig.GPUModel {
+					if gpuModel != currentGPUModel {
 						errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Non-uniform GPU product: node %s has %s GPUs, but previous node has %s GPUs, all nodes must have the same GPU product for homogeneous placement", node.Name, gpuConfig.GPUModel, skuConfig.GPUModel)))
 						return errs
 					}
@@ -651,7 +735,7 @@ func (r *ResourceSpec) validateCreateWithInference(ctx context.Context, inferenc
 				if relaxed {
 					return errs
 				}
-				errs = errs.Also(apis.ErrGeneric("Failed to determine GPU configuration from existing nodes, ensure nodes have appropriate NVIDIA GPU labels"))
+				errs = errs.Also(apis.ErrGeneric("Failed to determine GPU configuration from existing nodes, ensure nodes have a known instance type or appropriate NVIDIA GPU labels"))
 				return errs
 			}
 			machineCount = groupCount
@@ -861,16 +945,22 @@ func (r *ResourceSpec) validateUpdate(old *ResourceSpec) (errs *apis.FieldError)
 		}
 	}
 
-	newLabels, err0 := metav1.LabelSelectorAsMap(r.LabelSelector)
-	oldLabels, err1 := metav1.LabelSelectorAsMap(old.LabelSelector)
-	if err0 != nil || err1 != nil {
-		errs = errs.Also(apis.ErrGeneric("Only allow matchLabels or 'IN' matchExpression", "labelSelector"))
-	} else {
-		if !reflect.DeepEqual(newLabels, oldLabels) {
-			errs = errs.Also(apis.ErrGeneric("field is immutable", "labelSelector"))
-		}
-	}
+	errs = errs.Also(ValidateLabelSelectorUpdate(r.LabelSelector, old.LabelSelector))
 	return errs
+}
+
+// ValidateLabelSelectorUpdate rejects changes to an immutable labelSelector.
+// Errors are reported at the "labelSelector" path.
+func ValidateLabelSelectorUpdate(selector, old *metav1.LabelSelector) *apis.FieldError {
+	newLabels, err0 := metav1.LabelSelectorAsMap(selector)
+	oldLabels, err1 := metav1.LabelSelectorAsMap(old)
+	if err0 != nil || err1 != nil {
+		return apis.ErrGeneric("Only allow matchLabels or 'IN' matchExpression", "labelSelector")
+	}
+	if !reflect.DeepEqual(newLabels, oldLabels) {
+		return apis.ErrGeneric("field is immutable", "labelSelector")
+	}
+	return nil
 }
 
 func (i *InferenceSpec) validateCreate(ctx context.Context, runtime model.RuntimeName, wsNamespace string) (errs *apis.FieldError) {

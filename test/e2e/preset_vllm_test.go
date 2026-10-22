@@ -186,21 +186,21 @@ var _ = Describe("Workspace Preset on vllm runtime", func() {
 		validateChatCompletionsEndpoint(workspaceObj)
 	})
 
-	It("should create a granite-4.1-8b workspace with model streaming successfully", utils.GinkgoLabelFastCheck, func() {
-		numOfNode := 1
+	It("should create an NVIDIA-Nemotron-Nano-9B-v2 two-node workspace with model streaming successfully", utils.GinkgoLabelFastCheck, func() {
+		numOfNode := 2
 
 		// Create the federated identity credential for this process's namespace.
 		createStreamingFIC(namespaceName)
 		defer deleteStreamingFIC(namespaceName)
 
-		workspaceObj := createGranite4_1_8BStreamingWorkspaceWithPresetPublicModeAndVLLM(numOfNode)
+		workspaceObj := createNemotronNano9BStreamingWorkspaceWithPresetPublicModeAndVLLM(numOfNode)
 
-		defer cleanupStreamingResources(workspaceObj, "ibm-granite/granite-4.1-8b")
+		defer cleanupStreamingResources(workspaceObj, PresetNemotronNano9BModel)
 		time.Sleep(30 * time.Second)
 
 		validateCreateNode(workspaceObj, numOfNode)
-		validateModelMirrorResources("ibm-granite/granite-4.1-8b", workspaceObj.Namespace)
-		validateModelMirrorReady(workspaceObj, "ibm-granite/granite-4.1-8b")
+		validateModelMirrorResources(PresetNemotronNano9BModel, workspaceObj.Namespace)
+		validateModelMirrorReady(workspaceObj, PresetNemotronNano9BModel)
 		validateResourceStatus(workspaceObj)
 
 		time.Sleep(30 * time.Second)
@@ -210,34 +210,57 @@ var _ = Describe("Workspace Preset on vllm runtime", func() {
 
 		validateInferenceResource(workspaceObj, int32(numOfNode))
 
-		validateStreamingPodShape(workspaceObj, "ibm-granite/granite-4.1-8b", false)
+		// Two one-GPU nodes use pipeline parallelism (TP=1, PP=2), so Ray is
+		// multi-node but RunAI's tensor-parallel distributed loader stays off.
+		validateStreamingPodShape(workspaceObj, PresetNemotronNano9BModel, true, false)
 		validateWorkspaceReadiness(workspaceObj)
 		validateWorkspaceBenchmarkCompleted(workspaceObj)
 		validateModelsEndpoint(workspaceObj)
 		validateChatCompletionsEndpoint(workspaceObj)
 	})
 
-	It("should create a NVIDIA-Nemotron-3-Nano-4B-BF16 workspace with preset public mode successfully", utils.GinkgoLabelFastCheck, utils.GinkgoLabelMinimumRequired, func() {
-		numOfNode := 1
-		workspaceObj := createNemotron3Nano4BWorkspaceWithPresetPublicModeAndVLLM(numOfNode)
+	It("should inject universal ngram --speculative-config on a phi-4 vLLM InferenceSet opted in via annotation", utils.GinkgoLabelA100Required, func() {
+		// phi-4 is a built-in vLLM preset but is not in speculativeDecodingByPreset,
+		// so this exercises the universal ngram fallback path introduced in
+		// PR #2312 / proposal PR #2303 ("Method → Preset Selection Rule").
+		numOfReplicas := 1
+		inferenceSetObj := createPhi4InferenceSetWithSpeculativeDecodingAndVLLM(numOfReplicas)
+		DeferCleanup(func() {
+			cleanupResourcesForInferenceSet(inferenceSetObj)
+		})
 
-		defer cleanupResources(workspaceObj)
-		time.Sleep(30 * time.Second)
+		validateInferenceSetStatus(inferenceSetObj)
+		validateInferenceSetReplicas(inferenceSetObj, int32(numOfReplicas))
+		validateInferenceSetSpeculativeDecodingNGramInjected(inferenceSetObj)
 
-		validateCreateNode(workspaceObj, numOfNode)
-		validateResourceStatus(workspaceObj)
+		childWS := getFirstInferenceSetChildWorkspace(inferenceSetObj)
+		validateWorkspaceReadiness(childWS)
+		validateInferenceSetModelsEndpoint(childWS, inferenceSetObj.Name)
+		validateInferenceSetChatCompletionsEndpoint(childWS, inferenceSetObj.Name)
+	})
 
-		time.Sleep(30 * time.Second)
+	It("should create a XiaomiMiMo/MiMo-7B-Base InferenceSet with speculative decoding enabled", utils.GinkgoLabelFastCheck, utils.GinkgoLabelMinimumRequired, func() {
+		// XiaomiMiMo/MiMo-7B-Base is in speculativeDecodingByPreset, so the
+		// InferenceSet -> child Workspace propagation path should inject the
+		// preset-tuned MTP configuration instead of the universal ngram
+		// fallback. This complements the phi-4 ngram-fallback test above by
+		// proving another supported
+		// preset survives admission, replica creation, and a real
+		// inference round-trip with speculative decoding enabled.
+		numOfReplicas := 1
+		inferenceSetObj := createMiMo7BBaseInferenceSetWithSpeculativeDecodingAndVLLM(numOfReplicas)
+		DeferCleanup(func() {
+			cleanupResourcesForInferenceSet(inferenceSetObj)
+		})
 
-		validateAssociatedService(workspaceObj)
-		validateInferenceConfig(workspaceObj)
+		validateInferenceSetStatus(inferenceSetObj)
+		validateInferenceSetReplicas(inferenceSetObj, int32(numOfReplicas))
+		validateInferenceSetSpeculativeDecodingMTPInjected(inferenceSetObj)
 
-		validateInferenceResource(workspaceObj, int32(numOfNode))
-
-		validateWorkspaceReadiness(workspaceObj)
-		validateWorkspaceBenchmarkCompleted(workspaceObj)
-		validateModelsEndpoint(workspaceObj)
-		validateChatCompletionsEndpoint(workspaceObj)
+		childWS := getFirstInferenceSetChildWorkspace(inferenceSetObj)
+		validateWorkspaceReadiness(childWS)
+		validateInferenceSetModelsEndpoint(childWS, inferenceSetObj.Name)
+		validateInferenceSetChatCompletionsEndpoint(childWS, inferenceSetObj.Name)
 	})
 
 	It("should create a Gemma 3 InferenceSet with preset public mode and validate BBR routing", Serial, utils.GinkgoLabelFastCheck, func() {
@@ -1187,6 +1210,251 @@ func createGemma4_12BInstructWorkspaceWithPresetPublicModeAndVLLM(numOfNode int)
 	return workspaceObj
 }
 
+func createPhi4InferenceSetWithSpeculativeDecodingAndVLLM(replicas int) *kaitov1beta1.InferenceSet {
+	inferenceSetObj := &kaitov1beta1.InferenceSet{}
+
+	By("Creating an InferenceSet CR with phi-4 preset public mode, vLLM, and speculative-decoding annotation", func() {
+		uniqueID := fmt.Sprint("preset-phi-4-spec-is-", rand.Intn(1000))
+		inferenceSetObj = utils.GenerateInferenceSetManifestWithVLLM(uniqueID, namespaceName, "", replicas, "Standard_NC24ads_A100_v4",
+			&metav1.LabelSelector{
+				MatchLabels: map[string]string{"kaito-workspace": "public-preset-is-e2e-test-phi-4-vllm-specdec"},
+			}, PresetPhi4Model, nil, nil, "")
+
+		inferenceSetObj.Spec.Template.Annotations = utils.DisableModelStreaming(inferenceSetObj.Spec.Template.Annotations)
+		if inferenceSetObj.Spec.Template.Annotations == nil {
+			inferenceSetObj.Spec.Template.Annotations = map[string]string{}
+		}
+		inferenceSetObj.Spec.Template.Annotations[kaitov1beta1.AnnotationEnableSpeculativeDecoding] = "true"
+		createAndValidateInferenceSet(inferenceSetObj)
+	})
+
+	return inferenceSetObj
+}
+
+func createMiMo7BBaseInferenceSetWithSpeculativeDecodingAndVLLM(replicas int) *kaitov1beta1.InferenceSet {
+	modelSecret := createAndValidateModelSecret()
+	inferenceSetObj := &kaitov1beta1.InferenceSet{}
+
+	By("Creating an InferenceSet CR with XiaomiMiMo/MiMo-7B-Base preset public mode, vLLM, and speculative-decoding annotation", func() {
+		uniqueID := fmt.Sprint("preset-mimo-7b-spec-is-", rand.Intn(1000))
+		inferenceSetObj = utils.GenerateInferenceSetManifestWithVLLM(uniqueID, namespaceName, "", replicas, "Standard_NV36ads_A10_v5",
+			&metav1.LabelSelector{
+				MatchLabels: map[string]string{"kaito-workspace": "public-preset-is-e2e-test-mimo-7b-vllm-specdec"},
+			}, PresetMiMo7BBaseModel, nil, nil, modelSecret.Name)
+
+		inferenceSetObj.Spec.Template.Annotations = utils.DisableModelStreaming(inferenceSetObj.Spec.Template.Annotations)
+		if inferenceSetObj.Spec.Template.Annotations == nil {
+			inferenceSetObj.Spec.Template.Annotations = map[string]string{}
+		}
+		inferenceSetObj.Spec.Template.Annotations[kaitov1beta1.AnnotationEnableSpeculativeDecoding] = "true"
+		createAndValidateInferenceSet(inferenceSetObj)
+	})
+
+	return inferenceSetObj
+}
+
+// validateInferenceSetSpeculativeDecodingNGramInjected asserts that at least
+// one child Workspace pod created by the InferenceSet was launched with the
+// vLLM --speculative-config flag carrying method=ngram and the KAITO
+// universal-fallback defaults (num_speculative_tokens=5, prompt_lookup_max=4).
+// This is the end-to-end assertion for PR #2312's universal ngram fallback
+// path when the opt-in flows through InferenceSet: the annotation on
+// Spec.Template.Annotations was accepted at InferenceSet admission, the
+// InferenceSet controller cloned it onto the child Workspace, the Workspace
+// controller resolved the fallback, and the flag reached the vLLM invocation
+// without a per-preset config.
+func validateInferenceSetSpeculativeDecodingNGramInjected(inferenceSetObj *kaitov1beta1.InferenceSet) {
+	By("Verifying a child Workspace pod was launched with --speculative-config method=ngram", func() {
+		Eventually(func() error {
+			pods := &corev1.PodList{}
+			if err := utils.TestingCluster.KubeClient.List(ctx, pods,
+				client.InNamespace(inferenceSetObj.Namespace),
+				client.MatchingLabels{consts.WorkspaceCreatedByInferenceSetLabel: inferenceSetObj.Name},
+			); err != nil {
+				return fmt.Errorf("list pods: %w", err)
+			}
+			if len(pods.Items) == 0 {
+				return fmt.Errorf("no child-workspace pods found for InferenceSet %s/%s", inferenceSetObj.Namespace, inferenceSetObj.Name)
+			}
+			for _, pod := range pods.Items {
+				if len(pod.Spec.Containers) == 0 {
+					return fmt.Errorf("pod %s has no containers", pod.Name)
+				}
+				cmdline := strings.Join(pod.Spec.Containers[0].Command, " ") + " " + strings.Join(pod.Spec.Containers[0].Args, " ")
+				if !strings.Contains(cmdline, "--speculative-config") {
+					return fmt.Errorf("pod %s missing --speculative-config in command/args: %s", pod.Name, cmdline)
+				}
+				if !strings.Contains(cmdline, `"method":"ngram"`) {
+					return fmt.Errorf("pod %s speculative-config not method=ngram: %s", pod.Name, cmdline)
+				}
+				if !strings.Contains(cmdline, `"num_speculative_tokens":5`) {
+					return fmt.Errorf("pod %s missing num_speculative_tokens=5 default: %s", pod.Name, cmdline)
+				}
+				if !strings.Contains(cmdline, `"prompt_lookup_max":4`) {
+					return fmt.Errorf("pod %s missing prompt_lookup_max=4 default: %s", pod.Name, cmdline)
+				}
+			}
+			return nil
+		}, 20*time.Minute, utils.PollInterval).Should(Succeed(), "universal ngram --speculative-config should be injected on the InferenceSet's child Workspace pods")
+	})
+}
+
+func validateInferenceSetSpeculativeDecodingMTPInjected(inferenceSetObj *kaitov1beta1.InferenceSet) {
+	By("Verifying a child Workspace pod was launched with --speculative-config method=mtp", func() {
+		Eventually(func() error {
+			pods := &corev1.PodList{}
+			if err := utils.TestingCluster.KubeClient.List(ctx, pods,
+				client.InNamespace(inferenceSetObj.Namespace),
+				client.MatchingLabels{consts.WorkspaceCreatedByInferenceSetLabel: inferenceSetObj.Name},
+			); err != nil {
+				return fmt.Errorf("list pods: %w", err)
+			}
+			if len(pods.Items) == 0 {
+				return fmt.Errorf("no child-workspace pods found for InferenceSet %s/%s", inferenceSetObj.Namespace, inferenceSetObj.Name)
+			}
+			for _, pod := range pods.Items {
+				if len(pod.Spec.Containers) == 0 {
+					return fmt.Errorf("pod %s has no containers", pod.Name)
+				}
+				cmdline := strings.Join(pod.Spec.Containers[0].Command, " ") + " " + strings.Join(pod.Spec.Containers[0].Args, " ")
+				if !strings.Contains(cmdline, "--speculative-config") {
+					return fmt.Errorf("pod %s missing --speculative-config in command/args: %s", pod.Name, cmdline)
+				}
+				if !strings.Contains(cmdline, `"method":"mtp"`) {
+					return fmt.Errorf("pod %s speculative-config not method=mtp: %s", pod.Name, cmdline)
+				}
+				if !strings.Contains(cmdline, `"num_speculative_tokens":1`) {
+					return fmt.Errorf("pod %s missing num_speculative_tokens=1 tuned MTP config: %s", pod.Name, cmdline)
+				}
+			}
+			return nil
+		}, 20*time.Minute, utils.PollInterval).Should(Succeed(), "preset-tuned mtp --speculative-config should be injected on the InferenceSet's child Workspace pods")
+	})
+}
+
+// getFirstInferenceSetChildWorkspace returns the first Workspace created by
+// the InferenceSet controller. It is used by the speculative-decoding e2es to
+// reuse the existing Workspace-based validators (validateModelsEndpoint,
+// validateChatCompletionsEndpoint) against a child Workspace so a real
+// /v1/chat/completions round-trip catches runtime failures that would slip
+// past pure flag-injection assertions.
+func getFirstInferenceSetChildWorkspace(inferenceSetObj *kaitov1beta1.InferenceSet) *kaitov1beta1.Workspace {
+	var childWS *kaitov1beta1.Workspace
+	By(fmt.Sprintf("Fetching a child Workspace for InferenceSet %s", inferenceSetObj.Name), func() {
+		Eventually(func() bool {
+			wsList := &kaitov1beta1.WorkspaceList{}
+			if err := utils.TestingCluster.KubeClient.List(ctx, wsList,
+				client.InNamespace(inferenceSetObj.Namespace),
+				client.MatchingLabels{consts.WorkspaceCreatedByInferenceSetLabel: inferenceSetObj.Name},
+			); err != nil {
+				return false
+			}
+			if len(wsList.Items) == 0 {
+				return false
+			}
+			childWS = &wsList.Items[0]
+			return true
+		}, 5*time.Minute, utils.PollInterval).Should(BeTrue(),
+			"expected at least one child Workspace for InferenceSet %s", inferenceSetObj.Name)
+	})
+	return childWS
+}
+
+// validateInferenceSetModelsEndpoint is a variant of validateModelsEndpoint
+// that grep's /v1/models for the InferenceSet-supplied served-model-name
+// (rather than the preset-derived id used by validateModelsEndpoint). When a
+// Workspace carries WorkspaceCreatedByInferenceSetLabel, vLLM is launched
+// with --served-model-name=<InferenceSet name>, so /v1/models advertises the
+// InferenceSet name, not the preset id.
+func validateInferenceSetModelsEndpoint(workspaceObj *kaitov1beta1.Workspace, servedModelName string) {
+	deploymentName := workspaceObj.Name
+	expectedModelID := fmt.Sprintf(`"id":"%s"`, servedModelName)
+
+	execOption := corev1.PodExecOptions{
+		Command: []string{"bash", "-c", fmt.Sprintf(
+			`apt-get update && apt-get install curl -y; curl -s -X GET http://%s.%s.svc.cluster.local:80/v1/models | grep -e '%s'`,
+			workspaceObj.Name, workspaceObj.Namespace, expectedModelID)},
+		Container: deploymentName,
+		Stdout:    true,
+		Stderr:    true,
+	}
+
+	By(fmt.Sprintf("Validating the /v1/models endpoint advertises served-model-name=%s", servedModelName), func() {
+		Eventually(func() bool {
+			coreClient, err := utils.GetK8sClientset()
+			if err != nil {
+				GinkgoWriter.Printf("Failed to create core client: %v\n", err)
+				return false
+			}
+			podName, err := utils.GetPodNameForWorkspace(coreClient, workspaceObj.Namespace, deploymentName)
+			if err != nil {
+				GinkgoWriter.Printf("Failed to get pod name for deployment %s: %v\n", deploymentName, err)
+				return false
+			}
+			k8sConfig, err := utils.GetK8sConfig()
+			if err != nil {
+				GinkgoWriter.Printf("Failed to get k8s config: %v\n", err)
+				return false
+			}
+			execCtx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+			defer cancel()
+			if _, err := utils.ExecSync(execCtx, k8sConfig, coreClient, workspaceObj.Namespace, podName, execOption); err != nil {
+				GinkgoWriter.Printf("validate command fails: %v\n", err)
+				return false
+			}
+			return true
+		}, 5*time.Minute, utils.PollInterval).Should(BeTrue(),
+			"Failed to wait for /v1/models endpoint to advertise served-model-name=%s", servedModelName)
+	})
+}
+
+// validateInferenceSetChatCompletionsEndpoint is a variant of
+// validateChatCompletionsEndpoint that sends the InferenceSet-supplied
+// served-model-name in the request body (rather than the preset-derived id).
+// This is what a real client would send to a child Workspace of an
+// InferenceSet, and it is required so the ngram proposer runs during decoding
+// under the same model id that vLLM is serving.
+func validateInferenceSetChatCompletionsEndpoint(workspaceObj *kaitov1beta1.Workspace, servedModelName string) {
+	deploymentName := workspaceObj.Name
+	expectedCompletion := `"object":"chat.completion`
+	execOption := corev1.PodExecOptions{
+		Command: []string{"bash", "-c", fmt.Sprintf(
+			`apt-get update && apt-get install curl -y; curl -s --max-time 30 -X POST -H "Content-Type: application/json" -d '{"model":"%s","messages":[{"role":"user","content":"What is Kubernetes?"}],"max_tokens":7,"temperature":0}' http://%s.%s.svc.cluster.local:80/v1/chat/completions | grep -e '%s'`,
+			servedModelName, workspaceObj.Name, workspaceObj.Namespace, expectedCompletion)},
+		Container: deploymentName,
+		Stdout:    true,
+		Stderr:    true,
+	}
+
+	By(fmt.Sprintf("Validating the /v1/chat/completions endpoint with served-model-name=%s", servedModelName), func() {
+		Eventually(func() bool {
+			coreClient, err := utils.GetK8sClientset()
+			if err != nil {
+				GinkgoWriter.Printf("Failed to create core client: %v\n", err)
+				return false
+			}
+			podName, err := utils.GetPodNameForWorkspace(coreClient, workspaceObj.Namespace, deploymentName)
+			if err != nil {
+				GinkgoWriter.Printf("Failed to get pod name for deployment %s: %v\n", deploymentName, err)
+				return false
+			}
+			k8sConfig, err := utils.GetK8sConfig()
+			if err != nil {
+				GinkgoWriter.Printf("Failed to get k8s config: %v\n", err)
+				return false
+			}
+			execCtx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+			defer cancel()
+			if _, err := utils.ExecSync(execCtx, k8sConfig, coreClient, workspaceObj.Namespace, podName, execOption); err != nil {
+				GinkgoWriter.Printf("validate command fails: %v\n", err)
+				return false
+			}
+			return true
+		}, 5*time.Minute, utils.PollInterval).Should(BeTrue(),
+			"Failed to wait for /v1/chat/completions endpoint to serve model=%s", servedModelName)
+	})
+}
+
 func createQwen3_8_27BWorkspaceWithPresetPublicModeAndVLLM(numOfNode int) *kaitov1beta1.Workspace {
 	workspaceObj := &kaitov1beta1.Workspace{}
 
@@ -1234,32 +1502,14 @@ func createGPTOss20BWorkspaceWithPresetPublicModeAndVLLM(numOfNode int) *kaitov1
 	return workspaceObj
 }
 
-func createNemotron3Nano4BWorkspaceWithPresetPublicModeAndVLLM(numOfNode int) *kaitov1beta1.Workspace {
+func createNemotronNano9BStreamingWorkspaceWithPresetPublicModeAndVLLM(numOfNode int) *kaitov1beta1.Workspace {
 	workspaceObj := &kaitov1beta1.Workspace{}
-	// NVIDIA-Nemotron-3-Nano-4B-BF16 is a NemotronH hybrid model that interleaves Mamba-2
-	// state-space layers with a few self-attention layers instead of using full attention
-	// on every layer, so it exercises the preset path on a non-standard architecture.
-	By("Creating a workspace CR with NVIDIA-Nemotron-3-Nano-4B-BF16 preset public mode and vLLM", func() {
-		uniqueID := fmt.Sprint("preset-nemotron-3-nano-4b-", rand.Intn(1000))
+	By("Creating a workspace CR with NVIDIA-Nemotron-Nano-9B-v2 preset public mode and vLLM (streaming)", func() {
+		uniqueID := fmt.Sprint("preset-nemotron-nano-9b-stream-", rand.Intn(1000))
 		workspaceObj = utils.GenerateInferenceWorkspaceManifestWithVLLM(uniqueID, namespaceName, "", numOfNode, "Standard_NV36ads_A10_v5",
 			&metav1.LabelSelector{
-				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-nemotron-3-nano-4b-vllm"},
-			}, nil, PresetNemotron3Nano4BModel, nil, nil, nil, "", "")
-
-		workspaceObj.Annotations = utils.DisableModelStreaming(workspaceObj.Annotations)
-		createAndValidateWorkspace(workspaceObj)
-	})
-	return workspaceObj
-}
-
-func createGranite4_1_8BStreamingWorkspaceWithPresetPublicModeAndVLLM(numOfNode int) *kaitov1beta1.Workspace {
-	workspaceObj := &kaitov1beta1.Workspace{}
-	By("Creating a workspace CR with granite-4.1-8b preset public mode and vLLM (streaming)", func() {
-		uniqueID := fmt.Sprint("preset-granite-4-1-8b-stream-", rand.Intn(1000))
-		workspaceObj = utils.GenerateInferenceWorkspaceManifestWithVLLM(uniqueID, namespaceName, "", numOfNode, "Standard_NV36ads_A10_v5",
-			&metav1.LabelSelector{
-				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-granite-4-1-8b-stream-vllm"},
-			}, nil, PresetGranite4_1_8BModel, nil, nil, nil, "", "")
+				MatchLabels: map[string]string{"kaito-workspace": "public-preset-e2e-test-nemotron-nano-9b-stream-vllm"},
+			}, nil, PresetNemotronNano9BModel, nil, nil, nil, "", "")
 
 		// STREAMING TEST: intentionally NOT setting kaito.sh/model-streaming=disabled.
 		// With the gate on, this workspace streams from blob (az://).

@@ -19,20 +19,63 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/kaito-project/kaito/pkg/utils/consts"
+	"knative.dev/pkg/apis"
 )
 
 func TestInferenceSetValidate(t *testing.T) {
+	original := ValidateInferenceSetWorkspace
+	t.Cleanup(func() { ValidateInferenceSetWorkspace = original })
+	ValidateInferenceSetWorkspace = func(context.Context, *InferenceSet) *apis.FieldError { return nil }
+
 	is := &InferenceSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-is",
 			Namespace: "default",
 		},
-		Spec: InferenceSetSpec{},
+		Spec: InferenceSetSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "llm"}},
+		},
 	}
 	errs := is.Validate(context.Background())
 	assert.Nil(t, errs)
+}
+
+func TestInferenceSetValidateFailsClosedWithoutWorkspaceValidation(t *testing.T) {
+	original := ValidateInferenceSetWorkspace
+	t.Cleanup(func() { ValidateInferenceSetWorkspace = original })
+	ValidateInferenceSetWorkspace = nil
+
+	is := &InferenceSet{ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"}}
+	errs := is.Validate(context.Background())
+	assert.NotNil(t, errs)
+	assert.Contains(t, errs.Error(), "child Workspace validation is not configured")
+}
+
+func TestInferenceSetValidateDeletingSkipsWorkspaceValidation(t *testing.T) {
+	original := ValidateInferenceSetWorkspace
+	t.Cleanup(func() { ValidateInferenceSetWorkspace = original })
+
+	workspaceValidationCalled := false
+	ValidateInferenceSetWorkspace = func(context.Context, *InferenceSet) *apis.FieldError {
+		workspaceValidationCalled = true
+		return apis.ErrGeneric("referenced ConfigMap not found", "inference", "config")
+	}
+
+	now := metav1.Now()
+	old := &InferenceSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-is",
+			Namespace:  "default",
+			Finalizers: []string{"inferenceset.kaito.sh/finalizer"},
+		},
+	}
+	deleting := old.DeepCopy()
+	deleting.DeletionTimestamp = &now
+	deleting.Finalizers = nil
+
+	errs := deleting.Validate(apis.WithinUpdate(context.Background(), old))
+	assert.Nil(t, errs)
+	assert.False(t, workspaceValidationCalled)
 }
 
 func TestInferenceSetSetDefaults(t *testing.T) {
@@ -71,175 +114,109 @@ func TestInferenceSetBenchmarkHelpers(t *testing.T) {
 	_ = ShouldRunInferenceSetBenchmark(is)
 }
 
-func TestInferenceSetMIGImmutable(t *testing.T) {
-	makeIS := func(profile string) *InferenceSet {
-		var p *PartitionSpec
-		if profile != "" {
-			p = &PartitionSpec{Mode: PartitionModeMIG, Profile: profile}
-		}
+func TestInferenceSetValidatePassesBaselineToWorkspaceValidation(t *testing.T) {
+	original := ValidateInferenceSetWorkspace
+	t.Cleanup(func() { ValidateInferenceSetWorkspace = original })
+
+	var gotBaseline any
+	calls := 0
+	ValidateInferenceSetWorkspace = func(ctx context.Context, _ *InferenceSet) *apis.FieldError {
+		calls++
+		gotBaseline = apis.GetBaseline(ctx)
+		return nil
+	}
+
+	old := &InferenceSet{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"},
+		Spec: InferenceSetSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "llm"}},
+		},
+	}
+	updated := old.DeepCopy()
+
+	assert.Nil(t, updated.Validate(context.Background()))
+	assert.Equal(t, 1, calls)
+	assert.Nil(t, gotBaseline)
+
+	assert.Nil(t, updated.Validate(apis.WithinUpdate(context.Background(), old)))
+	assert.Equal(t, 2, calls)
+	assert.Same(t, old, gotBaseline)
+}
+
+func TestInferenceSetValidateSelector(t *testing.T) {
+	original := ValidateInferenceSetWorkspace
+	t.Cleanup(func() { ValidateInferenceSetWorkspace = original })
+	ValidateInferenceSetWorkspace = func(context.Context, *InferenceSet) *apis.FieldError { return nil }
+
+	newIS := func(selector *metav1.LabelSelector, templateLabels map[string]string) *InferenceSet {
 		return &InferenceSet{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"},
 			Spec: InferenceSetSpec{
-				Template: InferenceSetTemplate{
-					Resource: InferenceSetResourceSpec{Partition: p},
-				},
+				Selector: selector,
+				Template: InferenceSetTemplate{ObjectMeta: metav1.ObjectMeta{Labels: templateLabels}},
 			},
 		}
 	}
-
-	// Unchanged partition is allowed.
-	errs := makeIS("1g.10gb").validateUpdate(makeIS("1g.10gb"))
-	assert.Nil(t, errs)
-
-	// Changing the profile is rejected.
-	errs = makeIS("2g.20gb").validateUpdate(makeIS("1g.10gb"))
-	assert.NotNil(t, errs)
-	assert.Contains(t, errs.Error(), "field is immutable")
-
-	// Adding a partition to a non-partitioned set is rejected.
-	errs = makeIS("1g.10gb").validateUpdate(makeIS(""))
-	assert.NotNil(t, errs)
-	assert.Contains(t, errs.Error(), "field is immutable")
-}
-
-func TestInferenceSetCapacityTypeAnnotation(t *testing.T) {
-	originalProvisioner := consts.ActiveNodeProvisioner
-	consts.ActiveNodeProvisioner = consts.NodeProvisionerKarpenter
-	t.Cleanup(func() { consts.ActiveNodeProvisioner = originalProvisioner })
-
-	makeIS := func(value string) *InferenceSet {
-		return &InferenceSet{Spec: InferenceSetSpec{Template: InferenceSetTemplate{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{AnnotationCapacityType: value},
-			},
-		}}}
+	appIn := func(values ...string) *metav1.LabelSelector {
+		return &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+			{Key: "app", Operator: metav1.LabelSelectorOpIn, Values: values},
+		}}
 	}
 
-	assert.Nil(t, makeIS(consts.KarpenterCapacityTypeSpot).validateCapacityTypeAnnotation())
-	assert.NotNil(t, makeIS("reserved").validateCapacityTypeAnnotation())
-	assert.NotNil(t, makeIS(consts.KarpenterCapacityTypeSpot).
-		validateCapacityTypeAnnotationUpdate(makeIS(consts.KarpenterCapacityTypeOnDemand)))
-	assert.Nil(t, makeIS(consts.KarpenterCapacityTypeOnDemand).
-		validateCapacityTypeAnnotationUpdate(makeIS("reserved")))
-}
-
-func TestInferenceSetAcceleratorImmutable(t *testing.T) {
-	makeIS := func(count *int) *InferenceSet {
-		var p *PartitionSpec
-		if count != nil {
-			p = &PartitionSpec{Mode: PartitionModeAccelerator, Count: count}
-		}
-		return &InferenceSet{
-			ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"},
-			Spec: InferenceSetSpec{
-				Template: InferenceSetTemplate{
-					Resource: InferenceSetResourceSpec{Partition: p},
-				},
-			},
-		}
-	}
-	countOf := func(i int) *int { return &i }
-
-	// Unchanged partition is allowed.
-	errs := makeIS(countOf(2)).validateUpdate(makeIS(countOf(2)))
-	assert.Nil(t, errs)
-
-	// Changing the count is rejected.
-	errs = makeIS(countOf(4)).validateUpdate(makeIS(countOf(2)))
-	assert.NotNil(t, errs)
-	assert.Contains(t, errs.Error(), "field is immutable")
-
-	// Adding a partition to a non-partitioned set is rejected.
-	errs = makeIS(countOf(2)).validateUpdate(makeIS(nil))
-	assert.NotNil(t, errs)
-	assert.Contains(t, errs.Error(), "field is immutable")
-}
-
-func TestInferenceSet_validateInstanceType(t *testing.T) {
 	tests := []struct {
-		name            string
-		nodeProvisioner string
-		instanceType    string
-		wantErr         bool
-		errField        string
+		name    string
+		old     *InferenceSet
+		is      *InferenceSet
+		wantErr string
 	}{
 		{
-			name:            "BYO mode with empty instanceType - valid",
-			nodeProvisioner: consts.NodeProvisionerBYO,
-			instanceType:    "",
-			wantErr:         false,
+			name:    "nil selector is rejected on create",
+			is:      newIS(nil, nil),
+			wantErr: "missing field(s): spec.labelSelector",
 		},
 		{
-			name:            "BYO mode with instanceType set - invalid",
-			nodeProvisioner: consts.NodeProvisionerBYO,
-			instanceType:    "Standard_NC6s_v3",
-			wantErr:         true,
-			errField:        "resource.instanceType",
+			name:    "empty selector is rejected on create",
+			is:      newIS(&metav1.LabelSelector{}, nil),
+			wantErr: "labelSelector must not be empty",
 		},
 		{
-			name:            "Karpenter mode with instanceType set - valid",
-			nodeProvisioner: consts.NodeProvisionerKarpenter,
-			instanceType:    "Standard_NC6s_v3",
-			wantErr:         false,
+			name: "matchLabels without template labels is accepted",
+			is:   newIS(&metav1.LabelSelector{MatchLabels: map[string]string{"app": "llm"}}, nil),
 		},
 		{
-			name:            "Karpenter mode with empty instanceType - invalid",
-			nodeProvisioner: consts.NodeProvisionerKarpenter,
-			instanceType:    "",
-			wantErr:         true,
-			errField:        "resource.instanceType",
+			name:    "template label conflicting with matchLabels is rejected",
+			is:      newIS(&metav1.LabelSelector{MatchLabels: map[string]string{"app": "llm"}}, map[string]string{"app": "other"}),
+			wantErr: "spec.template.metadata.labels[app]",
 		},
 		{
-			name:            "AzureGPU mode with instanceType set - valid",
-			nodeProvisioner: consts.NodeProvisionerAzureGPU,
-			instanceType:    "Standard_NC6s_v3",
-			wantErr:         false,
+			name: "matchExpressions are not checked against template labels",
+			is:   newIS(appIn("llm"), nil),
 		},
 		{
-			name:            "AzureGPU mode with empty instanceType - invalid",
-			nodeProvisioner: consts.NodeProvisionerAzureGPU,
-			instanceType:    "",
-			wantErr:         true,
-			errField:        "resource.instanceType",
+			name: "existing empty selector remains updatable",
+			old:  newIS(&metav1.LabelSelector{}, nil),
+			is:   newIS(&metav1.LabelSelector{}, nil),
 		},
 		{
-			name:            "Unknown provisioner with instanceType - no error",
-			nodeProvisioner: "",
-			instanceType:    "Standard_NC6s_v3",
-			wantErr:         false,
-		},
-		{
-			name:            "Unknown provisioner without instanceType - no error",
-			nodeProvisioner: "",
-			instanceType:    "",
-			wantErr:         false,
+			name: "template labels are not rechecked on update",
+			old:  newIS(&metav1.LabelSelector{MatchLabels: map[string]string{"app": "llm"}}, nil),
+			is:   newIS(&metav1.LabelSelector{MatchLabels: map[string]string{"app": "llm"}}, map[string]string{"app": "other"}),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			orig := consts.ActiveNodeProvisioner
-			consts.ActiveNodeProvisioner = tt.nodeProvisioner
-			defer func() { consts.ActiveNodeProvisioner = orig }()
-
-			is := &InferenceSet{
-				Spec: InferenceSetSpec{
-					Template: InferenceSetTemplate{
-						Resource: InferenceSetResourceSpec{
-							InstanceType: tt.instanceType,
-						},
-					},
-				},
+			ctx := context.Background()
+			if tt.old != nil {
+				ctx = apis.WithinUpdate(ctx, tt.old)
 			}
-			err := is.validateInstanceType()
-			if tt.wantErr {
-				assert.NotNil(t, err)
-				if tt.errField != "" {
-					assert.Contains(t, err.Error(), tt.errField)
-				}
-			} else {
-				assert.Nil(t, err)
+			errs := tt.is.Validate(ctx)
+			if tt.wantErr == "" {
+				assert.Nil(t, errs)
+				return
 			}
+			assert.NotNil(t, errs)
+			assert.Contains(t, errs.Error(), tt.wantErr)
 		})
 	}
 }

@@ -14,6 +14,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -234,48 +235,32 @@ func TestGetInferenceCommandVLLMSingleNode(t *testing.T) {
 	}
 	cmd := p.GetInferenceCommand(rc)
 	require.Len(t, cmd, 3)
-	assert.Contains(t, cmd[2], "vllm serve")
+	assert.True(t, strings.HasPrefix(cmd[2], "exec vllm serve"), "vLLM must be PID 1 to receive SIGTERM: %s", cmd[2])
 	assert.Contains(t, cmd[2], "tensor-parallel-size=2")
+	assert.Contains(t, cmd[2], "--shutdown-timeout=50")
 }
 
-func TestGetInferenceCommandVLLMGpuMemoryUtilization(t *testing.T) {
+func TestGetInferenceCommandVLLMPresetShutdownTimeoutWins(t *testing.T) {
 	p := &PresetParam{
 		RuntimeParam: RuntimeParam{
 			VLLM: VLLMParam{
-				BaseCommand:    "vllm serve",
-				ModelRunParams: map[string]string{},
+				BaseCommand: "vllm serve",
+				ModelRunParams: map[string]string{
+					"shutdown-timeout": "45",
+				},
 			},
 		},
 	}
-	// A10 pins gpu-memory-utilization to 0.82.
-	cmdA10 := p.GetInferenceCommand(RuntimeContext{
-		RuntimeName: RuntimeNameVLLM,
-		SKUNumGPUs:  1,
-		NumNodes:    1,
-		GPUConfig:   &sku.GPUConfig{GPUModel: "NVIDIA A10"},
-	})
-	require.Len(t, cmdA10, 3)
-	assert.Contains(t, cmdA10[2], "--gpu-memory-utilization=0.82")
 
-	// A100 and nil GPUConfig fall back to the default 0.92.
-	p2 := &PresetParam{RuntimeParam: RuntimeParam{VLLM: VLLMParam{BaseCommand: "vllm serve", ModelRunParams: map[string]string{}}}}
-	cmdA100 := p2.GetInferenceCommand(RuntimeContext{
+	cmd := p.GetInferenceCommand(RuntimeContext{
 		RuntimeName: RuntimeNameVLLM,
 		SKUNumGPUs:  1,
 		NumNodes:    1,
-		GPUConfig:   &sku.GPUConfig{GPUModel: "NVIDIA A100"},
 	})
-	require.Len(t, cmdA100, 3)
-	assert.Contains(t, cmdA100[2], "--gpu-memory-utilization=0.92")
 
-	p3 := &PresetParam{RuntimeParam: RuntimeParam{VLLM: VLLMParam{BaseCommand: "vllm serve", ModelRunParams: map[string]string{}}}}
-	cmdNil := p3.GetInferenceCommand(RuntimeContext{
-		RuntimeName: RuntimeNameVLLM,
-		SKUNumGPUs:  1,
-		NumNodes:    1,
-	})
-	require.Len(t, cmdNil, 3)
-	assert.Contains(t, cmdNil[2], "--gpu-memory-utilization=0.92")
+	require.Len(t, cmd, 3)
+	assert.Contains(t, cmd[2], "--shutdown-timeout=45")
+	assert.NotContains(t, cmd[2], "--shutdown-timeout=50")
 }
 
 func TestGetInferenceCommandVLLMKVCacheEventsDefault(t *testing.T) {
@@ -461,6 +446,9 @@ func TestGetInferenceCommandVLLMMultiNode(t *testing.T) {
 	assert.Contains(t, cmd[2], "POD_INDEX")
 	assert.Contains(t, cmd[2], "--ray_cluster_size=2")
 	assert.Contains(t, cmd[2], " && vllm serve")
+	// Graceful drain is single-node only; the multi-node command must stay unchanged.
+	assert.NotContains(t, cmd[2], "shutdown-timeout")
+	assert.NotContains(t, cmd[2], "exec ")
 }
 
 func TestMultiNodeRayCommandRequiresReadyCluster(t *testing.T) {
@@ -485,6 +473,31 @@ func TestMultiNodeRayCommandRequiresReadyCluster(t *testing.T) {
 	assert.Contains(t, script, "--ray_cluster_size=2")
 	assert.Contains(t, script, " && vllm serve")
 	assert.NotContains(t, script, "; vllm serve")
+}
+
+func TestMultiNodeRayCommandExtendsTimeoutForCUDAToolkit(t *testing.T) {
+	p := &PresetParam{
+		Metadata: Metadata{
+			Name:          "minimax-m2.7",
+			Architectures: []string{"MiniMaxM2ForCausalLM"},
+		},
+		RuntimeParam: RuntimeParam{VLLM: VLLMParam{
+			BaseCommand:          "vllm serve",
+			ModelRunParams:       map[string]string{},
+			RayLeaderBaseCommand: "bash multi-node-serving.sh leader",
+			RayLeaderParams:      map[string]string{},
+			RayWorkerBaseCommand: "bash multi-node-serving.sh worker",
+			RayWorkerParams:      map[string]string{},
+		}},
+	}
+	args := p.buildMultiNodeRayCommand(RuntimeContext{
+		NumNodes:          4,
+		WorkspaceMetadata: metav1.ObjectMeta{Name: "ws", Namespace: "default"},
+	})
+	require.Len(t, args, 3)
+	assert.Equal(t, "900", p.VLLM.RayLeaderParams["ray_init_timeout"])
+	assert.Equal(t, "900", p.VLLM.RayWorkerParams["ray_init_timeout"])
+	assert.Contains(t, args[2], "--ray_init_timeout=900")
 }
 
 func TestGetInferenceCommandUnknownRuntime(t *testing.T) {

@@ -20,7 +20,7 @@ deploymentStrategy:
 image:
   repository: mcr.microsoft.com/aks/kaito/workspace
   pullPolicy: IfNotPresent
-  tag: 0.13.0-rc.0
+  tag: 0.13.0-rc.3
 imagePullSecrets: []
 podAnnotations: {}
 podSecurityContext:
@@ -74,10 +74,18 @@ karpenterProviders:
         spec:
           imageFamily: "Ubuntu2204"
           osDiskSizeGB: 300
+          gpu:
+            mode: "Driver"
+            nvidia:
+              managementMode: "Managed"
       - name: "image-family-azure-linux"
         spec:
           imageFamily: "AzureLinux"
           osDiskSizeGB: 300
+          gpu:
+            mode: "Driver"
+            nvidia:
+              managementMode: "Managed"
 nvidiaDevicePlugin:
   enabled: true
   daemonsetName: "nvidia-device-plugin-daemonset"
@@ -116,6 +124,12 @@ clusterName: "kaito"
 flux2:
   helmController:
     create: true
+    container:
+      # helm-controller >= v1.5 defaults to Helm v4 behaviors (server-side apply and
+      # kstatus health checks), which keep KAITO-managed InferencePool HelmReleases
+      # from becoming Ready. Keep the Helm v3 defaults KAITO was validated against.
+      additionalArgs:
+        - --feature-gates=UseHelm3Defaults=true
   sourceController:
     create: true
   imageAutomationController:
@@ -144,14 +158,14 @@ gpu-feature-discovery:
   gfd:
     enabled: true
 local-csi-driver:
+  # Leave driver/manager tags unset so they track the subchart appVersion;
+  # the chart templates pass flags that only the matching image understands.
   image:
     driver:
       repository: mcr.microsoft.com/acstor/local-csi-driver
-      tag: v0.3.0
       pullPolicy: Always
     manager:
       repository: mcr.microsoft.com/acstor/local-csi-manager
-      tag: v0.3.0
       pullPolicy: Always
     csiProvisioner:
       pullPolicy: Always

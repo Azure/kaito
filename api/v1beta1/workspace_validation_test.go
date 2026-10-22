@@ -533,7 +533,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			presetNameOverride: "test-validation-static",
 			runtime:            model.RuntimeNameVLLM,
 			expectErrs:         true,
-			errContent:         "Failed to get GPU config from nvidia labels",
+			errContent:         "Failed to get GPU config from known instance type or nvidia labels",
 			testNodes: []v1.Node{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -564,7 +564,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			presetNameOverride: "test-validation-static",
 			runtime:            model.RuntimeNameVLLM,
 			expectErrs:         true,
-			errContent:         "Failed to get GPU config from nvidia labels",
+			errContent:         "Failed to get GPU config from known instance type or nvidia labels",
 			testNodes: []v1.Node{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -595,7 +595,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			presetNameOverride: "test-validation-static",
 			runtime:            model.RuntimeNameVLLM,
 			expectErrs:         true,
-			errContent:         "Failed to get GPU config from nvidia labels",
+			errContent:         "Failed to get GPU config from known instance type or nvidia labels",
 			testNodes: []v1.Node{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -642,6 +642,45 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "node-a100",
+						Labels: map[string]string{
+							"workload":               "gpu",
+							"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-80GB",
+							"nvidia.com/gpu.count":   "1",
+							"nvidia.com/gpu.memory":  "81920", // 80GB * 1024 = 81920 MiB
+						},
+					},
+				},
+			},
+			useFeatureGate: true,
+		},
+		{
+			name: "Valid - known SKU and GFD labels describe the same GPU product",
+			resourceSpec: &ResourceSpec{
+				InstanceType: "", // Empty instanceType indicates BYO mode
+				Count:        pointerToInt(2),
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"workload": "gpu",
+					},
+				},
+			},
+			preset:             true,
+			presetNameOverride: "test-validation-static",
+			runtime:            model.RuntimeNameVLLM,
+			expectErrs:         false,
+			testNodes: []v1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "node-known-a100",
+						Labels: map[string]string{
+							"workload":                 "gpu",
+							v1.LabelInstanceTypeStable: "Standard_NC24ads_A100_v4",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "node-gfd-a100",
 						Labels: map[string]string{
 							"workload":               "gpu",
 							"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-80GB",
@@ -726,19 +765,18 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			useFeatureGate: true,
 		},
 		{
-			name: "Invalid - missing labelSelector for BYO mode",
+			name: "Valid - empty labelSelector auto-selects SKU in BYO mode",
 			resourceSpec: &ResourceSpec{
 				InstanceType: "", // Empty instanceType indicates BYO mode
 				Count:        pointerToInt(1),
 				LabelSelector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{}, // Empty match labels instead of nil
+					MatchLabels: map[string]string{}, // Empty match labels are treated like nil
 				},
 			},
 			preset:             true,
 			presetNameOverride: "test-validation-static",
 			runtime:            model.RuntimeNameVLLM,
-			expectErrs:         true,
-			errContent:         "No nodes found matching the specified label selector",
+			expectErrs:         false,
 			testNodes:          []v1.Node{},
 			useFeatureGate:     true,
 		},
@@ -1952,6 +1990,8 @@ func TestWorkspaceValidateName(t *testing.T) {
 		workspaceName string
 		wantErr       bool
 		errField      string
+		// update validates the Workspace as an update of itself.
+		update bool
 	}{
 		{
 			name:          "Valid name",
@@ -1970,13 +2010,34 @@ func TestWorkspaceValidateName(t *testing.T) {
 			wantErr:       true,
 			errField:      "name",
 		},
+		{
+			name:          "Name at the maximum length",
+			workspaceName: strings.Repeat("a", 52),
+			wantErr:       false,
+		},
+		{
+			name:          "Name over the maximum length on create",
+			workspaceName: strings.Repeat("a", 53),
+			wantErr:       true,
+			errField:      "name",
+		},
+		{
+			name:          "Existing name over the maximum length can still be updated",
+			workspaceName: strings.Repeat("a", 63),
+			wantErr:       false,
+			update:        true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			workspace := testWorkspace.DeepCopy()
 			workspace.Name = tt.workspaceName
-			errs := workspace.Validate(context.Background())
+			ctx := context.Background()
+			if tt.update {
+				ctx = apis.WithinUpdate(ctx, workspace.DeepCopy())
+			}
+			errs := workspace.Validate(ctx)
 			if (errs != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", errs, tt.wantErr)
 			}
@@ -2417,6 +2478,25 @@ func TestWorkspaceValidateNAPFeatureGate(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestWorkspaceValidateDeletingSkipsValidation(t *testing.T) {
+	old := &Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test-workspace",
+			Namespace:   "default",
+			Annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "invalid"},
+			Finalizers:  []string{"workspace.kaito.sh/finalizer"},
+		},
+	}
+	deleting := old.DeepCopy()
+	now := metav1.Now()
+	deleting.DeletionTimestamp = &now
+	deleting.Finalizers = nil
+
+	if errs := deleting.Validate(apis.WithinUpdate(context.Background(), old)); errs != nil {
+		t.Fatalf("Validate() should allow finalizer removal during deletion, got %v", errs)
 	}
 }
 
@@ -3302,5 +3382,129 @@ func TestWorkspaceValidateStreamingCSIDriver(t *testing.T) {
 				t.Errorf("validateStreamingCSIDriver() err=%v wantErr=%v", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestWorkspaceValidateSpeculativeDecoding(t *testing.T) {
+	intPtr := func(i int) *int { return &i }
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		inference   *InferenceSpec
+		count       *int
+		wantErr     bool
+	}{
+		{
+			name:        "no annotation - pass",
+			annotations: map[string]string{},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "false annotation - pass",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "false"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "invalid annotation value",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "yes"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			wantErr:     true,
+		},
+		{
+			name:        "true with supported preset - pass",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "true with second supported preset - pass",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-v3-0324"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "true with unsupported preset - accepted (falls back to ngram)",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "llama-3.1-8b-instruct"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "true with no preset",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   nil,
+			wantErr:     true,
+		},
+		{
+			name:        "true with tuning only (no inference)",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   nil,
+			wantErr:     true,
+		},
+		{
+			name:        "true with resource.count>1 + mtp preset allowed (PP-compatible)",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			count:       intPtr(2),
+			wantErr:     false,
+		},
+		{
+			name:        "true with resource.count>1 + ngram fallback allowed (PP-compatible)",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "llama-3.1-8b-instruct"}}},
+			count:       intPtr(2),
+			wantErr:     false,
+		},
+		{
+			name:        "true with resource.count=1 pass",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			count:       intPtr(1),
+			wantErr:     false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := &Workspace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "ws",
+					Namespace:   "default",
+					Annotations: tc.annotations,
+				},
+				Inference: tc.inference,
+			}
+			if tc.count != nil {
+				//nolint:staticcheck //SA1019: deprecate Resource.Count field
+				w.Resource.Count = tc.count
+			}
+			errs := w.validateSpeculativeDecoding(context.Background())
+			if (errs != nil) != tc.wantErr {
+				t.Errorf("validateSpeculativeDecoding() err=%v wantErr=%v", errs, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateCreate_InvalidSpeculativeDecodingValueReportedOnce(t *testing.T) {
+	w := &Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws",
+			Namespace: "default",
+			Annotations: map[string]string{
+				AnnotationEnableSpeculativeDecoding: "yes",
+			},
+		},
+		Resource:  ResourceSpec{InstanceType: "Standard_NC24ads_A100_v4"},
+		Inference: &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+	}
+
+	errs := w.ValidateCreate(context.Background())
+	if errs == nil {
+		t.Fatal("ValidateCreate() expected error, got nil")
+	}
+	fieldRef := fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding)
+	if got := strings.Count(errs.Error(), fieldRef); got != 1 {
+		t.Fatalf("expected exactly one validation error for %s, got %d: %v", fieldRef, got, errs)
 	}
 }

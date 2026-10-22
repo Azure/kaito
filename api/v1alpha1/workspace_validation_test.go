@@ -22,6 +22,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"knative.dev/pkg/apis"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/kaito-project/kaito/pkg/k8sclient"
@@ -1212,6 +1213,8 @@ func TestWorkspaceValidateName(t *testing.T) {
 		workspaceName string
 		wantErr       bool
 		errField      string
+		// update validates the Workspace as an update of itself.
+		update bool
 	}{
 		{
 			name:          "Valid name",
@@ -1230,13 +1233,34 @@ func TestWorkspaceValidateName(t *testing.T) {
 			wantErr:       true,
 			errField:      "name",
 		},
+		{
+			name:          "Name at the maximum length",
+			workspaceName: strings.Repeat("a", 52),
+			wantErr:       false,
+		},
+		{
+			name:          "Name over the maximum length on create",
+			workspaceName: strings.Repeat("a", 53),
+			wantErr:       true,
+			errField:      "name",
+		},
+		{
+			name:          "Existing name over the maximum length can still be updated",
+			workspaceName: strings.Repeat("a", 63),
+			wantErr:       false,
+			update:        true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			workspace := testWorkspace.DeepCopy()
 			workspace.Name = tt.workspaceName
-			errs := workspace.Validate(context.Background())
+			ctx := context.Background()
+			if tt.update {
+				ctx = apis.WithinUpdate(ctx, workspace.DeepCopy())
+			}
+			errs := workspace.Validate(ctx)
 			if (errs != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", errs, tt.wantErr)
 			}
@@ -2024,6 +2048,86 @@ other_field: value
 				if !strings.Contains(errMsg, tc.errContent) {
 					t.Errorf("validateInferenceConfig() error message = %v, expected to contain = %v", errMsg, tc.errContent)
 				}
+			}
+		})
+	}
+}
+
+func TestWorkspaceValidateSpeculativeDecoding_v1alpha1(t *testing.T) {
+	intPtr := func(i int) *int { return &i }
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		inference   *InferenceSpec
+		count       *int
+		wantErr     bool
+	}{
+		{
+			name:        "no annotation - pass",
+			annotations: map[string]string{},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "false annotation - pass",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "false"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "invalid annotation value",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "yes"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			wantErr:     true,
+		},
+		{
+			name:        "true with supported preset - pass",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "true with second supported preset - pass",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-v3-0324"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "true with unsupported preset - accepted (falls back to ngram)",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "llama-3.1-8b-instruct"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "true with no preset",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   nil,
+			wantErr:     true,
+		},
+		{
+			name:        "true with resource.count>1 + mtp preset allowed (PP-compatible)",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			count:       intPtr(3),
+			wantErr:     false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := &Workspace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "ws",
+					Namespace:   "default",
+					Annotations: tc.annotations,
+				},
+				Inference: tc.inference,
+			}
+			if tc.count != nil {
+				w.Resource.Count = tc.count
+			}
+			errs := w.validateSpeculativeDecoding()
+			if (errs != nil) != tc.wantErr {
+				t.Errorf("validateSpeculativeDecoding() err=%v wantErr=%v", errs, tc.wantErr)
 			}
 		})
 	}

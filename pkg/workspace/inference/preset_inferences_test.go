@@ -34,6 +34,7 @@ import (
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	"github.com/kaito-project/kaito/api/v1beta1"
 	"github.com/kaito-project/kaito/pkg/featuregates"
+	pkgmodel "github.com/kaito-project/kaito/pkg/model"
 	"github.com/kaito-project/kaito/pkg/sku"
 	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
@@ -372,9 +373,9 @@ func TestGeneratePresetInference(t *testing.T) {
 			}
 			mockClient.CreateOrUpdateObjectInMap(svc)
 
-			createdObject, _ := GeneratePresetInference(context.TODO(), workspace, test.MockWorkspaceWithPresetHash, model, mockClient, nil)
+			result, _ := GeneratePresetInference(context.TODO(), workspace, test.MockWorkspaceWithPresetHash, model, mockClient, nil)
 
-			statefulset := createdObject.(*appsv1.StatefulSet)
+			statefulset := result.Workload.(*appsv1.StatefulSet)
 			image := statefulset.Spec.Template.Spec.Containers[0].Image
 			envVars := statefulset.Spec.Template.Spec.Containers[0].Env
 
@@ -394,6 +395,18 @@ func TestGeneratePresetInference(t *testing.T) {
 			}
 
 			workloadCmd := strings.Join(statefulset.Spec.Template.Spec.Containers[0].Command, " ")
+			isVLLM := strings.Contains(tc.expectedCmd, "/workspace/vllm/inference_api.py")
+			isDistributed := strings.Contains(workloadCmd, "POD_INDEX")
+
+			// Only single-node vLLM gets the longer grace period for draining.
+			gracePeriod := statefulset.Spec.Template.Spec.TerminationGracePeriodSeconds
+			if isVLLM && !isDistributed {
+				if gracePeriod == nil || *gracePeriod != 60 {
+					t.Errorf("%s: expected terminationGracePeriodSeconds=60, got %v", k, gracePeriod)
+				}
+			} else if gracePeriod != nil {
+				t.Errorf("%s: expected default terminationGracePeriodSeconds, got %d", k, *gracePeriod)
+			}
 
 			mainCmd := strings.Split(workloadCmd, "--")[0]
 			params := toParameterMap(strings.Split(workloadCmd, "--")[1:])
@@ -405,9 +418,13 @@ func TestGeneratePresetInference(t *testing.T) {
 			// fusion pass (its TRT-LLM MNNVL kernel JIT-compiles at runtime and needs
 			// nvcc, which is absent from the runtime image). Inject it into the
 			// expectation so each vLLM case doesn't need to list the flag explicitly.
-			if strings.Contains(tc.expectedCmd, "/workspace/vllm/inference_api.py") {
+			if isVLLM {
 				expectedParams["compilation-config.pass_config.fuse_allreduce_rms"] = "False"
 				expectedParams["kv-events-config"] = `'{"enable_kv_cache_events":true}'`
+				if !isDistributed {
+					expectedParams["shutdown-timeout"] = "50"
+					expectedMaincmd = strings.Replace(expectedMaincmd, "/bin/sh -c python3", "/bin/sh -c exec python3", 1)
+				}
 			}
 
 			if mainCmd != expectedMaincmd {
@@ -1230,6 +1247,145 @@ func toParameterMap(in []string) map[string]string {
 	return ret
 }
 
+func TestV41ExtendsVLLMEngineReadyTimeout(t *testing.T) {
+	params := &pkgmodel.PresetParam{
+		Metadata: pkgmodel.Metadata{
+			Architectures: []string{"DeepseekV41ForCausalLM"},
+		},
+	}
+	var timeout string
+	for _, variable := range buildMainContainerEnv(pkgmodel.RuntimeNameVLLM, params, nil, "", "") {
+		if variable.Name == "VLLM_ENGINE_READY_TIMEOUT_S" {
+			timeout = variable.Value
+		}
+	}
+	if timeout != "3600" {
+		t.Fatalf("VLLM_ENGINE_READY_TIMEOUT_S = %q, want 3600", timeout)
+	}
+}
+
+func TestQwen4ExpDisablesPLECPUOffloadOnA100(t *testing.T) {
+	params := &pkgmodel.PresetParam{
+		Metadata: pkgmodel.Metadata{
+			Architectures: []string{"Qwen4ExpForConditionalGeneration"},
+		},
+	}
+	for _, tc := range []struct {
+		gpuModel string
+		want     bool
+	}{
+		{gpuModel: "NVIDIA A100", want: true},
+		{gpuModel: "NVIDIA H100", want: false},
+	} {
+		t.Run(tc.gpuModel, func(t *testing.T) {
+			env := buildMainContainerEnv(
+				pkgmodel.RuntimeNameVLLM,
+				params,
+				&sku.GPUConfig{GPUModel: tc.gpuModel},
+				"",
+				"",
+			)
+			hasOverride := false
+			for _, variable := range env {
+				if variable.Name == "VLLM_PLE_CPU_OFFLOAD" {
+					hasOverride = variable.Value == "0"
+				}
+			}
+			if hasOverride != tc.want {
+				t.Fatalf("VLLM_PLE_CPU_OFFLOAD=0 present = %v, want %v", hasOverride, tc.want)
+			}
+		})
+	}
+}
+
+func TestApplyGeneratorRuntimeOverrides(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		modelName     string
+		architectures []string
+		gpuModel      string
+		runParams     map[string]string
+		want          map[string]string
+	}{
+		{
+			name:          "H100 Qwen uses FP8 indexer",
+			architectures: []string{"Qwen4ExpForConditionalGeneration"},
+			gpuModel:      "NVIDIA H100",
+			want: map[string]string{
+				"gpu-memory-utilization":            "0.92",
+				"attention-config.indexer_kv_dtype": "fp8",
+			},
+		},
+		{
+			name:          "BYO A100 uses BF16",
+			architectures: []string{"Qwen4ExpForConditionalGeneration"},
+			gpuModel:      "A100-SXM4-80GB",
+			want: map[string]string{
+				"gpu-memory-utilization":            "0.92",
+				"attention-config.indexer_kv_dtype": "bf16",
+			},
+		},
+		{
+			name:      "A10 applies memory and graph policies",
+			modelName: "nvidia-nemotron-nano-9b-v2",
+			gpuModel:  "NVIDIA-A10",
+			want: map[string]string{
+				"gpu-memory-utilization":            "0.82",
+				"compilation-config.cudagraph_mode": "FULL_DECODE_ONLY",
+			},
+		},
+		{
+			name:      "global model graph policy applies",
+			modelName: "deepseek-v4-flash-0731",
+			gpuModel:  "NVIDIA H100",
+			want: map[string]string{
+				"gpu-memory-utilization":            "0.92",
+				"compilation-config.cudagraph_mode": "NONE",
+			},
+		},
+		{
+			name:      "A100 selects Marlin",
+			modelName: "mistral-medium-3.5-128b",
+			gpuModel:  "NVIDIA A100",
+			want: map[string]string{
+				"gpu-memory-utilization": "0.92",
+				"linear-backend":         "marlin",
+			},
+		},
+		{
+			name:      "explicit graph and backend overrides win",
+			modelName: "mistral-medium-3.5-128b",
+			gpuModel:  "NVIDIA A100",
+			runParams: map[string]string{
+				"compilation-config.cudagraph_mode": "PIECEWISE",
+				"linear-backend":                    "torch",
+			},
+			want: map[string]string{
+				"gpu-memory-utilization":            "0.92",
+				"compilation-config.cudagraph_mode": "PIECEWISE",
+				"linear-backend":                    "torch",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			params := &pkgmodel.PresetParam{
+				Metadata: pkgmodel.Metadata{Architectures: tc.architectures},
+				RuntimeParam: pkgmodel.RuntimeParam{VLLM: pkgmodel.VLLMParam{
+					ModelName:      tc.modelName,
+					ModelRunParams: tc.runParams,
+				}},
+			}
+			applyGeneratorRuntimeOverrides(params, &sku.GPUConfig{GPUModel: tc.gpuModel})
+			if !reflect.DeepEqual(params.VLLM.ModelRunParams, tc.want) {
+				t.Fatalf("runtime overrides = %#v, want %#v", params.VLLM.ModelRunParams, tc.want)
+			}
+		})
+	}
+
+	applyGeneratorRuntimeOverrides(nil, &sku.GPUConfig{GPUModel: "NVIDIA H100"})
+	applyGeneratorRuntimeOverrides(&pkgmodel.PresetParam{}, nil)
+}
+
 func TestApplyInferenceRoleEnv(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -1630,12 +1786,12 @@ func TestGeneratePresetInferenceNodeImageWeights(t *testing.T) {
 
 	model := plugin.KaitoModelRegister.MustGet("test-deepgemm-model")
 
-	createdObject, err := GeneratePresetInference(context.TODO(), workspace, test.MockWorkspaceWithPresetHash, model, mockClient, nil)
+	result, err := GeneratePresetInference(context.TODO(), workspace, test.MockWorkspaceWithPresetHash, model, mockClient, nil)
 	if err != nil {
 		t.Fatalf("GeneratePresetInference returned error: %v", err)
 	}
 
-	ss := createdObject.(*appsv1.StatefulSet)
+	ss := result.Workload.(*appsv1.StatefulSet)
 	podSpec := ss.Spec.Template.Spec
 
 	// hostPath volumes for weights and CUDA toolkit are present; the default
@@ -1755,11 +1911,11 @@ func TestGeneratePresetInferenceCUDAToolkitProvisioner(t *testing.T) {
 		mockClient.CreateOrUpdateObjectInMap(svc)
 
 		m := plugin.KaitoModelRegister.MustGet(presetName)
-		obj, err := GeneratePresetInference(context.TODO(), workspace, test.MockWorkspaceWithPresetHash, m, mockClient, nil)
+		result2, err := GeneratePresetInference(context.TODO(), workspace, test.MockWorkspaceWithPresetHash, m, mockClient, nil)
 		if err != nil {
 			t.Fatalf("GeneratePresetInference returned error: %v", err)
 		}
-		return obj.(*appsv1.StatefulSet).Spec.Template.Spec
+		return result2.Workload.(*appsv1.StatefulSet).Spec.Template.Spec
 	}
 
 	t.Run("DeepGEMM model without annotation uses the default baked path", func(t *testing.T) {

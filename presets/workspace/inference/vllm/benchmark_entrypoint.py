@@ -33,6 +33,7 @@ own sys.stdout if /proc/1/fd/1 is not accessible.
 """
 
 import asyncio
+import importlib
 import json
 import math
 import os
@@ -51,6 +52,9 @@ BENCHMARK_DURATION = 60
 BENCHMARK_INPUT_LEN = 2048
 BENCHMARK_OUTPUT_LEN = 256
 VLLM_BASE_URL = "http://localhost:5000"
+TOKENIZER_FILES = ("tokenizer.json", "tokenizer_config.json", "tokenizer.model")
+# inference_api.py records vLLM's resolved tokenizer here before serving.
+RESOLVED_TOKENIZER_FILE = Path("/tmp/kaito/resolved_tokenizer")
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -402,28 +406,39 @@ def _iter_config_dicts(config: dict):
 def _resolve_processor() -> str:
     """Resolve the --processor value for guidellm.
 
-    Case 0 — Explicit env override (streaming path): KAITO_PROCESSOR is set by
-              the workspace controller when streaming is active. Combined with
-              HF_TOKEN, the benchmark fetches the tokenizer from HuggingFace.
-    Case 1 — Baked-in model: tokenizer at ``/workspace/weights`` root
+    Case 0 — vLLM's local tokenizer: inference_api.py records the tokenizer
+              vLLM resolved (e.g. the local cache a Run:ai-streamed model was
+              pulled into). Use it when it is a local directory; it needs no
+              network and also works for custom models that have no
+              HuggingFace identity.
+    Case 1 — Explicit env override (streaming path): KAITO_PROCESSOR is set by
+              the workspace controller when streaming a HuggingFace preset
+              (not for custom models). Combined with HF_TOKEN, the benchmark
+              fetches the tokenizer from HuggingFace.
+    Case 2 — Baked-in model: tokenizer at ``/workspace/weights`` root
               (``config.json`` present directly under weights).
-    Case 2 — DAR / HF cache: use ``scan_cache_dir`` to read the repo_id from
+    Case 3 — DAR / HF cache: use ``scan_cache_dir`` to read the repo_id from
               HF cache metadata without parsing cache paths or blob names.
-    Case 3 — Nothing found: return ``""`` and let guidellm auto-detect from
+    Case 4 — Nothing found: return ``""`` and let guidellm auto-detect from
               ``/v1/models`` (may fail for unknown models).
     """
-    # Case 0: explicit env override (used by streaming path)
+    # Case 0: local tokenizer directory vLLM itself resolved
+    processor = _resolve_processor_from_vllm()
+    if processor:
+        return processor
+
+    # Case 1: explicit env override (used by streaming path)
     env_processor = os.environ.get("KAITO_PROCESSOR", "").strip()
     if env_processor:
         return env_processor
 
     weights = Path("/workspace/weights")
 
-    # Case 1: baked-in weights (tokenizer lives at the weights root)
+    # Case 2: baked-in weights (tokenizer lives at the weights root)
     if (weights / "config.json").exists():
         return str(weights)
 
-    # Case 2: DAR or HF cache — ask huggingface_hub for the repo_id.
+    # Case 3: DAR or HF cache — ask huggingface_hub for the repo_id.
     processor = _resolve_processor_from_hf_cache(weights)
     if processor:
         return processor
@@ -431,6 +446,37 @@ def _resolve_processor() -> str:
     if processor:
         return processor
 
+    return ""
+
+
+def publish_resolved_tokenizer(tokenizer: str) -> None:
+    """Record the tokenizer vLLM resolved for the startup benchmark.
+
+    Called by inference_api.py before vLLM accepts traffic, so the file exists
+    whenever the probe sees ``/health`` pass. Reusing vLLM's own resolution
+    avoids re-deriving where it caches remote (e.g. Run:ai-streamed) models.
+    """
+    RESOLVED_TOKENIZER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = RESOLVED_TOKENIZER_FILE.with_suffix(".tmp")
+    tmp.write_text(tokenizer)
+    os.replace(tmp, RESOLVED_TOKENIZER_FILE)
+
+
+def _resolve_processor_from_vllm() -> str:
+    """Return vLLM's resolved tokenizer if it is a local directory."""
+    try:
+        tokenizer = RESOLVED_TOKENIZER_FILE.read_text().strip()
+    except OSError as exc:
+        _log(f"resolved_tokenizer_miss reason=unreadable: {exc}")
+        return ""
+    path = Path(tokenizer)
+    if path.is_dir():
+        if any((path / name).is_file() for name in TOKENIZER_FILES):
+            return str(path)
+        _log(f"resolved_tokenizer_miss dir={path} reason=no_tokenizer_files")
+    elif path.is_absolute():
+        _log(f"resolved_tokenizer_miss dir={path} reason=not_a_directory")
+    # Hub IDs are left to the existing resolution order.
     return ""
 
 
@@ -489,25 +535,41 @@ def _run_guidellm(processor: str, max_concurrency: int):
     Returns the ``GenerativeBenchmarksReport`` on success, ``None`` on failure.
     """
     try:
-        from guidellm.benchmark import BenchmarkGenerativeTextArgs
-        from guidellm.benchmark.entrypoints import benchmark_generative_text
+        guidellm_benchmark = importlib.import_module("guidellm.benchmark")
+        BenchmarkScenario = guidellm_benchmark.BenchmarkScenario
+        benchmark_generative_text = guidellm_benchmark.benchmark_generative_text
     except ImportError as exc:
         _log(f"guidellm_import_failed: {exc}")
         return None
 
-    args = BenchmarkGenerativeTextArgs(
-        target=VLLM_BASE_URL,
-        data=[
-            f"prompt_tokens={BENCHMARK_INPUT_LEN},output_tokens={BENCHMARK_OUTPUT_LEN}"
-        ],
-        profile="throughput",
-        rate=[float(max_concurrency)],
-        max_seconds=BENCHMARK_DURATION,
-        processor=processor or None,
-        processor_args={"trust_remote_code": True},
-        data_num_workers=0,
-        random_seed=int(time.time()),
-        outputs=[],
+    args = BenchmarkScenario(
+        spec={
+            "backend": {
+                "kind": "openai_http",
+                "target": VLLM_BASE_URL,
+                "request_format": "/v1/chat/completions",
+            },
+            "profile": {
+                "kind": "throughput",
+                "max_concurrency": max_concurrency,
+            },
+            "constraints": [{"kind": "max_duration", "seconds": BENCHMARK_DURATION}],
+            "tokenizer": {
+                "kind": "huggingface_auto",
+                "model": processor or None,
+                "load_kwargs": {"trust_remote_code": True},
+            },
+            "data": [
+                {
+                    "kind": "synthetic_text",
+                    "prompt_tokens": BENCHMARK_INPUT_LEN,
+                    "output_tokens": BENCHMARK_OUTPUT_LEN,
+                }
+            ],
+            "data_loader": {"kind": "pytorch", "num_workers": 0},
+            "seed": {"kind": "static", "value": int(time.time())},
+            "outputs": [],
+        }
     )
 
     try:
