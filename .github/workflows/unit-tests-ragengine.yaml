@@ -42,6 +42,14 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Prepare private NLTK data directory
+        run: |
+          # NLTK rejects the group-writable bundled cache in the hosted Python
+          # installation. LlamaIndex honors NLTK_DATA for both reads and downloads.
+          # Use a fresh mode-0700 directory under HOME, not a shared /tmp ancestor.
+          nltk_data="$(mktemp -d "$HOME/kaito-nltk-data.XXXXXX")"
+          echo "NLTK_DATA=$nltk_data" >> "$GITHUB_ENV"
+
       - name: Run unit tests
         run: |
           make rag-service-test
