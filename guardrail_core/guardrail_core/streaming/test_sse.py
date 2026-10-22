@@ -13,7 +13,7 @@
 
 import pytest
 
-from kaito_streaming.sse import (
+from guardrail_core.streaming.sse import (
     SSEDecodeError,
     SSEEvent,
     SSEEventTooLargeError,
@@ -74,7 +74,7 @@ def test_initial_utf8_bom_is_ignored_in_parsed_view():
 
 
 def test_initial_utf8_bom_split_across_chunks_is_ignored():
-    wire = b'\xef\xbb\xbfdata: value\n\n'
+    wire = b"\xef\xbb\xbfdata: value\n\n"
     framer = SSEFramer()
     assert framer.feed(wire[:1]) == []
     assert framer.feed(wire[1:2]) == []

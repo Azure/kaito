@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-from kaito_streaming.sse import SSEEvent
+from guardrail_core.streaming.sse import SSEEvent
 
 
 class OpenAIChatChunkParseStatus(StrEnum):

@@ -17,17 +17,17 @@ import sys
 
 import pytest
 
-from kaito_streaming.openai import (
+from guardrail_core.streaming.openai import (
     OpenAIChatChunkParseStatus as Status,
 )
-from kaito_streaming.openai import (
+from guardrail_core.streaming.openai import (
     build_openai_chat_delta_sse_chunk,
     build_openai_chat_finish_reason_sse_chunk,
     build_sse_data_chunk,
     build_sse_done_chunk,
     parse_openai_chat_sse_event,
 )
-from kaito_streaming.sse import SSEEvent, SSEFramer
+from guardrail_core.streaming.sse import SSEEvent, SSEFramer
 
 
 def parse_payload(payload):

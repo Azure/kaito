@@ -1,28 +1,29 @@
-# KAITO streaming utilities
+# KAITO Guardrail Core
 
-`kaito-streaming` is an independently installable Python >=3.11 package with no
-runtime dependencies outside the standard library. It provides SSE framing and
-OpenAI chat chunk parsing/building, not scanning, blocking, or holdback policy.
-RAGEngine's existing streaming implementation and callers are unchanged.
+`guardrail-core` provides KAITO-owned scanners and `guardrail_core.streaming`, a
+standard-library-only submodule for SSE framing and OpenAI chat chunk
+parsing/building. The streaming submodule does not scan, block, or implement
+holdback policy.
 
 ## Installation and development
 
 ```sh
-python -m pip install ./streaming_core
+python -m pip install ./guardrail_core
 python -m pip install build==1.2.2.post1 pytest==8.4.2
-python -m build --wheel ./streaming_core
-python -m pytest streaming_core/tests
+python -m build --wheel ./guardrail_core
+python -m pytest guardrail_core/guardrail_core/streaming
 ```
 
-The tests import the installed package, not a `sys.path`-injected source tree.
-CI builds a wheel, installs it without dependencies in a fresh virtual environment,
-and runs the tests from outside the repository on Python 3.11 through 3.14.
+The streaming tests import the installed package, not a `sys.path`-injected source
+tree. CI builds the `guardrail-core` wheel, installs it without dependencies in a
+fresh virtual environment, and runs the tests from outside the repository on
+Python 3.12 through 3.14.
 
 ## Byte-oriented SSE framing
 
 ```python
-from kaito_streaming.sse import SSEFramer
-from kaito_streaming.openai import parse_openai_chat_sse_event
+from guardrail_core.streaming.sse import SSEFramer
+from guardrail_core.streaming.openai import parse_openai_chat_sse_event
 
 framer = SSEFramer(max_event_bytes=1024 * 1024)
 for chunk in [b'data: {"choices":[]}\r', b"\n\r", b"\n"]:
@@ -106,8 +107,8 @@ not a compatibility shortcut. Stream bytes remain available on the original even
 
 ## SSE builders
 
-The functions in `kaito_streaming.openai` return UTF-8-encodable strings with LF
-delimiters, matching RAGEngine:
+The functions in `guardrail_core.streaming.openai` return UTF-8-encodable strings
+with LF delimiters, matching RAGEngine:
 
 - `build_openai_chat_delta_sse_chunk(content, *, choice_index=0)`
 - `build_openai_chat_finish_reason_sse_chunk(*, finish_reason="content_filter", choice_index=0)`
