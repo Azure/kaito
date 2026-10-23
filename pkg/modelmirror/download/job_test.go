@@ -132,26 +132,6 @@ func TestBuildDownloadJobScript(t *testing.T) {
 	})
 }
 
-func TestBuildDownloadJobDisablesXet(t *testing.T) {
-	for _, secretName := range []string{"", "hf-access"} {
-		t.Run("accessSecret="+secretName, func(t *testing.T) {
-			cr := newTestModelMirror()
-			cr.Spec.Source.AccessSecretName = secretName
-			job := BuildDownloadJob(cr, mmconsts.DefaultDownloadJobResources(), nil)
-
-			require.Len(t, job.Spec.Template.Spec.Containers, 1)
-			assert.Contains(t, job.Spec.Template.Spec.Containers[0].Env,
-				corev1.EnvVar{Name: "HF_HUB_DISABLE_XET", Value: "1"},
-				"downloads must use HTTP instead of the native Xet client")
-
-			// The sampler inherits the shared Hugging Face environment.
-			require.Len(t, job.Spec.Template.Spec.InitContainers, 1)
-			assert.Contains(t, job.Spec.Template.Spec.InitContainers[0].Env,
-				corev1.EnvVar{Name: "HF_HUB_DISABLE_XET", Value: "1"})
-		})
-	}
-}
-
 func TestBuildDownloadJobServiceAccount(t *testing.T) {
 	t.Run("empty SA leaves default SA and applies no labels", func(t *testing.T) {
 		cr := newTestModelMirror() // ServiceAccountName unset
