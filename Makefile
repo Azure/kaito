@@ -2,8 +2,8 @@
 # Image URL to use all building/pushing image targets
 REGISTRY ?= YOUR_REGISTRY
 IMG_NAME ?= workspace
-VERSION ?= v0.10.0
-GPU_PROVISIONER_VERSION ?= 0.4.2
+VERSION ?= v0.13.0-rc.3
+GPU_PROVISIONER_VERSION ?= 0.4.4
 RAGENGINE_IMG_NAME ?= ragengine
 IMG_TAG ?= $(subst v,,$(VERSION))
 
@@ -55,12 +55,11 @@ AZURE_KARPENTER_MSI_NAME ?= azkarpenterIdentity
 
 AI_MODELS_REGISTRY ?= modelregistry.azurecr.io
 AI_MODELS_REGISTRY_SECRET ?= modelregistry
-SUPPORTED_MODELS_YAML_PATH ?= $(ROOT_DIR)/presets/workspace/models/supported_models.yaml
 
 ## AWS parameters
-CLUSTER_CONFIG_FILE ?= ./docs/aws/clusterconfig.yaml.template
-RENDERED_CLUSTER_CONFIG_FILE ?= ./docs/aws/clusterconfig.yaml
-AWS_KARPENTER_VERSION ?=1.0.8
+CLUSTER_CONFIG_FILE ?= ./examples/aws/clusterconfig.yaml.template
+RENDERED_CLUSTER_CONFIG_FILE ?= ./examples/aws/clusterconfig.yaml
+AWS_KARPENTER_VERSION ?=1.13.0
 
 # Scripts
 GO_INSTALL := ./hack/go-install.sh
@@ -117,15 +116,16 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole, and Cus
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	cp config/crd/bases/kaito.sh_workspaces.yaml charts/kaito/workspace/templates/
 	cp config/crd/bases/kaito.sh_inferencesets.yaml charts/kaito/workspace/templates/
+	cp config/crd/bases/kaito.sh_modelmirrors.yaml charts/kaito/workspace/templates/
 	cp config/crd/bases/kaito.sh_ragengines.yaml charts/kaito/ragengine/templates/
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
-.PHONY: compare-model-configs
-compare-model-configs: ## Compare supported_models.yaml with ConfigMap template (ignoring comments).
-	@./hack/compare_model_configs.sh
+.PHONY: compare-base-image-configs
+compare-base-image-configs: ## Compare base_images.yaml with ConfigMap template (ignoring comments).
+	@./hack/compare_base_image_configs.sh
 
 .PHONY: generate-vllm-arch-list
 generate-vllm-arch-list: ## Regenerate presets/workspace/models/vllm_model_arch_list.txt.
@@ -139,13 +139,14 @@ generate-vllm-arch-list: ## Regenerate presets/workspace/models/vllm_model_arch_
 
 .PHONY: unit-test
 unit-test: ## Run unit tests.
-	go test -v $(shell go list ./pkg/... ./api/... | \
+	go test -v $(shell go list ./pkg/... ./api/... ./presets/... | \
 	grep -v -e /vendor -e /api/v1alpha1/zz_generated.deepcopy.go -e /api/v1beta1/zz_generated.deepcopy.go -e /pkg/utils/test/...) \
 	-race -coverprofile=coverage.txt -covermode=atomic
 	go tool cover -func=coverage.txt
 
 .PHONY: rag-service-test
 rag-service-test: ## Run RAG Engine service tests with pytest.
+	pip install -e ./guardrail_core
 	pip install -r presets/ragengine/requirements-test.txt
 	pip install pytest-cov
 	pytest --cov -o log_cli=true -o log_cli_level=INFO presets/ragengine/tests
@@ -164,13 +165,12 @@ tuning-metrics-server-test: ## Run Tuning Metrics Server tests with pytest.
 
 .PHONY: inference-api-e2e
 inference-api-e2e: ## Run inference API e2e tests with pytest.
-	pip install -r ./presets/workspace/dependencies/requirements-test.txt --upgrade
+	pip install --no-cache-dir -r ./presets/workspace/dependencies/requirements-test.txt --upgrade
+	pip install --no-cache-dir --force-reinstall --no-deps huggingface-hub==1.31.0
+	python -c "import importlib.metadata; assert importlib.metadata.version('huggingface-hub') == '1.31.0'"
 	pip install pytest-cov
 	pytest --cov -o log_cli=true -o log_cli_level=INFO presets/workspace/inference/vllm
 	pytest --cov -o log_cli=true -o log_cli_level=INFO presets/workspace/inference/text-generation
-
-	pip install -r ./presets/workspace/generator/requirements.txt --upgrade
-	pytest --cov -o log_cli=true -o log_cli_level=INFO presets/workspace/generator/
 
 # Ginkgo configurations
 GINKGO_FOCUS ?=
@@ -194,7 +194,6 @@ kaito-workspace-e2e-test: $(E2E_TEST) $(GINKGO) ## Run e2e tests for KAITO Works
 	AI_MODELS_REGISTRY_SECRET=$(AI_MODELS_REGISTRY_SECRET) \
  	AI_MODELS_REGISTRY=$(AI_MODELS_REGISTRY) GPU_PROVISIONER_NAMESPACE=$(GPU_PROVISIONER_NAMESPACE) GPU_PROVISIONER_NAME=$(GPU_PROVISIONER_NAME) \
  	KARPENTER_NAMESPACE=$(KARPENTER_NAMESPACE) KAITO_NAMESPACE=$(KAITO_NAMESPACE) TEST_SUITE=$(TEST_SUITE) \
-	SUPPORTED_MODELS_YAML_PATH=$(SUPPORTED_MODELS_YAML_PATH) \
  	$(GINKGO) -v -trace $(GINKGO_ARGS) $(E2E_TEST)
 
 .PHONY: kaito-ragengine-e2e-test
@@ -202,7 +201,6 @@ kaito-ragengine-e2e-test: $(RAGENGINE_E2E_TEST) $(GINKGO) ## Run e2e tests for K
 	AI_MODELS_REGISTRY_SECRET=$(AI_MODELS_REGISTRY_SECRET) \
 	AI_MODELS_REGISTRY=$(AI_MODELS_REGISTRY) GPU_PROVISIONER_NAMESPACE=$(GPU_PROVISIONER_NAMESPACE)  GPU_PROVISIONER_NAME=$(GPU_PROVISIONER_NAME) KAITO_NAMESPACE=$(KAITO_NAMESPACE) \
 	KARPENTER_NAMESPACE=$(KARPENTER_NAMESPACE) KAITO_RAGENGINE_NAMESPACE=$(KAITO_RAGENGINE_NAMESPACE) TEST_SUITE=$(TEST_SUITE) \
-	SUPPORTED_MODELS_YAML_PATH=$(SUPPORTED_MODELS_YAML_PATH) \
 	$(GINKGO) -v -trace $(GINKGO_ARGS) $(RAGENGINE_E2E_TEST)
 
 ## --------------------------------------
@@ -221,14 +219,6 @@ create-aks-cluster: ## Create an AKS cluster with MSI, OIDC, and workload identi
 	--location $(AZURE_LOCATION) --attach-acr $(AZURE_ACR_NAME) \
 	--kubernetes-version $(AKS_K8S_VERSION) --generate-ssh-keys  \
 	--enable-managed-identity --enable-workload-identity --enable-oidc-issuer --node-vm-size Standard_D4d_v4 -o none
-	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --overwrite-existing
-
-.PHONY: create-aks-cluster-with-kaito
-create-aks-cluster-with-kaito: ## Create an AKS cluster with MSI, OIDC, and KAITO enabled.
-	az aks create  --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) \
-	--location $(AZURE_LOCATION) --attach-acr $(AZURE_ACR_NAME) \
-	--kubernetes-version $(AKS_K8S_VERSION) --generate-ssh-keys  \
-	--enable-managed-identity --enable-workload-identity --enable-oidc-issuer -o none
 	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --overwrite-existing
 
 .PHONY: create-aks-cluster-for-karpenter
@@ -450,6 +440,7 @@ az-patch-install-helm: ## Install KAITO workspace Helm chart and set Azure clien
 
 	helm install kaito-workspace ./charts/kaito/workspace --namespace $(KAITO_NAMESPACE) --create-namespace $(HELM_INSTALL_EXTRA_ARGS)
 
+
 .PHONY: az-patch-install-ragengine-helm
 az-patch-install-ragengine-helm: ## Install KAITO RAG Engine Helm chart and set Azure client env vars and settings in Helm values.
 	az aks get-credentials --name $(AZURE_CLUSTER_NAME) --resource-group $(AZURE_RESOURCE_GROUP)
@@ -536,6 +527,7 @@ aws-karpenter-helm: ## Install AWS Karpenter Helm chart and set AWS env vars and
 	--namespace "${KARPENTER_NAMESPACE}" --create-namespace \
 	--set "settings.clusterName=${AWS_CLUSTER_NAME}" \
 	--set "settings.interruptionQueue=${AWS_CLUSTER_NAME}" \
+	--set "settings.featureGates.staticCapacity=true" \
 	--set controller.resources.requests.cpu=1 \
 	--set controller.resources.requests.memory=1Gi \
 	--set controller.resources.limits.cpu=1 \

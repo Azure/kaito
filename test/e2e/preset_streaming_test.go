@@ -33,7 +33,7 @@ import (
 
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
-	"github.com/kaito-project/kaito/pkg/workspace/inference"
+	"github.com/kaito-project/kaito/pkg/workspace/inference/modelstreaming"
 	models "github.com/kaito-project/kaito/presets/workspace/models"
 	"github.com/kaito-project/kaito/test/e2e/utils"
 )
@@ -72,23 +72,24 @@ func modelMirrorDownloadTimeout(modelID string) time.Duration {
 	return defaultModelMirrorDownloadTimeout
 }
 
-// validateModelMirrorCRReady asserts the cluster-scoped ModelMirror CR for modelID reaches
-// Ready (with StorageReady) and exposes the expected modelPath + lastDownloadTime.
-func validateModelMirrorCRReady(modelID string) {
-	crName := inference.ModelMirrorCRName(modelID)
-	By(fmt.Sprintf("Checking ModelMirror CR %s is Ready", crName), func() {
+// validateModelMirrorCRReady asserts the ModelMirror CR for modelID in namespace reaches
+// Ready (with StorageReady) and exposes the expected modelPath.
+//
+// Readiness is deliberately not gated on status.download: the block is only populated when
+// the download job emitted a parseable stats marker, and a missing marker is a valid
+// "stats unavailable" outcome rather than a failure.
+func validateModelMirrorCRReady(modelID, namespace string) {
+	crName := modelstreaming.ModelMirrorCRName(modelID)
+	By(fmt.Sprintf("Checking ModelMirror CR %s/%s is Ready", namespace, crName), func() {
 		Eventually(func() bool {
 			mm := &kaitov1alpha1.ModelMirror{}
-			if err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{Name: crName}, mm); err != nil {
+			if err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{Name: crName, Namespace: namespace}, mm); err != nil {
 				return false
 			}
 			if string(mm.Status.Phase) != "Ready" {
 				return false
 			}
 			if mm.Status.ModelPath != "/models/"+modelID {
-				return false
-			}
-			if mm.Status.LastDownloadTime == nil {
 				return false
 			}
 			_, ready := lo.Find(mm.Status.Conditions, func(c metav1.Condition) bool {
@@ -106,7 +107,7 @@ func validateModelMirrorCRReady(modelID string) {
 // ModelMirrorReady=True. Use this for plain-Workspace streaming tests; for the InferenceSet
 // case (no *Workspace handle) call validateModelMirrorCRReady directly.
 func validateModelMirrorReady(workspaceObj *kaitov1beta1.Workspace, modelID string) {
-	validateModelMirrorCRReady(modelID)
+	validateModelMirrorCRReady(modelID, workspaceObj.Namespace)
 	By(fmt.Sprintf("Checking workspace %s has ModelMirrorReady=True", workspaceObj.Name), func() {
 		Eventually(func() bool {
 			ws := &kaitov1beta1.Workspace{}
@@ -125,7 +126,7 @@ func validateModelMirrorReady(workspaceObj *kaitov1beta1.Workspace, modelID stri
 
 // validateModelMirrorResources asserts the PVC and download Job for the model exist in ns.
 func validateModelMirrorResources(modelID, namespace string) {
-	crName := inference.ModelMirrorCRName(modelID)
+	crName := modelstreaming.ModelMirrorCRName(modelID)
 	By(fmt.Sprintf("Checking ModelMirror PVC %s in %s", crName, namespace), func() {
 		Eventually(func() bool {
 			pvc := &corev1.PersistentVolumeClaim{}
@@ -138,8 +139,11 @@ func validateModelMirrorResources(modelID, namespace string) {
 			if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName != "blob-fuse" {
 				return false
 			}
-			return lo.Contains(pvc.Finalizers, "kaito.sh/model-mirror-protection")
-		}, 5*time.Minute, utils.PollInterval).Should(BeTrue(), "ModelMirror PVC not Bound with expected SC + finalizer")
+			// The mirror owns the PVC; teardown ordering comes from the CR's cleanup
+			// finalizer rather than one on the PVC.
+			ref := metav1.GetControllerOf(pvc)
+			return ref != nil && ref.Kind == "ModelMirror" && ref.Name == crName
+		}, 5*time.Minute, utils.PollInterval).Should(BeTrue(), "ModelMirror PVC not Bound with expected SC + ownerReference")
 	})
 
 	By(fmt.Sprintf("Checking ModelMirror download Job for %s exists in %s", crName, namespace), func() {
@@ -156,10 +160,10 @@ func validateModelMirrorResources(modelID, namespace string) {
 }
 
 // validateStreamingPodShape asserts the inference pod streams from az:// (workspace pod).
-func validateStreamingPodShape(workspaceObj *kaitov1beta1.Workspace, modelID string, distributed bool) {
+func validateStreamingPodShape(workspaceObj *kaitov1beta1.Workspace, modelID string, multiNode, distributedLoader bool) {
 	By(fmt.Sprintf("Checking streaming pod shape for %s", workspaceObj.Name), func() {
 		Eventually(func() error {
-			return assertStreamingPod(workspaceObj.Namespace, workspaceObj.Name, modelID, distributed)
+			return assertStreamingPod(workspaceObj.Namespace, workspaceObj.Name, modelID, multiNode, distributedLoader)
 		}, 5*time.Minute, utils.PollInterval).Should(Succeed())
 	})
 }
@@ -184,12 +188,12 @@ func streamingPodName(coreClient *kubernetes.Clientset, namespace, workspaceName
 }
 
 // assertStreamingPod returns nil when the pod for workspaceName in namespace has streaming shape.
-func assertStreamingPod(namespace, workspaceName, modelID string, distributed bool) error {
+func assertStreamingPod(namespace, workspaceName, modelID string, multiNode, distributedLoader bool) error {
 	coreClient, err := utils.GetK8sClientset()
 	if err != nil {
 		return err
 	}
-	podName, err := streamingPodName(coreClient, namespace, workspaceName, distributed)
+	podName, err := streamingPodName(coreClient, namespace, workspaceName, multiNode)
 	if err != nil {
 		return err
 	}
@@ -233,16 +237,20 @@ func assertStreamingPod(namespace, workspaceName, modelID string, distributed bo
 			return fmt.Errorf("pod %s unexpectedly mounts /workspace/weights (streaming should not)", podName)
 		}
 	}
-	if distributed {
+	if multiNode {
 		if !strings.Contains(cmd, "tensor-parallel-size") {
 			return fmt.Errorf("pod %s missing tensor-parallel-size (distributed)", podName)
 		}
 		if !strings.Contains(cmd, "distributed-executor-backend=ray") {
 			return fmt.Errorf("pod %s missing distributed-executor-backend=ray (multi-node)", podName)
 		}
+	}
+	if distributedLoader {
 		if !strings.Contains(cmd, `{"distributed": true}`) {
 			return fmt.Errorf("pod %s missing distributed loader config", podName)
 		}
+	} else if strings.Contains(cmd, `{"distributed": true}`) {
+		return fmt.Errorf("pod %s unexpectedly enables distributed loader config", podName)
 	}
 	return nil
 }
@@ -265,28 +273,29 @@ func envVal(env []corev1.EnvVar, name string) string {
 	return ""
 }
 
-// deleteStreamingModelMirrorCR deletes the cluster-scoped ModelMirror CR for modelID and waits
-// for it to be gone. The CR is not owned by any workspace/InferenceSet (it is shared and
-// cluster-scoped), so it must be cleaned up explicitly to avoid a leftover Ready CR false-passing
-// a later run on a reused cluster.
-func deleteStreamingModelMirrorCR(modelID string) {
-	By("Deleting the cluster-scoped ModelMirror CR", func() {
-		crName := inference.ModelMirrorCRName(modelID)
-		mm := &kaitov1alpha1.ModelMirror{ObjectMeta: metav1.ObjectMeta{Name: crName}}
+// deleteStreamingModelMirrorCR deletes the ModelMirror CR for modelID in namespace and waits
+// for it to be gone. The CR is not owned by any workspace/InferenceSet (it is shared by every
+// workspace in the namespace that uses the model), so it must be cleaned up explicitly to avoid
+// a leftover Ready CR false-passing a later run on a reused cluster.
+func deleteStreamingModelMirrorCR(modelID, namespace string) {
+	By("Deleting the ModelMirror CR", func() {
+		crName := modelstreaming.ModelMirrorCRName(modelID)
+		mm := &kaitov1alpha1.ModelMirror{ObjectMeta: metav1.ObjectMeta{Name: crName, Namespace: namespace}}
 		delErr := utils.TestingCluster.KubeClient.Delete(ctx, mm)
 		Expect(delErr == nil || apierrors.IsNotFound(delErr)).To(BeTrue())
 		Eventually(func() bool {
-			getErr := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{Name: crName}, &kaitov1alpha1.ModelMirror{})
+			getErr := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{Name: crName, Namespace: namespace}, &kaitov1alpha1.ModelMirror{})
 			return apierrors.IsNotFound(getErr)
 		}, 3*time.Minute, utils.PollInterval).Should(BeTrue())
 	})
 }
 
-// cleanupStreamingResources deletes the workspace, then (on success) the cluster-scoped MM CR.
+// cleanupStreamingResources deletes the workspace, then (on success) the ModelMirror CR.
 func cleanupStreamingResources(workspaceObj *kaitov1beta1.Workspace, modelID string) {
+	namespace := workspaceObj.Namespace
 	cleanupResources(workspaceObj)
 	if CurrentSpecReport().Failed() {
 		return
 	}
-	deleteStreamingModelMirrorCR(modelID)
+	deleteStreamingModelMirrorCR(modelID, namespace)
 }

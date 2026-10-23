@@ -14,6 +14,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,8 +28,7 @@ import (
 
 func TestPresetParamDeepCopy(t *testing.T) {
 	original := &PresetParam{
-		Metadata:            Metadata{Name: "test-model"},
-		GPUCountRequirement: "2",
+		Metadata: Metadata{Name: "test-model"},
 		TuningPerGPUMemoryRequirement: map[string]int{
 			"lora": 16000,
 		},
@@ -48,7 +48,6 @@ func TestPresetParamDeepCopy(t *testing.T) {
 	copied := original.DeepCopy()
 	require.NotNil(t, copied)
 	assert.Equal(t, original.Metadata.Name, copied.Metadata.Name)
-	assert.Equal(t, original.GPUCountRequirement, copied.GPUCountRequirement)
 	assert.Equal(t, original.TuningPerGPUMemoryRequirement, copied.TuningPerGPUMemoryRequirement)
 
 	// Mutations on the copy must not affect the original.
@@ -144,11 +143,10 @@ func TestGetInferenceCommandHuggingfaceWithModelName(t *testing.T) {
 	assert.Contains(t, cmd[2], "test-served-model")
 }
 
-func TestGetInferenceCommandHuggingfaceDownloadAtRuntime(t *testing.T) {
+func TestGetInferenceCommandHuggingfaceModel(t *testing.T) {
 	p := &PresetParam{
 		Metadata: Metadata{
-			Version:           "https://huggingface.co/microsoft/phi-3-mini-128k-instruct",
-			DownloadAtRuntime: true,
+			Version: "https://huggingface.co/microsoft/phi-3-mini-128k-instruct",
 		},
 		RuntimeParam: RuntimeParam{
 			Transformers: HuggingfaceTransformersParam{
@@ -166,11 +164,10 @@ func TestGetInferenceCommandHuggingfaceDownloadAtRuntime(t *testing.T) {
 	assert.Contains(t, cmd[2], "allow_remote_files")
 }
 
-func TestGetInferenceCommandHuggingfaceDownloadAtRuntimeWithRevision(t *testing.T) {
+func TestGetInferenceCommandHuggingfaceModelWithRevision(t *testing.T) {
 	p := &PresetParam{
 		Metadata: Metadata{
-			Version:           "https://huggingface.co/microsoft/phi-3-mini-128k-instruct/commit/abc123",
-			DownloadAtRuntime: true,
+			Version: "https://huggingface.co/microsoft/phi-3-mini-128k-instruct/commit/abc123",
 		},
 		RuntimeParam: RuntimeParam{
 			Transformers: HuggingfaceTransformersParam{
@@ -187,6 +184,38 @@ func TestGetInferenceCommandHuggingfaceDownloadAtRuntimeWithRevision(t *testing.
 	assert.Contains(t, cmd[2], "pretrained_model_name_or_path=microsoft/phi-3-mini-128k-instruct")
 	assert.Contains(t, cmd[2], "revision=abc123")
 	assert.Contains(t, cmd[2], "allow_remote_files")
+}
+
+func TestGetInferenceCommandVLLMLocalModelWeightsPath(t *testing.T) {
+	// A model that would normally download from HuggingFace, but is instead
+	// served from weights already present on local disk (e.g. mounted from a
+	// custom GPU node image). The command should point --model at the local path
+	// and omit --download-dir / --code-revision.
+	p := &PresetParam{
+		Metadata: Metadata{
+			Version: "https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash/commit/abc123",
+		},
+		RuntimeParam: RuntimeParam{
+			VLLM: VLLMParam{
+				BaseCommand:    "python3 /workspace/vllm/inference_api.py",
+				ModelRunParams: map[string]string{},
+			},
+		},
+	}
+	rc := RuntimeContext{
+		RuntimeName: RuntimeNameVLLM,
+		SKUNumGPUs:  1,
+		NumNodes:    1,
+		RuntimeContextExtraArguments: RuntimeContextExtraArguments{
+			LocalModelWeightsPath: "/opt/kaito/models/deepseekv4flash",
+		},
+	}
+	cmd := p.GetInferenceCommand(rc)
+	require.Len(t, cmd, 3)
+	assert.Contains(t, cmd[2], "--model=/opt/kaito/models/deepseekv4flash")
+	assert.Contains(t, cmd[2], "--load-format=runai_streamer")
+	assert.NotContains(t, cmd[2], "download-dir")
+	assert.NotContains(t, cmd[2], "code-revision")
 }
 
 func TestGetInferenceCommandVLLMSingleNode(t *testing.T) {
@@ -206,8 +235,72 @@ func TestGetInferenceCommandVLLMSingleNode(t *testing.T) {
 	}
 	cmd := p.GetInferenceCommand(rc)
 	require.Len(t, cmd, 3)
-	assert.Contains(t, cmd[2], "vllm serve")
+	assert.True(t, strings.HasPrefix(cmd[2], "exec vllm serve"), "vLLM must be PID 1 to receive SIGTERM: %s", cmd[2])
 	assert.Contains(t, cmd[2], "tensor-parallel-size=2")
+	assert.Contains(t, cmd[2], "--shutdown-timeout=50")
+}
+
+func TestGetInferenceCommandVLLMPresetShutdownTimeoutWins(t *testing.T) {
+	p := &PresetParam{
+		RuntimeParam: RuntimeParam{
+			VLLM: VLLMParam{
+				BaseCommand: "vllm serve",
+				ModelRunParams: map[string]string{
+					"shutdown-timeout": "45",
+				},
+			},
+		},
+	}
+
+	cmd := p.GetInferenceCommand(RuntimeContext{
+		RuntimeName: RuntimeNameVLLM,
+		SKUNumGPUs:  1,
+		NumNodes:    1,
+	})
+
+	require.Len(t, cmd, 3)
+	assert.Contains(t, cmd[2], "--shutdown-timeout=45")
+	assert.NotContains(t, cmd[2], "--shutdown-timeout=50")
+}
+
+func TestGetInferenceCommandVLLMKVCacheEventsDefault(t *testing.T) {
+	// Default: --kv-events-config is injected so downstream ZMQ subscribers
+	// can consume BlockStored / BlockRemoved / AllBlocksCleared events.
+	p := &PresetParam{
+		RuntimeParam: RuntimeParam{
+			VLLM: VLLMParam{
+				BaseCommand:    "vllm serve",
+				ModelRunParams: map[string]string{},
+			},
+		},
+	}
+	cmd := p.GetInferenceCommand(RuntimeContext{
+		RuntimeName: RuntimeNameVLLM,
+		SKUNumGPUs:  1,
+		NumNodes:    1,
+	})
+	require.Len(t, cmd, 3)
+	assert.Contains(t, cmd[2], `--kv-events-config='{"enable_kv_cache_events":true}'`)
+
+	// User override via VLLMParam.ModelRunParams must win (no rebuild required).
+	p2 := &PresetParam{
+		RuntimeParam: RuntimeParam{
+			VLLM: VLLMParam{
+				BaseCommand: "vllm serve",
+				ModelRunParams: map[string]string{
+					"kv-events-config": `'{"enable_kv_cache_events":false}'`,
+				},
+			},
+		},
+	}
+	cmd2 := p2.GetInferenceCommand(RuntimeContext{
+		RuntimeName: RuntimeNameVLLM,
+		SKUNumGPUs:  1,
+		NumNodes:    1,
+	})
+	require.Len(t, cmd2, 3)
+	assert.Contains(t, cmd2[2], `--kv-events-config='{"enable_kv_cache_events":false}'`)
+	assert.NotContains(t, cmd2[2], `"enable_kv_cache_events":true`)
 }
 
 func TestGetInferenceCommandVLLMInferencePort(t *testing.T) {
@@ -351,6 +444,60 @@ func TestGetInferenceCommandVLLMMultiNode(t *testing.T) {
 	require.Len(t, cmd, 3)
 	// Multi-node path wraps in if/else on POD_INDEX
 	assert.Contains(t, cmd[2], "POD_INDEX")
+	assert.Contains(t, cmd[2], "--ray_cluster_size=2")
+	assert.Contains(t, cmd[2], " && vllm serve")
+	// Graceful drain is single-node only; the multi-node command must stay unchanged.
+	assert.NotContains(t, cmd[2], "shutdown-timeout")
+	assert.NotContains(t, cmd[2], "exec ")
+}
+
+func TestMultiNodeRayCommandRequiresReadyCluster(t *testing.T) {
+	p := &PresetParam{RuntimeParam: RuntimeParam{VLLM: VLLMParam{
+		BaseCommand:          "vllm serve",
+		ModelRunParams:       map[string]string{},
+		RayLeaderBaseCommand: "bash multi-node-serving.sh leader",
+		RayLeaderParams:      map[string]string{},
+		RayWorkerBaseCommand: "bash multi-node-serving.sh worker",
+		RayWorkerParams:      map[string]string{},
+	}}}
+	args := p.buildMultiNodeRayCommand(RuntimeContext{
+		NumNodes:          2,
+		WorkspaceMetadata: metav1.ObjectMeta{Name: "ws", Namespace: "default"},
+	})
+	require.Len(t, args, 3)
+	script := args[2]
+	// The Ray leader startup must gate the model server. multi-node-serving.sh
+	// exits non-zero until --ray_cluster_size nodes have joined, so chaining with
+	// '&&' short-circuits and the server never starts against an incomplete
+	// cluster; ';' (the regression this guards against) would start it anyway.
+	assert.Contains(t, script, "--ray_cluster_size=2")
+	assert.Contains(t, script, " && vllm serve")
+	assert.NotContains(t, script, "; vllm serve")
+}
+
+func TestMultiNodeRayCommandExtendsTimeoutForCUDAToolkit(t *testing.T) {
+	p := &PresetParam{
+		Metadata: Metadata{
+			Name:          "minimax-m2.7",
+			Architectures: []string{"MiniMaxM2ForCausalLM"},
+		},
+		RuntimeParam: RuntimeParam{VLLM: VLLMParam{
+			BaseCommand:          "vllm serve",
+			ModelRunParams:       map[string]string{},
+			RayLeaderBaseCommand: "bash multi-node-serving.sh leader",
+			RayLeaderParams:      map[string]string{},
+			RayWorkerBaseCommand: "bash multi-node-serving.sh worker",
+			RayWorkerParams:      map[string]string{},
+		}},
+	}
+	args := p.buildMultiNodeRayCommand(RuntimeContext{
+		NumNodes:          4,
+		WorkspaceMetadata: metav1.ObjectMeta{Name: "ws", Namespace: "default"},
+	})
+	require.Len(t, args, 3)
+	assert.Equal(t, "900", p.VLLM.RayLeaderParams["ray_init_timeout"])
+	assert.Equal(t, "900", p.VLLM.RayWorkerParams["ray_init_timeout"])
+	assert.Contains(t, args[2], "--ray_init_timeout=900")
 }
 
 func TestGetInferenceCommandUnknownRuntime(t *testing.T) {
@@ -589,6 +736,29 @@ func TestGetInferenceCommandVLLMDataParallelism(t *testing.T) {
 	assert.Contains(t, cmd[2], "kaito-kv-cache-cpu-memory-utilization=0")
 }
 
+func TestGetInferenceCommandVLLMMIGDisablesCPUOffload(t *testing.T) {
+	// On a MIG partition, CPU KV-cache offload must be disabled: it sizes itself
+	// from host RAM (cgroup-unaware), so co-located MIG pods would OOM the node.
+	p := &PresetParam{
+		TotalSafeTensorFileSize: "8Gi",
+		RuntimeParam: RuntimeParam{
+			VLLM: VLLMParam{
+				BaseCommand:    "vllm serve",
+				ModelRunParams: map[string]string{},
+			},
+		},
+	}
+	rc := RuntimeContext{
+		RuntimeName: RuntimeNameVLLM,
+		GPUConfig:   &sku.GPUConfig{GPUMem: resource.MustParse("24Gi"), GPUCount: 1, IsMIG: true},
+		SKUNumGPUs:  1,
+		NumNodes:    1,
+	}
+	cmd := p.GetInferenceCommand(rc)
+	require.Len(t, cmd, 3)
+	assert.Contains(t, cmd[2], "kaito-kv-cache-cpu-memory-utilization=0")
+}
+
 func TestGetInferenceCommandVLLMTensorParallelismWhenModelLarge(t *testing.T) {
 	p := &PresetParam{
 		TotalSafeTensorFileSize: "64Gi",
@@ -670,89 +840,6 @@ func TestGetInferenceCommandVLLMSmallModelOnMultiNodeUsesTP(t *testing.T) {
 	assert.Contains(t, cmd[2], "tensor-parallel-size=4")
 	assert.Contains(t, cmd[2], "pipeline-parallel-size=2")
 	assert.NotContains(t, cmd[2], "data-parallel-size")
-}
-
-func TestBuildVLLMInferenceCommandDTypeDynamic(t *testing.T) {
-	t.Run("bfloat16 downgraded to float16 on older GPU", func(t *testing.T) {
-		p := &PresetParam{
-			RuntimeParam: RuntimeParam{
-				VLLM: VLLMParam{
-					BaseCommand:    "vllm serve",
-					ModelRunParams: map[string]string{"dtype": "bfloat16"},
-				},
-			},
-		}
-		rc := RuntimeContext{
-			RuntimeName: RuntimeNameVLLM,
-			SKUNumGPUs:  1,
-			NumNodes:    1,
-			GPUConfig:   &sku.GPUConfig{SKU: "test-t4", CUDAComputeCapability: 7.5},
-		}
-		cmd := p.GetInferenceCommand(rc)
-		require.Len(t, cmd, 3)
-		assert.Contains(t, cmd[2], "dtype=float16")
-		assert.NotContains(t, cmd[2], "dtype=bfloat16")
-	})
-
-	t.Run("bfloat16 preserved on Ampere GPU", func(t *testing.T) {
-		p := &PresetParam{
-			RuntimeParam: RuntimeParam{
-				VLLM: VLLMParam{
-					BaseCommand:    "vllm serve",
-					ModelRunParams: map[string]string{"dtype": "bfloat16"},
-				},
-			},
-		}
-		rc := RuntimeContext{
-			RuntimeName: RuntimeNameVLLM,
-			SKUNumGPUs:  1,
-			NumNodes:    1,
-			GPUConfig:   &sku.GPUConfig{SKU: "test-a100", CUDAComputeCapability: 8.0},
-		}
-		cmd := p.GetInferenceCommand(rc)
-		require.Len(t, cmd, 3)
-		assert.Contains(t, cmd[2], "dtype=bfloat16")
-	})
-
-	t.Run("float16 unchanged on older GPU", func(t *testing.T) {
-		p := &PresetParam{
-			RuntimeParam: RuntimeParam{
-				VLLM: VLLMParam{
-					BaseCommand:    "vllm serve",
-					ModelRunParams: map[string]string{"dtype": "float16"},
-				},
-			},
-		}
-		rc := RuntimeContext{
-			RuntimeName: RuntimeNameVLLM,
-			SKUNumGPUs:  1,
-			NumNodes:    1,
-			GPUConfig:   &sku.GPUConfig{SKU: "test-t4", CUDAComputeCapability: 7.5},
-		}
-		cmd := p.GetInferenceCommand(rc)
-		require.Len(t, cmd, 3)
-		assert.Contains(t, cmd[2], "dtype=float16")
-	})
-
-	t.Run("nil GPUConfig does not modify dtype", func(t *testing.T) {
-		p := &PresetParam{
-			RuntimeParam: RuntimeParam{
-				VLLM: VLLMParam{
-					BaseCommand:    "vllm serve",
-					ModelRunParams: map[string]string{"dtype": "bfloat16"},
-				},
-			},
-		}
-		rc := RuntimeContext{
-			RuntimeName: RuntimeNameVLLM,
-			SKUNumGPUs:  1,
-			NumNodes:    1,
-			GPUConfig:   nil,
-		}
-		cmd := p.GetInferenceCommand(rc)
-		require.Len(t, cmd, 3)
-		assert.Contains(t, cmd[2], "dtype=bfloat16")
-	})
 }
 
 func TestBuildVLLMInferenceCommandDisablesKVCacheForHybridModels(t *testing.T) {

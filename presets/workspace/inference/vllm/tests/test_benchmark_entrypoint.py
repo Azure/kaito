@@ -19,6 +19,7 @@ External calls (urllib, subprocess, open) are patched via unittest.mock.
 
 import json
 import sys
+import urllib.error
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -63,6 +64,65 @@ def test_health_check_non200():
 def test_health_check_exception():
     with patch("urllib.request.urlopen", side_effect=OSError("refused")):
         assert bm._health_check() is False
+
+
+# ── _resolve_processor (vLLM-resolved tokenizer) ──────────────────────────────
+
+
+@pytest.fixture
+def resolved_file(tmp_path, monkeypatch):
+    path = tmp_path / "kaito" / "resolved_tokenizer"
+    monkeypatch.setattr(bm, "RESOLVED_TOKENIZER_FILE", path)
+    return path
+
+
+def test_resolve_processor_prefers_vllm_tokenizer(resolved_file, tmp_path, monkeypatch):
+    monkeypatch.setenv("KAITO_PROCESSOR", "custom-model-config-qwen")
+    (tmp_path / "tokenizer_config.json").write_text("{}")
+    bm.publish_resolved_tokenizer(str(tmp_path))
+    with patch.object(bm, "_log") as log:
+        assert bm._resolve_processor() == str(tmp_path)
+    log.assert_not_called()
+
+
+def test_resolve_processor_vllm_hub_id_falls_through(resolved_file, monkeypatch):
+    monkeypatch.setenv("KAITO_PROCESSOR", "org/model")
+    bm.publish_resolved_tokenizer("other/model")
+    with patch.object(bm, "_log") as log:
+        assert bm._resolve_processor() == "org/model"
+    log.assert_not_called()
+
+
+def test_resolve_processor_vllm_dir_without_tokenizer_falls_back(
+    resolved_file, tmp_path, monkeypatch
+):
+    monkeypatch.setenv("KAITO_PROCESSOR", "org/model")
+    bm.publish_resolved_tokenizer(str(tmp_path))
+    with patch.object(bm, "_log") as log:
+        assert bm._resolve_processor() == "org/model"
+    log.assert_called_once_with(
+        f"resolved_tokenizer_miss dir={tmp_path} reason=no_tokenizer_files"
+    )
+
+
+def test_resolve_processor_vllm_missing_path_falls_back(
+    resolved_file, tmp_path, monkeypatch
+):
+    monkeypatch.setenv("KAITO_PROCESSOR", "org/model")
+    gone = tmp_path / "model_streamer" / "deadbeef"
+    bm.publish_resolved_tokenizer(str(gone))
+    with patch.object(bm, "_log") as log:
+        assert bm._resolve_processor() == "org/model"
+    log.assert_called_once_with(
+        f"resolved_tokenizer_miss dir={gone} reason=not_a_directory"
+    )
+
+
+def test_resolve_processor_unpublished_falls_back(resolved_file, monkeypatch):
+    monkeypatch.setenv("KAITO_PROCESSOR", "org/model")
+    with patch.object(bm, "_log") as log:
+        assert bm._resolve_processor() == "org/model"
+    assert log.call_args.args[0].startswith("resolved_tokenizer_miss reason=unreadable")
 
 
 # ── _log ──────────────────────────────────────────────────────────────────────
@@ -148,12 +208,39 @@ def test_sum_counter_metric_network_error():
         assert bm._sum_counter_metric("vllm:generation_tokens_total") == 0
 
 
+# ── _abort_requests ─────────────────────────────────────────────────────────
+
+
+def test_abort_requests_posts_empty_json():
+    resp = _make_urlopen_response(200)
+    with patch("urllib.request.urlopen", return_value=resp) as mock_urlopen:
+        bm._abort_requests()
+
+    request = mock_urlopen.call_args.args[0]
+    assert request.full_url == f"{bm.VLLM_BASE_URL}/abort_requests"
+    assert request.method == "POST"
+    assert json.loads(request.data) == {}
+    assert request.headers["Content-type"] == "application/json"
+
+
+def test_abort_requests_rejects_non_200_response():
+    resp = _make_urlopen_response(500)
+    with (
+        patch("urllib.request.urlopen", return_value=resp),
+        pytest.raises(RuntimeError, match="HTTP status 500"),
+    ):
+        bm._abort_requests()
+
+
 # ── _compute_max_concurrency ──────────────────────────────────────────────────
 
 _CACHE_CONFIG_METRICS_BODY = b"""\
 # HELP vllm:cache_config_info Information of the LLMEngine CacheConfig
 # TYPE vllm:cache_config_info gauge
 vllm:cache_config_info{block_size="16",cache_dtype="auto",engine="0",gpu_memory_utilization="0.7",num_gpu_blocks="8059"} 1.0
+# HELP kaito_max_concurrent_requests Resolved vLLM maximum number of concurrent sequences
+# TYPE kaito_max_concurrent_requests gauge
+kaito_max_concurrent_requests 128.0
 """
 
 
@@ -163,6 +250,25 @@ def test_compute_max_concurrency_success():
     resp = _make_urlopen_response(200, _CACHE_CONFIG_METRICS_BODY)
     with patch("urllib.request.urlopen", return_value=resp):
         assert bm._compute_max_concurrency() == 55
+
+
+def test_compute_max_concurrency_clamped_to_max_num_seqs():
+    """Caps KV-derived concurrency at vLLM's resolved max_num_seqs."""
+    body = _CACHE_CONFIG_METRICS_BODY.replace(b"8059", b"80590")
+    resp = _make_urlopen_response(200, body)
+    with patch("urllib.request.urlopen", return_value=resp):
+        assert bm._compute_max_concurrency() == 128
+
+
+def test_compute_max_concurrency_max_num_seqs_absent():
+    """Raises RuntimeError when the inference server did not publish the cap."""
+    body = b'vllm:cache_config_info{num_gpu_blocks="8059",block_size="16"} 1.0\n'
+    resp = _make_urlopen_response(200, body)
+    with (
+        patch("urllib.request.urlopen", return_value=resp),
+        pytest.raises(RuntimeError, match="kaito_max_concurrent_requests metric"),
+    ):
+        bm._compute_max_concurrency()
 
 
 def test_compute_max_concurrency_metric_absent():
@@ -205,7 +311,10 @@ def test_compute_max_concurrency_fetch_fails():
 def test_compute_max_concurrency_zero_result():
     """Raises RuntimeError when computed concurrency is 0 (block capacity < seq_len)."""
     # num_gpu_blocks=1, block_size=1 → 1 // 2304 = 0
-    body = b'vllm:cache_config_info{num_gpu_blocks="1",block_size="1"} 1.0\n'
+    body = b"""\
+vllm:cache_config_info{num_gpu_blocks="1",block_size="1"} 1.0
+kaito_max_concurrent_requests 128.0
+"""
     resp = _make_urlopen_response(200, body)
     with (
         patch("urllib.request.urlopen", return_value=resp),
@@ -217,27 +326,25 @@ def test_compute_max_concurrency_zero_result():
 # ── _run_guidellm ─────────────────────────────────────────────────────────────
 
 
-def _guidellm_sys_modules(mock_args_cls, mock_benchmark_fn):
+def _guidellm_sys_modules(mock_scenario_cls, mock_benchmark_fn):
     """Build a sys.modules patch dict that injects mock guidellm packages."""
     bench_mod = MagicMock()
-    bench_mod.BenchmarkGenerativeTextArgs = mock_args_cls
-    entrypoints_mod = MagicMock()
-    entrypoints_mod.benchmark_generative_text = mock_benchmark_fn
+    bench_mod.BenchmarkScenario = mock_scenario_cls
+    bench_mod.benchmark_generative_text = mock_benchmark_fn
     return {
         "guidellm": MagicMock(),
         "guidellm.benchmark": bench_mod,
-        "guidellm.benchmark.entrypoints": entrypoints_mod,
     }
 
 
 def test_run_guidellm_success():
-    mock_args_cls = MagicMock()
+    mock_scenario_cls = MagicMock()
     mock_benchmark_fn = MagicMock()
     mock_report = MagicMock(name="report")
     with (
         patch("asyncio.run", return_value=(mock_report, {})) as mock_run,
         patch.dict(
-            sys.modules, _guidellm_sys_modules(mock_args_cls, mock_benchmark_fn)
+            sys.modules, _guidellm_sys_modules(mock_scenario_cls, mock_benchmark_fn)
         ),
     ):
         result = bm._run_guidellm("openai/phi-4", 256)
@@ -246,40 +353,81 @@ def test_run_guidellm_success():
 
 
 def test_run_guidellm_includes_processor():
-    mock_args_cls = MagicMock()
+    mock_scenario_cls = MagicMock()
     mock_benchmark_fn = MagicMock()
     with (
         patch("asyncio.run", return_value=(MagicMock(), {})),
         patch.dict(
-            sys.modules, _guidellm_sys_modules(mock_args_cls, mock_benchmark_fn)
+            sys.modules, _guidellm_sys_modules(mock_scenario_cls, mock_benchmark_fn)
         ),
     ):
         bm._run_guidellm("mymodel/name", 128)
-    _, kwargs = mock_args_cls.call_args
-    assert kwargs.get("processor") == "mymodel/name"
+    _, kwargs = mock_scenario_cls.call_args
+    assert kwargs["spec"]["tokenizer"]["model"] == "mymodel/name"
 
 
-def test_run_guidellm_omits_processor_when_empty():
-    mock_args_cls = MagicMock()
+def test_run_guidellm_preserves_benchmark_configuration():
+    mock_scenario_cls = MagicMock()
     mock_benchmark_fn = MagicMock()
     with (
         patch("asyncio.run", return_value=(MagicMock(), {})),
         patch.dict(
-            sys.modules, _guidellm_sys_modules(mock_args_cls, mock_benchmark_fn)
+            sys.modules,
+            _guidellm_sys_modules(mock_scenario_cls, mock_benchmark_fn),
+        ),
+        patch("time.time", return_value=1234),
+    ):
+        bm._run_guidellm("mymodel/name", 128)
+
+    _, kwargs = mock_scenario_cls.call_args
+    spec = kwargs["spec"]
+    assert spec["backend"] == {
+        "kind": "openai_http",
+        "target": bm.VLLM_BASE_URL,
+        "request_format": "/v1/chat/completions",
+    }
+    assert spec["profile"] == {"kind": "throughput", "max_concurrency": 128}
+    assert spec["constraints"] == [
+        {"kind": "max_duration", "seconds": bm.BENCHMARK_DURATION}
+    ]
+    assert spec["tokenizer"] == {
+        "kind": "huggingface_auto",
+        "model": "mymodel/name",
+        "load_kwargs": {"trust_remote_code": True},
+    }
+    assert spec["data"] == [
+        {
+            "kind": "synthetic_text",
+            "prompt_tokens": bm.BENCHMARK_INPUT_LEN,
+            "output_tokens": bm.BENCHMARK_OUTPUT_LEN,
+        }
+    ]
+    assert spec["data_loader"] == {"kind": "pytorch", "num_workers": 0}
+    assert spec["seed"] == {"kind": "static", "value": 1234}
+    assert spec["outputs"] == []
+
+
+def test_run_guidellm_omits_processor_when_empty():
+    mock_scenario_cls = MagicMock()
+    mock_benchmark_fn = MagicMock()
+    with (
+        patch("asyncio.run", return_value=(MagicMock(), {})),
+        patch.dict(
+            sys.modules, _guidellm_sys_modules(mock_scenario_cls, mock_benchmark_fn)
         ),
     ):
         bm._run_guidellm("", 128)
-    _, kwargs = mock_args_cls.call_args
-    assert kwargs.get("processor") is None
+    _, kwargs = mock_scenario_cls.call_args
+    assert kwargs["spec"]["tokenizer"]["model"] is None
 
 
 def test_run_guidellm_failure():
-    mock_args_cls = MagicMock()
+    mock_scenario_cls = MagicMock()
     mock_benchmark_fn = MagicMock()
     with (
         patch("asyncio.run", side_effect=RuntimeError("mock error")),
         patch.dict(
-            sys.modules, _guidellm_sys_modules(mock_args_cls, mock_benchmark_fn)
+            sys.modules, _guidellm_sys_modules(mock_scenario_cls, mock_benchmark_fn)
         ),
         patch.object(bm, "_log") as mock_log,
     ):
@@ -297,7 +445,6 @@ def test_run_guidellm_import_error():
             {
                 "guidellm": None,
                 "guidellm.benchmark": None,
-                "guidellm.benchmark.entrypoints": None,
             },
         ),
         patch.object(bm, "_log") as mock_log,
@@ -415,11 +562,13 @@ def test_run_benchmark_guidellm_fails():
 
 def test_drain_already_zero():
     with (
+        patch.object(bm, "_abort_requests") as mock_abort,
         patch.object(bm, "_sum_counter_metric", return_value=0),
         patch.object(bm, "_log"),
         patch("time.sleep") as mock_sleep,
     ):
         bm._drain()
+    mock_abort.assert_called_once_with()
     mock_sleep.assert_not_called()
 
 
@@ -427,13 +576,54 @@ def test_drain_polls_until_zero():
     # Returns 3, 3, 0 on successive calls
     counter_calls = [3, 3, 0]
     with (
+        patch.object(bm, "_abort_requests") as mock_abort,
         patch.object(bm, "_sum_counter_metric", side_effect=counter_calls),
         patch.object(bm, "_log"),
         patch("time.sleep") as mock_sleep,
     ):
         bm._drain()
+    mock_abort.assert_called_once_with()
     assert mock_sleep.call_count == 2
     mock_sleep.assert_called_with(2)
+
+
+def test_drain_falls_back_when_abort_endpoint_is_absent():
+    not_found = urllib.error.HTTPError(
+        f"{bm.VLLM_BASE_URL}/abort_requests", 404, "Not Found", None, None
+    )
+    with (
+        patch.object(bm, "_abort_requests", side_effect=not_found),
+        patch.object(bm, "_sum_counter_metric", return_value=0),
+        patch.object(bm, "_log") as mock_log,
+    ):
+        bm._drain()
+
+    assert "falling back to passive drain" in mock_log.call_args_list[1].args[0]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        urllib.error.HTTPError(
+            f"{bm.VLLM_BASE_URL}/abort_requests",
+            500,
+            "Internal Server Error",
+            None,
+            None,
+        ),
+        OSError("connection failed"),
+    ],
+)
+def test_drain_propagates_control_failure(error):
+    with (
+        patch.object(bm, "_abort_requests", side_effect=error),
+        patch.object(bm, "_sum_counter_metric") as mock_metric,
+        patch.object(bm, "_log"),
+        pytest.raises(type(error)),
+    ):
+        bm._drain()
+
+    mock_metric.assert_not_called()
 
 
 def test_drain_timeout():
@@ -441,6 +631,7 @@ def test_drain_timeout():
     # monotonic() returns: initial call (deadline set), then past-deadline on second call
     mono_values = [0.0, 301.0]
     with (
+        patch.object(bm, "_abort_requests"),
         patch.object(bm, "_sum_counter_metric", return_value=1),
         patch.object(bm, "_log"),
         patch("time.sleep"),
@@ -527,6 +718,39 @@ def test_main_benchmark_failure_exits_1(monkeypatch):
     assert data["vllm_total_tpm"] == -1.0
     assert data["ttft_avg_ms"] == -1.0
     assert data["tpot_avg_ms"] == -1.0
+
+
+def test_main_resume_failure_exits_1(monkeypatch):
+    monkeypatch.delenv("POD_INDEX", raising=False)
+    written = []
+    resume_failure = urllib.error.HTTPError(
+        f"{bm.VLLM_BASE_URL}/abort_requests",
+        500,
+        "Internal Server Error",
+        None,
+        None,
+    )
+
+    with (
+        patch.object(bm, "_health_check", return_value=True),
+        patch.object(bm, "_run_benchmark", return_value=(12345.67, 42.12, 3.46, 256)),
+        patch.object(bm, "_drain", side_effect=resume_failure),
+        patch.object(
+            bm, "_write_to_pid1", side_effect=lambda line, fd=1: written.append(line)
+        ),
+        patch("time.time", return_value=0.0),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        bm.main()
+
+    assert exc_info.value.code == 1
+    result_line = next(line for line in written if "KAITO_BENCHMARK_RESULT" in line)
+    payload = json.loads(result_line[result_line.index("{") :])
+    assert payload == {
+        "vllm_total_tpm": -1.0,
+        "ttft_avg_ms": -1.0,
+        "tpot_avg_ms": -1.0,
+    }
 
 
 def test_main_exactly_one_result_line_on_success(monkeypatch):

@@ -23,6 +23,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
+
+	"github.com/kaito-project/kaito/pkg/utils/consts"
+	"github.com/kaito-project/kaito/pkg/utils/speculativedecoding"
 )
 
 func (is *InferenceSet) SupportedVerbs() []admissionregistrationv1.OperationType {
@@ -48,6 +51,7 @@ func (is *InferenceSet) Validate(ctx context.Context) (errs *apis.FieldError) {
 			is.validateUpdate(old).ViaField("spec"),
 		)
 	}
+	errs = errs.Also(is.validateSpeculativeDecoding())
 	return errs
 }
 
@@ -56,12 +60,60 @@ func (is *InferenceSet) validateCreate() (errs *apis.FieldError) {
 	if is.Spec.Replicas != nil && *is.Spec.Replicas < 0 {
 		errs = errs.Also(apis.ErrInvalidValue(*is.Spec.Replicas, "replicas", "must be non-negative"))
 	}
+	errs = errs.Also(is.validateInstanceType().ViaField("template"))
 	errs = errs.Also(validateMaintenanceWindow(is.Spec.AutoUpgrade))
 	return errs
 }
 
 func (is *InferenceSet) validateUpdate(_ *InferenceSet) (errs *apis.FieldError) {
+	errs = errs.Also(is.validateInstanceType().ViaField("template"))
 	errs = errs.Also(validateMaintenanceWindow(is.Spec.AutoUpgrade))
+	return errs
+}
+
+// validateSpeculativeDecoding mirrors the v1beta1 InferenceSet validator for
+// the kaito.sh/enable-speculative-decoding opt-in so both served versions
+// enforce the same admission contract.
+func (is *InferenceSet) validateSpeculativeDecoding() (errs *apis.FieldError) {
+	inf := is.Spec.Template.Inference
+	presetName := ""
+	if inf.Preset != nil {
+		presetName = string(inf.Preset.Name)
+	}
+	runtime := EffectiveInferenceRuntime(is.Spec.Template.Annotations)
+
+	status, invalidValue := speculativedecoding.ValidateOptIn(
+		is.Spec.Template.Annotations,
+		AnnotationEnableSpeculativeDecoding,
+		presetName,
+		runtime,
+	)
+	switch status {
+	case speculativedecoding.OptInDisabled:
+		return nil
+	case speculativedecoding.OptInInvalidValue:
+		return errs.Also(apis.ErrInvalidValue(
+			fmt.Sprintf("annotation %s has invalid value %q; expected \"true\" or \"false\"", AnnotationEnableSpeculativeDecoding, invalidValue),
+			fmt.Sprintf("spec.template.metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	case speculativedecoding.OptInMissingPreset:
+		return errs.Also(apis.ErrGeneric(
+			"kaito.sh/enable-speculative-decoding requires a preset inference; remove the annotation or set spec.template.inference.preset.name",
+			fmt.Sprintf("spec.template.metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	case speculativedecoding.OptInRuntimeMismatch:
+		return errs.Also(apis.ErrGeneric(
+			fmt.Sprintf(
+				"kaito.sh/enable-speculative-decoding requires the vLLM runtime; effective runtime resolves to %q (preset %q)",
+				runtime, presetName,
+			),
+			fmt.Sprintf("spec.template.metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	}
+
+	// Any preset is accepted: presets registered in generator.speculativeDecodingByPreset
+	// get their preset-tuned config (e.g. mtp for DeepSeek R1/V3/V3.2); everything else
+	// falls back to the universal ngram default at pod-spec generation time.
 	return errs
 }
 
@@ -81,6 +133,28 @@ func validateMaintenanceWindow(autoUpgrade *AutoUpgradePolicy) (errs *apis.Field
 	if window.Duration != nil && window.Duration.Duration <= 0 {
 		errs = errs.Also(apis.ErrInvalidValue(window.Duration.Duration.String(), "autoUpgrade.maintenanceWindow.duration",
 			"must be a positive duration"))
+	}
+	return errs
+}
+
+// validateInstanceType ensures instanceType is set when node auto-provisioning
+// is enabled, and is empty when using BYO (Bring Your Own) nodes.
+func (is *InferenceSet) validateInstanceType() (errs *apis.FieldError) {
+	instanceType := is.Spec.Template.Resource.InstanceType
+	switch consts.ActiveNodeProvisioner {
+	case consts.NodeProvisionerBYO:
+		// BYO mode: instanceType must be empty.
+		if instanceType != "" {
+			errs = errs.Also(apis.ErrInvalidValue(instanceType, "resource.instanceType",
+				"instanceType must be empty when nodeProvisioner is byo"))
+		}
+	case consts.NodeProvisionerKarpenter, consts.NodeProvisionerAzureGPU:
+		// Auto-provisioning modes: instanceType is required.
+		if instanceType == "" {
+			errs = errs.Also(apis.ErrMissingField("resource.instanceType"))
+		}
+	default:
+		// Unknown or unset provisioner: no validation (backward compat).
 	}
 	return errs
 }

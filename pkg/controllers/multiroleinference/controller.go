@@ -437,8 +437,9 @@ func (r *MultiRoleInferenceReconciler) reconcileInferenceSet(
 		}
 
 		// LabelSelector — start from the MRI's labelSelector and inject role info.
-		// The InferenceSet controller propagates Spec.Selector to workspace.Resource.LabelSelector,
-		// so role-specific labels must be in the selector to ensure correct node selection.
+		// Template labels below carry the same keys so child Workspaces match it. With node
+		// auto-provisioning, the InferenceSet controller also inherits it as the Workspace
+		// node selector, so role-specific labels land on the provisioned nodes.
 		desired.Spec.Selector = mri.Spec.LabelSelector.DeepCopy()
 		if desired.Spec.Selector == nil {
 			desired.Spec.Selector = &metav1.LabelSelector{}
@@ -463,13 +464,17 @@ func (r *MultiRoleInferenceReconciler) reconcileInferenceSet(
 		// Template metadata annotations: propagate the MRI's own annotations so opt-outs
 		// (e.g. kaito.sh/model-streaming, kaito.sh/disable-benchmark) reach child workspaces.
 		// The InferenceSet controller clones Spec.Template.Annotations onto each workspace.
+		// Preserve nil for the empty case so CreateOrUpdate does not fight API-server
+		// round-tripping of empty maps, while still assigning nil to clear previously
+		// propagated annotations through MRI -> InferenceSet -> Workspace.
+		var templateAnnotations map[string]string
 		if len(mri.Annotations) > 0 {
-			templateAnnotations := make(map[string]string, len(mri.Annotations))
+			templateAnnotations = make(map[string]string, len(mri.Annotations))
 			for k, v := range mri.Annotations {
 				templateAnnotations[k] = v
 			}
-			desired.Spec.Template.Annotations = templateAnnotations
 		}
+		desired.Spec.Template.Annotations = templateAnnotations
 
 		// Resource.
 		desired.Spec.Template.Resource = kaitov1beta1.InferenceSetResourceSpec{
@@ -518,6 +523,8 @@ const (
 // defaultPDPluginsConfigTemplate is the default EPP plugins YAML template for P/D disaggregated serving.
 // Uses the llm-d EndpointPickerConfig format with schedulingProfiles for prefill and decode.
 // approx-prefix-cache-producer is used for prefix cache awareness (no tokenizer sidecar needed).
+// kv-cache-utilization-scorer leverages vLLM KV cache events (enabled by default on vLLM pods)
+// to score endpoints by available KV cache capacity, spreading traffic away from high-pressure pods.
 const defaultPDPluginsConfigTemplate = `apiVersion: inference.networking.x-k8s.io/v1alpha1
 kind: EndpointPickerConfig
 plugins:
@@ -546,6 +553,7 @@ plugins:
   - type: load-aware-scorer
     parameters:
       threshold: 10
+  - type: kv-cache-utilization-scorer
   - type: max-score-picker
 schedulingProfiles:
   - name: prefill
@@ -553,12 +561,16 @@ schedulingProfiles:
       - pluginRef: prefill-filter
       - pluginRef: load-aware-scorer
         weight: 10
+      - pluginRef: kv-cache-utilization-scorer
+        weight: 5
       - pluginRef: max-score-picker
   - name: decode
     plugins:
       - pluginRef: decode-filter
       - pluginRef: load-aware-scorer
         weight: 10
+      - pluginRef: kv-cache-utilization-scorer
+        weight: 5
       - pluginRef: max-score-picker
 `
 
@@ -624,8 +636,8 @@ func (r *MultiRoleInferenceReconciler) reconcileInferencePool(
 	// Build EPP extension values with llm-d image and P/D plugins config.
 	eppValues := map[string]any{
 		"image": map[string]string{
-			"hub":        consts.EPPImageHub,
-			"name":       consts.EPPImageName,
+			"registry":   consts.EPPImageRegistry,
+			"repository": consts.EPPImageRepository,
 			"tag":        consts.EPPImageTag,
 			"pullPolicy": string(corev1.PullIfNotPresent),
 		},
@@ -652,11 +664,17 @@ func (r *MultiRoleInferenceReconciler) reconcileInferencePool(
 	// On prefill pods vLLM listens directly on 5000; on decode pods the routing
 	// sidecar listens on 5000 and transparently proxies /metrics to vLLM on 5001.
 	// This keeps a single metrics port across roles, avoiding per-role EPP config.
-	// Disable secure-serving so the Gateway can reach EPP over plaintext gRPC
-	// without requiring TLS DestinationRules or certificate bootstrapping.
 	eppValues["flags"] = map[string]string{
-		"secure-serving":            "false",
 		"model-server-metrics-port": fmt.Sprintf("%d", consts.PortInferenceServer),
+	}
+	eppValues["resources"] = map[string]any{
+		"requests": map[string]string{
+			"cpu":    "1",
+			"memory": "2Gi",
+		},
+		"limits": map[string]string{
+			"memory": "16Gi",
+		},
 	}
 	// No tokenizer sidecar: the EPP plugin pipeline (approx-prefix-cache-producer
 	// + prefix-based-pd-decider) does not require a token-producer plugin, so a
@@ -666,13 +684,13 @@ func (r *MultiRoleInferenceReconciler) reconcileInferencePool(
 	// it unconditionally.
 
 	helmValues := map[string]any{
-		"inferenceExtension": eppValues,
-		"inferencePool": map[string]any{
-			"targetPorts": []map[string]any{
-				{"number": consts.PortInferenceServer}, // sidecar (decode) or vLLM (prefill) on port 5000
-			},
+		"router": map[string]any{
+			"epp": eppValues,
 			"modelServers": map[string]any{
 				"matchLabels": matchLabels,
+				"targetPorts": []map[string]any{
+					{"number": consts.PortInferenceServer}, // sidecar (decode) or vLLM (prefill) on port 5000
+				},
 			},
 		},
 	}

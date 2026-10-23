@@ -46,6 +46,16 @@ type CatalogEntry struct {
 	QKRopeHeadDim     int      `yaml:"qkRopeHeadDim,omitempty"`
 	QuantMethod       string   `yaml:"quantMethod,omitempty"`
 	QuantBits         int      `yaml:"quantBits,omitempty"`
+	// MambaStateBytesPerSeq is the per-sequence recurrent state cache size in bytes
+	// (single TP rank) for hybrid Mamba/linear-attention models.
+	MambaStateBytesPerSeq int `yaml:"mambaStateBytesPerSeq,omitempty"`
+	// MambaStateBytesPerLayer is the per-linear-layer, single-TP-rank hybrid state
+	// cache size; with the layer counts below it bounds vLLM's Mamba-cache-block count.
+	MambaStateBytesPerLayer int `yaml:"mambaStateBytesPerLayer,omitempty"`
+	// NumFullAttnLayers is the number of full-attention layers in a hybrid model.
+	NumFullAttnLayers int `yaml:"numFullAttnLayers,omitempty"`
+	// NumLinearLayers is the number of linear-attention / Mamba layers in a hybrid model.
+	NumLinearLayers int `yaml:"numLinearLayers,omitempty"`
 }
 
 // ModelCatalog holds the list of pre-computed model entries.
@@ -56,7 +66,7 @@ type ModelCatalog struct {
 // configKeyMap maps catalog field names to the ordered list of HuggingFace
 // config keys to try, mirroring the getInt lookup order.
 var configKeyMap = map[string][]string{
-	"modelTokenLimit":   {"max_position_embeddings", "n_ctx", "seq_length", "max_seq_len", "max_sequence_length"},
+	"modelTokenLimit":   {"max_position_embeddings", "n_ctx", "seq_length", "max_seq_len", "max_sequence_length", "model_max_length"},
 	"hiddenSize":        {"hidden_size", "n_embd", "d_model", "dim"},
 	"numHiddenLayers":   {"num_hidden_layers", "n_layer", "n_layers"},
 	"numAttentionHeads": {"num_attention_heads", "n_head", "n_heads"},
@@ -159,6 +169,14 @@ func FetchCatalogEntry(repo, token string) (*CatalogEntry, error) {
 	entry.ModelTokenLimit = getInt(config, configKeyMap["modelTokenLimit"], 0)
 	entry.HiddenSize = getInt(config, configKeyMap["hiddenSize"], 0)
 	entry.NumHiddenLayers = getInt(config, configKeyMap["numHiddenLayers"], 0)
+	// Hybrid Mamba/Attention models (e.g. Nemotron-H) omit num_hidden_layers and
+	// instead enumerate their blocks in layers_block_type. Fall back to that
+	// length so KV-cache sizing has a layer count to work with.
+	if entry.NumHiddenLayers == 0 {
+		if lbt, ok := config["layers_block_type"].([]interface{}); ok {
+			entry.NumHiddenLayers = len(lbt)
+		}
+	}
 	entry.NumAttentionHeads = getInt(config, configKeyMap["numAttentionHeads"], 0)
 	entry.NumKeyValueHeads = getInt(config, configKeyMap["numKeyValueHeads"], 0)
 
@@ -177,6 +195,13 @@ func FetchCatalogEntry(repo, token string) (*CatalogEntry, error) {
 		entry.QuantMethod = getString(qc, optionalKeyMap["quantMethod"])
 		entry.QuantBits = getInt(qc, []string{"bits"}, 0)
 	}
+
+	// Reserve Mamba-2 state for hybrid Mamba/Attention models (e.g. NemotronH).
+	mambaInfo := computeMambaLayerInfo(config)
+	entry.MambaStateBytesPerSeq = mambaInfo.PerLayerBytes * mambaInfo.NumLinearLayers
+	entry.MambaStateBytesPerLayer = mambaInfo.PerLayerBytes
+	entry.NumFullAttnLayers = mambaInfo.NumFullAttnLayers
+	entry.NumLinearLayers = mambaInfo.NumLinearLayers
 
 	// Copy format fields from generator (only when non-default)
 	if g.LoadFormat != "auto" {

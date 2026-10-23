@@ -95,10 +95,13 @@ spec:
       apps: phi-4-mini
   replicas: 1
   template:
+    metadata:
+      labels:
+        apps: phi-4-mini
     inference:
       preset:
         accessMode: public
-        name: phi-4-mini-instruct
+        name: microsoft/Phi-4-mini-instruct
     resource:
       instanceType: Standard_NC24ads_A100_v4
 EOF
@@ -197,10 +200,13 @@ spec:
       apps: phi-4-mini
   replicas: 1
   template:
+    metadata:
+      labels:
+        apps: phi-4-mini
     inference:
       preset:
         accessMode: public
-        name: phi-4-mini-instruct
+        name: microsoft/Phi-4-mini-instruct
     resource:
       instanceType: Standard_NC24ads_A100_v4
 EOF

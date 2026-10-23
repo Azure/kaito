@@ -20,12 +20,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/kaito-project/kaito/pkg/model"
 )
 
 func TestGeneratePreset(t *testing.T) {
-	// These expected values are derived from presets/workspace/generator/preset_generator_test.py
+	// These expected values cover representative Hugging Face model configurations.
 	cases := []struct {
 		modelRepo     string
 		expectedParam model.PresetParam
@@ -37,9 +38,7 @@ func TestGeneratePreset(t *testing.T) {
 				Metadata: model.Metadata{
 					Name:                   "phi-4-mini-instruct",
 					Architectures:          []string{"Phi3ForCausalLM"},
-					ModelType:              "tfs",
 					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "microsoft/Phi-4-mini-instruct"),
-					DownloadAtRuntime:      true,
 					DownloadAuthRequired:   false,
 					ModelFileSize:          "7.15Gi",
 					BytesPerToken:          131072,
@@ -64,9 +63,7 @@ func TestGeneratePreset(t *testing.T) {
 				Metadata: model.Metadata{
 					Name:                   "falcon-7b-instruct",
 					Architectures:          []string{"FalconForCausalLM"},
-					ModelType:              "tfs",
 					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "tiiuae/falcon-7b-instruct"),
-					DownloadAtRuntime:      true,
 					DownloadAuthRequired:   false,
 					ModelFileSize:          "13.44Gi", // Python test expects 27Gi due to double counting (bin+safetensors). We fix this to use safetensors only.
 					BytesPerToken:          8192,
@@ -91,9 +88,7 @@ func TestGeneratePreset(t *testing.T) {
 				Metadata: model.Metadata{
 					Name:                   "ministral-3-8b-instruct-2512",
 					Architectures:          []string{"Mistral3ForConditionalGeneration"},
-					ModelType:              "tfs",
 					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "mistralai/Ministral-3-8B-Instruct-2512"),
-					DownloadAtRuntime:      true,
 					DownloadAuthRequired:   false,
 					ModelFileSize:          "9.70Gi",
 					BytesPerToken:          139264,
@@ -119,9 +114,7 @@ func TestGeneratePreset(t *testing.T) {
 				Metadata: model.Metadata{
 					Name:                   "mistral-large-3-675b-instruct-2512",
 					Architectures:          []string{"MistralLarge3ForCausalLM"},
-					ModelType:              "tfs",
 					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "mistralai/Mistral-Large-3-675B-Instruct-2512"),
-					DownloadAtRuntime:      true,
 					DownloadAuthRequired:   false,
 					ModelFileSize:          "634.70Gi",
 					BytesPerToken:          70272,
@@ -148,9 +141,7 @@ func TestGeneratePreset(t *testing.T) {
 				Metadata: model.Metadata{
 					Name:                   "qwen3-coder-30b-a3b-instruct",
 					Architectures:          []string{"Qwen3MoeForCausalLM"},
-					ModelType:              "tfs",
 					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "Qwen/Qwen3-Coder-30B-A3B-Instruct"),
-					DownloadAtRuntime:      true,
 					DownloadAuthRequired:   false,
 					ModelFileSize:          "56.87Gi",
 					BytesPerToken:          98304,
@@ -177,9 +168,7 @@ func TestGeneratePreset(t *testing.T) {
 				Metadata: model.Metadata{
 					Name:                   "qwen3-8b",
 					Architectures:          []string{"Qwen3ForCausalLM"},
-					ModelType:              "tfs",
 					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "Qwen/Qwen3-8B"),
-					DownloadAtRuntime:      true,
 					DownloadAuthRequired:   false,
 					ModelFileSize:          "15.26Gi",
 					BytesPerToken:          147456,
@@ -206,9 +195,7 @@ func TestGeneratePreset(t *testing.T) {
 				Metadata: model.Metadata{
 					Name:                   "deepseek-v3.1",
 					Architectures:          []string{"DeepseekV3ForCausalLM"},
-					ModelType:              "tfs",
 					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "deepseek-ai/DeepSeek-V3.1"),
-					DownloadAtRuntime:      true,
 					DownloadAuthRequired:   false,
 					ModelFileSize:          "641.30Gi",
 					BytesPerToken:          70272,
@@ -225,7 +212,7 @@ func TestGeneratePreset(t *testing.T) {
 				ModelRunParams: map[string]string{
 					"load_format":    "auto",
 					"config_format":  "auto",
-					"tokenizer_mode": "auto",
+					"tokenizer_mode": "deepseek_v32",
 				},
 				DisallowLoRA: false,
 			},
@@ -236,9 +223,7 @@ func TestGeneratePreset(t *testing.T) {
 				Metadata: model.Metadata{
 					Name:                   "deepseek-v3",
 					Architectures:          []string{"DeepseekV3ForCausalLM"},
-					ModelType:              "tfs",
 					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "deepseek-ai/DeepSeek-V3"),
-					DownloadAtRuntime:      true,
 					DownloadAuthRequired:   false,
 					ModelFileSize:          "641.30Gi",
 					BytesPerToken:          70272,
@@ -255,7 +240,61 @@ func TestGeneratePreset(t *testing.T) {
 				ModelRunParams: map[string]string{
 					"load_format":    "auto",
 					"config_format":  "auto",
-					"tokenizer_mode": "auto",
+					"tokenizer_mode": "deepseek_v32",
+				},
+				DisallowLoRA: false,
+			},
+		},
+		{
+			modelRepo: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+			expectedParam: model.PresetParam{
+				Metadata: model.Metadata{
+					Name:                   "deepseek-r1-distill-llama-8b",
+					Architectures:          []string{"LlamaForCausalLM"},
+					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"),
+					DownloadAuthRequired:   false,
+					ModelFileSize:          "14.96Gi",
+					BytesPerToken:          131072,
+					ModelTokenLimit:        131072,
+					DiskStorageRequirement: "94Gi",
+					ReasoningParser:        "deepseek_r1",
+					ToolCallParser:         "llama3_json",
+					AttnType:               "GQA",
+				},
+			},
+			expectedVLLM: model.VLLMParam{
+				ModelName: "deepseek-r1-distill-llama-8b",
+				ModelRunParams: map[string]string{
+					"load_format":    "auto",
+					"config_format":  "auto",
+					"tokenizer_mode": "deepseek_v32",
+				},
+				DisallowLoRA: false,
+			},
+		},
+		{
+			modelRepo: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+			expectedParam: model.PresetParam{
+				Metadata: model.Metadata{
+					Name:                   "deepseek-r1-distill-qwen-14b",
+					Architectures:          []string{"Qwen2ForCausalLM"},
+					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B"),
+					DownloadAuthRequired:   false,
+					ModelFileSize:          "27.51Gi",
+					BytesPerToken:          196608,
+					ModelTokenLimit:        131072,
+					DiskStorageRequirement: "107Gi",
+					ReasoningParser:        "deepseek_r1",
+					ToolCallParser:         "hermes",
+					AttnType:               "GQA",
+				},
+			},
+			expectedVLLM: model.VLLMParam{
+				ModelName: "deepseek-r1-distill-qwen-14b",
+				ModelRunParams: map[string]string{
+					"load_format":    "auto",
+					"config_format":  "auto",
+					"tokenizer_mode": "deepseek_v32",
 				},
 				DisallowLoRA: false,
 			},
@@ -266,9 +305,7 @@ func TestGeneratePreset(t *testing.T) {
 				Metadata: model.Metadata{
 					Name:                   "nemotron-orchestrator-8b",
 					Architectures:          []string{"Qwen3ForCausalLM"},
-					ModelType:              "tfs",
 					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "nvidia/Nemotron-Orchestrator-8B"),
-					DownloadAtRuntime:      true,
 					DownloadAuthRequired:   false,
 					ModelFileSize:          "30.51Gi",
 					BytesPerToken:          147456,
@@ -295,9 +332,7 @@ func TestGeneratePreset(t *testing.T) {
 				Metadata: model.Metadata{
 					Name:                   "qwen3-8b-awq",
 					Architectures:          []string{"Qwen3ForCausalLM"},
-					ModelType:              "tfs",
 					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "Qwen/Qwen3-8B-AWQ"),
-					DownloadAtRuntime:      true,
 					DownloadAuthRequired:   false,
 					ModelFileSize:          "5.68Gi",
 					BytesPerToken:          147456,
@@ -331,9 +366,7 @@ func TestGeneratePreset(t *testing.T) {
 			// Metadata checks
 			assert.Equal(t, tc.expectedParam.Name, param.Name)
 			assert.Equal(t, tc.expectedParam.Architectures, param.Architectures)
-			assert.Equal(t, tc.expectedParam.ModelType, param.ModelType)
 			assert.Equal(t, tc.expectedParam.Version, param.Version)
-			assert.Equal(t, tc.expectedParam.DownloadAtRuntime, param.DownloadAtRuntime)
 			assert.Equal(t, tc.expectedParam.DownloadAuthRequired, param.DownloadAuthRequired)
 			assert.Equal(t, tc.expectedParam.Metadata.ModelFileSize, param.Metadata.ModelFileSize)
 			assert.Equal(t, tc.expectedParam.Metadata.BytesPerToken, param.Metadata.BytesPerToken)
@@ -356,6 +389,48 @@ func TestGeneratePreset(t *testing.T) {
 }
 
 // this test only makes sure that all keys in reasoningParserModeNamePrefixMap are lowercased
+// TestValidateSupportedConfig covers the shared quantization gate that both
+// Generate() (preset/HF) and GenerateFromConfig() (custom) run before parsing.
+// A quantization_config with no named method is rejected for every path,
+// because the loader keys its dtype handling off the method name.
+func TestValidateSupportedConfig(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    map[string]interface{}
+		expectErr bool
+	}{
+		{
+			name:   "no quantization_config",
+			config: map[string]interface{}{"architectures": []interface{}{"LlamaForCausalLM"}},
+		},
+		{
+			name:   "named quant_method",
+			config: map[string]interface{}{"quantization_config": map[string]interface{}{"quant_method": "fp8"}},
+		},
+		{
+			name:   "named via format",
+			config: map[string]interface{}{"quantization_config": map[string]interface{}{"format": "float-quantized"}},
+		},
+		{
+			name:      "unnamed quantization",
+			config:    map[string]interface{}{"quantization_config": map[string]interface{}{"bits": 4}},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSupportedConfig(tt.config)
+			if tt.expectErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "quantization method")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestReasoningParserMap(t *testing.T) {
 	for key := range reasoningParserModeNamePrefixMap {
 		assert.Equal(t, key, strings.ToLower(key), "reasoningParserModeNamePrefixMap key is not lowercased: %s", key)
@@ -483,9 +558,7 @@ func TestLoadFromCatalog(t *testing.T) {
 				Metadata: model.Metadata{
 					Name:                   "phi-4-mini-instruct",
 					Architectures:          []string{"Phi3ForCausalLM"},
-					ModelType:              "tfs",
 					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "microsoft/Phi-4-mini-instruct"),
-					DownloadAtRuntime:      true,
 					ModelFileSize:          "7.15Gi",
 					BytesPerToken:          131072,
 					ModelTokenLimit:        131072,
@@ -501,9 +574,7 @@ func TestLoadFromCatalog(t *testing.T) {
 				Metadata: model.Metadata{
 					Name:                   "phi-4",
 					Architectures:          []string{"Phi3ForCausalLM"},
-					ModelType:              "tfs",
 					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "microsoft/phi-4"),
-					DownloadAtRuntime:      true,
 					ModelFileSize:          "27.31Gi",
 					BytesPerToken:          204800,
 					ModelTokenLimit:        16384,
@@ -513,57 +584,18 @@ func TestLoadFromCatalog(t *testing.T) {
 			},
 		},
 		{
-			modelRepo:   "google/gemma-3-4b-it",
+			modelRepo:   "google/gemma-4-E4B-it",
 			expectFound: true,
 			expectedParam: model.PresetParam{
 				Metadata: model.Metadata{
-					Name:                   "gemma-3-4b-it",
-					Architectures:          []string{"Gemma3ForConditionalGeneration"},
-					ModelType:              "tfs",
-					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "google/gemma-3-4b-it"),
-					DownloadAtRuntime:      true,
-					ModelFileSize:          "8.01Gi",
-					BytesPerToken:          139264,
+					Name:                   "gemma-4-e4b-it",
+					Architectures:          []string{"Gemma4ForConditionalGeneration"},
+					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "google/gemma-4-E4B-it"),
+					ModelFileSize:          "14.89Gi",
+					BytesPerToken:          86016,
 					ModelTokenLimit:        131072,
-					DiskStorageRequirement: "88Gi",
-					ToolCallParser:         "functiongemma",
-					AttnType:               "GQA",
-				},
-			},
-		},
-		{
-			modelRepo:   "mistralai/Mistral-7B-v0.3",
-			expectFound: true,
-			expectedParam: model.PresetParam{
-				Metadata: model.Metadata{
-					Name:                   "mistral-7b-v0.3",
-					Architectures:          []string{"MistralForCausalLM"},
-					ModelType:              "tfs",
-					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "mistralai/Mistral-7B-v0.3"),
-					DownloadAtRuntime:      true,
-					ModelFileSize:          "13.50Gi",
-					BytesPerToken:          131072,
-					ModelTokenLimit:        32768,
-					DiskStorageRequirement: "93Gi",
-					ToolCallParser:         "mistral",
-					AttnType:               "GQA",
-				},
-			},
-		},
-		{
-			modelRepo:   "mistralai/Ministral-3-8B-Instruct-2512",
-			expectFound: true,
-			expectedParam: model.PresetParam{
-				Metadata: model.Metadata{
-					Name:                   "ministral-3-8b-instruct-2512",
-					Architectures:          []string{"Mistral3ForConditionalGeneration"},
-					ModelType:              "tfs",
-					Version:                fmt.Sprintf("%s/%s", HuggingFaceWebsite, "mistralai/Ministral-3-8B-Instruct-2512"),
-					DownloadAtRuntime:      true,
-					ModelFileSize:          "9.70Gi",
-					BytesPerToken:          139264,
-					ModelTokenLimit:        262144,
-					DiskStorageRequirement: "89Gi",
+					DiskStorageRequirement: "94Gi",
+					ToolCallParser:         "gemma4",
 					AttnType:               "GQA",
 				},
 			},
@@ -594,15 +626,49 @@ func TestLoadFromCatalog(t *testing.T) {
 
 			assert.Equal(t, tc.expectedParam.Name, gen.Param.Name)
 			assert.Equal(t, tc.expectedParam.Architectures, gen.Param.Architectures)
-			assert.Equal(t, tc.expectedParam.ModelType, gen.Param.ModelType)
 			assert.Equal(t, tc.expectedParam.Version, gen.Param.Version)
-			assert.Equal(t, tc.expectedParam.DownloadAtRuntime, gen.Param.DownloadAtRuntime)
 			assert.Equal(t, tc.expectedParam.Metadata.ModelFileSize, gen.Param.Metadata.ModelFileSize)
 			assert.Equal(t, tc.expectedParam.Metadata.BytesPerToken, gen.Param.Metadata.BytesPerToken)
 			assert.Equal(t, tc.expectedParam.Metadata.ModelTokenLimit, gen.Param.Metadata.ModelTokenLimit)
 			assert.Equal(t, tc.expectedParam.Metadata.DiskStorageRequirement, gen.Param.Metadata.DiskStorageRequirement)
 			assert.Equal(t, tc.expectedParam.Metadata.ToolCallParser, gen.Param.Metadata.ToolCallParser)
 			assert.Equal(t, tc.expectedParam.AttnType, gen.Param.AttnType)
+		})
+	}
+}
+
+func TestKVCacheDtypeByArchitecture(t *testing.T) {
+	for _, tc := range []struct {
+		architecture string
+		want         string
+	}{
+		{"GlmMoeDsaForCausalLM", "fp8"},
+		{"DeepseekV4ForCausalLM", "fp8"},
+	} {
+		t.Run(tc.architecture, func(t *testing.T) {
+			gen := NewGenerator("test/model", "")
+			gen.Param.Metadata.Architectures = []string{tc.architecture}
+			gen.FinalizeParams()
+			assert.Equal(t, tc.want, gen.Param.VLLM.ModelRunParams["kv-cache-dtype"])
+		})
+	}
+}
+
+func TestTokenizerModeByArchitecture(t *testing.T) {
+	for _, tc := range []struct {
+		architecture string
+		want         string
+	}{
+		{"DeepseekV3ForCausalLM", "deepseek_v32"},
+		{"DeepseekV32ForCausalLM", "deepseek_v32"},
+		{"DeepseekV4ForCausalLM", "deepseek_v4"},
+		{"DeepseekV41ForCausalLM", "deepseek_v41"},
+	} {
+		t.Run(tc.architecture, func(t *testing.T) {
+			gen := NewGenerator("test/model", "")
+			gen.Param.Metadata.Architectures = []string{tc.architecture}
+			gen.FinalizeParams()
+			assert.Equal(t, tc.want, gen.Param.VLLM.ModelRunParams["tokenizer_mode"])
 		})
 	}
 }
@@ -614,11 +680,7 @@ func TestLoadFromCatalogMistralFormats(t *testing.T) {
 	// Mistral catalog entries should set load_format, config_format, tokenizer_mode
 	// to "mistral" in VLLM.ModelRunParams after FinalizeParams.
 	mistralRepos := []string{
-		"mistralai/Mistral-7B-v0.3",
-		"mistralai/Mistral-7B-Instruct-v0.3",
-		"mistralai/Ministral-3-3B-Instruct-2512",
-		"mistralai/Ministral-3-8B-Instruct-2512",
-		"mistralai/Ministral-3-14B-Instruct-2512",
+		"mistralai/Mistral-Medium-3.5-128B",
 	}
 
 	for _, repo := range mistralRepos {
@@ -639,8 +701,8 @@ func TestLoadFromCatalogMistralFormats(t *testing.T) {
 
 	// Non-Mistral catalog entries should have "auto" for all format fields.
 	nonMistralRepos := []string{
-		"google/gemma-3-4b-it",
-		"google/gemma-3-27b-it",
+		"google/gemma-4-E4B-it",
+		"google/gemma-4-31B-it",
 		"microsoft/Phi-4-mini-instruct",
 	}
 
@@ -657,6 +719,99 @@ func TestLoadFromCatalogMistralFormats(t *testing.T) {
 			assert.Equal(t, "auto", gen.Param.VLLM.ModelRunParams["load_format"])
 			assert.Equal(t, "auto", gen.Param.VLLM.ModelRunParams["config_format"])
 			assert.Equal(t, "auto", gen.Param.VLLM.ModelRunParams["tokenizer_mode"])
+		})
+	}
+}
+
+func TestSupportsMaxNumSeqsEstimate(t *testing.T) {
+	assert.True(t, SupportsMaxNumSeqsEstimate([]string{"Qwen3_5ForConditionalGeneration"}, "NVIDIA H100"))
+	assert.True(t, SupportsMaxNumSeqsEstimate([]string{"Qwen3_5MoeForConditionalGeneration"}, "NVIDIA H100"))
+	assert.False(t, SupportsMaxNumSeqsEstimate([]string{"Qwen3_5ForConditionalGeneration"}, "NVIDIA A100"))
+	assert.False(t, SupportsMaxNumSeqsEstimate([]string{"OtherArchitecture"}, "NVIDIA H100"))
+	assert.False(t, SupportsMaxNumSeqsEstimate(nil, "NVIDIA H100"))
+}
+
+func TestResolveIndexerKVDtype(t *testing.T) {
+	architectures := []string{"Qwen4ExpForConditionalGeneration"}
+
+	dtype, ok := ResolveIndexerKVDtype(architectures, "NVIDIA H100")
+	assert.True(t, ok)
+	assert.Equal(t, "fp8", dtype)
+
+	dtype, ok = ResolveIndexerKVDtype(architectures, "A100-SXM4-80GB")
+	assert.True(t, ok)
+	assert.Equal(t, "bf16", dtype)
+
+	_, ok = ResolveIndexerKVDtype([]string{"OtherArchitecture"}, "NVIDIA H100")
+	assert.False(t, ok)
+}
+
+func TestResolveGPUModelPolicies(t *testing.T) {
+	assert.Equal(t, "0.82", ResolveGPUMemoryUtilization("NVIDIA-A10"))
+	assert.Equal(t, "0.92", ResolveGPUMemoryUtilization("NVIDIA A100"))
+
+	mode, ok := ResolveCUDAGraphMode("nvidia-nemotron-nano-9b-v2", "NVIDIA-A10")
+	assert.True(t, ok)
+	assert.Equal(t, "FULL_DECODE_ONLY", mode)
+
+	mode, ok = ResolveCUDAGraphMode("deepseek-v4-flash-0731", "NVIDIA A100")
+	assert.True(t, ok)
+	assert.Equal(t, "NONE", mode)
+
+	for _, modelName := range []string{"deepseek-v4.1-flash", "deepseek-v4.1-flash-1017", "deepseek-v4.1-flash-1101"} {
+		mode, ok = ResolveCUDAGraphMode(modelName, "NVIDIA-H100-80GB-HBM3")
+		assert.True(t, ok)
+		assert.Equal(t, "FULL_DECODE_ONLY", mode)
+
+		_, ok = ResolveCUDAGraphMode(modelName, "NVIDIA A100")
+		assert.False(t, ok)
+	}
+
+	_, ok = ResolveCUDAGraphMode("other-model", "NVIDIA H100")
+	assert.False(t, ok)
+
+	backend, ok := ResolveLinearBackend("mistral-medium-3.5-128b", "A100-SXM4-80GB")
+	assert.True(t, ok)
+	assert.Equal(t, "marlin", backend)
+
+	_, ok = ResolveLinearBackend("mistral-medium-3.5-128b", "NVIDIA H100")
+	assert.False(t, ok)
+}
+
+func TestResolveCUDAGraphModePrefixPrecedence(t *testing.T) {
+	original := cudagraphModeByModelAndGPU
+	t.Cleanup(func() {
+		cudagraphModeByModelAndGPU = original
+	})
+	cudagraphModeByModelAndGPU = map[modelGPUKey]string{
+		{modelName: "example"}:                                  "NONE",
+		{modelName: "example-specific"}:                         "PIECEWISE",
+		{modelName: "example", gpuModel: "NVIDIA H100"}:         "FULL_DECODE_ONLY",
+		{modelName: "example-special", gpuModel: "NVIDIA H100"}: "FULL",
+		{modelName: "example-longest", gpuModel: "NVIDIA A100"}: "NONE",
+	}
+
+	for _, tc := range []struct {
+		name      string
+		modelName string
+		gpuModel  string
+		want      string
+	}{
+		{"exact match", "example", "NVIDIA H100", "FULL_DECODE_ONLY"},
+		{"longest GPU-specific prefix", "example-special-update", "NVIDIA-H100-80GB-HBM3", "FULL"},
+		{"GPU-specific before longer generic prefix", "example-specific-update", "NVIDIA H100", "FULL_DECODE_ONLY"},
+		{"longest generic prefix", "example-specific-update", "NVIDIA A100", "PIECEWISE"},
+		{"generic fallback", "example-update", "NVIDIA A100", "NONE"},
+		{"unrelated GPU policy ignored", "example-longest-update", "NVIDIA H100", "FULL_DECODE_ONLY"},
+		{"unknown GPU uses generic policy", "example-special-update", "other-gpu", "NONE"},
+		{"unanchored name does not match", "other-example", "NVIDIA H100", ""},
+		{"shorter name does not match", "exam", "NVIDIA H100", ""},
+		{"empty name does not match", "", "NVIDIA H100", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mode, ok := ResolveCUDAGraphMode(tc.modelName, tc.gpuModel)
+			assert.Equal(t, tc.want, mode)
+			assert.Equal(t, tc.want != "", ok)
 		})
 	}
 }
@@ -704,6 +859,30 @@ func TestSelectWeightFiles(t *testing.T) {
 				{Path: "pytorch_model.bin", Size: 5000},
 			},
 			expectedPaths:     []string{"model.safetensors"},
+			expectedIsMistral: false,
+		},
+		{
+			name: "prefers root weights over alternate safetensors in subdirectories",
+			files: []FileInfo{
+				{Path: "model-00001-of-00002.safetensors", Size: 5000},
+				{Path: "model-00002-of-00002.safetensors", Size: 5000},
+				{Path: "original/model-00001-of-00002.safetensors", Size: 5000},
+				{Path: "original/model-00002-of-00002.safetensors", Size: 5000},
+				{Path: "metal/model.bin", Size: 10000},
+			},
+			expectedPaths: []string{
+				"model-00001-of-00002.safetensors",
+				"model-00002-of-00002.safetensors",
+			},
+			expectedIsMistral: false,
+		},
+		{
+			name: "ignores nested safetensors when no root weights exist",
+			files: []FileInfo{
+				{Path: "weights/model-00001-of-00002.safetensors", Size: 5000},
+				{Path: "weights/model-00002-of-00002.safetensors", Size: 5000},
+			},
+			expectedPaths:     nil,
 			expectedIsMistral: false,
 		},
 		{

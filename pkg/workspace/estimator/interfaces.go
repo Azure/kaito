@@ -18,6 +18,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	pkgmodel "github.com/kaito-project/kaito/pkg/model"
 )
 
 // RuntimeProfile carries runtime serving parameters resolved by the caller
@@ -28,18 +30,18 @@ type RuntimeProfile struct {
 	ContextSize int
 }
 
-// ModelProfile identifies the model to be served.
+// ModelProfile carries the model to be sized. The caller resolves it — from the
+// preset registry, a ConfigMap, or elsewhere — so the estimator stays
+// independent of how and from where the model was obtained.
 type ModelProfile struct {
-	// Name is the preset model name; an empty string means no preset inference.
-	Name string
-	// AccessToken is the pre-resolved access token for gated models (e.g. a HuggingFace API token).
-	// Pass an empty string for public models that require no authentication.
-	AccessToken string
+	// Model is the resolved model to size. A nil value means no inference preset
+	// is configured, and the estimator falls back to the requested node count.
+	Model pkgmodel.Model
 }
 
 // ResourceProfile describes the compute resources available for the workload.
 type ResourceProfile struct {
-	// InstanceType is the GPU SKU identifier (e.g. "Standard_NC4as_T4_v3").
+	// InstanceType is the GPU SKU identifier (e.g. "Standard_NV36ads_A10_v5").
 	InstanceType string
 	// RequestedNodeCount is the caller-preferred node count; 0 means unspecified.
 	RequestedNodeCount int
@@ -48,13 +50,18 @@ type ResourceProfile struct {
 	// DisableNodeAutoProvisioning indicates BYO (Bring Your Own) mode: no new nodes will be
 	// provisioned and the estimator must derive GPU config from existing ready nodes.
 	DisableNodeAutoProvisioning bool
+	// MIGProfile is the NVIDIA MIG partition profile (e.g. "1g.10gb"). Empty when MIG is not used.
+	MIGProfile string
+	// AcceleratorCount is the number of whole GPUs for an accelerator partition;
+	// zero when the accelerator partition mode is not used.
+	AcceleratorCount int
 }
 
 // NodeEstimateRequest holds all inputs needed to estimate the required node count.
 type NodeEstimateRequest struct {
 	// WorkspaceName is used for logging and diagnostics.
 	WorkspaceName string
-	// ModelProfile identifies the model preset and any access credentials.
+	// ModelProfile carries the resolved model to size.
 	ModelProfile ModelProfile
 	// ResourceProfile describes the compute resources for the workload.
 	ResourceProfile ResourceProfile

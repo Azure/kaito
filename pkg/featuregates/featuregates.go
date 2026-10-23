@@ -29,10 +29,13 @@ var (
 		consts.FeatureFlagDisableNodeAutoProvisioning:        false,
 		consts.FeatureFlagGatewayAPIInferenceExtension:       false,
 		consts.FeatureFlagEnableInferenceSetController:       true,
+		consts.FeatureFlagEnableMIG:                          false,
+		consts.FeatureFlagEnableAccelerator:                  false,
 		consts.FeatureFlagEnableMultiRoleInferenceController: false,
 		consts.FeatureFlagModelMirror:                        false,
 		consts.FeatureFlagModelStreaming:                     false,
 		consts.FeatureFlagEnableBaseImageAutoUpgrade:         false,
+		consts.FeatureFlagEnableEPPFlowControl:               false,
 		//	Add more feature gates here
 	}
 )

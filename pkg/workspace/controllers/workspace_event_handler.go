@@ -27,7 +27,7 @@ import (
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
 	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
-	"github.com/kaito-project/kaito/pkg/workspace/inference"
+	"github.com/kaito-project/kaito/pkg/workspace/inference/modelstreaming"
 )
 
 type nodeClaimEventHandler struct {
@@ -96,16 +96,16 @@ var enqueueWorkspaceForNodeClaim = handler.EnqueueRequestsFromMapFunc(
 		}
 	})
 
-// enqueueWorkspacesForModelMirror returns a handler that enqueues all workspaces
-// whose expected ModelMirror CR name matches the changed CR.
+// enqueueWorkspacesForModelMirror returns a handler that enqueues the workspaces in the
+// changed CR's namespace whose expected ModelMirror CR name matches it.
 func enqueueWorkspacesForModelMirror(kubeClient client.Client) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(
 		func(ctx context.Context, o client.Object) []reconcile.Request {
 			crName := o.GetName()
 
-			// List all workspaces across all namespaces.
+			// A workspace only uses a mirror in its own namespace.
 			wsList := &kaitov1beta1.WorkspaceList{}
-			if err := kubeClient.List(ctx, wsList); err != nil {
+			if err := kubeClient.List(ctx, wsList, client.InNamespace(o.GetNamespace())); err != nil {
 				klog.ErrorS(err, "failed to list workspaces for ModelMirror watch", "modelmirror", crName)
 				return nil
 			}
@@ -118,11 +118,11 @@ func enqueueWorkspacesForModelMirror(kubeClient client.Client) handler.EventHand
 				}
 				// Skip workspaces that opt out of streaming (or when the gate is off):
 				// they never consume a ModelMirror CR, so a CR change is irrelevant to them.
-				if !inference.ModelStreamingEnabled(ws) {
+				if !modelstreaming.ModelStreamingEnabled(ws) {
 					continue
 				}
 				// Derive the expected CR name from the workspace's preset
-				expectedCR := inference.ModelMirrorCRName(inference.ResolveHFModelID(ws))
+				expectedCR := modelstreaming.ModelMirrorCRName(modelstreaming.ResolveHFModelID(ws))
 				if expectedCR == crName {
 					requests = append(requests, reconcile.Request{
 						NamespacedName: client.ObjectKeyFromObject(ws),

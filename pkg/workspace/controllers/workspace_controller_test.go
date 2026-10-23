@@ -15,17 +15,21 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -42,6 +46,7 @@ import (
 	"github.com/kaito-project/kaito/api/v1beta1"
 	"github.com/kaito-project/kaito/pkg/featuregates"
 	"github.com/kaito-project/kaito/pkg/k8sclient"
+	mmconsts "github.com/kaito-project/kaito/pkg/modelmirror/consts"
 	byoprovisioner "github.com/kaito-project/kaito/pkg/nodeprovision/byo-provisioner"
 	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
@@ -50,6 +55,8 @@ import (
 	"github.com/kaito-project/kaito/pkg/workspace/estimator"
 	"github.com/kaito-project/kaito/pkg/workspace/estimator/nodesestimator"
 	"github.com/kaito-project/kaito/pkg/workspace/inference"
+	"github.com/kaito-project/kaito/pkg/workspace/inference/modelstreaming"
+	"github.com/kaito-project/kaito/pkg/workspace/inference/modelstreaming/registry"
 )
 
 func TestSelectWorkspaceNodes(t *testing.T) {
@@ -611,6 +618,71 @@ func TestApplyInferenceWithTemplate(t *testing.T) {
 	}
 }
 
+func computeLegacyHash(w *v1beta1.Workspace) string {
+	hasher := sha256.New()
+	encoder := json.NewEncoder(hasher)
+	encoder.Encode(w.Resource)
+	encoder.Encode(w.Inference)
+	encoder.Encode(w.Tuning)
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func TestComputeHashIncludesOnlyEnabledSpeculativeDecodingState(t *testing.T) {
+	wsWithout := test.MockWorkspaceWithComputeHash.DeepCopy()
+	delete(wsWithout.Annotations, v1beta1.AnnotationEnableSpeculativeDecoding)
+
+	wsFalse := wsWithout.DeepCopy()
+	if wsFalse.Annotations == nil {
+		wsFalse.Annotations = map[string]string{}
+	}
+	wsFalse.Annotations[v1beta1.AnnotationEnableSpeculativeDecoding] = "false"
+
+	wsTrue := wsWithout.DeepCopy()
+	if wsTrue.Annotations == nil {
+		wsTrue.Annotations = map[string]string{}
+	}
+	wsTrue.Annotations[v1beta1.AnnotationEnableSpeculativeDecoding] = "true"
+
+	legacy := computeLegacyHash(wsWithout)
+	assert.Equal(t, legacy, ComputeHash(wsWithout), "absent speculative-decoding annotation must preserve the legacy workspace hash")
+	assert.Equal(t, legacy, ComputeHash(wsFalse), "disabled speculative-decoding annotation must preserve the legacy workspace hash")
+	assert.NotEqual(t, legacy, ComputeHash(wsTrue), "enabled speculative-decoding annotation must affect workspace revision hash")
+}
+
+func TestSyncInferenceMutablePodSpec(t *testing.T) {
+	existing := &corev1.PodSpec{
+		Containers: []corev1.Container{{
+			Name:         "inference",
+			Command:      []string{"old-cmd"},
+			Args:         []string{"old-arg"},
+			Env:          []corev1.EnvVar{{Name: "OLD", Value: "1"}},
+			VolumeMounts: []corev1.VolumeMount{{Name: "old", MountPath: "/old"}},
+		}},
+		InitContainers: []corev1.Container{{Name: "old-init"}},
+		Volumes:        []corev1.Volume{{Name: "old-vol"}},
+	}
+	desired := &corev1.PodSpec{
+		Containers: []corev1.Container{{
+			Name:         "inference",
+			Command:      []string{"new-cmd"},
+			Args:         []string{"new-arg"},
+			Env:          []corev1.EnvVar{{Name: "NEW", Value: "2"}},
+			VolumeMounts: []corev1.VolumeMount{{Name: "new", MountPath: "/new"}},
+		}},
+		InitContainers: []corev1.Container{{Name: "new-init"}},
+		Volumes:        []corev1.Volume{{Name: "new-vol"}},
+	}
+
+	syncInferenceMutablePodSpec(existing, desired)
+
+	assert.Equal(t, desired.Containers[0].Command, existing.Containers[0].Command)
+	assert.Equal(t, desired.Containers[0].Args, existing.Containers[0].Args)
+	assert.Equal(t, desired.Containers[0].Env, existing.Containers[0].Env)
+	assert.Equal(t, desired.Containers[0].VolumeMounts, existing.Containers[0].VolumeMounts)
+	assert.Equal(t, desired.InitContainers, existing.InitContainers)
+	assert.Equal(t, desired.Volumes, existing.Volumes)
+}
+
 func TestSyncControllerRevision(t *testing.T) {
 	testcases := map[string]struct {
 		callMocks     func(c *test.MockClient)
@@ -628,7 +700,7 @@ func TestSyncControllerRevision(t *testing.T) {
 						*dep = appsv1.ControllerRevision{
 							ObjectMeta: v1.ObjectMeta{
 								Annotations: map[string]string{
-									WorkspaceHashAnnotation: "7ecd8e1b6ebc187b70fc18389f367e6d782e3b7e917e39bfadfc99cfb5ecb872",
+									WorkspaceHashAnnotation: ComputeHash(&test.MockWorkspaceWithComputeHash),
 								},
 							},
 							Revision: 1,
@@ -837,6 +909,11 @@ func (m *mockEstimator) EstimateNodeCount(ctx context.Context, req estimator.Nod
 }
 
 func TestUpdateWorkspaceTargetNodeCount(t *testing.T) {
+	// The request builder resolves the model from the registry before the
+	// estimator runs, so the preset must be registered even though the estimator
+	// itself is mocked.
+	test.RegisterTestModel()
+
 	tests := map[string]struct {
 		workspace      *v1beta1.Workspace
 		setupMocks     func(*test.MockClient, *mockEstimator, *int32)
@@ -877,7 +954,7 @@ func TestUpdateWorkspaceTargetNodeCount(t *testing.T) {
 		"should use estimator when inference present and set returned value": {
 			workspace: &v1beta1.Workspace{
 				ObjectMeta: v1.ObjectMeta{Name: "test-workspace", Namespace: "default"},
-				Inference:  &v1beta1.InferenceSpec{Preset: &v1beta1.PresetSpec{PresetMeta: v1beta1.PresetMeta{Name: "test-preset"}}},
+				Inference:  &v1beta1.InferenceSpec{Preset: &v1beta1.PresetSpec{PresetMeta: v1beta1.PresetMeta{Name: "test-model"}}},
 				Status:     v1beta1.WorkspaceStatus{TargetNodeCount: 0},
 			},
 			setupMocks: func(c *test.MockClient, e *mockEstimator, updatedTarget *int32) {
@@ -900,7 +977,7 @@ func TestUpdateWorkspaceTargetNodeCount(t *testing.T) {
 		"should return error when estimator fails": {
 			workspace: &v1beta1.Workspace{
 				ObjectMeta: v1.ObjectMeta{Name: "test-workspace", Namespace: "default"},
-				Inference:  &v1beta1.InferenceSpec{Preset: &v1beta1.PresetSpec{PresetMeta: v1beta1.PresetMeta{Name: "test-preset"}}},
+				Inference:  &v1beta1.InferenceSpec{Preset: &v1beta1.PresetSpec{PresetMeta: v1beta1.PresetMeta{Name: "test-model"}}},
 				Status:     v1beta1.WorkspaceStatus{TargetNodeCount: 0},
 			},
 			setupMocks: func(c *test.MockClient, e *mockEstimator, _ *int32) {
@@ -915,14 +992,14 @@ func TestUpdateWorkspaceTargetNodeCount(t *testing.T) {
 			expectedError:  true,
 			expectedTarget: 0,
 		},
-		"should persist over-limit estimate without error (guard lives in reconcileNodes)": {
+		"should persist estimate without error": {
 			workspace: &v1beta1.Workspace{
 				ObjectMeta: v1.ObjectMeta{Name: "test-workspace", Namespace: "default"},
-				Inference:  &v1beta1.InferenceSpec{Preset: &v1beta1.PresetSpec{PresetMeta: v1beta1.PresetMeta{Name: "test-preset"}}},
+				Inference:  &v1beta1.InferenceSpec{Preset: &v1beta1.PresetSpec{PresetMeta: v1beta1.PresetMeta{Name: "test-model"}}},
 				Status:     v1beta1.WorkspaceStatus{TargetNodeCount: 0},
 			},
 			setupMocks: func(c *test.MockClient, e *mockEstimator, updatedTarget *int32) {
-				e.On("EstimateNodeCount", mock.Anything, mock.IsType(estimator.NodeEstimateRequest{}), mock.Anything).Return(int32(MaxAllowedNodeCount+1), nil)
+				e.On("EstimateNodeCount", mock.Anything, mock.IsType(estimator.NodeEstimateRequest{}), mock.Anything).Return(int32(4), nil)
 				c.On("Get", mock.Anything, mock.Anything, mock.IsType(&v1beta1.Workspace{}), mock.Anything).
 					Run(func(args mock.Arguments) {
 						ws := args.Get(2).(*v1beta1.Workspace)
@@ -936,7 +1013,7 @@ func TestUpdateWorkspaceTargetNodeCount(t *testing.T) {
 					}).Return(nil)
 			},
 			expectedError:  false,
-			expectedTarget: MaxAllowedNodeCount + 1,
+			expectedTarget: 4,
 		},
 	}
 
@@ -970,45 +1047,171 @@ func TestUpdateWorkspaceTargetNodeCount(t *testing.T) {
 	}
 }
 
-func TestGuardTargetNodeCount(t *testing.T) {
-	tests := map[string]struct {
-		workspace   *v1beta1.Workspace
-		expectError bool
-	}{
-		"no inference => allowed": {
-			workspace: &v1beta1.Workspace{
-				ObjectMeta: v1.ObjectMeta{Name: "test-workspace", Namespace: "default"},
-				Status:     v1beta1.WorkspaceStatus{TargetNodeCount: MaxAllowedNodeCount + 10},
+func TestEnsureModelMirror_StaticWithPartialSASFails(t *testing.T) {
+	ws := &v1beta1.Workspace{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "ws-static-partial-sas",
+			Namespace: "default",
+			Annotations: map[string]string{
+				modelstreaming.AnnotationStaticModelMirror: "true",
+				modelstreaming.AnnotationStreamDatarefsURL: "https://x/models/m/versions/1",
+				modelstreaming.AnnotationStreamSourceType:  modelstreaming.SourceTypeBYO,
+				// inference.kaito.sh/stream-identity-client-id intentionally omitted (partial core set).
 			},
 		},
-		"inference at the limit => allowed": {
-			workspace: &v1beta1.Workspace{
-				ObjectMeta: v1.ObjectMeta{Name: "test-workspace", Namespace: "default"},
-				Inference:  &v1beta1.InferenceSpec{Preset: &v1beta1.PresetSpec{PresetMeta: v1beta1.PresetMeta{Name: "test-preset"}}},
-				Status:     v1beta1.WorkspaceStatus{TargetNodeCount: MaxAllowedNodeCount},
-			},
-		},
-		"inference above the limit => blocked": {
-			workspace: &v1beta1.Workspace{
-				ObjectMeta: v1.ObjectMeta{Name: "test-workspace", Namespace: "default"},
-				Inference:  &v1beta1.InferenceSpec{Preset: &v1beta1.PresetSpec{PresetMeta: v1beta1.PresetMeta{Name: "test-preset"}}},
-				Status:     v1beta1.WorkspaceStatus{TargetNodeCount: MaxAllowedNodeCount + 1},
-			},
-			expectError: true,
+		Inference: &v1beta1.InferenceSpec{
+			Preset: &v1beta1.PresetSpec{PresetMeta: v1beta1.PresetMeta{Name: "microsoft/phi-4"}},
 		},
 	}
 
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			reconciler := &WorkspaceReconciler{}
-			err := reconciler.guardTargetNodeCount(tt.workspace)
-			if tt.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
+	reconciler := &WorkspaceReconciler{}
+	err := reconciler.ensureModelMirror(context.Background(), ws)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), modelstreaming.AnnotationStaticModelMirror)
+	assert.Contains(t, err.Error(), modelstreaming.AnnotationStreamIdentityClientID)
+}
+
+func TestEnsureModelMirror_StaticWithoutSASFails(t *testing.T) {
+	ws := &v1beta1.Workspace{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "ws-static-no-sas",
+			Namespace: "default",
+			Annotations: map[string]string{
+				modelstreaming.AnnotationStaticModelMirror: "true",
+			},
+		},
+		Inference: &v1beta1.InferenceSpec{
+			Preset: &v1beta1.PresetSpec{PresetMeta: v1beta1.PresetMeta{Name: "microsoft/phi-4"}},
+		},
 	}
+
+	reconciler := &WorkspaceReconciler{}
+	err := reconciler.ensureModelMirror(context.Background(), ws)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), modelstreaming.AnnotationStaticModelMirror)
+}
+
+// TestEnsureModelMirror_ManagedStampsServiceAccount verifies the managed (download) path
+// resolves the streaming ServiceAccount and stamps it onto the created ModelMirror CR, so the
+// download Job can later mount a workload-identity-authenticated StorageClass.
+func TestEnsureModelMirror_ManagedStampsServiceAccount(t *testing.T) {
+	t.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
+
+	const saName = "kaito-model-streamer"
+	streamer, err := registry.GetModelStreamer(consts.AzureCloudName)
+	assert.NoError(t, err)
+	prevSA := modelstreaming.StreamingDefaults.ServiceAccount
+	prevSC := modelstreaming.StreamingDefaults.StorageClass
+	prevStreamer := modelstreaming.StreamingDefaults.ModelStreamer
+	modelstreaming.StreamingDefaults.ServiceAccount = saName
+	modelstreaming.StreamingDefaults.StorageClass = "blob-fuse"
+	modelstreaming.StreamingDefaults.ModelStreamer = streamer
+	t.Cleanup(func() {
+		modelstreaming.StreamingDefaults.ServiceAccount = prevSA
+		modelstreaming.StreamingDefaults.StorageClass = prevSC
+		modelstreaming.StreamingDefaults.ModelStreamer = prevStreamer
+	})
+
+	mockClient := test.NewClient()
+	// Seed the streaming ServiceAccount (exists + WI annotation) so ValidateAuth passes.
+	mockClient.CreateOrUpdateObjectInMap(&corev1.ServiceAccount{
+		ObjectMeta: v1.ObjectMeta{
+			Name:        saName,
+			Namespace:   "default",
+			Annotations: map[string]string{"azure.workload.identity/client-id": "00000000-0000-0000-0000-000000000000"},
+		},
+	})
+	// Seed the StorageClass with the Azure blob CSI provisioner so SC validation passes.
+	mockClient.CreateOrUpdateObjectInMap(&storagev1.StorageClass{
+		ObjectMeta:  v1.ObjectMeta{Name: "blob-fuse"},
+		Provisioner: consts.CSIDriverNameForCloud(consts.AzureCloudName),
+	})
+	mockClient.On("Get", mock.Anything, mock.Anything, mock.IsType(&corev1.ServiceAccount{}), mock.Anything).Return(nil)
+	mockClient.On("Get", mock.Anything, mock.Anything, mock.IsType(&storagev1.StorageClass{}), mock.Anything).Return(nil)
+	// Matching the key rather than mock.Anything is what makes this test able to fail if
+	// the mirror is ever looked up outside the workspace's namespace.
+	mockClient.On("Get", mock.Anything,
+		mock.MatchedBy(func(key client.ObjectKey) bool { return key.Namespace == "default" }),
+		mock.IsType(&kaitov1alpha1.ModelMirror{}), mock.Anything).Return(test.NotFoundError())
+	mockClient.On("Create", mock.Anything, mock.IsType(&kaitov1alpha1.ModelMirror{}), mock.Anything).Return(nil)
+
+	ws := &v1beta1.Workspace{
+		ObjectMeta: v1.ObjectMeta{Name: "ws-managed-sa", Namespace: "default"},
+		Inference: &v1beta1.InferenceSpec{
+			Preset: &v1beta1.PresetSpec{PresetMeta: v1beta1.PresetMeta{Name: "microsoft/phi-4"}},
+		},
+	}
+
+	reconciler := &WorkspaceReconciler{Client: mockClient}
+	err = reconciler.ensureModelMirror(context.Background(), ws)
+	assert.NoError(t, err)
+
+	// The created CR must carry the resolved ServiceAccount and be Managed.
+	crMap := mockClient.CreateMapWithType(&kaitov1alpha1.ModelMirror{})
+	var created *kaitov1alpha1.ModelMirror
+	for _, obj := range crMap {
+		if mm, ok := obj.(*kaitov1alpha1.ModelMirror); ok {
+			created = mm
+			break
+		}
+	}
+	assert.NotNil(t, created, "a ModelMirror CR should have been created")
+	assert.Equal(t, kaitov1alpha1.ModelMirrorModeManaged, created.Spec.Mode)
+	assert.Equal(t, saName, created.Spec.ServiceAccountName)
+	assert.Equal(t, ws.Namespace, created.Namespace, "the mirror must be created in the workspace's namespace")
+}
+
+// TestEnsureModelMirror_StaticCreatedInWorkspaceNamespace guards the static path, which
+// builds its own ModelMirror literal and so cannot be covered by the managed test above.
+func TestEnsureModelMirror_StaticCreatedInWorkspaceNamespace(t *testing.T) {
+	t.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
+
+	const saName = "kaito-model-streamer"
+	prevSA := modelstreaming.StreamingDefaults.ServiceAccount
+	modelstreaming.StreamingDefaults.ServiceAccount = saName
+	t.Cleanup(func() { modelstreaming.StreamingDefaults.ServiceAccount = prevSA })
+
+	mockClient := test.NewClient()
+	mockClient.CreateOrUpdateObjectInMap(&corev1.ServiceAccount{
+		ObjectMeta: v1.ObjectMeta{
+			Name:        saName,
+			Namespace:   "other-ns",
+			Annotations: map[string]string{"azure.workload.identity/client-id": "00000000-0000-0000-0000-000000000000"},
+		},
+	})
+	mockClient.On("Get", mock.Anything, mock.Anything, mock.IsType(&corev1.ServiceAccount{}), mock.Anything).Return(nil)
+	mockClient.On("Get", mock.Anything, mock.Anything, mock.IsType(&kaitov1alpha1.ModelMirror{}), mock.Anything).Return(test.NotFoundError())
+	mockClient.On("Create", mock.Anything, mock.IsType(&kaitov1alpha1.ModelMirror{}), mock.Anything).Return(nil)
+
+	ws := &v1beta1.Workspace{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "ws-static",
+			Namespace: "other-ns",
+			Annotations: map[string]string{
+				modelstreaming.AnnotationStaticModelMirror:      "true",
+				modelstreaming.AnnotationStreamDatarefsURL:      "https://example.blob.core.windows.net/models",
+				modelstreaming.AnnotationStreamIdentityClientID: "00000000-0000-0000-0000-000000000000",
+				modelstreaming.AnnotationStreamSourceType:       "public",
+			},
+		},
+		Inference: &v1beta1.InferenceSpec{
+			Preset: &v1beta1.PresetSpec{PresetMeta: v1beta1.PresetMeta{Name: "microsoft/phi-4"}},
+		},
+	}
+
+	reconciler := &WorkspaceReconciler{Client: mockClient}
+	require.NoError(t, reconciler.ensureModelMirror(context.Background(), ws))
+
+	var created *kaitov1alpha1.ModelMirror
+	for _, obj := range mockClient.CreateMapWithType(&kaitov1alpha1.ModelMirror{}) {
+		if mm, ok := obj.(*kaitov1alpha1.ModelMirror); ok {
+			created = mm
+			break
+		}
+	}
+	require.NotNil(t, created, "a static ModelMirror CR should have been created")
+	assert.Equal(t, kaitov1alpha1.ModelMirrorModeStatic, created.Spec.Mode)
+	assert.Equal(t, "other-ns", created.Namespace, "the mirror must be created in the workspace's namespace")
 }
 
 func TestSyncWorkspaceStatus(t *testing.T) {
@@ -1197,8 +1400,8 @@ func TestSyncWorkspaceStatus(t *testing.T) {
 			}
 
 			mockClient.On("Get", mock.Anything, mock.Anything, mock.IsType(&v1beta1.Workspace{}), mock.Anything).Return(nil).Twice()
-			// collectNodeStatusSnapshot calls ListNodes once, then CollectNodeStatusInfo calls ListNodes again.
-			mockClient.On("List", mock.Anything, mock.IsType(&corev1.NodeList{}), mock.Anything).Return(nil).Twice()
+			// Live SKU selection may add node list calls during reconciliation.
+			mockClient.On("List", mock.Anything, mock.IsType(&corev1.NodeList{}), mock.Anything).Return(nil)
 
 			if ws.Inference != nil {
 				if tc.statefulSetNotFound {
@@ -1259,13 +1462,18 @@ func TestBuildReconcileErrMessageAppender(t *testing.T) {
 
 	withErrAppender := buildReconcileErrMessageAppender(errors.New("boom"))
 	assert.Equal(t, "workspace is ready (last reconcile error: boom)", withErrAppender("workspace is ready"))
+
+	// A NodeClassInvalid message is the ProvisionNodes error itself, truncated when long, so it is not appended twice.
+	nodeClassErr := errors.New(`NodeClass "nc" is not ready (UnhealthyDependents): SubnetsReady=False (SubnetIDInvalid): ` + strings.Repeat("x", 300))
+	truncated := utils.TruncateMessage(nodeClassErr.Error(), 256)
+	assert.Equal(t, truncated, buildReconcileErrMessageAppender(nodeClassErr)(truncated))
 }
 
 func TestApplyInferenceWorkspaceStatus(t *testing.T) {
 	t.Run("ready when inference and resource are ready", func(t *testing.T) {
 		status := &v1beta1.WorkspaceStatus{State: v1beta1.WorkspaceStatePending}
 		wObj := &v1beta1.Workspace{ObjectMeta: v1.ObjectMeta{Annotations: map[string]string{v1beta1.AnnotationDisableBenchmark: "true"}}}
-		applyInferenceWorkspaceStatus(context.Background(), status, wObj, buildReconcileErrMessageAppender(nil), true, v1.ConditionTrue, false)
+		applyInferenceWorkspaceStatus(context.Background(), status, wObj, buildReconcileErrMessageAppender(nil), true, v1.ConditionTrue, false, "", "")
 
 		assert.Equal(t, v1beta1.WorkspaceStateReady, status.State)
 		inferenceCondition := meta.FindStatusCondition(status.Conditions, string(v1beta1.WorkspaceConditionTypeInferenceStatus))
@@ -1279,7 +1487,7 @@ func TestApplyInferenceWorkspaceStatus(t *testing.T) {
 
 	t.Run("not ready after established", func(t *testing.T) {
 		status := &v1beta1.WorkspaceStatus{State: v1beta1.WorkspaceStateReady}
-		applyInferenceWorkspaceStatus(context.Background(), status, &v1beta1.Workspace{}, buildReconcileErrMessageAppender(nil), false, v1.ConditionTrue, false)
+		applyInferenceWorkspaceStatus(context.Background(), status, &v1beta1.Workspace{}, buildReconcileErrMessageAppender(nil), false, v1.ConditionTrue, false, "", "")
 
 		assert.Equal(t, v1beta1.WorkspaceStateNotReady, status.State)
 		inferenceCondition := meta.FindStatusCondition(status.Conditions, string(v1beta1.WorkspaceConditionTypeInferenceStatus))
@@ -1287,9 +1495,21 @@ func TestApplyInferenceWorkspaceStatus(t *testing.T) {
 		assert.Equal(t, v1.ConditionFalse, inferenceCondition.Status)
 	})
 
-	t.Run("not-ready path preserves benchmark condition and result (write-once)", func(t *testing.T) {
+	t.Run("not ready surfaces SAS token fetch failure reason", func(t *testing.T) {
+		status := &v1beta1.WorkspaceStatus{State: v1beta1.WorkspaceStatePending}
+		applyInferenceWorkspaceStatus(context.Background(), status, &v1beta1.Workspace{}, buildReconcileErrMessageAppender(nil),
+			false, v1.ConditionTrue, false, "SASTokenFetchFailed", "SAS token fetch failed: the streaming init container could not obtain a SAS token; check the fetch-sas init container logs")
+
+		inferenceCondition := meta.FindStatusCondition(status.Conditions, string(v1beta1.WorkspaceConditionTypeInferenceStatus))
+		assert.NotNil(t, inferenceCondition)
+		assert.Equal(t, v1.ConditionFalse, inferenceCondition.Status)
+		assert.Equal(t, "SASTokenFetchFailed", inferenceCondition.Reason)
+		assert.Contains(t, inferenceCondition.Message, "SAS token fetch failed")
+	})
+
+	t.Run("not-ready path preserves benchmark condition and refreshes observedGeneration", func(t *testing.T) {
 		wObj := &v1beta1.Workspace{
-			ObjectMeta: v1.ObjectMeta{},
+			ObjectMeta: v1.ObjectMeta{Generation: 2},
 			Inference: &v1beta1.InferenceSpec{
 				Preset: &v1beta1.PresetSpec{
 					PresetMeta: v1beta1.PresetMeta{Name: "test-model"},
@@ -1306,16 +1526,17 @@ func TestApplyInferenceWorkspaceStatus(t *testing.T) {
 			},
 			Conditions: []v1.Condition{
 				{
-					Type:   string(v1beta1.WorkspaceConditionTypeBenchmarkCompleted),
-					Status: v1.ConditionTrue,
-					Reason: "BenchmarkCompleted",
+					Type:               string(v1beta1.WorkspaceConditionTypeBenchmarkCompleted),
+					Status:             v1.ConditionTrue,
+					Reason:             "BenchmarkCompleted",
+					ObservedGeneration: 1,
 				},
 			},
 		}
 
 		// inferenceReady=false drives the not-ready path. benchmarkApplicable=true.
 		// Write-once: the recorded result and condition must be preserved (no clear).
-		applyInferenceWorkspaceStatus(context.Background(), status, wObj, buildReconcileErrMessageAppender(nil), false, v1.ConditionTrue, true)
+		applyInferenceWorkspaceStatus(context.Background(), status, wObj, buildReconcileErrMessageAppender(nil), false, v1.ConditionTrue, true, "", "")
 
 		assert.NotNil(t, status.Performance, "Performance must be preserved on not-ready (write-once)")
 		if status.Performance != nil {
@@ -1326,6 +1547,7 @@ func TestApplyInferenceWorkspaceStatus(t *testing.T) {
 		benchmarkCond := meta.FindStatusCondition(status.Conditions, string(v1beta1.WorkspaceConditionTypeBenchmarkCompleted))
 		if assert.NotNil(t, benchmarkCond, "BenchmarkCompleted must be preserved on not-ready (write-once)") {
 			assert.Equal(t, v1.ConditionTrue, benchmarkCond.Status)
+			assert.Equal(t, int64(2), benchmarkCond.ObservedGeneration)
 		}
 	})
 
@@ -1351,7 +1573,7 @@ func TestApplyInferenceWorkspaceStatus(t *testing.T) {
 		// Empty fake client: if the skip guard did NOT fire, applyBenchmarkStatus would
 		// try to read logs and fail. We assert it stays Ready with the result intact.
 		k8sclient.SetGlobalClientGoClient(kubefake.NewClientset())
-		applyInferenceWorkspaceStatus(context.Background(), status, wObj, buildReconcileErrMessageAppender(nil), true, v1.ConditionTrue, true)
+		applyInferenceWorkspaceStatus(context.Background(), status, wObj, buildReconcileErrMessageAppender(nil), true, v1.ConditionTrue, true, "", "")
 
 		assert.Equal(t, v1beta1.WorkspaceStateReady, status.State)
 		m, ok := status.Performance.Metrics[BenchmarkMetricPeakTPM]
@@ -1371,7 +1593,7 @@ func TestApplyInferenceWorkspaceStatus(t *testing.T) {
 		// benchmarkApplicable=false (no probe). Empty fake client would fail a log read;
 		// asserting Ready proves applyBenchmarkStatus was not invoked.
 		k8sclient.SetGlobalClientGoClient(kubefake.NewClientset())
-		applyInferenceWorkspaceStatus(context.Background(), status, wObj, buildReconcileErrMessageAppender(nil), true, v1.ConditionTrue, false)
+		applyInferenceWorkspaceStatus(context.Background(), status, wObj, buildReconcileErrMessageAppender(nil), true, v1.ConditionTrue, false, "", "")
 
 		assert.Equal(t, v1beta1.WorkspaceStateReady, status.State)
 		succeeded := meta.FindStatusCondition(status.Conditions, string(v1beta1.WorkspaceConditionTypeSucceeded))
@@ -1381,11 +1603,15 @@ func TestApplyInferenceWorkspaceStatus(t *testing.T) {
 		assert.Nil(t, meta.FindStatusCondition(status.Conditions, string(v1beta1.WorkspaceConditionTypeBenchmarkCompleted)))
 	})
 
-	t.Run("benchmark guard skips StreamLogs when BenchmarkCompleted is already True", func(t *testing.T) {
+	t.Run("benchmark guard skips StreamLogs and refreshes observedGeneration when BenchmarkCompleted is already True", func(t *testing.T) {
 		wObj := &v1beta1.Workspace{
 			ObjectMeta: v1.ObjectMeta{
-				Name:      "ws",
-				Namespace: "default",
+				Name:       "ws",
+				Namespace:  "default",
+				Generation: 2,
+			},
+			Inference: &v1beta1.InferenceSpec{
+				Preset: &v1beta1.PresetSpec{PresetMeta: v1beta1.PresetMeta{Name: "test-model"}},
 			},
 		}
 		status := &v1beta1.WorkspaceStatus{
@@ -1397,15 +1623,19 @@ func TestApplyInferenceWorkspaceStatus(t *testing.T) {
 			},
 			Conditions: []v1.Condition{
 				{
-					Type:   string(v1beta1.WorkspaceConditionTypeBenchmarkCompleted),
-					Status: v1.ConditionTrue,
-					Reason: "BenchmarkCompleted",
+					Type:               string(v1beta1.WorkspaceConditionTypeBenchmarkCompleted),
+					Status:             v1.ConditionTrue,
+					Reason:             "BenchmarkCompleted",
+					ObservedGeneration: 1,
 				},
 			},
 		}
 
+		// Drive the whole ready path so both the L1203 refresh and applyBenchmarkStatus's
+		// write-once guard run together. Empty fake client would fail a log read, so
+		// reaching Ready proves the guard fired (no StreamLogs attempt).
 		k8sclient.SetGlobalClientGoClient(kubefake.NewClientset())
-		applyBenchmarkStatus(context.Background(), status, wObj, 1, buildReconcileErrMessageAppender(nil))
+		applyInferenceWorkspaceStatus(context.Background(), status, wObj, buildReconcileErrMessageAppender(nil), true, v1.ConditionTrue, true, "", "")
 
 		// Result and condition must be unchanged — the guard must have fired.
 		m, ok := status.Performance.Metrics[BenchmarkMetricPeakTPM]
@@ -1413,6 +1643,7 @@ func TestApplyInferenceWorkspaceStatus(t *testing.T) {
 		assert.Equal(t, "12345", m.Value)
 		benchmarkCond := meta.FindStatusCondition(status.Conditions, string(v1beta1.WorkspaceConditionTypeBenchmarkCompleted))
 		assert.Equal(t, v1.ConditionTrue, benchmarkCond.Status)
+		assert.Equal(t, int64(2), benchmarkCond.ObservedGeneration)
 	})
 }
 
@@ -1876,6 +2107,432 @@ func TestShouldUpgradeBaseImage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := shouldUpgradeBaseImage(tt.ws, tt.existing, tt.desired)
 			assert.Equal(t, tt.expect, got)
+		})
+	}
+}
+
+func TestDetectInferencePodFailure(t *testing.T) {
+	podList := func(pods ...corev1.Pod) *corev1.PodList {
+		return &corev1.PodList{Items: pods}
+	}
+	waitingContainer := func(name, reason string) corev1.ContainerStatus {
+		return corev1.ContainerStatus{Name: name, State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: reason, Message: reason + " message"}}}
+	}
+	oomContainer := func(name string) corev1.ContainerStatus {
+		return corev1.ContainerStatus{Name: name, LastTerminationState: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{Reason: "OOMKilled", ExitCode: 137}}}
+	}
+
+	t.Run("container-level failures", func(t *testing.T) {
+		testcases := map[string]struct {
+			pods           *corev1.PodList
+			expectedReason string
+		}{
+			"image pull backoff": {
+				pods:           podList(corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{waitingContainer("infer", "ImagePullBackOff")}}}),
+				expectedReason: inferenceReasonImagePullError,
+			},
+			"err image pull": {
+				pods:           podList(corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{waitingContainer("infer", "ErrImagePull")}}}),
+				expectedReason: inferenceReasonImagePullError,
+			},
+			"crash loop backoff": {
+				pods:           podList(corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{waitingContainer("infer", "CrashLoopBackOff")}}}),
+				expectedReason: inferenceReasonCrashLoopBackOff,
+			},
+			"oom killed": {
+				pods:           podList(corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{oomContainer("infer")}}}),
+				expectedReason: inferenceReasonOOMKilled,
+			},
+			"container start config error": {
+				pods:           podList(corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{waitingContainer("infer", "CreateContainerConfigError")}}}),
+				expectedReason: inferenceReasonContainerStartError,
+			},
+			"init container image pull failure is caught": {
+				pods:           podList(corev1.Pod{Status: corev1.PodStatus{InitContainerStatuses: []corev1.ContainerStatus{waitingContainer("init", "ImagePullBackOff")}}}),
+				expectedReason: inferenceReasonImagePullError,
+			},
+			"oom takes precedence over crash loop": {
+				pods: podList(corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{
+					waitingContainer("infer", "CrashLoopBackOff"),
+					oomContainer("sidecar"),
+				}}}),
+				expectedReason: inferenceReasonOOMKilled,
+			},
+			"no failure": {
+				pods:           podList(corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{Name: "infer", Ready: true}}}}),
+				expectedReason: "",
+			},
+		}
+		for name, tc := range testcases {
+			t.Run(name, func(t *testing.T) {
+				reason, _ := detectContainerFailure(tc.pods)
+				assert.Equal(t, tc.expectedReason, reason)
+			})
+		}
+	})
+
+	t.Run("evicted pod", func(t *testing.T) {
+		testcases := map[string]struct {
+			message        string
+			expectedReason string
+		}{
+			"disk pressure": {
+				message:        "The node was low on resource: ephemeral-storage.",
+				expectedReason: inferenceReasonNodeDiskPressure,
+			},
+			"memory pressure": {
+				message:        "The node was low on resource: memory.",
+				expectedReason: inferenceReasonNodeMemoryPressure,
+			},
+			"generic eviction": {
+				message:        "evicted for an unspecified reason",
+				expectedReason: inferenceReasonEvicted,
+			},
+		}
+		for name, tc := range testcases {
+			t.Run(name, func(t *testing.T) {
+				pods := podList(corev1.Pod{
+					ObjectMeta: v1.ObjectMeta{Name: "pod-a"},
+					Status:     corev1.PodStatus{Phase: corev1.PodFailed, Reason: "Evicted", Message: tc.message},
+				})
+				reason, message := detectEvictedPod(pods)
+				assert.Equal(t, tc.expectedReason, reason)
+				assert.Contains(t, message, "pod-a")
+			})
+		}
+	})
+
+	t.Run("unschedulable pod", func(t *testing.T) {
+		pods := podList(corev1.Pod{
+			ObjectMeta: v1.ObjectMeta{Name: "pod-b"},
+			Status: corev1.PodStatus{
+				Phase: corev1.PodPending,
+				Conditions: []corev1.PodCondition{{
+					Type:    corev1.PodScheduled,
+					Status:  corev1.ConditionFalse,
+					Reason:  corev1.PodReasonUnschedulable,
+					Message: "0/3 nodes are available: insufficient nvidia.com/gpu.",
+				}},
+			},
+		})
+		reason, message := detectUnschedulablePod(pods)
+		assert.Equal(t, inferenceReasonUnschedulable, reason)
+		assert.Contains(t, message, "pod-b")
+	})
+
+	t.Run("sas init failure", func(t *testing.T) {
+		pods := podList(corev1.Pod{Status: corev1.PodStatus{InitContainerStatuses: []corev1.ContainerStatus{{
+			Name:                 modelstreaming.SASFetchInitContainerName,
+			LastTerminationState: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: 1}},
+		}}}})
+		reason, message := detectSASInitFailure(pods)
+		assert.Equal(t, inferenceReasonSASTokenFetchFailed, reason)
+		assert.Contains(t, message, "SAS token fetch failed")
+	})
+
+	t.Run("sas init config mismatch is not misreported as a token failure", func(t *testing.T) {
+		pods := podList(corev1.Pod{Status: corev1.PodStatus{InitContainerStatuses: []corev1.ContainerStatus{{
+			Name: modelstreaming.SASFetchInitContainerName,
+			State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{
+				ExitCode: int32(modelstreaming.SASFetchExitConfigMismatch),
+			}},
+		}}}})
+		reason, message := detectSASInitFailure(pods)
+		assert.Equal(t, inferenceReasonModelBundleMismatch, reason)
+		assert.Contains(t, message, "model bundle verification failed")
+	})
+
+	t.Run("sas init config mismatch behind a crash loop", func(t *testing.T) {
+		pods := podList(corev1.Pod{Status: corev1.PodStatus{InitContainerStatuses: []corev1.ContainerStatus{{
+			Name:  modelstreaming.SASFetchInitContainerName,
+			State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}},
+			LastTerminationState: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{
+				ExitCode: int32(modelstreaming.SASFetchExitConfigMismatch),
+			}},
+		}}}})
+		reason, _ := detectSASInitFailure(pods)
+		assert.Equal(t, inferenceReasonModelBundleMismatch, reason)
+	})
+
+	t.Run("truncate long message", func(t *testing.T) {
+		long := ""
+		for range make([]struct{}, maxInferenceMessageLen+50) {
+			long += "a"
+		}
+		out := utils.TruncateMessage(long, maxInferenceMessageLen)
+		assert.Equal(t, maxInferenceMessageLen+len("..."), len(out))
+	})
+}
+
+func TestStreamingValidationError(t *testing.T) {
+	base := errors.New(`StorageClass "kaito-model-mirror" not found`)
+	err := &streamingValidationError{reason: reasonModelStreamingStorageClassNotFound, err: base}
+
+	assert.Equal(t, base.Error(), err.Error())
+	assert.ErrorIs(t, err, base)
+
+	var sve *streamingValidationError
+	require.True(t, errors.As(error(err), &sve))
+	assert.Equal(t, reasonModelStreamingStorageClassNotFound, sve.reason)
+}
+
+func TestModelMirrorCondition(t *testing.T) {
+	ready := &kaitov1alpha1.ModelMirror{
+		Status: kaitov1alpha1.ModelMirrorStatus{Phase: kaitov1alpha1.ModelMirrorPhaseReady},
+	}
+
+	t.Run("ready mirror is ready", func(t *testing.T) {
+		st, reason, msg := modelMirrorCondition(ready, "", "")
+		assert.Equal(t, v1.ConditionTrue, st)
+		assert.Equal(t, "ModelMirrorReady", reason)
+		assert.Equal(t, "Model download complete", msg)
+	})
+
+	// A Static mirror a managed workspace may not use reports Ready on its own account.
+	t.Run("refused mirror is not ready despite its phase", func(t *testing.T) {
+		st, reason, msg := modelMirrorCondition(ready, reasonModelMirrorCreateFailed,
+			`ModelMirror abc123 in namespace ns has mode "Static" but this workspace requires mode "Managed"`)
+		assert.Equal(t, v1.ConditionFalse, st)
+		assert.Equal(t, reasonModelMirrorCreateFailed, reason)
+		assert.Contains(t, msg, "Static")
+	})
+
+	t.Run("download failure surfaces", func(t *testing.T) {
+		cr := &kaitov1alpha1.ModelMirror{
+			Status: kaitov1alpha1.ModelMirrorStatus{FailureMessage: "download job failed"},
+		}
+		st, _, msg := modelMirrorCondition(cr, "", "")
+		assert.Equal(t, v1.ConditionFalse, st)
+		assert.Equal(t, "download job failed", msg)
+	})
+
+	t.Run("unrelated inference failure does not mask a ready mirror", func(t *testing.T) {
+		st, reason, _ := modelMirrorCondition(ready, inferenceReasonOOMKilled, "container was OOMKilled")
+		assert.Equal(t, v1.ConditionTrue, st)
+		assert.Equal(t, "ModelMirrorReady", reason)
+	})
+}
+
+func TestStreamingValidationReasonFallback(t *testing.T) {
+	sve := &streamingValidationError{
+		reason: reasonModelStreamingStorageClassNotFound,
+		err:    errors.New(`storageclass "kaito-model-mirror" not found`),
+	}
+	wrapped := fmt.Errorf("ensure model mirror: %w", sve)
+
+	t.Run("fills empty reason", func(t *testing.T) {
+		reason, msg := streamingValidationReason(wrapped, "", "")
+		assert.Equal(t, reasonModelStreamingStorageClassNotFound, reason)
+		assert.Contains(t, msg, "kaito-model-mirror")
+	})
+
+	t.Run("pod classification wins", func(t *testing.T) {
+		reason, msg := streamingValidationReason(wrapped, inferenceReasonOOMKilled, "container was OOMKilled")
+		assert.Equal(t, inferenceReasonOOMKilled, reason)
+		assert.Equal(t, "container was OOMKilled", msg)
+	})
+
+	t.Run("unrelated error is ignored", func(t *testing.T) {
+		reason, msg := streamingValidationReason(errors.New("boom"), "", "")
+		assert.Empty(t, reason)
+		assert.Empty(t, msg)
+	})
+
+	t.Run("nil error is ignored", func(t *testing.T) {
+		reason, msg := streamingValidationReason(nil, "", "")
+		assert.Empty(t, reason)
+		assert.Empty(t, msg)
+	})
+
+	t.Run("reason lands on the InferenceReady condition", func(t *testing.T) {
+		status := &v1beta1.WorkspaceStatus{State: v1beta1.WorkspaceStatePending}
+		applyInferenceWorkspaceStatus(context.Background(), status, &v1beta1.Workspace{},
+			buildReconcileErrMessageAppender(nil), false, v1.ConditionTrue, false,
+			reasonModelStreamingStorageClassNotFound, `storageclass "kaito-model-mirror" not found`)
+
+		c := meta.FindStatusCondition(status.Conditions, string(v1beta1.WorkspaceConditionTypeInferenceStatus))
+		require.NotNil(t, c)
+		assert.Equal(t, v1.ConditionFalse, c.Status)
+		assert.Equal(t, reasonModelStreamingStorageClassNotFound, c.Reason)
+		assert.Contains(t, c.Message, "kaito-model-mirror")
+	})
+}
+
+// TestAppendReconcileErrMessage_NoDuplication covers the interaction between
+// streamingValidationReason and buildReconcileErrMessageAppender. The typed error
+// already supplies the reconcile error as the condition message, so appending it
+// again would render `X (last reconcile error: X)`.
+func TestAppendReconcileErrMessage_NoDuplication(t *testing.T) {
+	sve := &streamingValidationError{
+		reason: reasonModelStreamingStorageClassNotFound,
+		err:    fmt.Errorf("StorageClass %q not found", "does-not-exist-sc"),
+	}
+
+	t.Run("typed error is not appended twice", func(t *testing.T) {
+		var reconcileErr error = sve
+		_, msg := streamingValidationReason(reconcileErr, "", "")
+		got := buildReconcileErrMessageAppender(reconcileErr)(msg)
+
+		assert.NotContains(t, got, "last reconcile error")
+		assert.Equal(t, sve.Error(), got)
+	})
+
+	t.Run("truncated typed error is not appended twice", func(t *testing.T) {
+		long := &streamingValidationError{
+			reason: reasonModelStreamingStorageClassNotFound,
+			err:    fmt.Errorf("%s", strings.Repeat("x", maxInferenceMessageLen+50)),
+		}
+		var reconcileErr error = long
+		_, msg := streamingValidationReason(reconcileErr, "", "")
+		require.True(t, strings.HasSuffix(msg, "..."), "expected the message to be truncated")
+
+		got := buildReconcileErrMessageAppender(reconcileErr)(msg)
+		assert.NotContains(t, got, "last reconcile error")
+	})
+
+	t.Run("unrelated message still gets the reconcile error appended", func(t *testing.T) {
+		reconcileErr := fmt.Errorf("boom")
+		got := buildReconcileErrMessageAppender(reconcileErr)("Inference workload is not ready")
+
+		assert.Equal(t, "Inference workload is not ready (last reconcile error: boom)", got)
+	})
+
+	t.Run("nil reconcile error leaves the message untouched", func(t *testing.T) {
+		assert.Equal(t, "all good", buildReconcileErrMessageAppender(nil)("all good"))
+	})
+}
+
+func TestModelMirrorPendingReason(t *testing.T) {
+	withReady := func(status v1.ConditionStatus, reason string) *kaitov1alpha1.ModelMirror {
+		return &kaitov1alpha1.ModelMirror{
+			Status: kaitov1alpha1.ModelMirrorStatus{
+				Conditions: []v1.Condition{{
+					Type:   mmconsts.ConditionTypeReady,
+					Status: status,
+					Reason: reason,
+				}},
+			},
+		}
+	}
+
+	cases := []struct {
+		name string
+		cr   *kaitov1alpha1.ModelMirror
+		want string
+	}{
+		{
+			name: "OOMKilled forwards the actionable reason",
+			cr:   withReady(v1.ConditionFalse, mmconsts.ReasonDownloadOOMKilled),
+			want: mmconsts.ReasonDownloadOOMKilled,
+		},
+		{
+			name: "evicted forwards the actionable reason",
+			cr:   withReady(v1.ConditionFalse, mmconsts.ReasonDownloadEvicted),
+			want: mmconsts.ReasonDownloadEvicted,
+		},
+		{
+			name: "no Ready condition yet falls back to the generic reason",
+			cr:   &kaitov1alpha1.ModelMirror{},
+			want: reasonModelMirrorPending,
+		},
+		{
+			name: "only StorageReady written falls back to the generic reason",
+			cr: &kaitov1alpha1.ModelMirror{
+				Status: kaitov1alpha1.ModelMirrorStatus{
+					Conditions: []v1.Condition{{
+						Type:   mmconsts.ConditionTypeStorageReady,
+						Status: v1.ConditionFalse,
+						Reason: mmconsts.ReasonPVCPending,
+					}},
+				},
+			},
+			want: reasonModelMirrorPending,
+		},
+		{
+			name: "Ready=True is not forwarded onto a False condition",
+			cr:   withReady(v1.ConditionTrue, mmconsts.ReasonDownloadSucceeded),
+			want: reasonModelMirrorPending,
+		},
+		{
+			name: "empty reason falls back to the generic reason",
+			cr:   withReady(v1.ConditionFalse, ""),
+			want: reasonModelMirrorPending,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, modelMirrorPendingReason(tc.cr))
+		})
+	}
+}
+
+func TestModelMirrorPendingReason_ClosedVocabulary(t *testing.T) {
+	allowed := map[string]bool{
+		mmconsts.ReasonPVCBound:          true,
+		mmconsts.ReasonPVCPending:        true,
+		mmconsts.ReasonPVCCreateFailed:   true,
+		mmconsts.ReasonJobCreateFailed:   true,
+		mmconsts.ReasonDownloadFailed:    true,
+		mmconsts.ReasonDownloadOOMKilled: true,
+		mmconsts.ReasonDownloadEvicted:   true,
+		mmconsts.ReasonDownloadSucceeded: true,
+		mmconsts.ReasonStaticMirror:      true,
+		mmconsts.ReasonInvalidSpec:       true,
+		reasonModelMirrorPending:         true,
+	}
+
+	for reason := range allowed {
+		cr := &kaitov1alpha1.ModelMirror{
+			Status: kaitov1alpha1.ModelMirrorStatus{
+				Conditions: []v1.Condition{{
+					Type:   mmconsts.ConditionTypeReady,
+					Status: v1.ConditionFalse,
+					Reason: reason,
+				}},
+			},
+		}
+		assert.True(t, allowed[modelMirrorPendingReason(cr)],
+			"forwarded reason %q must stay within the closed vocabulary", reason)
+	}
+}
+
+func TestEnsureModelMirror_StaticAnnotationsCarryReason(t *testing.T) {
+	cases := []struct {
+		name        string
+		annotations map[string]string
+		wantMessage string
+	}{
+		{
+			name: "partial core SAS annotations",
+			annotations: map[string]string{
+				modelstreaming.AnnotationStaticModelMirror: "true",
+			},
+			wantMessage: "missing",
+		},
+		{
+			name: "invalid stream source type",
+			annotations: map[string]string{
+				modelstreaming.AnnotationStaticModelMirror:      "true",
+				modelstreaming.AnnotationStreamDatarefsURL:      "https://example.com/refs",
+				modelstreaming.AnnotationStreamIdentityClientID: "00000000-0000-0000-0000-000000000000",
+				modelstreaming.AnnotationStreamSourceType:       "bogus",
+			},
+			wantMessage: "stream-source-type",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &WorkspaceReconciler{}
+			err := c.ensureModelMirror(context.Background(), &v1beta1.Workspace{
+				ObjectMeta: v1.ObjectMeta{Name: "ws", Namespace: "default", Annotations: tc.annotations},
+			})
+			require.Error(t, err)
+
+			reason, msg := streamingValidationReason(fmt.Errorf("reconcile: %w", err), "", "")
+			assert.Equal(t, reasonModelStreamingInvalidAnnotations, reason)
+			assert.Contains(t, msg, tc.wantMessage)
 		})
 	}
 }

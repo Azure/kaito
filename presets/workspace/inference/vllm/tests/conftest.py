@@ -49,17 +49,21 @@ except (ImportError, Exception):
         "vllm",
         [
             "entrypoints",
+            "entrypoints.launchers",
+            "entrypoints.launchers.api_server",
+            "entrypoints.launchers.api_server.entry",
+            "entrypoints.launchers.cli_args",
             "entrypoints.openai",
-            "entrypoints.openai.api_server",
             "entrypoints.openai.models",
             "entrypoints.openai.models.protocol",
             "utils",
             "utils.argparse_utils",
+            "v1.metrics.prometheus",
         ],
     )
 
     # Mock other heavy deps that inference_api imports at module level.
-    for mod in ("pynvml", "uvloop", "psutil"):
+    for mod in ("torch", "uvloop", "psutil"):
         _install_mock_module(mod)
 
     # Provide a minimal FlexibleArgumentParser stub so inference_api can subclass it.

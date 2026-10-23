@@ -20,8 +20,24 @@ import (
 
 type InferenceSetResourceSpec struct {
 	// InstanceType specifies the GPU node SKU.
-	// +required
-	InstanceType string `json:"instanceType"`
+	// Required when node auto-provisioning is enabled. Optional for BYO nodes, where it
+	// restricts the GPU nodes to those labeled node.kubernetes.io/instance-type=<instanceType>.
+	// +optional
+	InstanceType string `json:"instanceType,omitempty"`
+
+	// Partition specifies GPU partitioning applied to each replica. When set, each
+	// replica is scheduled on a GPU partition (slice) instead of a full GPU.
+	// Requires the enableMIG feature gate and BYO nodes.
+	// Propagated verbatim to each child Workspace.
+	// +optional
+	Partition *PartitionSpec `json:"partition,omitempty"`
+
+	// LabelSelector specifies the required labels for the GPU nodes and is copied into
+	// resource.labelSelector of each child Workspace. With BYO nodes, leave it unset or
+	// empty ({}), together with instanceType, to auto-select the GPU SKU. With node
+	// auto-provisioning, an unset or empty value inherits spec.labelSelector.
+	// +optional
+	LabelSelector *metav1.LabelSelector `json:"labelSelector,omitempty"`
 }
 
 // InferenceSetTemplate defines the template for creating InferenceSet instances.
@@ -37,6 +53,24 @@ type InferenceSetTemplate struct {
 	Inference InferenceSpec            `json:"inference"`
 }
 
+// AutoUpgradeStrategy describes how the controller replaces Workspaces when a
+// newer base image version is detected.
+// +kubebuilder:validation:Enum=InPlace;Surge
+type AutoUpgradeStrategy string
+
+const (
+	// InPlaceUpgradeStrategy upgrades the existing Workspace's StatefulSet in place
+	// (rolling update of the pod template image). This is fast but incurs downtime
+	// while the pod is recreated and the model is reloaded.
+	InPlaceUpgradeStrategy AutoUpgradeStrategy = "InPlace"
+
+	// SurgeBasedUpgradeStrategy creates a new Workspace on the new base image,
+	// waits for it to become inference-ready, then deletes the old Workspace.
+	// This avoids downtime at the cost of temporarily running an extra Workspace
+	// (extra GPU capacity) during the rollout.
+	SurgeBasedUpgradeStrategy AutoUpgradeStrategy = "Surge"
+)
+
 // AutoUpgradePolicy configures automatic base image upgrade behavior.
 type AutoUpgradePolicy struct {
 	// Enabled controls whether the controller automatically upgrades
@@ -45,6 +79,14 @@ type AutoUpgradePolicy struct {
 	// +optional
 	// +kubebuilder:default:=false
 	Enabled bool `json:"enabled"`
+
+	// Strategy selects how Workspaces are replaced during an upgrade.
+	// "InPlace" (default) rolls the existing Workspace's StatefulSet, incurring
+	// downtime. "Surge" creates a new Workspace, waits for it to become
+	// ready, then deletes the old one, avoiding downtime.
+	// +optional
+	// +kubebuilder:default:=InPlace
+	Strategy AutoUpgradeStrategy `json:"strategy,omitempty"`
 
 	// MaintenanceWindow restricts when upgrades may be applied.
 	// If not specified, upgrades may be applied at any time.
@@ -100,7 +142,11 @@ type InferenceSetSpec struct {
 	// If not specified, there is no limit on the number of GPU nodes that can be created.
 	// +optional
 	NodeCountLimit int `json:"nodeCountLimit,omitempty"`
-	// workspace created by InferenceSet controller would use this label in resource.labelSelector
+	// Selector is a label query over the Workspaces managed by this InferenceSet. It must be
+	// non-empty on create, and its matchLabels must not conflict with template.metadata.labels;
+	// they are added to each child Workspace's labels. It does not select GPU nodes; use template.resource.labelSelector.
+	// For backward compatibility, it is inherited as the node selector with node
+	// auto-provisioning when template.resource.labelSelector is unset or empty.
 	// +required
 	Selector *metav1.LabelSelector `json:"labelSelector"`
 	// UpdateStrategy indicates the strategy to use to replace existing workspaces with new ones.
@@ -125,6 +171,9 @@ type InferenceSetStatus struct {
 	Replicas int `json:"replicas,omitempty"`
 	// ReadyReplicas is the number of workspaces that are in ready state.
 	ReadyReplicas int `json:"readyReplicas,omitempty"`
+	// MaxModelLen is set when all ready workspaces report the same runtime limit.
+	// +optional
+	MaxModelLen *int32 `json:"maxModelLen,omitempty"`
 	// Selector is used to select the pods that provide metrics for making scaling action decisions.
 	// This field must be set when HPA and VPA is used for scaling.
 	Selector string `json:"selector,omitempty"`
@@ -137,6 +186,11 @@ type InferenceSetStatus struct {
 	// AutoUpgrade reports the observed state of automatic base image upgrades.
 	// +optional
 	AutoUpgrade *AutoUpgradeStatus `json:"autoUpgrade,omitempty"`
+
+	// ResolvedModel records what a bring-your-own deployment actually resolved to.
+	// It is owned by the controller and set only for the "custom" preset.
+	// +optional
+	ResolvedModel *ResolvedModel `json:"resolvedModel,omitempty"`
 }
 
 // InferenceSet is the Schema for the InferenceSet API

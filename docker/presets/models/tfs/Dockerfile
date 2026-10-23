@@ -1,5 +1,9 @@
 # syntax=docker/dockerfile:1
-FROM python:3.12-slim AS dependencies
+# Pinned to Debian bookworm (glibc 2.36). The default python:3.12-slim floats to
+# Debian trixie (glibc 2.41), whose C23 cospi/sinpi math declarations are
+# incompatible with CUDA 12.9's nvcc host-compile (used by the optional runtime
+# CUDA toolkit install for DeepGEMM). bookworm avoids that conflict.
+FROM python:3.12-slim-bookworm AS dependencies
 
 ARG MODEL_TYPE
 ARG VERSION
@@ -7,7 +11,8 @@ ARG VERSION
 # https://docs.ray.io/en/latest/cluster/usage-stats.html
 ENV RAY_USAGE_STATS_ENABLED="1"
 
-RUN pip3 install --no-cache-dir --upgrade pip
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    rm -f /usr/local/lib/python3.12/site-packages/pip/_vendor/bom.cdx.json
 
 # Set the working directory
 WORKDIR /workspace
@@ -21,12 +26,12 @@ RUN apt-get update -y && apt upgrade -y && \
     else \
         apt-get install --only-upgrade --no-install-recommends -y openssl; \
     fi && \
-    apt-get install --no-install-recommends -y curl gcc libc-dev perl libglib2.0-0 libgl1 libsm6 libxext6 libxrender1 && \
+    apt-get install --no-install-recommends -y curl gcc g++ libc-dev perl libglib2.0-0 libgl1 libsm6 libxext6 libxrender1 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM dependencies AS base
 
-ARG UV_VERSION=0.10.10
+ARG UV_VERSION=0.13.4
 
 COPY presets/workspace/dependencies/requirements.txt /workspace/requirements.txt
 
@@ -42,11 +47,15 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         --extra-index-url "https://wheels.vllm.ai/${VLLM_VERSION}/cu129" \
         --extra-index-url https://download.pytorch.org/whl/cu129 \
         --find-links "https://github.com/LMCache/LMCache/releases/expanded_assets/v${LMCACHE_VERSION}-cu129" && \
-    : "LMCache depends on the 'nixl' meta package which installs BOTH nixl-cu12 and" \
-      "nixl-cu13; they ship the same nixl_ep_cpp .so (last writer wins) and nixl-cu13" \
-      "links libcudart.so.13 which is absent on this CUDA 12.9 image. Reinstall nixl-cu12" \
-      "last so its cu12 .so wins, otherwise 'import nixl_ep' fails with libcudart.so.13 not found." && \
-    uv pip install --system -q --reinstall-package nixl-cu12 nixl-cu12 && \
+    : "requirements.txt pins nixl-cu12 (the CUDA-12 NIXL bindings), installed above. vLLM's" \
+      "NixlConnector (P/D disaggregation, used by MultiRoleInference prefill/decode roles)" \
+      "imports the top-level 'nixl' module (nixl._api), which nixl-cu12 does NOT provide" \
+      "(it ships 'nixl_cu12'/'nixl_ep_cu12'). Install the matching pure-python 'nixl'" \
+      "dispatcher with --no-deps so it reuses the pinned cu12 bindings rather than also" \
+      "pulling nixl-cu13 (which links libcudart.so.13, absent on this CUDA 12.9 image)." \
+      "Without the dispatcher, prefill/decode pods crash at engine init with 'NIXL is not available'." && \
+    NIXL_VERSION=$(grep 'nixl-cu12==' /workspace/requirements.txt | cut -d'=' -f3 | tr -d ' ') && \
+    uv pip install --system -q --no-deps "nixl==${NIXL_VERSION}" && \
     pip3 uninstall -y uv
 
 # 1. Huggingface transformers
@@ -63,7 +72,21 @@ COPY presets/workspace/inference/vllm/inference_api.py \
     presets/workspace/inference/vllm/multi-node-health-check.py \
     presets/workspace/inference/vllm/list_supported_llm_archs.py \
     presets/workspace/inference/vllm/benchmark_entrypoint.py \
+    presets/workspace/inference/vllm/benchmark_control.py \
+    presets/workspace/inference/vllm/rate_limit.py \
+    presets/workspace/inference/vllm/export_sas_token_for_streaming.sh \
     /workspace/vllm/
+# Temporary upstream workarounds imported by inference_api.py (delete with the
+# module once the referenced fixes land).
+COPY presets/workspace/inference/vllm/_workarounds/ /workspace/vllm/_workarounds/
+
+RUN chmod +x /workspace/vllm/export_sas_token_for_streaming.sh
+
+# Runtime CUDA toolkit provisioner. Invoked by the cuda-toolkit-provisioner init
+# container for models that require DeepGEMM (nvcc JIT), to install cuda-toolkit-12-9
+# into a node hostPath for runtimes that JIT-compile with nvcc.
+COPY docker/presets/models/tfs/cuda-provision.sh /workspace/cuda-provision.sh
+RUN chmod +x /workspace/cuda-provision.sh
 
 RUN VLLM_VERSION=$(grep 'vllm==' /workspace/requirements.txt | cut -d'=' -f3) && \
     curl --fail -o /workspace/vllm/multi-node-serving.sh \

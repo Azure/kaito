@@ -22,7 +22,16 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
+
+	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
+	"github.com/kaito-project/kaito/pkg/utils/consts"
+	"github.com/kaito-project/kaito/pkg/utils/speculativedecoding"
 )
+
+// MaxMultiRoleInferenceNameLength caps new MultiRoleInference names so the
+// child InferenceSet names "<name>-<role>" fit the 63-character DNS label
+// limit enforced on InferenceSet names. Prefill is the longest role type.
+const MaxMultiRoleInferenceNameLength = validation.DNS1123LabelMaxLength - len("-") - len(MultiRoleInferenceRolePrefill)
 
 func (m *MultiRoleInference) SupportedVerbs() []admissionregistrationv1.OperationType {
 	return []admissionregistrationv1.OperationType{
@@ -41,12 +50,23 @@ func (m *MultiRoleInference) Validate(ctx context.Context) (errs *apis.FieldErro
 	base := apis.GetBaseline(ctx)
 	if base == nil {
 		klog.InfoS("Validate creation", "multiroleinference", fmt.Sprintf("%s/%s", m.Namespace, m.Name))
+		if len(m.Name) > MaxMultiRoleInferenceNameLength {
+			errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("must be no more than %d characters", MaxMultiRoleInferenceNameLength), "name"))
+		}
 		errs = errs.Also(m.validateCreate().ViaField("spec"))
+		errs = errs.Also(m.validateCapacityTypeAnnotation())
 	} else {
 		klog.InfoS("Validate update", "multiroleinference", fmt.Sprintf("%s/%s", m.Namespace, m.Name))
 		old := base.(*MultiRoleInference)
 		errs = errs.Also(m.validateUpdate(old).ViaField("spec"))
+		errs = errs.Also(m.validateCapacityTypeAnnotationUpdate(old))
 	}
+	// Speculative-decoding opt-in is validated against top-level metadata
+	// (annotation propagates to child InferenceSets -> Workspaces via the
+	// MRI controller). Invoke outside the spec wrapper so field paths like
+	// metadata.annotations[...] are reported correctly, matching the
+	// Workspace validators.
+	errs = errs.Also(m.validateSpeculativeDecoding())
 	return errs
 }
 
@@ -84,6 +104,39 @@ func (m *MultiRoleInference) validateUpdate(old *MultiRoleInference) (errs *apis
 	return errs
 }
 
+func (m *MultiRoleInference) validateCapacityTypeAnnotation() *apis.FieldError {
+	if !consts.IsKarpenterProvisioner() {
+		return nil
+	}
+	capacityType := m.GetAnnotations()[kaitov1beta1.AnnotationCapacityType]
+	if consts.IsSupportedKarpenterCapacityType(capacityType) {
+		return nil
+	}
+	return apis.ErrInvalidValue(
+		fmt.Sprintf("%q is not a supported capacity type; choose one of: %s, %s",
+			capacityType, consts.KarpenterCapacityTypeOnDemand, consts.KarpenterCapacityTypeSpot),
+		fmt.Sprintf("metadata.annotations[%s]", kaitov1beta1.AnnotationCapacityType),
+	)
+}
+
+func (m *MultiRoleInference) validateCapacityTypeAnnotationUpdate(old *MultiRoleInference) *apis.FieldError {
+	if !consts.IsKarpenterProvisioner() {
+		return nil
+	}
+	oldValue := old.GetAnnotations()[kaitov1beta1.AnnotationCapacityType]
+	newValue := m.GetAnnotations()[kaitov1beta1.AnnotationCapacityType]
+	if oldValue == newValue {
+		return nil
+	}
+	if !consts.IsSupportedKarpenterCapacityType(oldValue) {
+		return m.validateCapacityTypeAnnotation()
+	}
+	return apis.ErrGeneric(
+		fmt.Sprintf("annotation %s is immutable after creation", kaitov1beta1.AnnotationCapacityType),
+		fmt.Sprintf("metadata.annotations[%s]", kaitov1beta1.AnnotationCapacityType),
+	)
+}
+
 func (m *MultiRoleInference) validateRoles() (errs *apis.FieldError) {
 	// Validate exactly 2 roles.
 	if len(m.Spec.Roles) != 2 {
@@ -118,9 +171,19 @@ func (m *MultiRoleInference) validateRoles() (errs *apis.FieldError) {
 			))
 		}
 
-		// Validate instanceType is not empty.
-		if role.InstanceType == "" {
-			errs = errs.Also(apis.ErrMissingField(field + ".instanceType"))
+		// Validate instanceType based on active node provisioner.
+		switch consts.ActiveNodeProvisioner {
+		case consts.NodeProvisionerBYO:
+			if role.InstanceType != "" {
+				errs = errs.Also(apis.ErrInvalidValue(role.InstanceType, field+".instanceType",
+					"instanceType must be empty when nodeProvisioner is byo"))
+			}
+		case consts.NodeProvisionerKarpenter, consts.NodeProvisionerAzureGPU:
+			if role.InstanceType == "" {
+				errs = errs.Also(apis.ErrMissingField(field + ".instanceType"))
+			}
+		default:
+			// Unknown or unset provisioner: no validation (backward compat).
 		}
 
 		// Validate replicas >= 1 when specified (nil means autoscaling).
@@ -135,6 +198,57 @@ func (m *MultiRoleInference) validateRoles() (errs *apis.FieldError) {
 	if !hasDecode {
 		errs = errs.Also(apis.ErrMissingField("roles", "missing decode role"))
 	}
+
+	return errs
+}
+
+// validateSpeculativeDecoding mirrors the Workspace/InferenceSet validators
+// for the kaito.sh/enable-speculative-decoding opt-in. The MRI controller
+// propagates m.Annotations onto each child InferenceSet's Spec.Template.
+// Metadata, which the InferenceSet controller then clones onto each child
+// Workspace. Gating at MRI admission avoids surfacing a valid MRI whose
+// generated workspaces would silently drop speculative decoding.
+func (m *MultiRoleInference) validateSpeculativeDecoding() (errs *apis.FieldError) {
+	// Preset must be set (MRI's shared model).
+	presetName := m.Spec.Model.Name
+	runtime := EffectiveInferenceRuntime(m.Annotations)
+
+	status, invalidValue := speculativedecoding.ValidateOptIn(
+		m.GetAnnotations(),
+		AnnotationEnableSpeculativeDecoding,
+		presetName,
+		runtime,
+	)
+	switch status {
+	case speculativedecoding.OptInDisabled:
+		return nil
+	case speculativedecoding.OptInInvalidValue:
+		return errs.Also(apis.ErrInvalidValue(
+			fmt.Sprintf("annotation %s has invalid value %q; expected \"true\" or \"false\"", AnnotationEnableSpeculativeDecoding, invalidValue),
+			fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	case speculativedecoding.OptInMissingPreset:
+		return errs.Also(apis.ErrGeneric(
+			"kaito.sh/enable-speculative-decoding requires spec.model.name",
+			fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	case speculativedecoding.OptInRuntimeMismatch:
+		return errs.Also(apis.ErrGeneric(
+			fmt.Sprintf(
+				"kaito.sh/enable-speculative-decoding requires the vLLM runtime; effective runtime resolves to %q (preset %q)",
+				runtime, presetName,
+			),
+			fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	}
+
+	// Any preset is accepted: presets registered in generator.speculativeDecodingByPreset
+	// get their preset-tuned config (e.g. mtp for DeepSeek R1/V3/V3.2); everything else
+	// falls back to the universal ngram default at pod-spec generation time.
+	//
+	// Note: MRI is inherently multi-role (prefill + decode) and typically
+	// single-node per role. Pipeline-parallelism guard is enforced at the
+	// child Workspace layer (Resource.Count > 1).
 
 	return errs
 }

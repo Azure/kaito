@@ -20,10 +20,10 @@ on:
       region:
         type: string
         description: "the azure location to run the e2e test in"
-        default: "swedencentral"
+        default: "polandcentral"
       k8s_version:
         type: string
-        default: "1.33.8"
+        default: "1.35"
       pull_request_number:
         type: string
       ginkgo_label:
@@ -42,7 +42,7 @@ jobs:
 
     env:
       TEST_SUITE: ${{ inputs.node_provisioner }}
-      GO_VERSION: "1.26.4"
+      GO_VERSION: "1.26.10"
       KARPENTER_NAMESPACE: "karpenter"
       GPU_PROVISIONER_NAMESPACE: "gpu-provisioner"
 
@@ -76,7 +76,7 @@ jobs:
       - name: Set BUILD_KAITO_BASE_IMAGE
         run: |
           # Check if we are missing the kaito-base image. If we are, we should run full e2e tests. Otherwise, run fast e2e tests.
-          BUILD_KAITO_BASE_IMAGE=$(python3 .github/determine_missing_preset_images.py | jq -r '.[] | select(.name == "base") | length > 0')
+          BUILD_KAITO_BASE_IMAGE=$(python3 .github/determine_missing_base_images.py | jq -r '.[] | select(.name == "base") | length > 0')
           echo "BUILD_KAITO_BASE_IMAGE=${BUILD_KAITO_BASE_IMAGE}" >> $GITHUB_ENV
 
       - name: Run e2e-base-setup composite action
@@ -125,7 +125,8 @@ jobs:
           if [ "${{ inputs.node_provisioner }}" == "gpuprovisioner" ]; then
             kubectl logs -n "${{ env.GPU_PROVISIONER_NAMESPACE }}" -l app.kubernetes.io/name=gpu-provisioner -c controller
           else
-            kubectl logs -n "${{ env.KARPENTER_NAMESPACE }}" -l app.kubernetes.io/name=karpenter -c controller
+            # Karpenter is managed by AKS node auto-provisioning and runs in the control plane.
+            kubectl get nodepools.karpenter.sh,aksnodeclasses.karpenter.azure.com
           fi
 
       - name: Log kaito-workspace

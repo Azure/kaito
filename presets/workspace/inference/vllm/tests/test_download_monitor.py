@@ -18,8 +18,10 @@ stubbed via sys.modules so these tests run on any machine, including Mac
 dev environments without a GPU or vllm installed.
 """
 
+import argparse
 import sys
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -28,11 +30,34 @@ import pytest
 # Use setdefault so we don't replace already-loaded real modules when the
 # full test suite runs in a GPU environment.
 _HF_MOCK = MagicMock(name="huggingface_hub")
+
+
+# starlette needs real classes because rate_limit.RateLimitMiddleware
+# subclasses BaseHTTPMiddleware — a MagicMock can't be a base class.
+class _StubBaseHTTPMiddleware:
+    def __init__(self, app=None):
+        self.app = app
+
+
+class _StubJSONResponse:
+    def __init__(self, status_code, content):
+        self.status_code = status_code
+        self.content = content
+
+
+_starlette_base = ModuleType("starlette.middleware.base")
+_starlette_base.BaseHTTPMiddleware = _StubBaseHTTPMiddleware
+_starlette_responses = ModuleType("starlette.responses")
+_starlette_responses.JSONResponse = _StubJSONResponse
+
 _STUBS = {
     "vllm": MagicMock(),
     "vllm.entrypoints": MagicMock(),
+    "vllm.entrypoints.launchers": MagicMock(),
+    "vllm.entrypoints.launchers.api_server": MagicMock(),
+    "vllm.entrypoints.launchers.api_server.entry": MagicMock(),
+    "vllm.entrypoints.launchers.cli_args": MagicMock(),
     "vllm.entrypoints.openai": MagicMock(),
-    "vllm.entrypoints.openai.api_server": MagicMock(),
     "vllm.entrypoints.openai.models": MagicMock(),
     "vllm.entrypoints.openai.models.protocol": MagicMock(),
     "vllm.utils": MagicMock(),
@@ -40,12 +65,15 @@ _STUBS = {
     "vllm.v1": MagicMock(),
     "vllm.v1.metrics": MagicMock(),
     "vllm.v1.metrics.prometheus": MagicMock(),
-    "pynvml": MagicMock(),
+    "torch": MagicMock(),
     "uvloop": MagicMock(),
     "psutil": MagicMock(),
-    "prometheus_client": MagicMock(),
     "yaml": MagicMock(),
     "huggingface_hub": _HF_MOCK,
+    "starlette": ModuleType("starlette"),
+    "starlette.middleware": ModuleType("starlette.middleware"),
+    "starlette.middleware.base": _starlette_base,
+    "starlette.responses": _starlette_responses,
 }
 for _name, _mock in _STUBS.items():
     sys.modules.setdefault(_name, _mock)
@@ -460,3 +488,122 @@ class TestModelCacheSizeBytes:
 
         # 1000 (blob) + 200 (incomplete); symlink ignored
         assert _model_cache_size_bytes(str(tmp_path)) == 1200
+
+
+# ── get_max_gpu_memory_utilization / _query_gpu_mem_info ──────────────────────
+class TestGpuMemoryUtilization:
+    GiB = 1024**3
+
+    def test_computes_utilization_from_free_memory(self):
+        # 24 GiB total, 20 GiB free → (20GiB - 600MiB) / 24GiB, floored to 2dp.
+        free = 20 * self.GiB
+        total = 24 * self.GiB
+        with patch.object(
+            inference_api, "_query_gpu_mem_info", return_value=(free, total)
+        ):
+            util = inference_api.get_max_gpu_memory_utilization(0)
+        expected = (((free - 600 * MB) * 100) // total) / 100
+        assert util == expected
+        assert util <= 0.95
+
+    def test_caps_at_0_95(self):
+        # A fully free GPU would exceed 0.95 → capped.
+        free = total = 80 * self.GiB
+        with patch.object(
+            inference_api, "_query_gpu_mem_info", return_value=(free, total)
+        ):
+            assert inference_api.get_max_gpu_memory_utilization(0) == 0.95
+
+    def test_falls_back_to_default_on_error(self):
+        # A query failure must not crash startup (or initialize CUDA in this
+        # process); fall back to the default utilization.
+        with patch.object(
+            inference_api, "_query_gpu_mem_info", side_effect=RuntimeError("boom")
+        ):
+            assert (
+                inference_api.get_max_gpu_memory_utilization(0)
+                == inference_api._DEFAULT_GPU_MEMORY_UTILIZATION
+            )
+
+    def test_query_parses_sentinel_line_from_subprocess(self):
+        # _query_gpu_mem_info runs torch in a subprocess; verify it parses the
+        # sentinel line (ignoring stray stdout) without spawning a real one.
+        completed = MagicMock()
+        completed.stdout = "some torch warning\nKAITO_MEM_INFO 123 456\n"
+        with patch.object(
+            inference_api.subprocess, "run", return_value=completed
+        ) as mock_run:
+            assert inference_api._query_gpu_mem_info(3) == (123, 456)
+        # The device index is forwarded to the child process.
+        assert mock_run.call_args[0][0][-1] == "3"
+
+    def test_query_raises_on_unexpected_output(self):
+        completed = MagicMock()
+        completed.stdout = "no sentinel here\n"
+        with (
+            patch.object(inference_api.subprocess, "run", return_value=completed),
+            pytest.raises(RuntimeError),
+        ):
+            inference_api._query_gpu_mem_info(0)
+
+
+class TestConfigureMiddlewares:
+    def test_server_hooks_target_launcher_entry_module(self):
+        if isinstance(inference_api.api_server_entry, MagicMock):
+            pytest.skip("vLLM is not installed in the lightweight test environment")
+
+        assert (
+            inference_api.api_server_entry.__name__
+            == "vllm.entrypoints.launchers.api_server.entry"
+        )
+        assert inference_api.api_server_entry.run_server.__globals__ is vars(
+            inference_api.api_server_entry
+        )
+
+    @pytest.mark.parametrize(
+        ("cli_args", "expected"),
+        [([], False), (["--kaito-disable-benchmark-control"], True)],
+    )
+    def test_parser_supports_benchmark_control_flag(
+        self, monkeypatch, cli_args, expected
+    ):
+        monkeypatch.setattr(
+            inference_api.launcher_cli_args,
+            "make_arg_parser",
+            lambda _parser: argparse.ArgumentParser(add_help=False),
+        )
+        monkeypatch.setattr(
+            inference_api.KAITOArgumentParser,
+            "_reset_vllm_defaults",
+            lambda _self: None,
+        )
+
+        args = inference_api.KAITOArgumentParser().parse_args(cli_args)
+
+        assert args.kaito_disable_benchmark_control is expected
+
+    def test_registers_benchmark_control_by_default(self):
+        args = SimpleNamespace(
+            middleware=["custom.Middleware"],
+            kaito_disable_benchmark_control=False,
+            kaito_disable_rate_limit=False,
+        )
+
+        inference_api.configure_middlewares(args)
+
+        assert args.middleware == [
+            "custom.Middleware",
+            "benchmark_control.BenchmarkControlMiddleware",
+            "rate_limit.RateLimitMiddleware",
+        ]
+
+    def test_can_disable_benchmark_control(self):
+        args = SimpleNamespace(
+            middleware=None,
+            kaito_disable_benchmark_control=True,
+            kaito_disable_rate_limit=False,
+        )
+
+        inference_api.configure_middlewares(args)
+
+        assert args.middleware == ["rate_limit.RateLimitMiddleware"]

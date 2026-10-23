@@ -25,8 +25,11 @@ rules:
     resources: [ "pods/log" ]
     verbs: ["get"]
   - apiGroups: [ "" ]
+    resources: [ "pods/proxy" ]
+    verbs: ["get"]
+  - apiGroups: [ "" ]
     resources: [ "configmaps" ]
-    verbs: [ "get","list","watch","create", "delete" ]
+    verbs: [ "get","list","watch","create", "delete", "update", "patch" ]
   - apiGroups: ["apps"]
     resources: ["daemonsets"]
     verbs: ["get","list","watch","update", "patch"]
@@ -91,7 +94,8 @@ rules:
   {{- end }}
   - apiGroups: [""]
     resources: ["events"]
-    verbs: ["create", "patch", "update"]
+    # list surfaces the provisioning failure Events of NodeClaims in Workspace status.
+    verbs: ["create", "patch", "update", "list"]
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "list", "watch"]

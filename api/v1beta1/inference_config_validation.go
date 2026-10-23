@@ -22,13 +22,11 @@ import (
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kaito-project/kaito/pkg/k8sclient"
 	"github.com/kaito-project/kaito/pkg/model"
-	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/plugin"
 	"github.com/kaito-project/kaito/presets/workspace/models"
 )
@@ -52,13 +50,7 @@ func (w *Workspace) validateInferenceConfig(ctx context.Context) (errs *apis.Fie
 		err    error
 	)
 	if cmName == "" {
-		klog.Infof("Inference config not specified. Using default: %q", DefaultInferenceConfigTemplate)
-		cmName = DefaultInferenceConfigTemplate
-		cmNS, err = utils.GetReleaseNamespace()
-		if err != nil {
-			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Failed to determine release namespace: %v", err), "namespace"))
-			return errs
-		}
+		return nil
 	}
 
 	// Check if the ConfigMap exists
@@ -77,9 +69,14 @@ func (w *Workspace) validateInferenceConfig(ctx context.Context) (errs *apis.Fie
 		return errs
 	}
 
-	// Check if inference_config.yaml exists
+	// Check if inference_config.yaml exists. A bring-your-own model shares this
+	// ConfigMap with its model configuration, where runtime overrides are
+	// optional and its absence simply means "use the defaults".
 	inferenceConfigYAML, ok := cm.Data["inference_config.yaml"]
 	if !ok {
+		if _, isCustomModel := cm.Data[models.CustomModelConfigKey]; isCustomModel {
+			return errs
+		}
 		return apis.ErrMissingField("inference_config.yaml in ConfigMap")
 	}
 
@@ -98,7 +95,7 @@ func (w *Workspace) validateInferenceConfig(ctx context.Context) (errs *apis.Fie
 			if w.Inference != nil && w.Inference.Preset != nil {
 				presetName := strings.ToLower(string(w.Inference.Preset.Name))
 				if plugin.IsValidPreset(presetName) {
-					modelPreset, err := models.GetModelByName(ctx, presetName, w.Inference.Preset.PresetOptions.ModelAccessSecret, w.Namespace, k8sclient.Client)
+					modelPreset, err := models.GetModelByName(ctx, presetName, w.Inference.Config, w.Inference.Preset.PresetOptions.ModelAccessSecret, w.Namespace, k8sclient.Client)
 					if err != nil {
 						return apis.ErrInvalidValue(fmt.Sprintf("failed to get model preset: %v", err), "preset")
 					}

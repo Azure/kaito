@@ -33,47 +33,87 @@ func TestNodePoolName_Normal(t *testing.T) {
 	assert.Equal(t, "default-myworkspace", name)
 }
 
-func TestNodePoolName_Exactly253(t *testing.T) {
-	ws := strings.Repeat("a", 250)
+func TestNodePoolName_Exactly53(t *testing.T) {
+	ws := strings.Repeat("a", 50)
 	name := NodePoolName("ns", ws)
-	assert.Equal(t, 253, len(name))
+	assert.Equal(t, 53, len(name))
 	assert.Equal(t, "ns-"+ws, name)
 }
 
-func TestNodePoolName_Over253_Truncated(t *testing.T) {
-	ws := strings.Repeat("b", 251)
+func TestNodePoolName_Over53_Truncated(t *testing.T) {
+	ws := strings.Repeat("b", 51)
 	name := NodePoolName("ns", ws)
-	assert.Assert(t, len(name) == 253, "expected length 253, got %d", len(name))
+	assert.Assert(t, len(name) == 53, "expected length 53, got %d", len(name))
 	assert.Assert(t, name[maxNodePoolNameLen-1-hashSuffixLen] == '-', "expected dash at truncation point")
 	suffix := name[maxNodePoolNameLen-hashSuffixLen:]
 	assert.Equal(t, hashSuffixLen, len(suffix))
 }
 
+// The Azure VM name is "aks-" + the NodeClaim name, and Karpenter names
+// NodeClaims "<nodepool>-" + 5 random characters, so the longest NodePool name
+// must keep the VM name within the 63-character hostname label limit. The
+// inputs are the longest a namespace and a Workspace name can be.
+func TestNodePoolName_FitsAzureVMName(t *testing.T) {
+	name := NodePoolName(strings.Repeat("n", 63), strings.Repeat("w", kaitov1beta1.MaxWorkspaceNameLength))
+	vmName := "aks-" + name + "-" + strings.Repeat("x", 5)
+	assert.Assert(t, len(vmName) <= 63, "VM name %q has %d characters", vmName, len(vmName))
+}
+
 func TestNodePoolName_Deterministic(t *testing.T) {
-	name1 := NodePoolName("ns", strings.Repeat("c", 300))
-	name2 := NodePoolName("ns", strings.Repeat("c", 300))
+	name1 := NodePoolName("ns", strings.Repeat("c", 100))
+	name2 := NodePoolName("ns", strings.Repeat("c", 100))
 	assert.Equal(t, name1, name2)
 }
 
 // --- resolveNodeClassName tests ---
 
 func TestResolveNodeClassName_FromAnnotation(t *testing.T) {
+	setAllowedNodeClasses(t, "image-family-ubuntu", "image-family-azure-linux")
 	ws := &kaitov1beta1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
-				kaitov1beta1.AnnotationNodeClassName: "my-custom-nodeclass",
+				kaitov1beta1.AnnotationNodeClassName: "image-family-azure-linux",
 			},
 		},
 	}
-	name := resolveNodeClassName(ws, testConfig)
-	assert.Equal(t, "my-custom-nodeclass", name)
+	name, err := resolveNodeClassName(ws, testConfig)
+	assert.NilError(t, err)
+	assert.Equal(t, "image-family-azure-linux", name)
+}
+
+func TestResolveNodeClassName_RejectsUnmanagedNodeClass(t *testing.T) {
+	setAllowedNodeClasses(t, "image-family-ubuntu", "image-family-azure-linux")
+	ws := &kaitov1beta1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				kaitov1beta1.AnnotationNodeClassName: "someone-elses-nodeclass",
+			},
+		},
+	}
+	_, err := resolveNodeClassName(ws, testConfig)
+	assert.ErrorContains(t, err, "is not permitted")
+}
+
+func TestResolveNodeClassName_RejectsWhenAllowlistEmpty(t *testing.T) {
+	setAllowedNodeClasses(t)
+	cfg := NodeClassConfig{DefaultName: "image-family-ubuntu"}
+	ws := &kaitov1beta1.Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				kaitov1beta1.AnnotationNodeClassName: "image-family-ubuntu",
+			},
+		},
+	}
+	_, err := resolveNodeClassName(ws, cfg)
+	assert.ErrorContains(t, err, "is not permitted")
 }
 
 func TestResolveNodeClassName_DefaultFallback(t *testing.T) {
 	ws := &kaitov1beta1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{},
 	}
-	name := resolveNodeClassName(ws, testConfig)
+	name, err := resolveNodeClassName(ws, testConfig)
+	assert.NilError(t, err)
 	assert.Equal(t, "image-family-ubuntu", name)
 }
 
@@ -85,11 +125,13 @@ func TestResolveNodeClassName_EmptyAnnotation_FallsBackToDefault(t *testing.T) {
 			},
 		},
 	}
-	name := resolveNodeClassName(ws, testConfig)
+	name, err := resolveNodeClassName(ws, testConfig)
+	assert.NilError(t, err)
 	assert.Equal(t, "image-family-ubuntu", name)
 }
 
 func TestResolveNodeClassName_CustomConfig(t *testing.T) {
+	setAllowedNodeClasses(t, "default-ec2", "al2023-nodeclass")
 	cfg := NodeClassConfig{
 		Group:        "karpenter.k8s.aws",
 		Kind:         "EC2NodeClass",
@@ -103,7 +145,8 @@ func TestResolveNodeClassName_CustomConfig(t *testing.T) {
 			},
 		},
 	}
-	name := resolveNodeClassName(ws, cfg)
+	name, err := resolveNodeClassName(ws, cfg)
+	assert.NilError(t, err)
 	assert.Equal(t, "al2023-nodeclass", name)
 }
 
@@ -127,6 +170,45 @@ func TestIsInferenceSetWorkspace_False(t *testing.T) {
 		},
 	}
 	assert.Assert(t, !isInferenceSetWorkspace(ws))
+}
+
+func TestResolveCapacityType(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        string
+		wantErr     bool
+	}{
+		{name: "absent defaults to on-demand", want: consts.KarpenterCapacityTypeOnDemand},
+		{
+			name:        "empty defaults to on-demand",
+			annotations: map[string]string{kaitov1beta1.AnnotationCapacityType: ""},
+			want:        consts.KarpenterCapacityTypeOnDemand,
+		},
+		{
+			name:        "spot opt-in",
+			annotations: map[string]string{kaitov1beta1.AnnotationCapacityType: consts.KarpenterCapacityTypeSpot},
+			want:        consts.KarpenterCapacityTypeSpot,
+		},
+		{
+			name:        "invalid value",
+			annotations: map[string]string{kaitov1beta1.AnnotationCapacityType: "reserved"},
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &kaitov1beta1.Workspace{ObjectMeta: metav1.ObjectMeta{Annotations: tt.annotations}}
+			got, err := resolveCapacityType(ws)
+			if tt.wantErr {
+				assert.Assert(t, err != nil)
+				return
+			}
+			assert.NilError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 // --- generateNodePool tests ---
@@ -156,7 +238,7 @@ func newTestWorkspace(ns, name, instanceType string, targetNodeCount int32, labe
 
 func TestGenerateNodePool_Standalone(t *testing.T) {
 	ws := newTestWorkspace("default", "llama-serve", "Standard_NC24ads_A100_v4", 2, nil, nil)
-	np := generateNodePool(ws, testConfig)
+	np := generateNodePool(ws, testConfig, testConfig.DefaultName, consts.KarpenterCapacityTypeOnDemand)
 
 	// Name
 	assert.Equal(t, "default-llama-serve", np.Name)
@@ -179,12 +261,16 @@ func TestGenerateNodePool_Standalone(t *testing.T) {
 	assert.Equal(t, testConfig.DefaultName, ref.Name)
 
 	// Requirements
-	assert.Equal(t, 2, len(np.Spec.Template.Spec.Requirements))
+	assert.Equal(t, 3, len(np.Spec.Template.Spec.Requirements))
 	req := np.Spec.Template.Spec.Requirements[0]
 	assert.Equal(t, corev1.LabelInstanceTypeStable, req.Key)
 	assert.Equal(t, corev1.NodeSelectorOpIn, req.Operator)
 	assert.Equal(t, "Standard_NC24ads_A100_v4", req.Values[0])
-	placementReq := np.Spec.Template.Spec.Requirements[1]
+	capacityReq := np.Spec.Template.Spec.Requirements[1]
+	assert.Equal(t, consts.KarpenterCapacityTypeLabel, capacityReq.Key)
+	assert.Equal(t, corev1.NodeSelectorOpIn, capacityReq.Operator)
+	assert.Equal(t, consts.KarpenterCapacityTypeOnDemand, capacityReq.Values[0])
+	placementReq := np.Spec.Template.Spec.Requirements[2]
 	assert.Equal(t, consts.AzurePlacementScopeLabel, placementReq.Key)
 	assert.Equal(t, corev1.NodeSelectorOpIn, placementReq.Operator)
 	assert.Equal(t, consts.AzurePlacementRegional, placementReq.Values[0])
@@ -214,7 +300,7 @@ func TestGenerateNodePool_InferenceSet(t *testing.T) {
 		consts.WorkspaceCreatedByInferenceSetLabel: "my-infset",
 	}
 	ws := newTestWorkspace("prod", "llama-infset-0", "Standard_NC24ads_A100_v4", 1, labels, nil)
-	np := generateNodePool(ws, testConfig)
+	np := generateNodePool(ws, testConfig, testConfig.DefaultName, consts.KarpenterCapacityTypeOnDemand)
 
 	// InferenceSet workspace gets budget "0"
 	assert.Equal(t, "0", np.Spec.Disruption.Budgets[0].Nodes)
@@ -228,10 +314,13 @@ func TestGenerateNodePool_InferenceSet(t *testing.T) {
 }
 
 func TestGenerateNodePool_WithAnnotation(t *testing.T) {
+	setAllowedNodeClasses(t, "image-family-ubuntu", "image-family-azure-linux")
 	ws := newTestWorkspace("default", "ws1", "Standard_D4s_v3", 1, nil, map[string]string{
 		kaitov1beta1.AnnotationNodeClassName: "image-family-azure-linux",
 	})
-	np := generateNodePool(ws, testConfig)
+	nodeClassName, err := resolveNodeClassName(ws, testConfig)
+	assert.NilError(t, err)
+	np := generateNodePool(ws, testConfig, nodeClassName, consts.KarpenterCapacityTypeOnDemand)
 	assert.Equal(t, "image-family-azure-linux", np.Spec.Template.Spec.NodeClassRef.Name)
 }
 
@@ -242,14 +331,16 @@ func TestGenerateNodePool_CustomCloudConfig(t *testing.T) {
 		DefaultName: "default-ec2",
 	}
 	ws := newTestWorkspace("default", "ws1", "m5.xlarge", 1, nil, nil)
-	np := generateNodePool(ws, cfg)
+	np := generateNodePool(ws, cfg, cfg.DefaultName, consts.KarpenterCapacityTypeSpot)
 
 	ref := np.Spec.Template.Spec.NodeClassRef
 	assert.Equal(t, "karpenter.k8s.aws", ref.Group)
 	assert.Equal(t, "EC2NodeClass", ref.Kind)
 	assert.Equal(t, "default-ec2", ref.Name)
 
-	// Non-Azure providers should only have instance-type requirement (no placement scope).
-	assert.Equal(t, 1, len(np.Spec.Template.Spec.Requirements))
+	// Non-Azure providers should have portable instance and capacity requirements only.
+	assert.Equal(t, 2, len(np.Spec.Template.Spec.Requirements))
 	assert.Equal(t, corev1.LabelInstanceTypeStable, np.Spec.Template.Spec.Requirements[0].Key)
+	assert.Equal(t, consts.KarpenterCapacityTypeLabel, np.Spec.Template.Spec.Requirements[1].Key)
+	assert.Equal(t, consts.KarpenterCapacityTypeSpot, np.Spec.Template.Spec.Requirements[1].Values[0])
 }

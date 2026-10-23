@@ -11,7 +11,8 @@ RUN apt-get update && apt-get upgrade -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --upgrade pip
+RUN pip3 install --upgrade pip && \
+    rm -f /usr/local/lib/python3.12/site-packages/pip/_vendor/bom.cdx.json
 
 FROM dependencies AS base
 
@@ -33,6 +34,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # Copy the rest of the application code after dependencies are installed
 # This ensures dependency installation layer is cached when only code changes
+COPY guardrail_core/ guardrail_core/
 COPY presets/ragengine/ ragengine/
 
 # Set the final working directory

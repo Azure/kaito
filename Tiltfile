@@ -28,7 +28,6 @@ def main(IMG='controller:latest', DISABLE_SECURITY_CONTEXT=True):
     FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.24
     WORKDIR /
     COPY ./tilt_bin/manager /
-    COPY ./presets/workspace/models/supported_models.yaml /
     CMD ["/manager"]
     '''
 
@@ -36,7 +35,15 @@ def main(IMG='controller:latest', DISABLE_SECURITY_CONTEXT=True):
         cluster_name = k8s_context() if not settings.get('cluster_name') else settings['cluster_name']
         node_provisioner = 'byo' if feature_gates.get('disableNodeAutoProvisioning', False) else 'azure-gpu-provisioner'
         preset_registry = settings.get('preset_registry_name', 'mcr.microsoft.com/aks/kaito').removesuffix('/')
-        helm_template = 'helm template kaito-workspace ./charts/kaito/workspace --namespace kaito-workspace --set clusterName={} --set image.repository=controller --set image.tag=latest --set enableBaseImageAutoUpgrade={} --set featureGates.gatewayAPIInferenceExtension={} --set featureGates.disableNodeAutoProvisioning={} --set featureGates.enableInferenceSetController={} --set nodeProvisioner={} --set presetRegistryName={}'.format(cluster_name, feature_gates.get('enableBaseImageAutoUpgrade', False), feature_gates['gatewayAPIInferenceExtension'], feature_gates['disableNodeAutoProvisioning'], feature_gates.get('enableInferenceSetController', False), node_provisioner, preset_registry)
+
+        gfd_settings = settings.get('gpu_feature_discovery', {})
+        gfd_flags = ''
+        if 'enabled' in gfd_settings.get('nfd', {}):
+            gfd_flags += ' --set gpu-feature-discovery.nfd.enabled={}'.format(str(gfd_settings['nfd']['enabled']).lower())
+        if 'enabled' in gfd_settings.get('gfd', {}):
+            gfd_flags += ' --set gpu-feature-discovery.gfd.enabled={}'.format(str(gfd_settings['gfd']['enabled']).lower())
+
+        helm_template = 'helm template kaito-workspace ./charts/kaito/workspace --namespace kaito-workspace --set clusterName={} --set image.repository=controller --set image.tag=latest --set enableBaseImageAutoUpgrade={} --set featureGates.gatewayAPIInferenceExtension={} --set featureGates.disableNodeAutoProvisioning={} --set featureGates.enableInferenceSetController={} --set featureGates.enableMIG={} --set nodeProvisioner={} --set presetRegistryName={}'.format(cluster_name, feature_gates.get('enableBaseImageAutoUpgrade', False), feature_gates['gatewayAPIInferenceExtension'], feature_gates['disableNodeAutoProvisioning'], feature_gates.get('enableInferenceSetController', False), feature_gates.get('enableMIG', False), node_provisioner, preset_registry) + gfd_flags
         # Set the image name and tag to controller:latest for Tilt to
         # substitute later during docker_build_with_restart
         data = local(helm_template, quiet=True)
@@ -126,10 +133,9 @@ def main(IMG='controller:latest', DISABLE_SECURITY_CONTEXT=True):
         ','.join(['{}={}'.format(k, str(v).lower()) for k, v in feature_gates.items()]),
         node_provisioner
      ),
-     only=['./tilt_bin/manager', './presets/workspace/models/supported_models.yaml'],
+     only=['./tilt_bin/manager'],
      live_update=[
            sync('./tilt_bin/manager', '/manager'),
-           sync('./presets/workspace/models/supported_models.yaml', '/supported_models.yaml'),
        ]
     )
 

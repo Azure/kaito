@@ -25,6 +25,7 @@ import (
 
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
 	"github.com/kaito-project/kaito/pkg/nodeprovision"
+	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/kaito-project/kaito/pkg/utils/nodeclaim"
 	"github.com/kaito-project/kaito/pkg/utils/nodes"
 	"github.com/kaito-project/kaito/pkg/workspace/resource"
@@ -58,7 +59,7 @@ func (g *AzureGPUProvisioner) Start(ctx context.Context) error { return nil }
 
 // ProvisionNodes creates NodeClaims via the Azure gpu-provisioner backend.
 func (g *AzureGPUProvisioner) ProvisionNodes(ctx context.Context, ws *kaitov1beta1.Workspace) error {
-	readyNodes, err := nodes.GetReadyNodes(ctx, g.nodeClaimManager.Client, ws)
+	readyNodes, err := nodeprovision.GetReadyNodes(ctx, g.nodeClaimManager.Client, g, ws)
 	if err != nil {
 		return fmt.Errorf("failed to list ready nodes: %w", err)
 	}
@@ -108,7 +109,9 @@ func (g *AzureGPUProvisioner) DisableDriftRemediation(ctx context.Context, works
 func (g *AzureGPUProvisioner) EnsureNodesReady(ctx context.Context, ws *kaitov1beta1.Workspace) (bool, bool, error) {
 	// List nodes once and derive both readyNodes (for NodeClaim check) and
 	// readyCount with correct instance type (for node readiness check).
-	nodeList, err := nodes.ListNodes(ctx, g.nodeClaimManager.Client, kaitov1beta1.SanitizedMatchLabels(ws.Resource.LabelSelector))
+	// Scope to nodes owned by this workspace so sibling workspaces sharing the
+	// same label selector (e.g. InferenceSet replicas) are not counted.
+	nodeList, err := nodeprovision.ListWorkspaceNodes(ctx, g.nodeClaimManager.Client, g, ws)
 	if err != nil {
 		return false, false, fmt.Errorf("failed to list nodes: %w", err)
 	}
@@ -169,18 +172,18 @@ func (g *AzureGPUProvisioner) EnsureNodesReady(ctx context.Context, ws *kaitov1b
 func (g *AzureGPUProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *kaitov1beta1.Workspace) ([]metav1.Condition, error) {
 	nodeCond := metav1.Condition{
 		Type: string(kaitov1beta1.ConditionTypeNodeStatus), Status: metav1.ConditionFalse,
-		Reason: "NodeNotReady", Message: "Not enough Nodes are ready",
+		Reason: consts.ReasonNodeNotReady, Message: "Not enough Nodes are ready",
 	}
 	nodeClaimCond := metav1.Condition{
 		Type: string(kaitov1beta1.ConditionTypeNodeClaimStatus), Status: metav1.ConditionFalse,
-		Reason: "NodeClaimNotReady", Message: "Ready NodeClaims are not enough",
+		Reason: consts.ReasonNodeClaimNotReady, Message: "Ready NodeClaims are not enough",
 	}
 	resourceCond := metav1.Condition{
 		Type: string(kaitov1beta1.ConditionTypeResourceStatus), Status: metav1.ConditionFalse,
-		Reason: "workspaceResourceStatusNotReady", Message: "node claim or node status condition not ready",
+		Reason: consts.ReasonResourceNotReady, Message: "node claim or node status condition not ready",
 	}
 
-	nodeList, err := nodes.ListNodes(ctx, g.nodeClaimManager.Client, kaitov1beta1.SanitizedMatchLabels(ws.Resource.LabelSelector))
+	nodeList, err := nodeprovision.ListWorkspaceNodes(ctx, g.nodeClaimManager.Client, g, ws)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list nodes: %w", err)
 	}
@@ -216,6 +219,12 @@ func (g *AzureGPUProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *kai
 		nodeClaimCond.Status = metav1.ConditionTrue
 		nodeClaimCond.Reason = "NodeClaimsReady"
 		nodeClaimCond.Message = "Enough NodeClaims are ready"
+	} else if reason, message, ok := nodeclaim.FirstNodeClaimProvisioningState(existingNodeClaims); ok {
+		// Surface the underlying cloud-provider provisioning error (e.g. quota
+		// exceeded, unauthorized), or the NodeClaim's current in-progress state
+		// (e.g. AwaitingReconciliation), instead of a generic "not enough" message.
+		nodeClaimCond.Reason = reason
+		nodeClaimCond.Message = message
 	}
 
 	// Node readiness.
@@ -227,11 +236,11 @@ func (g *AzureGPUProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *kai
 		pluginReady, pluginErr := g.nodeResourceManager.CheckIfNodePluginsReady(ctx, ws, existingNodeClaims)
 		if pluginErr != nil {
 			nodeCond.Status = metav1.ConditionFalse
-			nodeCond.Reason = "NodePluginsNotReady"
+			nodeCond.Reason = consts.ReasonNodePluginsNotReady
 			nodeCond.Message = pluginErr.Error()
 		} else if !pluginReady {
 			nodeCond.Status = metav1.ConditionFalse
-			nodeCond.Reason = "NodePluginsNotReady"
+			nodeCond.Reason = consts.ReasonNodePluginsNotReady
 			nodeCond.Message = "waiting all node plugins to be ready"
 		}
 	}
@@ -250,4 +259,21 @@ func (g *AzureGPUProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *kai
 	}
 
 	return []metav1.Condition{nodeCond, nodeClaimCond, resourceCond}, nil
+}
+
+// BuildNodeSelector returns requirements that pin pods to nodes provisioned
+// for this workspace. The labels are stamped on NodeClaims by gpu-provisioner.
+func (g *AzureGPUProvisioner) BuildNodeSelector(ctx context.Context, ws *kaitov1beta1.Workspace) []corev1.NodeSelectorRequirement {
+	return []corev1.NodeSelectorRequirement{
+		{
+			Key:      kaitov1beta1.LabelWorkspaceName,
+			Operator: corev1.NodeSelectorOpIn,
+			Values:   []string{ws.Name},
+		},
+		{
+			Key:      kaitov1beta1.LabelWorkspaceNamespace,
+			Operator: corev1.NodeSelectorOpIn,
+			Values:   []string{ws.Namespace},
+		},
+	}
 }

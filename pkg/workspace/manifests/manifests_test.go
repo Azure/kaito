@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	helmv2 "github.com/fluxcd/helm-controller/api/v2"
+	fluxkustomize "github.com/fluxcd/pkg/apis/kustomize"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
@@ -67,21 +68,34 @@ func TestGenerateInferencePoolHelmRelease(t *testing.T) {
 			name:      "statefulset inference pool helm values",
 			workspace: base.DeepCopy(),
 			expected: map[string]any{
-				"inferenceExtension": map[string]any{
-					"image": map[string]any{
-						"hub":        consts.EPPImageHub,
-						"name":       consts.EPPImageName,
-						"tag":        consts.EPPImageTag,
-						"pullPolicy": string(corev1.PullIfNotPresent),
-					},
-				},
-				"inferencePool": map[string]any{
-					"targetPorts": []any{
-						map[string]any{
-							"number": float64(consts.PortInferenceServer),
+				"router": map[string]any{
+					"epp": map[string]any{
+						"image": map[string]any{
+							"registry":   consts.EPPImageRegistry,
+							"repository": consts.EPPImageRepository,
+							"tag":        consts.EPPImageTag,
+							"pullPolicy": string(corev1.PullIfNotPresent),
+						},
+						"resources": map[string]any{
+							"requests": map[string]any{
+								"cpu":    "1",
+								"memory": "2Gi",
+							},
+							"limits": map[string]any{
+								"memory": "16Gi",
+							},
+						},
+						"flags": map[string]any{
+							"metrics-endpoint-auth": false,
+							"secure-serving":        false,
 						},
 					},
 					"modelServers": map[string]any{
+						"targetPorts": []any{
+							map[string]any{
+								"number": float64(consts.PortInferenceServer),
+							},
+						},
 						"matchLabels": map[string]any{
 							consts.WorkspaceCreatedByInferenceSetLabel: base.Name,
 							appsv1.PodIndexLabel:                       "0",
@@ -103,21 +117,34 @@ func TestGenerateInferencePoolHelmRelease(t *testing.T) {
 				return ws
 			}(),
 			expected: map[string]any{
-				"inferenceExtension": map[string]any{
-					"image": map[string]any{
-						"hub":        consts.EPPImageHub,
-						"name":       consts.EPPImageName,
-						"tag":        consts.EPPImageTag,
-						"pullPolicy": string(corev1.PullIfNotPresent),
-					},
-				},
-				"inferencePool": map[string]any{
-					"targetPorts": []any{
-						map[string]any{
-							"number": float64(consts.PortInferenceServer),
+				"router": map[string]any{
+					"epp": map[string]any{
+						"image": map[string]any{
+							"registry":   consts.EPPImageRegistry,
+							"repository": consts.EPPImageRepository,
+							"tag":        consts.EPPImageTag,
+							"pullPolicy": string(corev1.PullIfNotPresent),
+						},
+						"resources": map[string]any{
+							"requests": map[string]any{
+								"cpu":    "1",
+								"memory": "2Gi",
+							},
+							"limits": map[string]any{
+								"memory": "16Gi",
+							},
+						},
+						"flags": map[string]any{
+							"metrics-endpoint-auth": false,
+							"secure-serving":        false,
 						},
 					},
 					"modelServers": map[string]any{
+						"targetPorts": []any{
+							map[string]any{
+								"number": float64(consts.PortInferenceServer),
+							},
+						},
 						"matchLabels": map[string]any{
 							consts.WorkspaceCreatedByInferenceSetLabel: base.Name,
 							appsv1.PodIndexLabel:                       "0",
@@ -139,21 +166,34 @@ func TestGenerateInferencePoolHelmRelease(t *testing.T) {
 				return ws
 			}(),
 			expected: map[string]any{
-				"inferenceExtension": map[string]any{
-					"image": map[string]any{
-						"hub":        consts.EPPImageHub,
-						"name":       consts.EPPImageName,
-						"tag":        consts.EPPImageTag,
-						"pullPolicy": string(corev1.PullIfNotPresent),
-					},
-				},
-				"inferencePool": map[string]any{
-					"targetPorts": []any{
-						map[string]any{
-							"number": float64(consts.PortInferenceServer),
+				"router": map[string]any{
+					"epp": map[string]any{
+						"image": map[string]any{
+							"registry":   consts.EPPImageRegistry,
+							"repository": consts.EPPImageRepository,
+							"tag":        consts.EPPImageTag,
+							"pullPolicy": string(corev1.PullIfNotPresent),
+						},
+						"resources": map[string]any{
+							"requests": map[string]any{
+								"cpu":    "1",
+								"memory": "2Gi",
+							},
+							"limits": map[string]any{
+								"memory": "16Gi",
+							},
+						},
+						"flags": map[string]any{
+							"metrics-endpoint-auth": false,
+							"secure-serving":        false,
 						},
 					},
 					"modelServers": map[string]any{
+						"targetPorts": []any{
+							map[string]any{
+								"number": float64(consts.PortInferenceServer),
+							},
+						},
 						"matchLabels": map[string]any{
 							consts.WorkspaceCreatedByInferenceSetLabel: base.Name,
 							appsv1.PodIndexLabel:                       "0",
@@ -170,6 +210,11 @@ func TestGenerateInferencePoolHelmRelease(t *testing.T) {
 			origVLLM := featuregates.FeatureGates[consts.FeatureFlagVLLM]
 			featuregates.FeatureGates[consts.FeatureFlagVLLM] = true
 			defer func() { featuregates.FeatureGates[consts.FeatureFlagVLLM] = origVLLM }()
+			origFlowControl := featuregates.FeatureGates[consts.FeatureFlagEnableEPPFlowControl]
+			featuregates.FeatureGates[consts.FeatureFlagEnableEPPFlowControl] = false
+			defer func() {
+				featuregates.FeatureGates[consts.FeatureFlagEnableEPPFlowControl] = origFlowControl
+			}()
 
 			helmRelease, err := GenerateInferencePoolHelmRelease(tc.workspace)
 			assert.NoError(t, err)
@@ -190,6 +235,67 @@ func TestGenerateInferencePoolHelmRelease(t *testing.T) {
 			assert.NoError(t, json.Unmarshal(helmRelease.Spec.Values.Raw, &vals))
 			assert.Equal(t, tc.expected, vals)
 		})
+	}
+}
+
+func TestGenerateInferencePoolHelmReleaseFlowControl(t *testing.T) {
+	inferenceSet := test.MockInferenceSetWithPreset.DeepCopy()
+	original := featuregates.FeatureGates[consts.FeatureFlagEnableEPPFlowControl]
+	defer func() {
+		featuregates.FeatureGates[consts.FeatureFlagEnableEPPFlowControl] = original
+	}()
+
+	for _, tc := range []struct {
+		name           string
+		enabled        bool
+		expectedConfig any
+	}{
+		{name: "disabled", enabled: false, expectedConfig: nil},
+		{name: "enabled", enabled: true, expectedConfig: "flow-control-plugins.yaml"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			featuregates.FeatureGates[consts.FeatureFlagEnableEPPFlowControl] = tc.enabled
+
+			helmRelease, err := GenerateInferencePoolHelmRelease(inferenceSet)
+			assert.NoError(t, err)
+
+			values := map[string]any{}
+			assert.NoError(t, json.Unmarshal(helmRelease.Spec.Values.Raw, &values))
+			epp := values["router"].(map[string]any)["epp"].(map[string]any)
+			assert.Equal(t, tc.expectedConfig, epp["pluginsConfigFile"])
+			if tc.enabled {
+				customConfig := epp["pluginsCustomConfig"].(map[string]any)["flow-control-plugins.yaml"].(string)
+				assert.Contains(t, customConfig, "featureGates:\n- flowControl")
+			}
+		})
+	}
+}
+
+func TestGenerateInferencePoolHelmReleaseEPPPodLabel(t *testing.T) {
+	inferenceSet := test.MockInferenceSetWithPreset.DeepCopy()
+	inferenceSet.Name = "model-deployment"
+
+	helmRelease, err := GenerateInferencePoolHelmRelease(inferenceSet)
+	assert.NoError(t, err)
+
+	if assert.Len(t, helmRelease.Spec.PostRenderers, 1) &&
+		assert.NotNil(t, helmRelease.Spec.PostRenderers[0].Kustomize) &&
+		assert.Len(t, helmRelease.Spec.PostRenderers[0].Kustomize.Patches, 1) {
+		patch := helmRelease.Spec.PostRenderers[0].Kustomize.Patches[0]
+		assert.Equal(t, &fluxkustomize.Selector{
+			Group:         "apps",
+			Version:       "v1",
+			Kind:          "Deployment",
+			LabelSelector: "llm-d.ai/igw-mode=llm-d-router-gateway",
+		}, patch.Target)
+
+		operations := []map[string]string{}
+		assert.NoError(t, json.Unmarshal([]byte(patch.Patch), &operations))
+		assert.Equal(t, []map[string]string{{
+			"op":   "copy",
+			"from": "/metadata/name",
+			"path": "/spec/template/metadata/labels/inferencepool",
+		}}, operations)
 	}
 }
 
@@ -323,4 +429,53 @@ func TestGeneratePullerContainers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGenerateServiceManifest_KVEventsPort(t *testing.T) {
+	// Deterministically pin the vLLM feature gate for this test. Other packages'
+	// tests mutate featuregates.FeatureGates (sometimes flipping FeatureFlagVLLM
+	// to false or replacing the whole map) without restoring it, which would
+	// otherwise make kaitov1beta1.GetWorkspaceRuntimeName here flaky under
+	// parallel `go test` runs.
+	origVLLM := featuregates.FeatureGates[consts.FeatureFlagVLLM]
+	featuregates.FeatureGates[consts.FeatureFlagVLLM] = true
+	defer func() { featuregates.FeatureGates[consts.FeatureFlagVLLM] = origVLLM }()
+
+	newWS := func(runtime string) *kaitov1beta1.Workspace {
+		ws := &kaitov1beta1.Workspace{}
+		ws.Name = "ws"
+		ws.Namespace = "kaito"
+		if runtime != "" {
+			ws.Annotations = map[string]string{
+				kaitov1beta1.AnnotationWorkspaceRuntime: runtime,
+			}
+		}
+		return ws
+	}
+
+	hasKVEvents := func(svc *corev1.Service) bool {
+		for _, p := range svc.Spec.Ports {
+			if p.Name == "kv-events" {
+				if p.Port != consts.PortKVCacheEvents {
+					t.Fatalf("kv-events port = %d, want %d", p.Port, consts.PortKVCacheEvents)
+				}
+				return true
+			}
+		}
+		return false
+	}
+
+	// vLLM + ClusterIP: kv-events must be exposed for in-cluster consumers.
+	vllm := newWS(string(pkgmodel.RuntimeNameVLLM))
+	cip := GenerateServiceManifest(vllm, corev1.ServiceTypeClusterIP)
+	assert.True(t, hasKVEvents(cip), "vLLM ClusterIP Service should expose kv-events port")
+
+	// vLLM + LoadBalancer: kv-events must NOT be exposed (unauthenticated ZMQ stream).
+	lb := GenerateServiceManifest(vllm, corev1.ServiceTypeLoadBalancer)
+	assert.False(t, hasKVEvents(lb), "vLLM LoadBalancer Service must not expose kv-events port")
+
+	// Non-vLLM runtime (HuggingFace transformers) + ClusterIP: kv-events must NOT be exposed.
+	hf := newWS(string(pkgmodel.RuntimeNameHuggingfaceTransformers))
+	hfCIP := GenerateServiceManifest(hf, corev1.ServiceTypeClusterIP)
+	assert.False(t, hasKVEvents(hfCIP), "non-vLLM ClusterIP Service must not expose kv-events port")
 }

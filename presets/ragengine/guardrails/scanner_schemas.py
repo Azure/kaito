@@ -13,7 +13,7 @@
 
 """Scanner config schemas for output guardrails.
 
-Each schema describes the YAML shape of one llm_guard scanner AND knows how
+Each schema describes the YAML shape of one guardrail scanner and knows how
 to build the corresponding scanner instance. To add a new scanner:
   1. Define a dataclass with `from_dict()` and `build()`
   2. Register it in SCANNER_REGISTRY below
@@ -29,18 +29,11 @@ import re
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-import llm_guard.input_scanners as llm_guard_input_scanners
-import llm_guard.output_scanners as llm_guard_output_scanners
-from llm_guard.input_scanners.ban_substrings import (
-    MatchType as BanSubstringsMatchType,
-)
-from llm_guard.input_scanners.regex import MatchType as RegexMatchType
+from guardrail_core.scanning import ScanResult
 
-# Allowed match_type values, mirrored from llm_guard's enum *values* (not names).
-# Keeping these here lets us reject invalid policies at parse time instead of
-# letting the error surface only when the scanner is built.
-_BAN_SUBSTRINGS_MATCH_TYPES = frozenset(m.value for m in BanSubstringsMatchType)
-_REGEX_MATCH_TYPES = frozenset(m.value for m in RegexMatchType)
+# Allowed match_type values derived from enums in guardrail_core.native_scanners
+_BAN_SUBSTRINGS_MATCH_TYPES = frozenset(("word", "str"))
+_REGEX_MATCH_TYPES = frozenset(("search", "fullmatch", "all"))
 _SECRETS_REDACT_MODES = frozenset({"all", "partial", "hash"})
 _DEFAULT_SENSITIVE_DETECTORS = ("email", "phone", "credit_card", "ip_address")
 _SENSITIVE_DETECTORS = frozenset(_DEFAULT_SENSITIVE_DETECTORS)
@@ -57,34 +50,25 @@ class _SensitiveMatch:
     detector: str
 
 
-class _OutputSecretsScanner:
-    def __init__(self, scanner: Any) -> None:
-        self._scanner = scanner
-
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
-        del prompt
-        return self._scanner.scan(output)
-
-
 class _PatternPIIScanner:
     def __init__(self, *, detectors: list[str], redact: bool) -> None:
         self._detectors = list(detectors)
         self._redact = redact
 
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
+    def scan(self, prompt: str, output: str) -> ScanResult:
         del prompt
         if output.strip() == "":
-            return output, True, -1.0
+            return ScanResult(output, True, -1.0)
 
         matches = _collect_sensitive_matches(output, self._detectors)
         if not matches:
-            return output, True, -1.0
+            return ScanResult(output, True, -1.0)
 
         sanitized_output = output
         if self._redact:
             sanitized_output = _redact_sensitive_matches(output, matches)
 
-        return sanitized_output, False, 1.0
+        return ScanResult(sanitized_output, False, 1.0)
 
 
 @dataclass
@@ -103,9 +87,10 @@ class SecretsConfig:
         return cls(redact_mode=redact_mode)
 
     def build(self, action_on_hit: str) -> Any:
-        return _OutputSecretsScanner(
-            llm_guard_input_scanners.Secrets(redact_mode=self.redact_mode)
-        )
+        del action_on_hit
+        from guardrail_core.secrets import NativeSecretsScanner
+
+        return NativeSecretsScanner(redact_mode=self.redact_mode)
 
 
 @dataclass
@@ -145,60 +130,41 @@ class SensitiveConfig:
         )
 
 
-# Adapts llm_guard InvisibleText for model output scanning.
-class InvisibleTextOutputAdapter:
-    def __init__(self) -> None:
-        self._scanner = llm_guard_input_scanners.InvisibleText()
-
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
-        sanitized_output, is_valid, score = self._scanner.scan(output)
-        return sanitized_output, is_valid, score
-
-
-# Adapts llm_guard TokenLimit to limit model output token count.
-class TokenLimitOutputAdapter:
-    def __init__(
-        self,
-        *,
-        limit: int,
-        encoding_name: str = "cl100k_base",
-        model_name: str | None = None,
-    ) -> None:
-        self._scanner = llm_guard_input_scanners.TokenLimit(
-            limit=limit,
-            encoding_name=encoding_name,
-            model_name=model_name,
-        )
-
-    def scan(self, prompt: str, output: str) -> tuple[str, bool, float]:
-        sanitized_output, is_valid, score = self._scanner.scan(output)
-        return sanitized_output, is_valid, score
-
-
 @dataclass
 class BanSubstringsConfig:
     supports_redact: ClassVar[bool] = True
     substrings: list[str]
-    match_type: str = "word"
+    match_type: Any = None  # Will be set to BanSubstringsMatchType
     case_sensitive: bool = False
     contains_all: bool = False
 
+    def __post_init__(self):
+        if self.match_type is None or isinstance(self.match_type, str):
+            from guardrail_core.native_scanners import BanSubstringsMatchType
+
+            if self.match_type is None:
+                self.match_type = BanSubstringsMatchType.WORD
+            elif isinstance(self.match_type, str):
+                self.match_type = BanSubstringsMatchType(self.match_type)
+
     @classmethod
     def from_dict(cls, raw: dict) -> "BanSubstringsConfig":
+        from guardrail_core.native_scanners import BanSubstringsMatchType
+
         substrings = _coerce_string_list(raw.get("substrings"))
         if not substrings:
             raise ValueError(
                 "ban_substrings requires 'substrings' to be a non-empty list of strings"
             )
-        match_type = str(raw.get("match_type", "word")).lower()
-        if match_type not in _BAN_SUBSTRINGS_MATCH_TYPES:
+        match_type_str = str(raw.get("match_type", "word")).lower()
+        if match_type_str not in _BAN_SUBSTRINGS_MATCH_TYPES:
             raise ValueError(
                 f"ban_substrings 'match_type' must be one of "
-                f"{sorted(_BAN_SUBSTRINGS_MATCH_TYPES)}, got {match_type!r}"
+                f"{sorted(_BAN_SUBSTRINGS_MATCH_TYPES)}, got {match_type_str!r}"
             )
         return cls(
             substrings=substrings,
-            match_type=match_type,
+            match_type=BanSubstringsMatchType(match_type_str),
             case_sensitive=_coerce_bool(
                 raw.get("case_sensitive"), False, field="case_sensitive"
             ),
@@ -208,9 +174,11 @@ class BanSubstringsConfig:
         )
 
     def build(self, action_on_hit: str) -> Any:
-        return llm_guard_output_scanners.BanSubstrings(
+        from guardrail_core.native_scanners import NativeBanSubstringsScanner
+
+        return NativeBanSubstringsScanner(
             substrings=list(self.substrings),
-            match_type=BanSubstringsMatchType(self.match_type),
+            match_type=self.match_type,
             case_sensitive=self.case_sensitive,
             contains_all=self.contains_all,
             redact=(action_on_hit == "redact"),
@@ -222,10 +190,21 @@ class RegexConfig:
     supports_redact: ClassVar[bool] = True
     patterns: list[str]
     is_blocked: bool = True
-    match_type: str = "search"
+    match_type: Any = None  # Will be set to RegexMatchType
+
+    def __post_init__(self):
+        if self.match_type is None or isinstance(self.match_type, str):
+            from guardrail_core.native_scanners import RegexMatchType
+
+            if self.match_type is None:
+                self.match_type = RegexMatchType.SEARCH
+            elif isinstance(self.match_type, str):
+                self.match_type = RegexMatchType(self.match_type)
 
     @classmethod
     def from_dict(cls, raw: dict) -> "RegexConfig":
+        from guardrail_core.native_scanners import RegexMatchType
+
         patterns = _coerce_string_list(raw.get("patterns"))
         if not patterns:
             raise ValueError(
@@ -238,30 +217,30 @@ class RegexConfig:
                 raise ValueError(
                     f"regex pattern {pattern!r} is not a valid regular expression: {exc}"
                 ) from exc
-        match_type = str(raw.get("match_type", "search")).lower()
-        if match_type not in _REGEX_MATCH_TYPES:
+        match_type_str = str(raw.get("match_type", "search")).lower()
+        if match_type_str not in _REGEX_MATCH_TYPES:
             raise ValueError(
                 f"regex 'match_type' must be one of "
-                f"{sorted(_REGEX_MATCH_TYPES)}, got {match_type!r}"
+                f"{sorted(_REGEX_MATCH_TYPES)}, got {match_type_str!r}"
             )
         return cls(
             patterns=patterns,
             is_blocked=_coerce_bool(raw.get("is_blocked"), True, field="is_blocked"),
-            match_type=match_type,
+            match_type=RegexMatchType(match_type_str),
         )
 
     def build(self, action_on_hit: str) -> Any:
-        return llm_guard_output_scanners.Regex(
+        from guardrail_core.native_scanners import NativeRegexScanner
+
+        return NativeRegexScanner(
             patterns=list(self.patterns),
             is_blocked=self.is_blocked,
-            match_type=RegexMatchType(self.match_type),
+            match_type=self.match_type,
             redact=(action_on_hit == "redact"),
         )
 
 
 @dataclass
-# Detects and removes invisible or non-printable Unicode characters that can
-# hide instructions or other steganographic content in model output.
 class InvisibleTextConfig:
     supports_redact: ClassVar[bool] = True
 
@@ -272,13 +251,12 @@ class InvisibleTextConfig:
         return cls()
 
     def build(self, action_on_hit: str) -> Any:
-        return InvisibleTextOutputAdapter()
+        from guardrail_core.native_scanners import NativeInvisibleTextScanner
+
+        return NativeInvisibleTextScanner()
 
 
 @dataclass
-# Limits the token count of model output. Outputs that exceed limit are marked
-# invalid. This counts tokens, not characters or words; encoding_name and
-# model_name control which tokenizer is used for counting.
 class TokenLimitConfig:
     supports_redact: ClassVar[bool] = True
     limit: int = 4096
@@ -306,7 +284,9 @@ class TokenLimitConfig:
         return cls(limit=limit, encoding_name=encoding_name, model_name=model_name)
 
     def build(self, action_on_hit: str) -> Any:
-        return TokenLimitOutputAdapter(
+        from guardrail_core.native_scanners import NativeTokenLimitScanner
+
+        return NativeTokenLimitScanner(
             limit=self.limit,
             encoding_name=self.encoding_name,
             model_name=self.model_name,
@@ -329,21 +309,18 @@ class JSONConfig:
         return cls(required_elements=required_elements, repair=repair)
 
     def build(self, action_on_hit: str) -> Any:
-        return llm_guard_output_scanners.JSON(
+        from guardrail_core.native_scanners import NativeJSONScanner
+
+        return NativeJSONScanner(
             required_elements=self.required_elements,
             repair=self.repair,
         )
 
 
 @dataclass
-# Enforces a reading-time limit for the output using llm_guard's average
-# reading-speed heuristic (about 200 words per minute). max_time is expressed
-# in minutes. If truncate is true, outputs that exceed the limit are shortened
-# to fit; otherwise they are marked invalid.
 class ReadingTimeConfig:
     supports_redact: ClassVar[bool] = True
-    # Maximum allowed reading time, expressed in fractional minutes. For
-    # example, 0.25 means one quarter of a minute (15 seconds).
+    # Maximum reading time in minutes.
     max_time: float
     truncate: bool = False
 
@@ -358,7 +335,9 @@ class ReadingTimeConfig:
         return cls(max_time=float(max_time), truncate=truncate)
 
     def build(self, action_on_hit: str) -> Any:
-        return llm_guard_output_scanners.ReadingTime(
+        from guardrail_core.native_scanners import NativeReadingTimeScanner
+
+        return NativeReadingTimeScanner(
             max_time=self.max_time,
             truncate=self.truncate,
         )

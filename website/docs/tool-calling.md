@@ -8,24 +8,7 @@ KAITO supports tool calling, allowing you to integrate external tools into your 
 
 ### Supported Inference Runtimes
 
-Currently, tool calling is only supported with the vLLM inference runtime.
-
-### Supported Models
-
-The following preset models are configured to support tool calling:
-- `phi-4-mini-instruct`
-- `phi-4`
-- `llama-3.1-8b-instruct`
-- `llama-3.3-70b-instruct`
-- `mistral-7b`
-- `mistral-7b-instruct`
-- `qwen2.5-coder-7b-instruct`
-- `qwen2.5-coder-32b-instruct`
-- `deepseek-r1-0528`
-- `deepseek-v3-0324`
-
-
-For more details on the inference configuration, refer to [vLLM tool calling documentation](https://docs.vllm.ai/en/latest/features/tool_calling.html).
+Currently, tool calling is only supported with the vLLM inference runtime. For more details on the inference configuration, refer to [vLLM tool calling documentation](https://docs.vllm.ai/en/latest/features/tool_calling.html).
 
 ## Examples
 
@@ -46,31 +29,39 @@ import json
 
 client = OpenAI(base_url="http://localhost:8000/v1", api_key="dummy")
 
+
 def get_weather(location: str, unit: str):
     return f"Getting the weather for {location} in {unit}..."
+
+
 tool_functions = {"get_weather": get_weather}
 
-tools = [{
-    "type": "function",
-    "function": {
-        "name": "get_weather",
-        "description": "Get the current weather in a given location",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "location": {"type": "string", "description": "City and state, e.g., 'San Francisco, CA'"},
-                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get the current weather in a given location",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "City and state, e.g., 'San Francisco, CA'",
+                    },
+                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                },
+                "required": ["location", "unit"],
             },
-            "required": ["location", "unit"]
-        }
+        },
     }
-}]
+]
 
 response = client.chat.completions.create(
     model=client.models.list().data[0].id,
     messages=[{"role": "user", "content": "What's the weather like in San Francisco?"}],
     tools=tools,
-    tool_choice="auto"
+    tool_choice="auto",
 )
 
 tool_call = response.choices[0].message.tool_calls[0].function
@@ -115,8 +106,10 @@ from autogen_agentchat.ui import Console
 from autogen_core import CancellationToken
 from autogen_core.models import ModelFamily, ModelInfo
 from autogen_ext.models.openai import OpenAIChatCompletionClient
-from autogen_ext.tools.mcp import (StreamableHttpMcpToolAdapter,
-                                   StreamableHttpServerParams)
+from autogen_ext.tools.mcp import (
+    StreamableHttpMcpToolAdapter,
+    StreamableHttpServerParams,
+)
 from openai import OpenAI
 
 
@@ -129,9 +122,16 @@ async def main() -> None:
     )
 
     # Get the ask_question tool from the server
-    adapter = await StreamableHttpMcpToolAdapter.from_server_params(server_params, "ask_question")
+    adapter = await StreamableHttpMcpToolAdapter.from_server_params(
+        server_params, "ask_question"
+    )
 
-    model = OpenAI(base_url="http://localhost:8000/v1", api_key="dummy").models.list().data[0].id
+    model = (
+        OpenAI(base_url="http://localhost:8000/v1", api_key="dummy")
+        .models.list()
+        .data[0]
+        .id
+    )
     model_info: ModelInfo = {
         "vision": False,
         "function_calling": True,
@@ -142,7 +142,12 @@ async def main() -> None:
     }
 
     # Create an agent that can use the ask_question tool
-    model_client = OpenAIChatCompletionClient(base_url="http://localhost:8000/v1", api_key="dummy", model=model, model_info=model_info)
+    model_client = OpenAIChatCompletionClient(
+        base_url="http://localhost:8000/v1",
+        api_key="dummy",
+        model=model,
+        model_info=model_info,
+    )
     agent = AssistantAgent(
         name="deepwiki",
         model_client=model_client,
@@ -151,7 +156,10 @@ async def main() -> None:
     )
 
     await Console(
-        agent.run_stream(task="In the GitHub repository 'kaito-project/kaito', how many preset models are there?", cancellation_token=CancellationToken())
+        agent.run_stream(
+            task="In the GitHub repository 'kaito-project/kaito', how many preset models are there?",
+            cancellation_token=CancellationToken(),
+        )
     )
 
 
@@ -175,10 +183,10 @@ In the GitHub repository 'kaito-project/kaito', how many preset models are there
 [FunctionCall(id='chatcmpl-tool-4e22b15c32d34430b80078a3acc41f0d', arguments='{"repoName": "kaito-project/kaito", "question": "How many preset models are there?"}', name='ask_question')]
 
 ---------- ToolCallExecutionEvent (deepwiki) ----------
-[FunctionExecutionResult(content='[{"type": "text", "text": "There are 16 preset models in the Kaito project.  These models are defined in the `supported_models.yaml` file  and registered programmatically within the codebase. ...", "annotations": null, "meta": null}]', name='ask_question', call_id='chatcmpl-tool-4e22b15c32d34430b80078a3acc41f0d', is_error=False)]
+[FunctionExecutionResult(content='[{"type": "text", "text": "There are 16 preset models in the Kaito project. These models are defined in the `model_catalog.yaml` file. ...", "annotations": null, "meta": null}]', name='ask_question', call_id='chatcmpl-tool-4e22b15c32d34430b80078a3acc41f0d', is_error=False)]
 
 ---------- ToolCallSummaryMessage (deepwiki) ----------
-[{"type": "text", "text": "There are 16 preset models in the Kaito project.  These models are defined in the `supported_models.yaml` file  and registered programmatically within the codebase. ...", "annotations": null, "meta": null}]
+[{"type": "text", "text": "There are 16 preset models in the Kaito project. These models are defined in the `model_catalog.yaml` file. ...", "annotations": null, "meta": null}]
 ```
 
 [^1]: https://www.dailydoseofds.com/p/function-calling-mcp-for-llms/

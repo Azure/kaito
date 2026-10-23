@@ -14,18 +14,18 @@
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:path=modelmirrors,scope=Cluster
+// +kubebuilder:resource:path=modelmirrors,scope=Namespaced
 // +kubebuilder:printcolumn:name="Model",type=string,JSONPath=`.spec.source.modelID`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
-// ModelMirror represents a cached copy of a model from a remote registry.
+// ModelMirror represents a cached copy of a model from a remote registry. The PVC and
+// download Job are created in the ModelMirror's own namespace.
 type ModelMirror struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -34,35 +34,71 @@ type ModelMirror struct {
 }
 
 type ModelMirrorSpec struct {
-	// +kubebuilder:validation:Required
-	Source ModelMirrorSource `json:"source"`
-	// +kubebuilder:validation:Required
-	Storage ModelMirrorStorage `json:"storage"`
-	// JobNamespace is the namespace where the PVC and download Job will be created.
-	// +kubebuilder:validation:Required
-	JobNamespace string `json:"jobNamespace"`
+	// Mode selects how the model weights are made available:
+	//   - "Managed" (default): the controller downloads the model to a PVC via a download Job.
+	//   - "Static": the model weights already exist in a pre-existing (BYO) storage location;
+	//     the controller creates no PVC and no download Job, and the weights location is
+	//     reported in status.modelPath.
+	// +kubebuilder:validation:Enum=Managed;Static
+	// +kubebuilder:default=Managed
+	// +optional
+	Mode ModelMirrorMode `json:"mode,omitempty"`
+	// Source describes where to download the model weights from. Required for a Managed
+	// mirror; omit entirely for a Static mirror.
+	// +optional
+	Source *ModelMirrorSource `json:"source,omitempty"`
+	// Storage describes the PVC to download the model weights into. Required for a Managed
+	// mirror; omit entirely for a Static mirror.
+	// +optional
+	Storage *ModelMirrorStorage `json:"storage,omitempty"`
+	// ServiceAccountName is the ServiceAccount used by the workload identity that the download
+	// Job pod runs as. It is resolved in the ModelMirror's namespace. Empty (the default) runs
+	// the Job under the namespace default ServiceAccount.
+	// +optional
+	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 }
 
+// ModelMirrorMode describes how a ModelMirror provisions the model weights.
+type ModelMirrorMode string
+
+const (
+	// ModelMirrorModeManaged downloads the model to a PVC via a download Job.
+	ModelMirrorModeManaged ModelMirrorMode = "Managed"
+	// ModelMirrorModeStatic maps to an existing (BYO) storage location where the model
+	// weights are already available. No PVC or download Job is created, the weights
+	// location is reported in status.modelPath.
+	ModelMirrorModeStatic ModelMirrorMode = "Static"
+)
+
+// Supported ModelMirror source registries.
+const (
+	RegistryHuggingFace = "huggingface"
+)
+
+// SupportedRegistries is the set of accepted ModelMirrorSource.Registry values.
+var SupportedRegistries = []string{RegistryHuggingFace}
+
 type ModelMirrorSource struct {
-	// Registry is the source registry type. Currently only "huggingface" is supported.
+	// Registry is the source registry to download the model weights from.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=huggingface
 	Registry string `json:"registry"`
 	// ModelID is the model identifier (e.g. "Qwen/Qwen2.5-Coder-32B-Instruct").
 	// +kubebuilder:validation:Required
 	ModelID string `json:"modelID"`
-	// AccessSecret references a secret containing authentication credentials.
+	// AccessSecretName is the name of a secret in the ModelMirror's namespace holding the
+	// registry credentials under the HF_TOKEN key.
 	// +optional
-	AccessSecret *corev1.ObjectReference `json:"accessSecret,omitempty"`
+	AccessSecretName string `json:"accessSecretName,omitempty"`
 }
 
 type ModelMirrorStorage struct {
-	// Size is the PVC size (e.g. "20Gi").
+	// Size is the PVC size for managed mirrors.
 	// +kubebuilder:validation:Required
 	Size string `json:"size"`
 	// StorageClassName is the StorageClass to use for the PVC.
-	// +kubebuilder:validation:Required
-	StorageClassName string `json:"storageClassName"`
+	// +optional
+	StorageClassName *string `json:"storageClassName,omitempty"`
 }
 
 type ModelMirrorPhase string
@@ -79,6 +115,30 @@ type ModelMirrorStatus struct {
 	Conditions       []metav1.Condition `json:"conditions,omitempty"`
 	FailureMessage   string             `json:"failureMessage,omitempty"`
 	LastDownloadTime *metav1.Time       `json:"lastDownloadTime,omitempty"`
+
+	// Download reports in-progress download metrics. Both fields are 0 once the
+	// download has succeeded, since they describe only the in-progress state.
+	// On terminal failure they retain their last observed values; the failure
+	// itself is reported through the Ready condition.
+	// +optional
+	Download *ModelMirrorDownloadStatus `json:"download,omitempty"`
+}
+
+// ModelMirrorDownloadStatus reports live progress for an in-flight download.
+//
+// Neither field carries omitempty. Both use 0 as a meaningful value meaning
+// "finished", and RemainingSeconds uses -1 to mean "unknown"; omitempty would
+// erase a legitimate 0 and make "finished" indistinguishable from "never
+// reported".
+type ModelMirrorDownloadStatus struct {
+	// SpeedBytesPerSecond is the average download speed from the start of the
+	// download until now. 0 once the download has finished.
+	SpeedBytesPerSecond int64 `json:"speedBytesPerSecond"`
+
+	// RemainingSeconds estimates the time to completion. 0 once the download has
+	// finished; -1 when it cannot be computed, which happens when the total size
+	// is unknown or the measured speed is 0.
+	RemainingSeconds int64 `json:"remainingSeconds"`
 }
 
 // +kubebuilder:object:root=true

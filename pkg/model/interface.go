@@ -56,6 +56,8 @@ const (
 
 	// PortRayCluster is the default port for communication between the head and worker nodes in a Ray cluster.
 	PortRayCluster = 6379
+
+	vllmShutdownTimeoutSeconds = "50"
 )
 
 // Metadata defines the metadata for a model.
@@ -64,27 +66,10 @@ type Metadata struct {
 	// It is used to register the model information and retrieve it later.
 	Name string `yaml:"name"`
 
-	// ModelType is the type of the model, which indicates the kind of model
-	// it is. Currently, the only supported types are "text-generation" and
-	// "llama2-completion" (deprecated).
-	ModelType string `yaml:"type"`
-
 	// Version is the version of the model. It is a URL that points to the
 	// model's huggingface page, which contains the model's repository ID
 	// and revision ID, e.g. https://huggingface.co/mistralai/Mistral-7B-v0.3/commit/d8cadc02ac76bd617a919d50b092e59d2d110aff.
 	Version string `yaml:"version"`
-
-	// Runtime is the runtime environment in which the model operates.
-	// Currently, the only supported runtime is "tfs".
-	Runtime string `yaml:"runtime"`
-
-	// DownloadAtRuntime indicates whether the model should be downloaded
-	// at runtime. If set to true, the model will be downloaded when the
-	// model deployment is created, and the container image will always be
-	// the KAITO base image. If set to false, a container image whose name
-	// contains the model name will be used, in which the model weights are baked.
-	// +optional
-	DownloadAtRuntime bool `yaml:"downloadAtRuntime,omitempty"`
 
 	// DownloadAuthRequired indicates whether the model requires authentication to download.
 	// +optional
@@ -129,6 +114,30 @@ type Metadata struct {
 	// +optional
 	BytesPerToken int `yaml:"bytesPerToken,omitempty"`
 
+	// MambaStateBytesPerSeq is the per-sequence recurrent state cache size in bytes
+	// (single TP rank) for hybrid Mamba/linear-attention models. vLLM
+	// allocates this for every running sequence on top of the attention KV cache,
+	// so the node estimator reserves it. Zero for pure-attention models.
+	// +optional
+	MambaStateBytesPerSeq int `yaml:"mambaStateBytesPerSeq,omitempty"`
+
+	// MambaStateBytesPerLayer is the per-linear-layer, single-TP-rank hybrid state
+	// cache size in bytes for hybrid Mamba/Gated-DeltaNet models. With the layer
+	// counts below it lets the launcher estimate vLLM's Mamba-cache-block ceiling
+	// and cap --max-num-seqs so engine init does not fail. Zero for pure-attention
+	// models.
+	// +optional
+	MambaStateBytesPerLayer int `yaml:"mambaStateBytesPerLayer,omitempty"`
+
+	// NumFullAttnLayers is the number of full-attention layers in a hybrid model.
+	// +optional
+	NumFullAttnLayers int `yaml:"numFullAttnLayers,omitempty"`
+
+	// NumLinearLayers is the number of linear-attention / Mamba layers in a hybrid
+	// model.
+	// +optional
+	NumLinearLayers int `yaml:"numLinearLayers,omitempty"`
+
 	// AttnType specifies the attention implementation (e.g., MHA, GQA, MQA, MLA),
 	// computed by the preset generator from the model config.
 	// +optional
@@ -170,6 +179,23 @@ type Metadata struct {
 	// model's HuggingFace config.json.
 	// +optional
 	QuantBits int `yaml:"quantBits,omitempty"`
+
+	// RuntimeVersion records the inference engine versions baked into the image.
+	// It is primarily meaningful on the "base" model entry and is used to surface
+	// the serving engine version in the workspace/inferenceset status.
+	// +optional
+	RuntimeVersion RuntimeVersion `yaml:"runtimeVersion,omitempty"`
+}
+
+// RuntimeVersion holds the versions of the inference engines shipped in the base image.
+type RuntimeVersion struct {
+	// VLLM is the vLLM engine version (e.g. "0.22.1").
+	// +optional
+	VLLM string `yaml:"vllm,omitempty"`
+
+	// Transformers is the Hugging Face Transformers version (e.g. "5.6.0").
+	// +optional
+	Transformers string `yaml:"transformers,omitempty"`
 }
 
 // Validate checks if the Metadata is valid.
@@ -184,6 +210,32 @@ func (m *Metadata) Validate() error {
 	return err
 }
 
+// SpeculativeDecodingConfig defines the speculative decoding configuration
+// for a preset model. It is populated by KAITO maintainers in the
+// speculativeDecodingByPreset map and injected into the vLLM command line
+// when the user enables speculative decoding via annotation.
+type SpeculativeDecodingConfig struct {
+	Method string       `yaml:"method"` // "mtp" / "ngram" / ...
+	MTP    *MTPConfig   `yaml:"mtp,omitempty"`
+	NGram  *NGramConfig `yaml:"ngram,omitempty"`
+	// future: add method-specific sub-configs as real support lands.
+}
+
+// MTPConfig covers vLLM's mtp method, including both the self-contained-head
+// case (where the served checkpoint carries the predictor) and the
+// assistant-checkpoint case, where the draft/assistant checkpoint is passed
+// via the model field.
+type MTPConfig struct {
+	NumSpeculativeTokens int    `yaml:"numSpeculativeTokens"`
+	Model                string `yaml:"model,omitempty"`
+}
+
+// NGramConfig covers the n-gram lookup speculative decoding method.
+type NGramConfig struct {
+	NumSpeculativeTokens int `yaml:"numSpeculativeTokens"`
+	PromptLookupMax      int `yaml:"promptLookupMax"`
+}
+
 // PresetParam defines the preset inference parameters for a model.
 type PresetParam struct {
 	Metadata
@@ -195,17 +247,21 @@ type PresetParam struct {
 	// Example: For a 14Gi model, calculation is: 14 × 2.5 + 48 = 83, rounded up to 90Gi.
 
 	ImageAccessMode               string         // Defines where the Image is Public or Private.
-	GPUCountRequirement           string         // Number of GPUs required for the Preset. Used for inference.
 	TotalSafeTensorFileSize       string         // Total SafeTensor file size for the Preset. Used for inference.
 	TuningPerGPUMemoryRequirement map[string]int // Min GPU memory per tuning method (batch size 1). Used for tuning.
 	BytesPerToken                 int            // Number of bytes per token for the model. It is calculated by 2 * hidden_layers * kv_heads * head_dim (hidden_size/num_attemtion_numbers) * dtype_size
 	ModelTokenLimit               int            // Maximum number of tokens (context window) supported by the model. Maps to 'max_position_embeddings' in the model's Hugging Face config.json.
 
-	// To determine TotalSafeTensorFileSize and BytesPerToken values for a new model,
-	// run the presets/workspace/generator/preset_generator.py script
-	// with the model's Hugging Face repository ID as an argument.
-
 	RuntimeParam
+
+	// SpeculativeDecoding holds the preset-tuned speculative decoding
+	// configuration for this preset (e.g. mtp/ngram). A nil value does NOT
+	// mean the preset lacks speculative-decoding support: when a workload
+	// opts in via kaito.sh/enable-speculative-decoding and this field is nil,
+	// applySpeculativeDecoding falls back to the universal ngram default
+	// (see proposal PR #2303). Callers must
+	// not use nil as a feature-support signal.
+	SpeculativeDecoding *SpeculativeDecodingConfig `yaml:"speculativeDecoding,omitempty"`
 
 	// ReadinessTimeout defines the maximum duration for creating the workload.
 	// This timeout accommodates the size of the image, ensuring pull completion
@@ -217,8 +273,6 @@ type PresetParam struct {
 type RuntimeParam struct {
 	Transformers HuggingfaceTransformersParam
 	VLLM         VLLMParam
-	// Disable the tensor parallelism
-	DisableTensorParallelism bool
 }
 
 type HuggingfaceTransformersParam struct {
@@ -257,6 +311,18 @@ func (p *PresetParam) DeepCopy() *PresetParam {
 	*out = *p
 	out.RuntimeParam = p.RuntimeParam.DeepCopy()
 	out.TuningPerGPUMemoryRequirement = maps.Clone(p.TuningPerGPUMemoryRequirement)
+	if p.SpeculativeDecoding != nil {
+		sd := *p.SpeculativeDecoding
+		if p.SpeculativeDecoding.MTP != nil {
+			mtp := *p.SpeculativeDecoding.MTP
+			sd.MTP = &mtp
+		}
+		if p.SpeculativeDecoding.NGram != nil {
+			ng := *p.SpeculativeDecoding.NGram
+			sd.NGram = &ng
+		}
+		out.SpeculativeDecoding = &sd
+	}
 	return out
 }
 
@@ -291,6 +357,12 @@ func (v *VLLMParam) DeepCopy() VLLMParam {
 	return out
 }
 
+// MaxModelLenAuto is the sentinel value for RuntimeContext.MaxModelLen that makes
+// KAITO pass `--max-model-len=auto` to vLLM, delegating context-length sizing to
+// vLLM's native auto-fit logic instead of estimating it.
+// https://docs.vllm.ai/en/latest/configuration/engine_args/#-max-model-len
+const MaxModelLenAuto = -1
+
 // RuntimeContext defines the runtime context for a model.
 type RuntimeContext struct {
 	RuntimeName          RuntimeName
@@ -300,8 +372,13 @@ type RuntimeContext struct {
 	NumNodes             int
 	WorkspaceMetadata    metav1.ObjectMeta
 	DistributedInference bool
-	MaxModelLen          int   // max-model-len parameter for vLLM
-	InferencePort        int32 // port vLLM listens on; 0 means default (5000)
+	MaxModelLen          int // max-model-len for vLLM; MaxModelLenAuto means "auto"
+	// MaxNumSeqs caps vLLM's concurrent sequence count. Zero leaves vLLM's own
+	// default in place. Resolved by pkg/workspace/estimator/maxnumseqestimator,
+	// which hybrid Mamba/Gated-DeltaNet models need to avoid exceeding the
+	// available Mamba cache blocks at engine startup.
+	MaxNumSeqs    int
+	InferencePort int32 // port vLLM listens on; 0 means default (5000)
 	RuntimeContextExtraArguments
 }
 
@@ -315,6 +392,11 @@ type RuntimeContextExtraArguments struct {
 	// inside buildVLLMInferenceCommand based on the resolved tensor-parallel-size.
 	StreamingModelPath  string // e.g. "az://container/modelID"
 	StreamingLoadFormat string // e.g. "runai_streamer"
+
+	// LocalModelWeightsPath, when set, points vLLM at model weights that already
+	// exist on local disk (e.g. mounted from a custom GPU node image) via --model.
+	// No HuggingFace download is performed. Mutually exclusive with StreamingModelPath.
+	LocalModelWeightsPath string // e.g. "/opt/kaito/models/deepseekv4flash"
 }
 
 func (p *PresetParam) GetInferenceCommand(rc RuntimeContext) []string {
@@ -332,7 +414,7 @@ func (p *PresetParam) buildHuggingfaceInferenceCommand() []string {
 	if p.Transformers.ModelName != "" {
 		p.Transformers.ModelRunParams["served_model_name"] = p.Transformers.ModelName
 	}
-	if p.DownloadAtRuntime {
+	if p.Version != "" {
 		repoId, revision, _ := utils.ParseHuggingFaceModelVersion(p.Version)
 		p.Transformers.ModelRunParams["pretrained_model_name_or_path"] = repoId
 		if revision != "" {
@@ -368,13 +450,37 @@ func (p *PresetParam) buildVLLMInferenceCommand(rc RuntimeContext) []string {
 		p.VLLM.ModelRunParams["served-model-name"] = p.VLLM.ModelName
 	case isName != "":
 		p.VLLM.ModelRunParams["served-model-name"] = isName
+	case isCustomModelName(p.VLLM.ModelName):
+		// A bring-your-own model's identifier is a configuration digest, which
+		// is meaningless to a client. Serve it under the workspace name instead.
+		p.VLLM.ModelRunParams["served-model-name"] = rc.WorkspaceMetadata.Name
 	case p.VLLM.ModelName != "":
 		p.VLLM.ModelRunParams["served-model-name"] = p.VLLM.ModelName
 	}
-	if rc.MaxModelLen > 0 {
+	if rc.MaxModelLen == MaxModelLenAuto {
+		p.VLLM.ModelRunParams["max-model-len"] = "auto"
+	} else if rc.MaxModelLen > 0 {
 		p.VLLM.ModelRunParams["max-model-len"] = strconv.Itoa(rc.MaxModelLen)
 	}
-	p.VLLM.ModelRunParams["gpu-memory-utilization"] = "0.84"
+
+	// Cap --max-num-seqs for hybrid Mamba/Gated-DeltaNet models so vLLM engine init
+	// does not fail when the default (1024) exceeds the available Mamba cache blocks.
+	// A user-provided max-num-seqs in the inference config still wins: inference_api.py
+	// applies --kaito-config-file after these CLI args.
+	if _, set := p.VLLM.ModelRunParams["max-num-seqs"]; !set && rc.MaxNumSeqs > 0 {
+		p.VLLM.ModelRunParams["max-num-seqs"] = strconv.Itoa(rc.MaxNumSeqs)
+	}
+
+	// Enable KV cache events by default so in-cluster subscribers can consume
+	// BlockStored / BlockRemoved / AllBlocksCleared events over ZMQ on the port
+	// defined by consts.PortKVCacheEvents. Passed from the operator side (rather
+	// than baked into the preset image) so we don't need an image rebuild to
+	// toggle it and users can still override via --kaito-config-file. JSON is
+	// single-quoted so the value survives shell interpolation in ShellCmd.
+	// See https://docs.vllm.ai/en/stable/api/vllm/config/kv_events/
+	if _, ok := p.VLLM.ModelRunParams["kv-events-config"]; !ok {
+		p.VLLM.ModelRunParams["kv-events-config"] = `'{"enable_kv_cache_events":true}'`
+	}
 
 	// Disable the allreduce + RMSNorm fusion pass. Since vLLM 0.22.1 this pass is
 	// enabled by default and routes through FlashInfer's TRT-LLM MNNVL kernel, which
@@ -385,25 +491,33 @@ func (p *PresetParam) buildVLLMInferenceCommand(rc RuntimeContext) []string {
 	// anyway, so it is safe to turn off for all vLLM models.
 	p.VLLM.ModelRunParams["compilation-config.pass_config.fuse_allreduce_rms"] = "False"
 
-	// Dynamically determine dtype based on GPU compute capability.
-	// bfloat16 requires CUDA compute capability >= 8.0 (Ampere+).
-	// Fall back to float16 on older GPUs.
-	if rc.GPUConfig != nil && !rc.GPUConfig.SupportsBFloat16() {
-		p.VLLM.ModelRunParams["dtype"] = "float16"
-	}
-
 	if !p.VLLM.DisallowLoRA && rc.AdaptersEnabled {
 		p.VLLM.ModelRunParams["enable-lora"] = ""
 	}
 	// Model source: streaming (az://) vs download-at-runtime (HF repo).
 	if rc.StreamingModelPath != "" {
+		// StreamingModelPath may be a runtime shell placeholder (e.g. "$STREAM_MODEL_URI" for the
+		// SAS path, where the init container derives the az:// URI and the entrypoint wrapper
+		// exports it).
 		p.VLLM.ModelRunParams["model"] = rc.StreamingModelPath
 		p.VLLM.ModelRunParams["load-format"] = rc.StreamingLoadFormat
 		// Some presets set load_format (underscore) in their default params
 		// (e.g. mistral sets load_format=mistral). Remove to avoid conflict
 		// with the hyphenated --load-format=runai_streamer we set above.
 		delete(p.VLLM.ModelRunParams, "load_format")
-	} else if p.DownloadAtRuntime {
+	} else if rc.LocalModelWeightsPath != "" {
+		// Weights already exist on local disk (e.g. mounted from a custom GPU node
+		// image). Point vLLM at the local directory and load with the RunAI streamer,
+		// whose concurrent threaded reads avoid the mmap readahead cliff when loading
+		// large safetensors from a virtualized node disk. Skip the HuggingFace download
+		// (no --download-dir / --code-revision).
+		p.VLLM.ModelRunParams["model"] = rc.LocalModelWeightsPath
+		p.VLLM.ModelRunParams["load-format"] = "runai_streamer"
+		// Some presets set load_format (underscore) in their default params
+		// (e.g. mistral sets load_format=mistral); remove it to avoid conflicting
+		// with the hyphenated --load-format we set here.
+		delete(p.VLLM.ModelRunParams, "load_format")
+	} else if p.Version != "" {
 		repoId, revision, _ := utils.ParseHuggingFaceModelVersion(p.Version)
 		p.VLLM.ModelRunParams["model"] = repoId
 		if revision != "" {
@@ -418,12 +532,11 @@ func (p *PresetParam) buildVLLMInferenceCommand(rc RuntimeContext) []string {
 		p.VLLM.ModelRunParams["performance-mode"] = rc.PerformanceMode
 	}
 
-	// Disable LMCache KV cache CPU offloading for models where it is known to be
-	// problematic, either because:
-	//   - the model needs vLLM's hybrid KV cache manager (incompatible with the
-	//     LMCache connector), or
-	//   - LMCache is disabled for this model (see isLMCacheDisabled).
-	if p.isVLLMHybridKVCacheManagerRequired() || p.isLMCacheDisabled() {
+	// Disable LMCache KV cache CPU offloading when the model needs vLLM's hybrid
+	// KV cache manager, or when the workload runs on a MIG partition.
+	// TODO: support KV cache CPU offloading on MIG.
+	if p.isVLLMHybridKVCacheManagerRequired() ||
+		(rc.GPUConfig != nil && rc.GPUConfig.IsMIG) {
 		p.VLLM.ModelRunParams["kaito-kv-cache-cpu-memory-utilization"] = "0"
 	}
 
@@ -449,8 +562,13 @@ func (p *PresetParam) buildVLLMInferenceCommand(rc RuntimeContext) []string {
 
 	// Single-node path: no Ray cluster needed.
 	if !rc.DistributedInference || rc.NumNodes == 1 {
+		// Best-effort graceful scale-down: vLLM drains in-flight requests on SIGTERM
+		// for up to this timeout. exec makes vLLM PID 1 so it receives the SIGTERM.
+		if _, configured := p.VLLM.ModelRunParams["shutdown-timeout"]; !configured {
+			p.VLLM.ModelRunParams["shutdown-timeout"] = vllmShutdownTimeoutSeconds
+		}
 		modelCommand := utils.BuildCmdStr(p.VLLM.BaseCommand, p.VLLM.ModelRunParams)
-		return utils.ShellCmd(modelCommand)
+		return utils.ShellCmd("exec " + modelCommand)
 	}
 
 	// Multi-node path: set up a Ray cluster for cross-node parallelism.
@@ -471,10 +589,6 @@ func (p *PresetParam) buildVLLMInferenceCommand(rc RuntimeContext) []string {
 //  3. Multi-node (PP + TP): If the model exceeds a single node's capacity, we use
 //     pipeline parallelism across nodes, with tensor parallelism within each node.
 func (p *PresetParam) configureParallelism(rc RuntimeContext) {
-	if p.DisableTensorParallelism {
-		return
-	}
-
 	multiNode := rc.DistributedInference && rc.NumNodes > 1
 
 	// Tier 1: Model fits on a single GPU → Data Parallelism.
@@ -521,11 +635,24 @@ func (p *PresetParam) buildMultiNodeRayCommand(rc RuntimeContext) []string {
 	p.VLLM.RayWorkerParams["ray_address"] = utils.GetRayLeaderHost(rc.WorkspaceMetadata)
 	p.VLLM.RayWorkerParams["ray_port"] = strconv.Itoa(PortRayCluster)
 
+	// Runtime CUDA provisioning downloads over 1 GiB on each new node. The
+	// workers initialize in parallel, but a cold node can exceed vLLM's default
+	// five-minute Ray join timeout and make an otherwise healthy leader exit.
+	if p.RequiresCUDAToolkit() {
+		const cudaToolkitRayInitTimeout = "900"
+		if _, configured := p.VLLM.RayLeaderParams["ray_init_timeout"]; !configured {
+			p.VLLM.RayLeaderParams["ray_init_timeout"] = cudaToolkitRayInitTimeout
+		}
+		if _, configured := p.VLLM.RayWorkerParams["ray_init_timeout"]; !configured {
+			p.VLLM.RayWorkerParams["ray_init_timeout"] = cudaToolkitRayInitTimeout
+		}
+	}
+
 	rayLeaderCommand := utils.BuildCmdStr(p.VLLM.RayLeaderBaseCommand, p.VLLM.RayLeaderParams)
 	modelRunCommand := utils.BuildCmdStr(p.VLLM.BaseCommand, p.VLLM.ModelRunParams)
 	result := utils.BuildIfElseCmdStr(
-		`[ "${POD_INDEX}" = "0" ]`,                                      // leader if pod index is 0, otherwise worker
-		strings.Join([]string{rayLeaderCommand, modelRunCommand}, "; "), // leader: start ray head + model
+		`[ "${POD_INDEX}" = "0" ]`,                                        // leader if pod index is 0, otherwise worker
+		strings.Join([]string{rayLeaderCommand, modelRunCommand}, " && "), // start model only after Ray is ready
 		map[string]string{},
 		p.VLLM.RayWorkerBaseCommand, // worker: join the cluster
 		p.VLLM.RayWorkerParams,
@@ -559,27 +686,57 @@ func (p *PresetParam) isVLLMHybridKVCacheManagerRequired() bool {
 	for _, arch := range p.Architectures {
 		switch arch {
 		case "NemotronHForCausalLM", "NemotronH_Nano_VL_V2", "NemotronHMTPModel", "NemotronHPuzzleForCausalLM",
-			"Gemma4ForCausalLM", "Gemma4ForConditionalGeneration",
-			"Qwen3_5ForConditionalGeneration", "Qwen3_5MoeForConditionalGeneration":
+			"Gemma4ForCausalLM", "Gemma4ForConditionalGeneration", "Gemma4UnifiedForConditionalGeneration",
+			"Qwen3_5ForConditionalGeneration", "Qwen3_5MoeForConditionalGeneration",
+			"Qwen4ExpForCausalLM", "Qwen4ExpForConditionalGeneration",
+			"Glm5NextForCausalLM", "Glm5NextForConditionalGeneration", "Glm5NextMTPModel",
+			"DeepseekV4ForCausalLM", "DeepseekV41ForCausalLM", "DeepseekV32ForCausalLM":
 			return true
 		}
 	}
 	return false
 }
 
-// isLMCacheDisabled returns true for architectures where LMCache needs to be disabled.
-// There is a known bug in LMCache that causes vLLM crashes on request abortion:
-// https://github.com/LMCache/LMCache/issues/3688
-// This bug will crash the vLLM engine during the TPM phase for certain models in KAITO.
-// TODO: remove this once the issue is resolved.
-func (p *PresetParam) isLMCacheDisabled() bool {
+// RequiresDeepGEMM returns true for architectures that strictly require the
+// DeepGEMM library.
+func (p *PresetParam) RequiresDeepGEMM() bool {
 	for _, arch := range p.Architectures {
 		switch arch {
-		case "GptOssForCausalLM":
+		case "DeepseekV4ForCausalLM", "DeepseekV41ForCausalLM", "DeepseekV32ForCausalLM", "GlmMoeDsaForCausalLM":
 			return true
 		}
 	}
 	return false
+}
+
+// RequiresFlashInfer returns true for models which require JIT-compilation with nvcc at runtime.
+func (p *PresetParam) RequiresFlashInfer() bool {
+	for _, arch := range p.Architectures {
+		switch arch {
+		case "Glm5NextForCausalLM",
+			"Glm5NextForConditionalGeneration",
+			"KimiK25ForConditionalGeneration",
+			"MiniMaxM2ForCausalLM",
+			"Qwen4ExpForCausalLM",
+			"Qwen4ExpForConditionalGeneration":
+			return true
+		}
+	}
+	// NemotronH checkpoints do not uniformly require FlashInfer.
+	if p.Name == "nvidia-nemotron-3-ultra-550b-a55b-nvfp4" {
+		return true
+	}
+	return false
+}
+
+// RequiresCUDAToolkit returns true for models that need the runtime CUDA toolkit
+// (nvcc) available in the container. This covers DeepGEMM models plus models
+// whose other runtime JIT paths compile with nvcc (see RequiresFlashInfer).
+// The slim base image ships no nvcc, so these models get the
+// cuda-toolkit-provisioner init container and CUDA_HOME. Enabling the toolkit
+// does not enable DeepGEMM itself (that stays gated on RequiresDeepGEMM).
+func (p *PresetParam) RequiresCUDAToolkit() bool {
+	return p.RequiresDeepGEMM() || p.RequiresFlashInfer()
 }
 
 // modelFitsOnSingleGPU returns true when the model file size is smaller than
@@ -630,4 +787,29 @@ func (p *PresetParam) GetTuningCommand(rc RuntimeContext) []string {
 	torchCommand := utils.BuildCmdStr(p.Transformers.BaseCommand, p.Transformers.AccelerateParams)
 	modelCommand := utils.BuildCmdStr(DefaultTuningMainFile, p.Transformers.ModelRunParams)
 	return utils.ShellCmd(torchCommand + " " + modelCommand)
+}
+
+// isCustomModelName reports whether a model name is a bring-your-own model's
+// content-addressed identifier.
+func isCustomModelName(modelName string) bool {
+	_, ok := CustomModelDigest(modelName)
+	return ok
+}
+
+// CustomModelDigest decodes a bring-your-own model's content-addressed name
+// into the configuration digest it was built from.
+//
+// The name encodes the digest only. The declared bundle size is deliberately
+// not part of it: the size may be corrected without the model becoming a
+// different model, so folding it into the identity would fragment the registry
+// and change the name for what is still the same weights.
+//
+// Note: the prefix is a string literal to avoid an import cycle with the
+// plugin package, which owns the canonical constant.
+func CustomModelDigest(modelName string) (digest string, ok bool) {
+	rest, ok := strings.CutPrefix(strings.ToLower(modelName), "custom-")
+	if !ok || rest == "" {
+		return "", false
+	}
+	return rest, true
 }

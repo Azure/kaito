@@ -23,17 +23,28 @@ import (
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kaito-project/kaito/pkg/sku"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
+	"github.com/kaito-project/kaito/pkg/utils/mig"
 )
 
 const (
 	errInvalidModelVersionURL = "invalid model version URL: %s. Expected format: https://huggingface.co/<org>/<model>/commit/<revision>"
 )
+
+// TruncateMessage shortens msg to at most maxLen bytes, appending "..." when truncated.
+func TruncateMessage(msg string, maxLen int) string {
+	if len(msg) <= maxLen {
+		return msg
+	}
+	return msg[:maxLen] + "..."
+}
 
 func Contains(s []string, e string) bool {
 	for _, a := range s {
@@ -42,6 +53,21 @@ func Contains(s []string, e string) bool {
 		}
 	}
 	return false
+}
+
+// GetMIGGPUConfig builds a GPUConfig from a MIG profile string. Each MIG workload
+// is scheduled on exactly one hardware-isolated slice.
+func GetMIGGPUConfig(migProfile string) (*sku.GPUConfig, error) {
+	_, memGB, err := mig.ParseMIGProfile(migProfile)
+	if err != nil {
+		return nil, fmt.Errorf("invalid MIG profile: %w", err)
+	}
+	return &sku.GPUConfig{
+		SKU:      "unknown",
+		GPUCount: 1,
+		GPUMem:   resource.MustParse(fmt.Sprintf("%dGi", memGB)),
+		IsMIG:    true,
+	}, nil
 }
 
 // SearchRawExtension performs a search for a key within a runtime.RawExtension.

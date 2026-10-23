@@ -22,11 +22,15 @@ inputs:
   region:
     description: "the azure location to run the e2e test in"
     required: false
-    default: "swedencentral"
+    default: "polandcentral"
+  node_vm_size:
+    description: "VM size for the AKS system node pool (must be allowed in `region`)"
+    required: false
+    default: "Standard_NV12ads_A10_v5"
   k8s_version:
     description: "Kubernetes version"
     required: false
-    default: "1.33.8"
+    default: "1.35"
   build_kaito_base_image:
     description: "Whether to build kaito base image"
     required: false
@@ -35,12 +39,6 @@ inputs:
     description: "Skip Helm installation of KAITO charts"
     required: false
     default: "false"
-
-outputs:
-  cluster_name:
-    description: "Cluster name"
-  registry:
-    description: "Registry value"
 
 runs:
   using: "composite"
@@ -84,6 +82,17 @@ runs:
       shell: bash
       run: |
         az login --identity
+        if [ -z "${E2E_SUBSCRIPTION_ID:-}" ]; then
+          echo "::error::E2E_SUBSCRIPTION_ID is not configured"
+          exit 1
+        fi
+        az account set --subscription "$E2E_SUBSCRIPTION_ID"
+        ACTIVE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+        if [ "$ACTIVE_SUBSCRIPTION_ID" != "$E2E_SUBSCRIPTION_ID" ]; then
+          echo "::error::Failed to select E2E subscription $E2E_SUBSCRIPTION_ID; active subscription is $ACTIVE_SUBSCRIPTION_ID"
+          exit 1
+        fi
+        echo "Using E2E subscription $ACTIVE_SUBSCRIPTION_ID"
 
     - name: Install Helm
       uses: azure/setup-helm@v4
@@ -185,38 +194,20 @@ runs:
 
         echo "vllm_model_arch_list.txt is up to date."
 
-    - name: Build preset images
+    - name: Configure base image metadata
       shell: bash
       run: |
-        # For building newly introduced preset images or bumping the tags of existing ones.
-        # Without this step, the Workspace controller during e2e test will attempt to pull
-        # non-existent images from remote registry, leading to test failures.
-        python3 .github/determine_missing_preset_images.py | jq -c '.[]' | while read -r model; do
-          export MODEL_NAME=$(echo "$model" | jq -r '.name')
+        python3 .github/determine_missing_base_images.py | jq -c '.[]' | while read -r image; do
+          export IMAGE_NAME=$(echo "$image" | jq -r '.name')
 
-          # Push preset model weights as OCI artifact to ACR using ORAS
-          if [ "$MODEL_NAME" != "base" ]; then
-            export MODEL_VERSION_URL=$(echo "$model" | jq -r '.version')
-
-            # Use shared script to build and push OCI artifact
-            docker/presets/models/tfs/build_oci_artifact.sh \
-              "$MODEL_VERSION_URL" \
-              "kaito-$MODEL_NAME" \
-              "${{ env.REGISTRY }}" \
-              "${{ env.VERSION }}" \
-              "$HF_TOKEN"
-          fi
-
-          # Override image properties in supported_models.yaml for testing purposes.
-          # The updated supported_models.yaml will be read by the Workspace controller via
+          # Override base image properties for testing purposes.
+          # The updated base_images.yaml will be read by the Workspace controller via
           # go:embed in presets/workspace/models/metadata.go.
-          yq '(.models[] | select(.name == strenv(MODEL_NAME)) | .registry) = "${{ env.REGISTRY }}"' -i presets/workspace/models/supported_models.yaml
-          yq '(.models[] | select(.name == strenv(MODEL_NAME)) | .tag) = "${{ env.VERSION }}"' -i presets/workspace/models/supported_models.yaml
+          yq '(.images[] | select(.name == strenv(IMAGE_NAME)) | .registry) = "${{ env.REGISTRY }}"' -i presets/workspace/models/base_images.yaml
+          yq '(.images[] | select(.name == strenv(IMAGE_NAME)) | .tag) = "${{ env.VERSION }}"' -i presets/workspace/models/base_images.yaml
         done
 
-        cat presets/workspace/models/supported_models.yaml
-      env:
-        WEIGHTS_DIR: "/datadrive"
+        cat presets/workspace/models/base_images.yaml
 
     - name: build KAITO image
       if: ${{ inputs.isRelease == 'false' }}
@@ -226,29 +217,89 @@ runs:
       env:
         ARCH: amd64
 
+    - name: Set AKS Kubernetes version
+      shell: bash
+      run: |
+        echo "AKS_K8S_VERSION=${{ inputs.k8s_version }}" >> "$GITHUB_ENV"
+
     - name: create cluster (karpenter)
       if: ${{ inputs.node_provisioner == 'azkarpenter' }}
       shell: bash
       run: |
-        make create-aks-cluster-for-karpenter
+        create_karpenter_cluster() {
+          az aks create --name "$AZURE_CLUSTER_NAME" --resource-group "$AZURE_RESOURCE_GROUP" \
+            --location "$AZURE_LOCATION" --node-vm-size "$AZURE_NODE_VM_SIZE" \
+            --kubernetes-version "$AKS_K8S_VERSION" --generate-ssh-keys \
+            --node-provisioning-mode Auto \
+            --network-plugin azure --network-plugin-mode overlay --network-dataplane cilium \
+            --enable-managed-identity --enable-oidc-issuer --enable-workload-identity -o none
+        }
+
+        # Attach ACR separately from create: the AcrPull role assignment can transiently
+        # fail on AAD role propagation, which must not force an expensive cluster recreate.
+        attach_acr_with_retry() {
+          local attempts=8 delay=15
+          for i in $(seq 1 $attempts); do
+            if az aks update --name "$AZURE_CLUSTER_NAME" --resource-group "$AZURE_RESOURCE_GROUP" \
+                --attach-acr "$AZURE_ACR_NAME" -o none; then
+              echo "ACR attached on attempt $i/$attempts"
+              return 0
+            fi
+            echo "::warning::attach-acr attempt $i/$attempts failed (AAD role propagation); retrying in ${delay}s"
+            sleep "$delay"
+          done
+          echo "::error::failed to attach ACR after $attempts attempts"
+          return 1
+        }
+
+        create_karpenter_cluster
+        attach_acr_with_retry
+        az aks get-credentials --name "$AZURE_CLUSTER_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --overwrite-existing
       env:
         AZURE_ACR_NAME: ${{ env.CLUSTER_NAME }}
         AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
         AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
         AZURE_LOCATION: ${{ inputs.region }}
-        AKS_K8S_VERSION: ${{ inputs.k8s_version }}
+        AZURE_NODE_VM_SIZE: ${{ inputs.node_vm_size }}
 
     - name: create cluster (gpu-provisioner)
       if: ${{ inputs.node_provisioner == 'gpuprovisioner' }}
       shell: bash
       run: |
-        make create-aks-cluster
+        create_gpu_cluster() {
+          az aks create --name "$AZURE_CLUSTER_NAME" --resource-group "$AZURE_RESOURCE_GROUP" \
+            --location "$AZURE_LOCATION" \
+            --kubernetes-version "$AKS_K8S_VERSION" --generate-ssh-keys \
+            --enable-managed-identity --enable-workload-identity --enable-oidc-issuer \
+            --node-vm-size "$AZURE_NODE_VM_SIZE" -o none
+        }
+
+        # Attach ACR separately from create: the AcrPull role assignment can transiently
+        # fail on AAD role propagation, which must not force an expensive cluster recreate.
+        attach_acr_with_retry() {
+          local attempts=8 delay=15
+          for i in $(seq 1 $attempts); do
+            if az aks update --name "$AZURE_CLUSTER_NAME" --resource-group "$AZURE_RESOURCE_GROUP" \
+                --attach-acr "$AZURE_ACR_NAME" -o none; then
+              echo "ACR attached on attempt $i/$attempts"
+              return 0
+            fi
+            echo "::warning::attach-acr attempt $i/$attempts failed (AAD role propagation); retrying in ${delay}s"
+            sleep "$delay"
+          done
+          echo "::error::failed to attach ACR after $attempts attempts"
+          return 1
+        }
+
+        create_gpu_cluster
+        attach_acr_with_retry
+        az aks get-credentials --name "$AZURE_CLUSTER_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --overwrite-existing
       env:
         AZURE_ACR_NAME: ${{ env.CLUSTER_NAME }}
         AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
         AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
         AZURE_LOCATION: ${{ inputs.region }}
-        AKS_K8S_VERSION: ${{ inputs.k8s_version }}
+        AZURE_NODE_VM_SIZE: ${{ inputs.node_vm_size }}
 
     - name: Provision model-streaming infra (blob CSI + StorageClass + role)
       shell: bash
@@ -256,6 +307,9 @@ runs:
         set -euo pipefail
         AKS="${CLUSTER_NAME}"
         RG="${CLUSTER_NAME}"
+        # Wait for any in-flight cluster operation (e.g. attach-acr) to settle,
+        # otherwise the update fails with EtagMismatch.
+        az aks wait --updated -n "$AKS" -g "$RG" --interval 15 --timeout 1200
         echo "Enabling blob CSI driver..."
         az aks update --enable-blob-driver -n "$AKS" -g "$RG" --yes --only-show-errors -o none
 
@@ -312,6 +366,7 @@ runs:
         echo "STREAMING_OIDC_ISSUER=$OIDC_ISSUER" >> "$GITHUB_ENV"
 
     - name: Create Identities and Permissions for ${{ inputs.node_provisioner }}
+      if: ${{ inputs.node_provisioner == 'gpuprovisioner' }}
       shell: bash
       run: |
         AZURE_SUBSCRIPTION_ID=$E2E_SUBSCRIPTION_ID \
@@ -320,19 +375,6 @@ runs:
         AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
         AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
         TEST_SUITE: ${{ inputs.node_provisioner }}
-
-    - name: Install karpenter helm chart
-      if: ${{ inputs.node_provisioner == 'azkarpenter' }}
-      shell: bash
-      run: |
-        # Ensure yq v4.30+ is available for envsubst(nu) support required by configure-values.sh
-        sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
-        sudo chmod +x /usr/local/bin/yq
-        AZURE_SUBSCRIPTION_ID=$E2E_SUBSCRIPTION_ID \
-        make azure-karpenter-helm
-      env:
-        AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
-        AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
 
     - name: Install gpu-provisioner helm chart
       if: ${{ inputs.node_provisioner == 'gpuprovisioner' }}
@@ -350,6 +392,7 @@ runs:
       run: |
         make az-patch-install-helm
         kubectl wait --for=condition=available deploy "kaito-workspace" -n kaito-workspace --timeout=300s
+        ./hack/wait-for-daemonsets.sh kaito-workspace
       env:
         AZURE_RESOURCE_GROUP: ${{ env.CLUSTER_NAME }}
         AZURE_CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
@@ -357,6 +400,22 @@ runs:
         VERSION: ${{ env.VERSION }}
         TEST_SUITE: ${{ inputs.node_provisioner }}
         HELM_INSTALL_EXTRA_ARGS: "--set featureGates.gatewayAPIInferenceExtension=true --set featureGates.enableInferenceSetController=true --set featureGates.enableMultiRoleInferenceController=true --set featureGates.enableBaseImageAutoUpgrade=true --set featureGates.ModelMirror=true --set featureGates.ModelStreaming=true --set defaultModelMirrorStorageClass=blob-fuse --set defaultStreamingServiceAccount=kaito-model-streamer --set modelMirrorDownloadCPU=2 --set modelMirrorDownloadMemory=4Gi --set nodeProvisioner=${{ inputs.node_provisioner == 'gpuprovisioner' && 'azure-gpu-provisioner' || 'karpenter' }}"
+
+    - name: Install Istio and Gateway for E2E testing
+      shell: bash
+      run: |
+        echo "Installing Istio for E2E testing..."
+        helm repo add istio https://istio-release.storage.googleapis.com/charts --force-update
+        helm repo update
+        helm upgrade --install istio-base istio/base --namespace istio-system --create-namespace --version 1.28.3 --wait
+        helm upgrade --install istiod istio/istiod --namespace istio-system --version 1.28.3 \
+          --set pilot.env.ENABLE_GATEWAY_API_INFERENCE_EXTENSION="true" --wait
+        echo "Installing Gateway API CRDs..."
+        kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v1.4.1"
+        echo "Deploying inference gateway..."
+        kubectl apply -f examples/gateway-api-inference-extension/gateway.yaml -n default
+        kubectl wait --for=condition=Programmed gateway/inference-gateway -n default --timeout=300s
+        echo "Istio and Gateway installed successfully."
 
     - name: Set up E2E ACR Credentials and Secret
       shell: bash

@@ -16,10 +16,9 @@ package inferenceset
 import (
 	"context"
 	"fmt"
-	"maps"
-	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	helmv2 "github.com/fluxcd/helm-controller/api/v2"
@@ -49,9 +48,11 @@ import (
 	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/kaito-project/kaito/pkg/utils/inferenceset"
+	"github.com/kaito-project/kaito/pkg/utils/nodeclaim"
 	"github.com/kaito-project/kaito/pkg/utils/resources"
 	"github.com/kaito-project/kaito/pkg/utils/workspace"
 	"github.com/kaito-project/kaito/pkg/workspace/controllers"
+	"github.com/kaito-project/kaito/pkg/workspace/inference"
 	"github.com/kaito-project/kaito/pkg/workspace/manifests"
 )
 
@@ -106,6 +107,12 @@ func (c *InferenceSetReconciler) Reconcile(ctx context.Context, req reconcile.Re
 	}
 
 	if err := c.syncControllerRevision(ctx, iObj); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// Fix the model identity for the whole set before any replica is created
+	// from it, so a replaced ConfigMap cannot reach new replicas.
+	if err := c.reconcileResolvedModel(ctx, iObj); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -175,9 +182,11 @@ func (c *InferenceSetReconciler) garbageCollectInferenceSet(ctx context.Context,
 //   - readyReplicas: count of succeeded workspaces
 //   - benchmarkedReplicas: count of those workspaces
 //   - hasBenchmarkTPMResult: true if at least one workspace contributed a TPM value
+//
+// A Workspace being deleted is not a replica, as for selectWorkspacesToDelete and analyzeNotReadyWorkspaces.
 func aggregateBenchmarkResults(workspaces []kaitov1beta1.Workspace) (totalTPM float64, readyReplicas, benchmarkedReplicas int, hasBenchmarkTPMResult bool) {
 	for _, ws := range workspaces {
-		if controllers.DetermineWorkspacePhase(&ws) == "succeeded" {
+		if ws.DeletionTimestamp.IsZero() && controllers.DetermineWorkspacePhase(&ws) == "succeeded" {
 			readyReplicas++
 			if ws.Status.Performance != nil {
 				if m, ok := ws.Status.Performance.Metrics[controllers.BenchmarkMetricPeakTPM]; ok {
@@ -193,6 +202,230 @@ func aggregateBenchmarkResults(workspaces []kaitov1beta1.Workspace) (totalTPM fl
 	return
 }
 
+// maxReportedNotReadyWorkspaces bounds the Workspaces listed in the InferenceSetReady message.
+const maxReportedNotReadyWorkspaces = 3
+
+// analyzeNotReadyWorkspaces returns the InferenceSetReady=False reason and message from the root causes of the
+// not-ready Workspaces: terminal ones first, then failing ones, each with node causes before model and inference
+// ones. The reason is the first one's, and the message lists up to maxReportedNotReadyWorkspaces of them.
+func analyzeNotReadyWorkspaces(workspaces []kaitov1beta1.Workspace, readyReplicas int, desiredReplicas int32) (reason, message string) {
+	reason = "inferencesetNotReady"
+	message = fmt.Sprintf("inferenceset is not ready, %d/%d replicas are ready", readyReplicas, desiredReplicas)
+
+	type rootCause struct {
+		workspace string
+		controllers.RootCause
+	}
+	rootCauses := make([]rootCause, 0, len(workspaces))
+	omitted := 0
+	for i := range workspaces {
+		ws := &workspaces[i]
+		if !ws.DeletionTimestamp.IsZero() || controllers.DetermineWorkspacePhase(ws) == "succeeded" {
+			continue
+		}
+		cause, found := controllers.WorkspaceRootCause(ws)
+		if !found {
+			omitted++
+			continue
+		}
+		rootCauses = append(rootCauses, rootCause{workspace: ws.Name, RootCause: cause})
+	}
+	sort.Slice(rootCauses, func(i, j int) bool {
+		if rootCauses[i].Severity != rootCauses[j].Severity {
+			return rootCauses[i].Severity > rootCauses[j].Severity
+		}
+		if rootCauses[i].Stage != rootCauses[j].Stage {
+			return rootCauses[i].Stage < rootCauses[j].Stage
+		}
+		return rootCauses[i].workspace < rootCauses[j].workspace
+	})
+	if len(rootCauses) > maxReportedNotReadyWorkspaces {
+		omitted += len(rootCauses) - maxReportedNotReadyWorkspaces
+		rootCauses = rootCauses[:maxReportedNotReadyWorkspaces]
+	}
+
+	causes := make([]string, 0, len(rootCauses))
+	for i, rc := range rootCauses {
+		if i == 0 {
+			reason = rc.Condition.Reason
+		}
+		causes = append(causes, fmt.Sprintf("workspace %s %s=False (%s): %s",
+			rc.workspace, rc.Condition.Type, rc.Condition.Reason, nodeclaim.FormatProvisioningMessage(rc.Condition.Message)))
+	}
+	if len(causes) == 0 {
+		return reason, message
+	}
+	message += "; " + strings.Join(causes, "; ")
+	if omitted > 0 {
+		message += fmt.Sprintf("; and %d more", omitted)
+	}
+	return reason, message
+}
+
+// isWorkspaceOnOldImage reports whether the Workspace's StatefulSet is running a base
+// image other than the controller's current desired image. A Workspace whose StatefulSet
+// does not exist yet is treated as new (not old), so a freshly created incoming replica
+// is never preferentially deleted during a scale-down.
+func (c *InferenceSetReconciler) isWorkspaceOnOldImage(ctx context.Context, ws *kaitov1beta1.Workspace, desiredImage string) (bool, error) {
+	ss := &appsv1.StatefulSet{}
+	if err := resources.GetResource(ctx, ws.Name, ws.Namespace, c.Client, ss); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return workspace.GetInferenceContainerImage(ss) != desiredImage, nil
+}
+
+// selectWorkspacesToDelete chooses which Workspaces to remove when the InferenceSet is over
+// its desired replica count. It balances two goals:
+//
+//   - Zero-downtime auto-upgrade: prefer deleting Workspaces running an OLD base image so
+//     that freshly created new-image Workspaces survive the scale-down. A Ready old Workspace
+//     is only retired while enough Ready replicas remain (see below), which makes the
+//     controller wait for a new-image surge Workspace to become Ready before cutting over.
+//   - Availability: never delete a Ready Workspace if doing so would drop the number of Ready
+//     replicas below desiredReplicas.
+//
+// New-image Workspaces are deleted only as a last resort — when the surplus exceeds the
+// number of old Workspaces (e.g. the user genuinely scaled the InferenceSet down) — so a
+// normal upgrade surge never deletes the incoming replica.
+//
+// Workspaces already being deleted count toward the target without issuing a new delete.
+func (c *InferenceSetReconciler) selectWorkspacesToDelete(ctx context.Context, workspaces []kaitov1beta1.Workspace, desiredReplicas, numToDelete int) ([]*kaitov1beta1.Workspace, error) {
+	desiredImage := inference.GetBaseImageName()
+
+	// Classify each live Workspace once, recording whether it is Ready and whether it is
+	// running an old base image. Workspaces already terminating count toward the target.
+	type candidate struct {
+		ws    *kaitov1beta1.Workspace
+		ready bool
+		old   bool
+	}
+	candidates := make([]candidate, 0, len(workspaces))
+	readyCount, oldCount := 0, 0
+	for i := range workspaces {
+		ws := &workspaces[i]
+		if !ws.DeletionTimestamp.IsZero() {
+			numToDelete--
+			klog.InfoS("Skipping workspace that is already being deleted...", "workspace", klog.KObj(ws))
+			continue
+		}
+		ready := controllers.DetermineWorkspacePhase(ws) == "succeeded"
+		old, err := c.isWorkspaceOnOldImage(ctx, ws, desiredImage)
+		if err != nil {
+			return nil, err
+		}
+		if ready {
+			readyCount++
+		}
+		if old {
+			oldCount++
+		}
+		candidates = append(candidates, candidate{ws: ws, ready: ready, old: old})
+	}
+	if numToDelete <= 0 {
+		return nil, nil
+	}
+
+	// Delete in priority order: old before new, and within each, not-ready before ready.
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].old != candidates[j].old {
+			return candidates[i].old // old-image workspaces first
+		}
+		return !candidates[i].ready && candidates[j].ready // not-ready first
+	})
+
+	// Two budgets bound the selection:
+	//   - readyBudget: how many Ready workspaces may be deleted without dropping the Ready
+	//     count below desiredReplicas. This makes the controller wait for a new-image surge
+	//     workspace to become Ready before retiring the old one it replaces.
+	//   - newBudget: new-image workspaces are retired only when the surplus exceeds the number
+	//     of old workspaces (a genuine scale-down), so a normal upgrade never deletes the
+	//     incoming replica.
+	readyBudget := readyCount - desiredReplicas
+	newBudget := numToDelete - oldCount
+
+	toDelete := make([]*kaitov1beta1.Workspace, 0, numToDelete)
+	for _, cand := range candidates {
+		if len(toDelete) >= numToDelete {
+			break
+		}
+		if cand.ready && readyBudget <= 0 {
+			continue // would drop Ready below desiredReplicas
+		}
+		if !cand.old && newBudget <= 0 {
+			continue // keep new-image replicas unless genuinely over-provisioned
+		}
+		toDelete = append(toDelete, cand.ws)
+		if cand.ready {
+			readyBudget--
+		}
+		if !cand.old {
+			newBudget--
+		}
+	}
+
+	return toDelete, nil
+}
+
+func repairInvalidWorkspaceCapacityType(ws *kaitov1beta1.Workspace, desired string) bool {
+	if !consts.IsSupportedKarpenterCapacityType(desired) {
+		return false
+	}
+	current := ws.GetAnnotations()[kaitov1beta1.AnnotationCapacityType]
+	if consts.IsSupportedKarpenterCapacityType(current) {
+		return false
+	}
+	if desired == "" {
+		delete(ws.Annotations, kaitov1beta1.AnnotationCapacityType)
+		return true
+	}
+	if ws.Annotations == nil {
+		ws.Annotations = make(map[string]string)
+	}
+	ws.Annotations[kaitov1beta1.AnnotationCapacityType] = desired
+	return true
+}
+
+func reconcileExistingWorkspaceMetadata(ws *kaitov1beta1.Workspace, desired *kaitov1beta1.Workspace) bool {
+	needsUpdate := false
+
+	if ws.Labels == nil {
+		ws.Labels = make(map[string]string)
+	}
+	for k, v := range desired.Labels {
+		if ws.Labels[k] != v {
+			ws.Labels[k] = v
+			needsUpdate = true
+		}
+	}
+
+	desiredSpecDecoValue, desiredHasSpecDeco := desired.Annotations[kaitov1beta1.AnnotationEnableSpeculativeDecoding]
+	currentSpecDecoValue, currentHasSpecDeco := ws.Annotations[kaitov1beta1.AnnotationEnableSpeculativeDecoding]
+	if desiredHasSpecDeco {
+		if ws.Annotations == nil {
+			ws.Annotations = make(map[string]string)
+		}
+		if !currentHasSpecDeco || currentSpecDecoValue != desiredSpecDecoValue {
+			ws.Annotations[kaitov1beta1.AnnotationEnableSpeculativeDecoding] = desiredSpecDecoValue
+			needsUpdate = true
+		}
+	} else if currentHasSpecDeco {
+		delete(ws.Annotations, kaitov1beta1.AnnotationEnableSpeculativeDecoding)
+		needsUpdate = true
+	}
+
+	if consts.IsKarpenterProvisioner() {
+		desiredCapacityType := desired.Annotations[kaitov1beta1.AnnotationCapacityType]
+		if repairInvalidWorkspaceCapacityType(ws, desiredCapacityType) {
+			needsUpdate = true
+		}
+	}
+
+	return needsUpdate
+}
+
 func (c *InferenceSetReconciler) addOrUpdateInferenceSet(ctx context.Context, iObj *kaitov1beta1.InferenceSet) (reconcile.Result, error) {
 	if iObj == nil {
 		return reconcile.Result{}, nil
@@ -201,7 +434,7 @@ func (c *InferenceSetReconciler) addOrUpdateInferenceSet(ctx context.Context, iO
 	isKey := client.ObjectKeyFromObject(iObj).String()
 	if !c.expectations.SatisfiedExpectations(c.Log, isKey) {
 		klog.V(4).InfoS("Waiting for expectations to be satisfied", "inferenceset", isKey)
-		return reconcile.Result{}, nil
+		return reconcile.Result{RequeueAfter: time.Second}, nil
 	}
 
 	// Check if there are any existing workspaces associated with this inferenceset.
@@ -213,53 +446,39 @@ func (c *InferenceSetReconciler) addOrUpdateInferenceSet(ctx context.Context, iO
 	if iObj.Spec.Replicas != nil {
 		desiredReplicas = *iObj.Spec.Replicas
 	}
-	klog.InfoS("Found workspaces for inference set", "name", iObj.Name, "current", len(wsList.Items), "desired", desiredReplicas)
+
+	klog.InfoS("Found workspaces for inference set", "name", iObj.Name,
+		"current", len(wsList.Items), "desired", desiredReplicas)
 
 	replicaNumToDelete := len(wsList.Items) - int(desiredReplicas)
-	var deletingWorkspaces []string
 	if replicaNumToDelete > 0 {
 		klog.InfoS("Found extra workspaces, deleting...", "current", len(wsList.Items), "desired", desiredReplicas)
-		// first delete workspace that is not in ready state
-		for _, ws := range wsList.Items {
-			if !ws.DeletionTimestamp.IsZero() {
-				deletingWorkspaces = append(deletingWorkspaces, ws.Name)
-				replicaNumToDelete--
-				klog.InfoS("Skipping workspace that is already being deleted...", "workspace", klog.KObj(&ws))
-			} else if controllers.DetermineWorkspacePhase(&ws) != "succeeded" {
-				klog.InfoS("Deleting non-ready workspace...", "workspace", klog.KObj(&ws))
-				if err := c.Client.Delete(ctx, &ws, &client.DeleteOptions{}); err != nil {
-					klog.ErrorS(err, "failed to delete non-ready workspace", "workspace", klog.KObj(&ws))
-					return ctrl.Result{}, err
-				}
-				deletingWorkspaces = append(deletingWorkspaces, ws.Name)
-				replicaNumToDelete--
-			}
-			if replicaNumToDelete <= 0 {
-				break
-			}
+
+		toDelete, err := c.selectWorkspacesToDelete(ctx, wsList.Items, int(desiredReplicas), replicaNumToDelete)
+		if err != nil {
+			return ctrl.Result{}, err
 		}
 
-		// delete rest of extra workspaces
-		if replicaNumToDelete > 0 {
-			for _, ws := range wsList.Items {
-				// check whether ws.Name is already in deletingWorkspaces
-				if slices.Contains(deletingWorkspaces, ws.Name) {
-					continue
-				}
-
-				if !ws.DeletionTimestamp.IsZero() {
-					replicaNumToDelete--
-					klog.InfoS("Skipping workspace that is already being deleted...", "workspace", klog.KObj(&ws))
-				} else {
-					klog.InfoS("Deleting extra workspace...", "workspace", klog.KObj(&ws))
-					if err := c.Client.Delete(ctx, &ws, &client.DeleteOptions{}); err != nil {
-						klog.ErrorS(err, "failed to delete extra workspace", "workspace", klog.KObj(&ws))
+		if len(toDelete) > 0 {
+			// Set deletion expectations before issuing any delete so that stale
+			// cache reads in subsequent reconciles do not over-delete workspaces.
+			// The expectation is lowered when the delete event is observed by the
+			// workspace event handler, or here if the delete call does not result
+			// in an eventual delete event (already-gone or failed).
+			if err := c.expectations.ExpectDeletions(c.klogger, isKey, len(toDelete)); err != nil {
+				klog.ErrorS(err, "failed to set deletion expectations", "inferenceset", isKey)
+				return ctrl.Result{}, err
+			}
+			for _, ws := range toDelete {
+				klog.InfoS("Deleting extra workspace...", "workspace", klog.KObj(ws))
+				if err := c.Client.Delete(ctx, ws, &client.DeleteOptions{}); err != nil {
+					// No delete event will be observed for this workspace, so lower
+					// the expectation to avoid stalling until it expires.
+					c.expectations.DeletionObserved(c.klogger, isKey)
+					if !apierrors.IsNotFound(err) {
+						klog.ErrorS(err, "failed to delete extra workspace", "workspace", klog.KObj(ws))
 						return ctrl.Result{}, err
 					}
-					replicaNumToDelete--
-				}
-				if replicaNumToDelete <= 0 {
-					break
 				}
 			}
 		}
@@ -273,91 +492,42 @@ func (c *InferenceSetReconciler) addOrUpdateInferenceSet(ctx context.Context, iO
 	replicaNumToCreate := int(desiredReplicas) - len(wsList.Items)
 	if replicaNumToCreate > 0 {
 		klog.InfoS("Need to create more workspaces...", "current", len(wsList.Items), "desired", desiredReplicas)
+		// Set creation expectations before issuing any create so that a stale
+		// cache read in a subsequent reconcile does not create duplicate
+		// workspaces. The expectation is lowered when the create event is
+		// observed by the workspace event handler, or here if the create fails.
+		if err := c.expectations.ExpectCreations(c.klogger, isKey, replicaNumToCreate); err != nil {
+			klog.ErrorS(err, "failed to set creation expectations", "inferenceset", isKey)
+			return reconcile.Result{}, err
+		}
 		for i := range replicaNumToCreate {
-			workspaceObj := &kaitov1beta1.Workspace{}
-			workspaceObj.GenerateName = iObj.Name + "-"
-			workspaceObj.Namespace = iObj.Namespace
-
-			// Start with labels from the template metadata, then add controller labels.
-			workspaceLabels := maps.Clone(iObj.Spec.Template.Labels)
-			if workspaceLabels == nil {
-				workspaceLabels = make(map[string]string)
-			}
-			// Also propagate select labels from the InferenceSet's own metadata,
-			// in case template.metadata.labels was pruned by the API server.
-			if role, ok := iObj.Labels[kaitov1beta1.LabelInferenceRole]; ok {
-				workspaceLabels[kaitov1beta1.LabelInferenceRole] = role
-			}
-			if mriParent, ok := iObj.Labels[kaitov1alpha1.LabelMultiRoleInferenceParent]; ok {
-				workspaceLabels[kaitov1alpha1.LabelMultiRoleInferenceParent] = mriParent
-			}
-			workspaceLabels[consts.WorkspaceCreatedByInferenceSetLabel] = iObj.Name
-			workspaceObj.Labels = workspaceLabels
-
-			// Start with annotations from the template metadata.
-			workspaceAnnotations := maps.Clone(iObj.Spec.Template.Annotations)
-			// Propagate the disable-benchmark opt-out so each child workspace inherits it.
-			// Benchmark is on by default; only propagate when explicitly disabled.
-			if !kaitov1beta1.IsInferenceSetBenchmarkEnabled(iObj) {
-				if workspaceAnnotations == nil {
-					workspaceAnnotations = make(map[string]string)
-				}
-				workspaceAnnotations[kaitov1beta1.AnnotationDisableBenchmark] = "true"
-			}
-			workspaceObj.Annotations = workspaceAnnotations
-			workspaceObj.OwnerReferences = []metav1.OwnerReference{
-				*metav1.NewControllerRef(iObj, kaitov1beta1.GroupVersion.WithKind("InferenceSet")),
-			}
-			workspaceObj.Resource = kaitov1beta1.ResourceSpec{
-				InstanceType:  iObj.Spec.Template.Resource.InstanceType,
-				LabelSelector: iObj.Spec.Selector,
-			}
-			workspaceObj.Inference = &iObj.Spec.Template.Inference
-
+			workspaceObj := inferenceset.NewWorkspaceForInferenceSet(iObj)
 			klog.InfoS("creating workspace", "workspace", workspaceObj.Name, "index", i)
 			if err := c.Client.Create(ctx, workspaceObj); err != nil {
+				// The create failed, so no create event will be observed for it;
+				// lower the expectation to avoid stalling until it expires.
+				c.expectations.CreationObserved(c.klogger, isKey)
 				klog.ErrorS(err, "failed to create workspace", "workspace", workspaceObj.Name)
 				return reconcile.Result{}, err
 			}
 		}
 	}
 
-	// Reconcile labels on existing workspaces by additively propagating InferenceSet metadata labels.
-	// Note: this only adds/updates desired labels; it does not remove stale labels to avoid
-	// conflicting with labels managed by other controllers.
-	// This ensures label changes (e.g., adding kaito.sh/inference-role) propagate
-	// to workspaces that were created before the label was set.
-	desiredLabels := make(map[string]string)
-	for k, v := range iObj.Spec.Template.Labels {
-		desiredLabels[k] = v
-	}
-	// Propagate inference-role from InferenceSet metadata (reliable even if template labels are pruned).
-	if role, ok := iObj.Labels[kaitov1beta1.LabelInferenceRole]; ok {
-		desiredLabels[kaitov1beta1.LabelInferenceRole] = role
-	}
-	if mriParent, ok := iObj.Labels[kaitov1alpha1.LabelMultiRoleInferenceParent]; ok {
-		desiredLabels[kaitov1alpha1.LabelMultiRoleInferenceParent] = mriParent
-	}
-	if len(desiredLabels) > 0 {
-		for i := range wsList.Items {
-			ws := &wsList.Items[i]
-			needsUpdate := false
-			if ws.Labels == nil {
-				ws.Labels = make(map[string]string)
-			}
-			for k, v := range desiredLabels {
-				if ws.Labels[k] != v {
-					ws.Labels[k] = v
-					needsUpdate = true
-				}
-			}
-			if needsUpdate {
-				klog.InfoS("Reconciling workspace labels", "workspace", klog.KObj(ws))
-				if err := c.Client.Update(ctx, ws); err != nil {
-					klog.ErrorS(err, "failed to update workspace labels", "workspace", klog.KObj(ws))
-					return ctrl.Result{}, err
-				}
-			}
+	// Reconcile existing child workspace metadata against the current InferenceSet template.
+	// Labels remain additive because other controllers may add their own labels.
+	// For annotations, only reconcile kaito.sh/enable-speculative-decoding here:
+	// child Workspaces also carry controller-owned annotations such as hash/revision
+	// and auto-upgrade markers, so replacing the whole map would fight those controllers.
+	desiredWorkspace := inferenceset.NewWorkspaceForInferenceSet(iObj)
+	for i := range wsList.Items {
+		ws := &wsList.Items[i]
+		if !reconcileExistingWorkspaceMetadata(ws, desiredWorkspace) {
+			continue
+		}
+		klog.InfoS("Reconciling workspace metadata", "workspace", klog.KObj(ws))
+		if err := c.Client.Update(ctx, ws); err != nil {
+			klog.ErrorS(err, "failed to update workspace metadata", "workspace", klog.KObj(ws))
+			return ctrl.Result{}, err
 		}
 	}
 
@@ -368,8 +538,15 @@ func (c *InferenceSetReconciler) addOrUpdateInferenceSet(ctx context.Context, iO
 	if err = inferenceset.UpdateInferenceSetStatus(ctx, c.Client, &client.ObjectKey{Name: iObj.Name, Namespace: iObj.Namespace}, func(status *kaitov1beta1.InferenceSetStatus) error {
 		status.Replicas = int(desiredReplicas)
 		status.ReadyReplicas = readyReplicas
+		status.MaxModelLen = controllers.AggregateMaxModelLen(wsList.Items)
 		// set selector for HPA/VPA
 		status.Selector = fmt.Sprintf("%s=%s", consts.WorkspaceCreatedByInferenceSetLabel, iObj.Name)
+		runtimeName := kaitov1beta1.GetInferenceSetRuntimeName(iObj)
+		var presetName string
+		if iObj.Spec.Template.Inference.Preset != nil {
+			presetName = string(iObj.Spec.Template.Inference.Preset.Name)
+		}
+
 		if kaitov1beta1.ShouldRunInferenceSetBenchmark(iObj) {
 			if hasBenchmarkTPMResult {
 				if status.Performance == nil {
@@ -382,6 +559,7 @@ func (c *InferenceSetReconciler) addOrUpdateInferenceSet(ctx context.Context, iO
 					Description: controllers.BenchmarkDesc,
 					Value:       strconv.FormatFloat(totalTPM, 'f', 2, 64),
 					Unit:        controllers.BenchmarkMetricUnit,
+					Config:      controllers.RuntimeMetadataConfig(runtimeName, presetName),
 				}
 			} else {
 				// No ready replica has a TPM result — clear the TPM key so the profile
@@ -404,21 +582,24 @@ func (c *InferenceSetReconciler) addOrUpdateInferenceSet(ctx context.Context, iO
 				}
 			}
 		}
+
 		return nil
 	}); err != nil {
 		klog.ErrorS(err, "failed to update inferenceset replicas", "inferenceset", klog.KObj(iObj))
 		return reconcile.Result{}, err
 	}
 
-	if readyReplicas == int(desiredReplicas) {
+	// A surge replica created by an upgrade is ready before the replica it replaces is deleted.
+	if readyReplicas >= int(desiredReplicas) {
 		if err = inferenceset.UpdateStatusConditionIfNotMatch(ctx, c.Client, iObj, kaitov1beta1.InferenceSetConditionTypeReady, metav1.ConditionTrue,
 			"inferencesetReady", "inferenceset is ready"); err != nil {
 			klog.ErrorS(err, "failed to update inferenceset status", "inferenceset", klog.KObj(iObj))
 			return reconcile.Result{}, err
 		}
 	} else {
+		notReadyReason, notReadyMessage := analyzeNotReadyWorkspaces(wsList.Items, readyReplicas, desiredReplicas)
 		if err = inferenceset.UpdateStatusConditionIfNotMatch(ctx, c.Client, iObj, kaitov1beta1.InferenceSetConditionTypeReady, metav1.ConditionFalse,
-			"inferencesetNotReady", fmt.Sprintf("inferenceset is not ready, %d/%d replicas are ready", readyReplicas, desiredReplicas)); err != nil {
+			notReadyReason, notReadyMessage); err != nil {
 			klog.ErrorS(err, "failed to update inferenceset status", "inferenceset", klog.KObj(iObj))
 			return reconcile.Result{}, err
 		}
@@ -426,7 +607,7 @@ func (c *InferenceSetReconciler) addOrUpdateInferenceSet(ctx context.Context, iO
 
 	// Surface benchmark progress when the annotation is set.
 	if kaitov1beta1.ShouldRunInferenceSetBenchmark(iObj) {
-		if benchmarkedReplicas == int(desiredReplicas) && desiredReplicas > 0 {
+		if benchmarkedReplicas >= int(desiredReplicas) && desiredReplicas > 0 {
 			if err = inferenceset.UpdateStatusConditionIfNotMatch(ctx, c.Client, iObj, kaitov1beta1.InferenceSetConditionTypeBenchmarkCompleted, metav1.ConditionTrue,
 				"BenchmarkCompleted", fmt.Sprintf("%d/%d replicas benchmarked", benchmarkedReplicas, desiredReplicas)); err != nil {
 				klog.ErrorS(err, "failed to update inferenceset benchmark status", "inferenceset", klog.KObj(iObj))

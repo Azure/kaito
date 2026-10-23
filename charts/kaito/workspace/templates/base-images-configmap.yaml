@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kaito-base-images
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "utils.toYamlStrMap" .Values.commonLabels | nindent 4 }}
+data:
+  BaseImages: |
+    images:
+      - name: base
+        tag: 0.6.3
+        runtimeVersion:
+          vllm: 0.30.0
+          transformers: 5.15.0

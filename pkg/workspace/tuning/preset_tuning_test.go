@@ -57,7 +57,7 @@ func TestHandleURLDataSource(t *testing.T) {
 			},
 			expectedInitContainerName: "data-downloader",
 			expectedImage:             "curlimages/curl",
-			expectedCommands:          "curl -sSL -w \"%{http_code}\" -o \"$DATA_VOLUME_PATH/$filename\" \"$url\"",
+			expectedCommands:          "curl -sSL --proto =http,https -w \"%{http_code}\" -o \"$DATA_VOLUME_PATH/$filename\" \"$url\"",
 			expectedVolumeName:        "data-volume",
 			expectedVolumeMountPath:   utils.DefaultDataVolumePath,
 			expectedVolumeMounts:      []corev1.VolumeMount{{Name: "data-volume", MountPath: utils.DefaultDataVolumePath}},
@@ -441,7 +441,7 @@ func TestPrepareTrainingOutput(t *testing.T) {
 				Tuning: &kaitov1beta1.TuningSpec{
 					Preset: &kaitov1beta1.PresetSpec{
 						PresetMeta: kaitov1beta1.PresetMeta{
-							Name: "phi-3-mini-128k-instruct",
+							Name: "microsoft/Phi-3-mini-128k-instruct",
 						},
 					},
 					Output: &kaitov1beta1.DataDestination{
@@ -677,14 +677,18 @@ func TestDefaultTolerations(t *testing.T) {
 type mockModel struct{}
 
 func (m *mockModel) GetInferenceParameters() *pkgmodel.PresetParam {
-	return &pkgmodel.PresetParam{
-		GPUCountRequirement: "1",
-	}
+	return &pkgmodel.PresetParam{}
 }
 
 func (m *mockModel) GetTuningParameters() *pkgmodel.PresetParam {
 	return &pkgmodel.PresetParam{
-		GPUCountRequirement: "1",
+		Metadata: pkgmodel.Metadata{Registry: "test-registry"},
+		RuntimeParam: pkgmodel.RuntimeParam{
+			Transformers: pkgmodel.HuggingfaceTransformersParam{
+				ModelName: "test-model",
+				Tag:       "0.2.0",
+			},
+		},
 	}
 }
 
@@ -702,7 +706,6 @@ type mockModelDistinctParams struct{}
 
 func (m *mockModelDistinctParams) GetInferenceParameters() *pkgmodel.PresetParam {
 	return &pkgmodel.PresetParam{
-		GPUCountRequirement: "1",
 		RuntimeParam: pkgmodel.RuntimeParam{
 			Transformers: pkgmodel.HuggingfaceTransformersParam{
 				BaseCommand: "inference-command-should-not-appear",
@@ -713,10 +716,12 @@ func (m *mockModelDistinctParams) GetInferenceParameters() *pkgmodel.PresetParam
 
 func (m *mockModelDistinctParams) GetTuningParameters() *pkgmodel.PresetParam {
 	return &pkgmodel.PresetParam{
-		GPUCountRequirement: "1",
+		Metadata: pkgmodel.Metadata{Registry: "test-registry"},
 		RuntimeParam: pkgmodel.RuntimeParam{
 			Transformers: pkgmodel.HuggingfaceTransformersParam{
 				BaseCommand: "tuning-base-command",
+				ModelName:   "test-model",
+				Tag:         "0.2.0",
 			},
 		},
 	}
@@ -771,4 +776,17 @@ func TestGenerateBasicTuningPodSpec_UsesTuningParams(t *testing.T) {
 		"expected tuning command to use GetTuningParameters().BaseCommand")
 	assert.NotContains(t, cmd, "inference-command-should-not-appear",
 		"tuning command must not use GetInferenceParameters().BaseCommand")
+
+	assert.Len(t, podSpec.InitContainers, 1)
+	puller := podSpec.InitContainers[0]
+	assert.Equal(t, "model-weights-downloader", puller.Name)
+	assert.Equal(t, utils.DefaultORASToolImage, puller.Image)
+	assert.Equal(t, []string{
+		"oras",
+		"pull",
+		"test-registry/kaito-test-model:0.2.0",
+		"-o",
+		utils.DefaultWeightsVolumePath,
+	}, puller.Command)
+	assert.Equal(t, []corev1.VolumeMount{utils.DefaultModelWeightsVolumeMount}, puller.VolumeMounts)
 }

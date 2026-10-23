@@ -14,6 +14,7 @@
 package consts
 
 import (
+	"slices"
 	"strings"
 	"time"
 )
@@ -41,16 +42,32 @@ const (
 	NvidiaCUDAComputeCapMajor     = "nvidia.com/cuda.compute.major"
 	NvidiaCUDAComputeCapMinor     = "nvidia.com/cuda.compute.minor"
 
+	// MIG-related node labels set by the NVIDIA GPU Operator's mig-manager.
+	// NvidiaMIGConfig holds the requested/applied MIG partition layout (e.g.
+	// "all-2g.24gb" or "all-disabled"); NvidiaMIGConfigState is "success" once
+	// the layout has been applied.
+	NvidiaMIGConfig      = "nvidia.com/mig.config"
+	NvidiaMIGConfigState = "nvidia.com/mig.config.state"
+
+	// NvidiaMIGConfigDisabled is the mig.config value that means MIG is turned off.
+	NvidiaMIGConfigDisabled = "all-disabled"
+	// NvidiaMIGConfigStateSuccess is the mig.config.state value that means the
+	// requested MIG layout has been applied successfully.
+	NvidiaMIGConfigStateSuccess = "success"
+
 	// Feature flags
 	FeatureFlagVLLM                         = "vLLM"
 	FeatureFlagDisableNodeAutoProvisioning  = "disableNodeAutoProvisioning"
 	FeatureFlagGatewayAPIInferenceExtension = "gatewayAPIInferenceExtension"
 	FeatureFlagEnableInferenceSetController = "enableInferenceSetController"
+	FeatureFlagEnableMIG                    = "enableMIG"
+	FeatureFlagEnableAccelerator            = "enableAccelerator"
 
 	FeatureFlagEnableMultiRoleInferenceController = "enableMultiRoleInferenceController"
 	FeatureFlagModelMirror                        = "ModelMirror"
 	FeatureFlagModelStreaming                     = "ModelStreaming"
 	FeatureFlagEnableBaseImageAutoUpgrade         = "enableBaseImageAutoUpgrade"
+	FeatureFlagEnableEPPFlowControl               = "enableEPPFlowControl"
 
 	// Node provisioner types
 	NodeProvisionerAzureGPU  = "azure-gpu-provisioner"
@@ -82,6 +99,28 @@ func IsKarpenterProvisioner() bool {
 	return ActiveNodeProvisioner == NodeProvisionerKarpenter
 }
 
+// IsSupportedKarpenterCapacityType reports whether a Workspace annotation value
+// can be used as a Karpenter capacity-type requirement. Empty selects the default.
+func IsSupportedKarpenterCapacityType(value string) bool {
+	return value == "" || value == KarpenterCapacityTypeOnDemand || value == KarpenterCapacityTypeSpot
+}
+
+// allowedNodeClassNames is the sorted set of NodeClass names declared via
+// --karpenter-node-classes. Set once during startup in main.go; read by the Workspace
+// admission webhook to validate the node-class-name annotation. Unexported so callers
+// cannot mutate the allowlist in place.
+var allowedNodeClassNames []string
+
+// SetAllowedNodeClassNames publishes the NodeClass allowlist. Startup only.
+func SetAllowedNodeClassNames(names []string) {
+	allowedNodeClassNames = slices.Clone(names)
+}
+
+// AllowedNodeClassNames returns the NodeClass allowlist.
+func AllowedNodeClassNames() []string {
+	return slices.Clone(allowedNodeClassNames)
+}
+
 const (
 	// Nodeclaim related consts
 	KaitoNodePoolName             = "kaito"
@@ -90,11 +129,14 @@ const (
 	NodeClassName                 = "default"
 
 	// Karpenter provisioner related consts
-	KarpenterLabelManagedBy    = "karpenter.kaito.sh/managed-by"
-	KarpenterManagedByValue    = "kaito"
-	AKSNodeClassUbuntuName     = "image-family-ubuntu"
-	AKSNodeClassAzureLinuxName = "image-family-azure-linux"
-	AKSNodeClassOSDiskSizeGB   = 300
+	KarpenterLabelManagedBy       = "karpenter.kaito.sh/managed-by"
+	KarpenterManagedByValue       = "kaito"
+	KarpenterCapacityTypeLabel    = "karpenter.sh/capacity-type"
+	KarpenterCapacityTypeOnDemand = "on-demand"
+	KarpenterCapacityTypeSpot     = "spot"
+	AKSNodeClassUbuntuName        = "image-family-ubuntu"
+	AKSNodeClassAzureLinuxName    = "image-family-azure-linux"
+	AKSNodeClassOSDiskSizeGB      = 300
 
 	// machine related consts
 	ProvisionerName           = "default"
@@ -108,21 +150,26 @@ const (
 	// PortInferenceServer is the default port for the inference server.
 	PortInferenceServer = int32(5000)
 
-	// InferencePoolChartURL is the OCI registry URL for the Gateway API Inference Extension inferencepool chart.
-	InferencePoolChartURL = "oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool"
+	// PortKVCacheEvents is the default ZMQ port for vLLM KV cache events.
+	// See https://docs.vllm.ai/en/stable/api/vllm/config/kv_events/
+	PortKVCacheEvents = int32(5557)
 
-	// InferencePoolChartVersion is the tag/version of the inferencepool chart to deploy.
-	// MUST KEEP IN SYNC with the version in go.mod.
-	InferencePoolChartVersion = "v1.3.1"
+	// InferencePoolChartURL is the OCI registry URL for the llm-d router gateway chart.
+	// Migrated from GWIE inferencepool chart to llm-d-router-gateway which provides
+	// the same InferencePool deployment with advanced routing capabilities.
+	InferencePoolChartURL = "oci://ghcr.io/llm-d/charts/llm-d-router-gateway"
+
+	// InferencePoolChartVersion is the tag/version of the llm-d-router-gateway chart to deploy.
+	InferencePoolChartVersion = "v0.9.0"
 
 	// EPP (Endpoint Picker) image configuration.
-	// The InferencePool chart composes the image as: {hub}/{name}:{tag}
-	// Using llm-d inference scheduler which consolidates the GWIE EPP implementation
-	// with advanced scheduling plugins (KV cache-aware routing, P/D disaggregation, etc.)
-	// See: https://github.com/llm-d/llm-d-inference-scheduler
-	EPPImageHub  = "mcr.microsoft.com/oss/v2/llm-d"
-	EPPImageName = "llm-d-inference-scheduler"
-	EPPImageTag  = "v0.8.0"
+	// The llm-d-router chart composes the image as: {registry}/{repository}:{tag}
+	// Using llm-d router endpoint picker which provides advanced scheduling plugins
+	// (KV cache-aware routing, P/D disaggregation, pluggable filters/scorers).
+	// See: https://github.com/llm-d/llm-d-router
+	EPPImageRegistry   = "mcr.microsoft.com/oss/v2/llm-d"
+	EPPImageRepository = "llm-d-router-endpoint-picker"
+	EPPImageTag        = "v0.9.0"
 
 	// TokenizerSidecar runs a GPU-less vLLM render process for tokenization.
 	// It exposes /v1/completions/render and /v1/chat/completions/render on port 8100.
@@ -155,6 +202,11 @@ const (
 	// requires a CUDA toolchain (nvcc) that the base image does not ship.
 	VLLMUseFlashInferSamplerEnvName = "VLLM_USE_FLASHINFER_SAMPLER"
 
+	// ModelConfigSHA256EnvName carries the SHA-256 of the model configuration a
+	// bring-your-own deployment was sized and configured from, so the serving
+	// container can verify that the streamed bundle is that same model.
+	ModelConfigSHA256EnvName = "KAITO_MODEL_CONFIG_SHA256"
+
 	// VLLMUseDeepGEMMEnvName toggles vLLM's DeepGEMM FP8 kernels. vLLM 0.22.1
 	// defaults this on and reports DeepGEMM as available (it finds the vendored
 	// wrapper module), but the native FP8 GEMM backend is not present in the base
@@ -162,20 +214,8 @@ const (
 	// Set to "0" to keep FP8 models on their non-DeepGEMM kernel path.
 	VLLMUseDeepGEMMEnvName = "VLLM_USE_DEEP_GEMM"
 
-	// The VLLMUseFlashInferMoe*EnvName variables toggle vLLM's per-precision
-	// FlashInfer MoE backends. For MoE models vLLM auto-selects a FlashInfer
-	// (TRTLLM/CUTLASS) expert kernel, which JIT-compiles at runtime via nvcc — a
-	// CUDA toolchain the base image does not ship — crashing the engine at startup.
-	// Setting each explicitly to "0" removes the FlashInfer backends from the
-	// candidate list so vLLM falls back to the Triton MoE kernel, which needs no
-	// nvcc JIT (KAITO does not support FlashInfer). One variable exists per MoE
-	// weight/activation precision, so all must be disabled to cover every model.
-	VLLMUseFlashInferMoeFP16EnvName              = "VLLM_USE_FLASHINFER_MOE_FP16"
-	VLLMUseFlashInferMoeFP8EnvName               = "VLLM_USE_FLASHINFER_MOE_FP8"
-	VLLMUseFlashInferMoeFP4EnvName               = "VLLM_USE_FLASHINFER_MOE_FP4"
-	VLLMUseFlashInferMoeMXFP4BF16EnvName         = "VLLM_USE_FLASHINFER_MOE_MXFP4_BF16"
-	VLLMUseFlashInferMoeMXFP4MXFP8EnvName        = "VLLM_USE_FLASHINFER_MOE_MXFP4_MXFP8"
-	VLLMUseFlashInferMoeMXFP4MXFP8CutlassEnvName = "VLLM_USE_FLASHINFER_MOE_MXFP4_MXFP8_CUTLASS"
+	// VLLMWSL2EnablePinMemoryEnvName enables pinned memory when vLLM detects WSL2.
+	VLLMWSL2EnablePinMemoryEnvName = "VLLM_WSL2_ENABLE_PIN_MEMORY"
 
 	// ConditionReady is the condition type for a ready condition.
 	ConditionReady = "Ready"
@@ -211,3 +251,33 @@ func NormalizeSupportedNodeImageFamily(value string) (string, bool) {
 		return "", false
 	}
 }
+
+// SAS-authenticated blob streaming annotations. When the static-model-mirror flag and the core
+// annotations are present on a Workspace (with model streaming enabled), KAITO streams weights
+// directly from a pre-existing external blob using a short-lived SAS token minted at pod start,
+// instead of mirroring the model to a PVC.
+//
+// These belong to the streaming path, not the mirror path: mirroring is independent of
+// streaming (it only copies weights to a PVC, skipping the download when no StorageClass
+// is set), so it has no knowledge of these keys.
+//
+// They live in this leaf package so that API validation can reference them without importing
+// the streaming package, which itself depends on the API types.
+const (
+	AnnotationStreamDatarefsURL = "inference.kaito.sh/stream-datarefs-url" // POST target to mint a fresh SAS
+	// AnnotationStreamIdentityClientID is the workload identity client ID used to mint the SAS.
+	AnnotationStreamIdentityClientID = "inference.kaito.sh/stream-identity-client-id" // WI client id for token exchange
+	// AnnotationStreamSourceType selects the model source API flavor: "public" or "byo". It
+	// drives the model-resolve URL derivation and the token audience used to mint the SAS.
+	AnnotationStreamSourceType = "inference.kaito.sh/stream-source-type" // "public" | "byo"
+
+	// AnnotationStaticModelMirror, when set to "true", marks the workspace as using a STATIC
+	// model mirror: enabling this flag requires the core SAS annotations to be present.
+	AnnotationStaticModelMirror = "inference.kaito.sh/static-model-mirror" // "true" => Mode=Static
+)
+
+// Source type values for AnnotationStreamSourceType.
+const (
+	SourceTypePublic = "public"
+	SourceTypeBYO    = "byo"
+)

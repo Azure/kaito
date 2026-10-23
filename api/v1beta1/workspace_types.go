@@ -31,12 +31,14 @@ type ResourceSpec struct {
 	Count *int `json:"count,omitempty"`
 
 	// InstanceType specifies the GPU node SKU.
-	// This field is required when node auto-provisioning is enabled.
-	// This field must be empty when node auto-provisioning is disabled (BYO scenario).
+	// Required when node auto-provisioning is enabled. Optional for BYO nodes, where it
+	// restricts the GPU nodes to those labeled node.kubernetes.io/instance-type=<instanceType>.
 	// +optional
 	InstanceType string `json:"instanceType,omitempty"`
 
-	// LabelSelector specifies the required labels for the GPU nodes.
+	// LabelSelector specifies the required labels for the GPU nodes. Leave it unset or empty ({}),
+	// together with instanceType, to let BYO mode auto-select the GPU SKU.
+	// +optional
 	LabelSelector *metav1.LabelSelector `json:"labelSelector"`
 
 	// Deprecated: PreferredNodes is deprecated in v1beta1 and will be removed in a future version.
@@ -44,6 +46,49 @@ type ResourceSpec struct {
 	// The controller will use the `InstanceType` to create the remaining nodes.
 	// +optional
 	PreferredNodes []string `json:"preferredNodes,omitempty"`
+
+	// Partition specifies GPU partitioning for the workload. When set, the workload
+	// is scheduled on a GPU partition (slice) instead of a full GPU.
+	// Requires the enableMIG feature gate and BYO nodes.
+	// +optional
+	Partition *PartitionSpec `json:"partition,omitempty"`
+}
+
+// PartitionMode identifies the GPU partitioning technology.
+// +kubebuilder:validation:Enum=mig;accelerator
+type PartitionMode string
+
+const (
+	// PartitionModeMIG partitions the GPU using NVIDIA Multi-Instance GPU (MIG),
+	// slicing a single physical GPU into a smaller unit addressed by Profile.
+	PartitionModeMIG PartitionMode = "mig"
+
+	// PartitionModeAccelerator allocates multiple whole GPUs to a single workload,
+	// with the number of GPUs given by Count.
+	PartitionModeAccelerator PartitionMode = "accelerator"
+)
+
+// PartitionSpec describes GPU partitioning for a workload. Two modes are supported:
+// "mig" slices one physical GPU into a smaller unit selected by Profile, while
+// "accelerator" allocates Count whole GPUs to the workload.
+type PartitionSpec struct {
+	// Mode selects the GPU partitioning technology: "mig" (NVIDIA Multi-Instance
+	// GPU) or "accelerator" (multiple whole GPUs).
+	// +kubebuilder:validation:Enum=mig;accelerator
+	Mode PartitionMode `json:"mode"`
+
+	// Profile is the partition profile, interpreted according to Mode. For MIG this
+	// is a profile name like "1g.10gb", "2g.20gb", "3g.40gb". Each workload is
+	// scheduled on exactly one partition; tensor parallelism across partitions is
+	// not supported. Use multiple Workspaces or an InferenceSet to run replicas.
+	// +optional
+	Profile string `json:"profile,omitempty"`
+
+	// Count is the number of whole GPUs to allocate to the workload. Required and
+	// used only when Mode is "accelerator"; must be >= 1. Not valid for "mig".
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	Count *int `json:"count,omitempty"`
 }
 
 type ModelName string
@@ -221,6 +266,11 @@ type WorkspaceStatus struct {
 	// +optional
 	WorkerNodes []string `json:"workerNodes,omitempty"`
 
+	// MaxModelLen is the maximum context length reported by the inference runtime.
+	// It may be lower than the configured model context length after vLLM memory profiling.
+	// +optional
+	MaxModelLen *int32 `json:"maxModelLen,omitempty"`
+
 	// State represents the current high-level state of the workspace.
 	// +optional
 	State WorkspaceState `json:"state,omitempty"`
@@ -237,6 +287,31 @@ type WorkspaceStatus struct {
 	// Populated by default; omitted when kaito.sh/disable-benchmark is set to "true".
 	// +optional
 	Performance *Performance `json:"performance,omitempty"`
+
+	// ResolvedModel records what a bring-your-own deployment actually resolved to.
+	// It is owned by the controller and set only for the "custom" preset.
+	// +optional
+	ResolvedModel *ResolvedModel `json:"resolvedModel,omitempty"`
+}
+
+// ResolvedModel identifies the model a deployment was resolved, sized and
+// configured from, so that a later change to its inputs can be detected rather
+// than silently re-resolved.
+type ResolvedModel struct {
+	// ConfigSHA256 is the SHA-256 of the model configuration this deployment was
+	// resolved from. The serving container verifies the model bundle against it,
+	// and a replaced configuration whose digest no longer matches is reported
+	// rather than adopted.
+	// +optional
+	ConfigSHA256 string `json:"configSHA256,omitempty"`
+
+	// SizeBytes is the declared on-disk size of the weight bundle this
+	// deployment was sized from. It is recorded separately from ConfigSHA256
+	// because that digest covers the model configuration only, so a replaced
+	// configuration that changes the size but not config.json would otherwise
+	// go unnoticed.
+	// +optional
+	SizeBytes int64 `json:"sizeBytes,omitempty"`
 }
 
 // Workspace is the Schema for the workspaces API

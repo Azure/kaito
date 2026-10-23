@@ -14,6 +14,9 @@
 package v1beta1
 
 import (
+	"path"
+	"strings"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/kaito-project/kaito/pkg/featuregates"
@@ -58,10 +61,14 @@ const (
 	// AnnotationNodeImageFamily specifies node image family used by generated NodeClaim.
 	AnnotationNodeImageFamily = KAITOPrefix + "node-image-family"
 
-	// AnnotationNodeClassName specifies the Karpenter NodeClass name to use.
-	// When set on a Workspace, the karpenter provisioner uses this value directly
-	// as the NodeClassRef name instead of the configured default.
+	// AnnotationNodeClassName selects the Karpenter NodeClass used by the generated NodePool.
+	// The value must name one of the KAITO-managed NodeClasses declared via the operator's
+	// --karpenter-node-classes flag. When unset, the default NodeClass is used.
 	AnnotationNodeClassName = KAITOPrefix + "node-class-name"
+
+	// AnnotationCapacityType selects on-demand or spot capacity for a Karpenter NodePool.
+	// When unset or empty, on-demand capacity is used.
+	AnnotationCapacityType = KAITOPrefix + "capacity-type"
 
 	// AnnotationDisableBenchmark disables the post-load throughput benchmark stage.
 	// The benchmark is enabled by default. Set to "true" on a Workspace to
@@ -88,6 +95,24 @@ const (
 	//     aggressive batching, throughput-oriented kernels).
 	// Only supported when the vLLM runtime is used.
 	AnnotationPerformanceMode = KAITOPrefix + "performance-mode"
+
+	// AnnotationEnableSpeculativeDecoding enables preset-driven speculative
+	// decoding on a Workspace. Only "true" and "false" are valid values.
+	AnnotationEnableSpeculativeDecoding = KAITOPrefix + "enable-speculative-decoding"
+
+	// AnnotationUseLocalWeights makes the inference workload load model weights that
+	// are already present on the node instead of downloading them from HuggingFace at
+	// runtime. Set it to "true" to enable. When enabled, KAITO reads the weights from
+	// LocalWeightsHostPathPrefix/<sanitized preset name> (e.g.
+	// /opt/kaito/models/deepseek-ai-deepseek-v4-flash), mounts that host directory
+	// read-only into the inference container, and passes it to vLLM as --model,
+	// skipping the HuggingFace download entirely.
+	AnnotationUseLocalWeights = KAITOPrefix + "use-local-weights"
+
+	// LocalWeightsHostPathPrefix is the node directory under which baked model
+	// weights live, one subdirectory per preset (see GetLocalWeightsPath). Used
+	// when kaito.sh/use-local-weights is enabled.
+	LocalWeightsHostPathPrefix = "/opt/kaito/models"
 )
 
 // Valid values for AnnotationPerformanceMode.
@@ -150,6 +175,50 @@ func GetPerformanceMode(ws *Workspace) string {
 	return PerformanceModeBalanced
 }
 
+// UseLocalWeights reports whether the workspace opts into loading model weights
+// from the node (kaito.sh/use-local-weights: "true") instead of downloading them
+// from HuggingFace at runtime.
+func UseLocalWeights(ws *Workspace) bool {
+	if ws == nil {
+		return false
+	}
+	return ws.Annotations[AnnotationUseLocalWeights] == "true"
+}
+
+// GetLocalWeightsPath returns the node directory holding baked model weights for
+// the workspace's preset when kaito.sh/use-local-weights is enabled, or "" when
+// it is disabled or the workspace has no preset. The path is
+// LocalWeightsHostPathPrefix/<sanitized preset name>, e.g.
+// /opt/kaito/models/deepseek-ai-deepseek-v4-flash.
+func GetLocalWeightsPath(ws *Workspace) string {
+	if !UseLocalWeights(ws) {
+		return ""
+	}
+	if ws.Inference == nil || ws.Inference.Preset == nil {
+		return ""
+	}
+	segment := sanitizePresetName(string(ws.Inference.Preset.Name))
+	if segment == "" {
+		return ""
+	}
+	return path.Join(LocalWeightsHostPathPrefix, segment)
+}
+
+// sanitizePresetName maps a preset model id to a single path segment: lowercased
+// with path separators replaced by dashes (e.g. "deepseek-ai/DeepSeek-V4-Flash"
+// -> "deepseek-ai-deepseek-v4-flash"). It returns "" for a name that would not be
+// a safe single directory segment, so the derived path cannot escape
+// LocalWeightsHostPathPrefix.
+func sanitizePresetName(name string) string {
+	s := strings.ToLower(strings.TrimSpace(name))
+	s = strings.ReplaceAll(s, "/", "-")
+	s = strings.ReplaceAll(s, "\\", "-")
+	if s == "" || s == "." || s == ".." {
+		return ""
+	}
+	return s
+}
+
 // reservedSelectorLabelKeys are labels that KAITO controllers apply to their
 // own NodeClaims/Nodes/NodePools. Users must not include them in resource
 // label selectors; if they do, the values are silently ignored to prevent
@@ -173,6 +242,19 @@ var reservedSelectorLabelKeys = map[string]struct{}{
 func IsReservedSelectorLabel(key string) bool {
 	_, ok := reservedSelectorLabelKeys[key]
 	return ok
+}
+
+// IsEmptyLabelSelector reports whether selector is nil or has no matchLabels
+// and no matchExpressions. Both forms mean "no node selector" for BYO GPU SKU
+// auto-selection.
+func IsEmptyLabelSelector(selector *metav1.LabelSelector) bool {
+	return selector == nil || (len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0)
+}
+
+// AutoSelectsSKU reports whether BYO mode should auto-select the GPU SKU,
+// which happens when neither instanceType nor a non-empty labelSelector is set.
+func (r *ResourceSpec) AutoSelectsSKU() bool {
+	return r.InstanceType == "" && IsEmptyLabelSelector(r.LabelSelector)
 }
 
 // SanitizedMatchLabels returns the MatchLabels of selector with any

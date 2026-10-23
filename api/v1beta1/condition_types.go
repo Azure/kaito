@@ -18,6 +18,8 @@ type ConditionType string
 
 const (
 	// ConditionTypeNodeClaimStatus is the state when checking nodeClaim status.
+	// With the Karpenter node provisioner, while False, NodeClaimNotReady means provisioning is in progress and any
+	// other reason means the latest attempt failed.
 	ConditionTypeNodeClaimStatus = ConditionType("NodeClaimReady")
 
 	// ConditionTypeNodeStatus is the state when checking node status.
@@ -70,4 +72,11 @@ const (
 
 	// WorkspaceConditionTypeModelMirrorReady indicates the ModelMirror download is complete and model is ready for streaming.
 	WorkspaceConditionTypeModelMirrorReady = ConditionType("ModelMirrorReady")
+
+	// WorkspaceConditionTypeModelConfigReady reports whether a bring-your-own
+	// model's configuration resolved successfully and still matches what the
+	// deployment was sized and configured from. It also carries artifact-level
+	// failures the controller can observe, so a bring-your-own deployment has a
+	// single readiness condition for its model rather than two.
+	WorkspaceConditionTypeModelConfigReady = ConditionType("ModelConfigReady")
 )

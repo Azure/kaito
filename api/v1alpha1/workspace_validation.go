@@ -29,12 +29,13 @@ import (
 	"k8s.io/klog/v2"
 	"knative.dev/pkg/apis"
 
+	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
 	"github.com/kaito-project/kaito/pkg/model"
 	"github.com/kaito-project/kaito/pkg/sku"
 	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/kaito-project/kaito/pkg/utils/plugin"
-	metadata "github.com/kaito-project/kaito/presets/workspace/models"
+	"github.com/kaito-project/kaito/pkg/utils/speculativedecoding"
 )
 
 const (
@@ -62,7 +63,9 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 	base := apis.GetBaseline(ctx)
 	if base == nil {
 		klog.InfoS("Validate creation", "workspace", fmt.Sprintf("%s/%s", w.Namespace, w.Name))
+		errs = errs.Also(kaitov1beta1.ValidateWorkspaceNameLength(w.Name))
 		errs = errs.Also(w.validateCreate().ViaField("spec"))
+		errs = errs.Also(w.validateSpeculativeDecoding())
 		if w.Inference != nil {
 			// Check if the bypass resource checks annotation is set
 			bypassResourceChecks := false
@@ -95,10 +98,60 @@ func (w *Workspace) Validate(ctx context.Context) (errs *apis.FieldError) {
 		if w.Inference != nil {
 			errs = errs.Also(w.Inference.validateUpdate(old.Inference).ViaField("inference"))
 		}
+		errs = errs.Also(w.validateSpeculativeDecoding())
 		if w.Tuning != nil {
 			errs = errs.Also(w.Tuning.validateUpdate(old.Tuning).ViaField("tuning"))
 		}
 	}
+	return errs
+}
+
+func (w *Workspace) validateSpeculativeDecoding() (errs *apis.FieldError) {
+	presetName := ""
+	if w.Inference != nil && w.Inference.Preset != nil {
+		presetName = string(w.Inference.Preset.Name)
+	}
+
+	status, invalidValue := speculativedecoding.ValidateOptIn(
+		w.GetAnnotations(),
+		AnnotationEnableSpeculativeDecoding,
+		presetName,
+		GetWorkspaceRuntimeName(w),
+	)
+	switch status {
+	case speculativedecoding.OptInDisabled:
+		return nil
+	case speculativedecoding.OptInInvalidValue:
+		return errs.Also(apis.ErrInvalidValue(
+			fmt.Sprintf("annotation %s has invalid value %q; expected \"true\" or \"false\"", AnnotationEnableSpeculativeDecoding, invalidValue),
+			fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	case speculativedecoding.OptInMissingPreset:
+		return errs.Also(apis.ErrGeneric(
+			"kaito.sh/enable-speculative-decoding requires a preset inference; remove the annotation or set inference.preset.name",
+			fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	case speculativedecoding.OptInRuntimeMismatch:
+		return errs.Also(apis.ErrGeneric(
+			fmt.Sprintf(
+				"kaito.sh/enable-speculative-decoding requires the vLLM runtime; preset %q is configured for a different runtime",
+				presetName,
+			),
+			fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding),
+		))
+	}
+
+	// Any preset is accepted: presets registered in generator.speculativeDecodingByPreset
+	// get their preset-tuned config (e.g. mtp for DeepSeek R1/V3/V3.2); everything else
+	// falls back to the universal ngram default at pod-spec generation time
+	// (pkg/workspace/inference/preset_inferences.go applySpeculativeDecoding).
+	// So there is no admission-time "preset must be in the supported list" gate.
+	//
+	// Current reachable methods in this PR are only preset-tuned mtp and the
+	// universal ngram fallback; both are allowed under pipeline parallelism.
+	// If KAITO later adds a speculative-decoding method that is not PP-safe,
+	// add an explicit guard here before accepting the annotation.
+
 	return errs
 }
 
@@ -336,23 +389,6 @@ func (r *ResourceSpec) validateCreateWithInference(inference *InferenceSpec, byp
 		presetName = strings.ToLower(string(inference.Preset.Name))
 		// Since inference.Preset exists, we must validate preset name.
 		if !plugin.IsValidPreset(presetName) {
-			// If the preset is not valid, check if it is a deprecated model
-			// We use recover() to handle the panic from MustGet if the model is not found
-			var isDeprecated bool
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						isDeprecated = false
-					}
-				}()
-				m := metadata.MustGet(presetName)
-				isDeprecated = m.Deprecated
-			}()
-
-			if isDeprecated {
-				errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("Model %s is deprecated and no longer supported", presetName), "presetName"))
-				return errs
-			}
 			// Return to skip the rest of checks, the Inference spec validation will return proper err msg.
 			return errs
 		}

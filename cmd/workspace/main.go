@@ -61,7 +61,8 @@ import (
 	karpenterutils "github.com/kaito-project/kaito/pkg/utils/karpenter"
 	"github.com/kaito-project/kaito/pkg/version"
 	"github.com/kaito-project/kaito/pkg/workspace/controllers"
-	"github.com/kaito-project/kaito/pkg/workspace/inference"
+	"github.com/kaito-project/kaito/pkg/workspace/inference/modelstreaming"
+	"github.com/kaito-project/kaito/pkg/workspace/inference/modelstreaming/registry"
 	"github.com/kaito-project/kaito/pkg/workspace/webhooks"
 )
 
@@ -108,6 +109,7 @@ func main() {
 	var karpenterNodeClassKind string
 	var karpenterNodeClassVersion string
 	var karpenterNodeClassResourceName string
+	var karpenterNodeClasses string
 	var kubeClientQPS int = 30
 	var kubeClientBurst int = 50
 	var printVersionAndExit bool
@@ -115,6 +117,8 @@ func main() {
 	var defaultStreamingServiceAccount string
 	var modelMirrorDownloadCPU string
 	var modelMirrorDownloadMemory string
+	var modelMirrorDownloadCPULimit string
+	var modelMirrorDownloadMemoryLimit string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.IntVar(&kubeClientQPS, "kube-client-qps", kubeClientQPS, "the rate of qps to kube-apiserver.")
@@ -131,11 +135,14 @@ func main() {
 	flag.StringVar(&karpenterNodeClassKind, "karpenter-node-class-kind", "AKSNodeClass", "Karpenter NodeClass API kind. Only used when node-provisioner=karpenter.")
 	flag.StringVar(&karpenterNodeClassVersion, "karpenter-node-class-version", "v1beta1", "Karpenter NodeClass API version. Only used when node-provisioner=karpenter.")
 	flag.StringVar(&karpenterNodeClassResourceName, "karpenter-node-class-resource-name", "aksnodeclasses", "Plural resource name for the NodeClass CRD (e.g. aksnodeclasses). Combined with --karpenter-node-class-group to form the full CRD name. Only used when node-provisioner=karpenter.")
+	flag.StringVar(&karpenterNodeClasses, "karpenter-node-classes", "", `JSON array of NodeClasses KAITO reconciles at startup and lets Workspaces select, e.g. [{"name":"image-family-ubuntu","default":true,"spec":{...}}]. "spec" authoritatively replaces the provider's NodeClass spec. Existing resources must have karpenter.kaito.sh/managed-by=kaito. Exactly one entry must be default. Required when node-provisioner=karpenter.`)
 	flag.BoolVar(&printVersionAndExit, "version", false, "Print version and exit.")
-	flag.StringVar(&defaultModelMirrorStorageClass, "default-model-mirror-storage-class", "", "StorageClass for ModelMirror PVCs (required when ModelStreaming=true).")
+	flag.StringVar(&defaultModelMirrorStorageClass, "default-model-mirror-storage-class", "", "StorageClass for ModelMirror PVCs.")
 	flag.StringVar(&defaultStreamingServiceAccount, "default-streaming-service-account", "", "Default ServiceAccount for streaming inference pods.")
-	flag.StringVar(&modelMirrorDownloadCPU, "model-mirror-download-cpu", "", "CPU request==limit for the ModelMirror download Job container. Empty uses the built-in default (3).")
-	flag.StringVar(&modelMirrorDownloadMemory, "model-mirror-download-memory", "", "Memory request==limit for the ModelMirror download Job container. Empty uses the built-in default (8Gi).")
+	flag.StringVar(&modelMirrorDownloadCPU, "model-mirror-download-cpu", "", "CPU request for the ModelMirror download Job container. Empty uses the built-in default (2). Also sets the CPU limit unless --model-mirror-download-cpu-limit is provided.")
+	flag.StringVar(&modelMirrorDownloadMemory, "model-mirror-download-memory", "", "Memory request for the ModelMirror download Job container. Empty uses the built-in default (6Gi). Also sets the memory limit unless --model-mirror-download-memory-limit is provided.")
+	flag.StringVar(&modelMirrorDownloadCPULimit, "model-mirror-download-cpu-limit", "", "CPU limit for the ModelMirror download Job container. Empty uses the built-in default (4), or the configured CPU request when provided.")
+	flag.StringVar(&modelMirrorDownloadMemoryLimit, "model-mirror-download-memory-limit", "", "Memory limit for the ModelMirror download Job container. Empty uses the built-in default (10Gi), or the configured memory request when provided.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -147,6 +154,17 @@ func main() {
 		os.Exit(0)
 	}
 	klog.Info("version: ", version.VersionInfo())
+
+	downloadResources, err := mmconsts.ResolveDownloadJobResources(
+		modelMirrorDownloadCPU,
+		modelMirrorDownloadMemory,
+		modelMirrorDownloadCPULimit,
+		modelMirrorDownloadMemoryLimit,
+	)
+	if err != nil {
+		klog.ErrorS(err, "invalid ModelMirror download resources")
+		exitWithErrorFunc()
+	}
 
 	if err := featuregates.ParseAndValidateFeatureGates(featureGates); err != nil {
 		klog.ErrorS(err, "unable to set `feature-gates` flag")
@@ -244,7 +262,7 @@ func main() {
 	// This is necessary because nodeProvisioner.Start() runs before mgr.Start(),
 	// and the manager's cached client is not usable until the cache is started.
 	// The direct client is only used for lightweight CRD existence checks and
-	// global AKSNodeClass creation during startup.
+	// global NodeClass reconciliation during startup.
 	directClient, directErr := client.New(cfg, client.Options{Scheme: scheme})
 	if directErr != nil {
 		klog.ErrorS(directErr, "unable to create direct client for provisioner Start")
@@ -253,7 +271,7 @@ func main() {
 
 	// Select and initialize the node provisioner based on feature gates.
 	recorder := mgr.GetEventRecorderFor("KAITO-Workspace-controller")
-	nodeProvisioner := nodeprovisionmanager.NewNodeProvisioner(nodeprovisionmanager.ProvisionerConfig{
+	provisionerCfg := nodeprovisionmanager.ProvisionerConfig{
 		KClient:                kClient,
 		DirectClient:           directClient,
 		Recorder:               recorder,
@@ -263,23 +281,35 @@ func main() {
 		NodeClassKind:          karpenterNodeClassKind,
 		NodeClassVersion:       karpenterNodeClassVersion,
 		NodeClassResourceName:  karpenterNodeClassResourceName,
-	})
+	}
+	if nodeProvisionerType == consts.NodeProvisionerKarpenter {
+		nodeClasses, nodeClassNames, ncErr := nodeprovisionmanager.ParseNodeClasses(karpenterNodeClasses)
+		if ncErr != nil {
+			klog.ErrorS(ncErr, "invalid NodeClass configuration")
+			exitWithErrorFunc()
+		}
+		provisionerCfg.NodeClasses = nodeClasses
+		provisionerCfg.NodeClassNames = nodeClassNames
+	} else if karpenterNodeClasses != "" {
+		klog.InfoS("ignoring --karpenter-node-classes", "nodeProvisioner", nodeProvisionerType)
+	}
+	nodeProvisioner := nodeprovisionmanager.NewNodeProvisioner(provisionerCfg)
 	klog.InfoS("Node provisioner selected", "name", nodeProvisioner.Name())
 	if err := nodeProvisioner.Start(ctx); err != nil {
 		klog.ErrorS(err, "failed to start node provisioner")
 		exitWithErrorFunc()
 	}
 
-	// Set streaming defaults once at startup (read by inference package via StreamingDefaults).
+	// Set streaming defaults once at startup (read by the modelstreaming package via StreamingDefaults).
 	if featuregates.FeatureGates[consts.FeatureFlagModelStreaming] {
-		streamer, streamerErr := inference.GetModelStreamer(os.Getenv("CLOUD_PROVIDER"))
+		streamer, streamerErr := registry.GetModelStreamer(os.Getenv("CLOUD_PROVIDER"))
 		if streamerErr != nil {
 			klog.ErrorS(streamerErr, "unable to resolve model streamer")
 			exitWithErrorFunc()
 		}
-		inference.StreamingDefaults.StorageClass = defaultModelMirrorStorageClass
-		inference.StreamingDefaults.ServiceAccount = defaultStreamingServiceAccount
-		inference.StreamingDefaults.ModelStreamer = streamer
+		modelstreaming.StreamingDefaults.StorageClass = defaultModelMirrorStorageClass
+		modelstreaming.StreamingDefaults.ServiceAccount = defaultStreamingServiceAccount
+		modelstreaming.StreamingDefaults.ModelStreamer = streamer
 	}
 
 	workspaceReconciler := controllers.NewWorkspaceReconciler(
@@ -350,16 +380,9 @@ func main() {
 
 	// ModelMirror controller — requires ModelMirror feature gate.
 	if featuregates.FeatureGates[consts.FeatureFlagModelMirror] {
-		// Start from the built-in defaults and override per-field from flags when provided.
-		downloadResources := mmconsts.DefaultDownloadJobResources()
-		if modelMirrorDownloadCPU != "" {
-			downloadResources.CPU = modelMirrorDownloadCPU
-		}
-		if modelMirrorDownloadMemory != "" {
-			downloadResources.Memory = modelMirrorDownloadMemory
-		}
 		mmReconciler := mmcontrollers.NewModelMirrorReconciler(
 			kClient,
+			mgr.GetAPIReader(),
 			log.Log.WithName("controllers").WithName("ModelMirror"),
 			downloadResources,
 		)

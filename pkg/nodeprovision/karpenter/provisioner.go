@@ -15,12 +15,16 @@ package karpenter
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/awslabs/operatorpkg/status"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,26 +35,34 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
-	sigsyaml "sigs.k8s.io/yaml"
 
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
 	"github.com/kaito-project/kaito/pkg/nodeprovision"
-	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
 	"github.com/kaito-project/kaito/pkg/utils/nodeclaim"
 	"github.com/kaito-project/kaito/pkg/utils/nodes"
 	"github.com/kaito-project/kaito/pkg/workspace/resource"
 )
 
+// NodeClassSpec is one entry of the --karpenter-node-classes flag. Spec is an opaque
+// provider-specific body (AKSNodeClass, EC2NodeClass, ...) passed through untouched.
+type NodeClassSpec struct {
+	Name    string                 `json:"name"`
+	Default bool                   `json:"default,omitempty"`
+	Spec    map[string]interface{} `json:"spec"`
+}
+
 // NodeClassConfig holds cloud-specific NodeClass reference info.
-// Group, Kind, Version, and ResourceName are injected via CLI flags.
-// DefaultName is derived by Start() from ConfigMap labels.
+// Every field is injected via CLI flags; DefaultName is derived by Start() from NodeClasses.
 type NodeClassConfig struct {
 	Group        string // e.g. "karpenter.azure.com"
 	Kind         string // e.g. "AKSNodeClass"
 	Version      string // e.g. "v1beta1"
 	ResourceName string // plural resource name (e.g. "aksnodeclasses"); combined with Group for CRD lookup
-	DefaultName  string // populated by Start(): name of entry with karpenter.kaito.sh/default=true
+	NodeClasses  []NodeClassSpec
+	// NodeClassNames are the NodeClasses' names, validated and sorted by ParseNodeClasses.
+	NodeClassNames []string
+	DefaultName    string // populated by Start(): name of the entry marked default
 }
 
 // KarpenterProvisioner implements NodeProvisioner using the cloud-agnostic
@@ -60,22 +72,28 @@ type KarpenterProvisioner struct {
 	client              client.Client
 	nodeClassConfig     NodeClassConfig
 	nodeResourceManager *resource.NodeManager
+	nodeClaimEvents     *nodeClaimEventCache
+	now                 func() time.Time
 }
 
 var _ nodeprovision.NodeProvisioner = (*KarpenterProvisioner)(nil)
 
 // NewKarpenterProvisioner creates a new KarpenterProvisioner.
 func NewKarpenterProvisioner(c client.Client, cfg NodeClassConfig) *KarpenterProvisioner {
-	return &KarpenterProvisioner{client: c, nodeClassConfig: cfg, nodeResourceManager: resource.NewNodeManager(c)}
+	return &KarpenterProvisioner{
+		client:              c,
+		nodeClassConfig:     cfg,
+		nodeResourceManager: resource.NewNodeManager(c),
+		nodeClaimEvents:     &nodeClaimEventCache{},
+		now:                 time.Now,
+	}
 }
 
 // Name returns the provisioner name.
 func (p *KarpenterProvisioner) Name() string { return "KarpenterProvisioner" }
 
-const nodeClassConfigMapName = "kaito-nodeclasses"
-
-// Start verifies that the Karpenter CRDs are installed, creates
-// NodeClass resources from the ConfigMap, and derives DefaultName from labels.
+// Start verifies that the Karpenter CRDs are installed, reconciles the configured
+// NodeClass resources, and derives DefaultName.
 // Returns an error if Karpenter is not installed.
 func (p *KarpenterProvisioner) Start(ctx context.Context) error {
 	// Check if the core Karpenter CRDs exist.
@@ -103,66 +121,143 @@ func (p *KarpenterProvisioner) Start(ctx context.Context) error {
 		return fmt.Errorf("checking NodeClass CRD %q: %w", nodeClassCRDName, err)
 	}
 
-	releaseNS, err := utils.GetReleaseNamespace()
-	if err != nil {
-		return fmt.Errorf("resolving release namespace: %w", err)
+	if len(p.nodeClassConfig.NodeClasses) == 0 {
+		return fmt.Errorf("no NodeClass definitions configured: --karpenter-node-classes is required when node-provisioner=karpenter")
 	}
 
-	// Read the ConfigMap containing NodeClass manifests.
-	cm := &corev1.ConfigMap{}
-	if err := p.client.Get(ctx, types.NamespacedName{
-		Name: nodeClassConfigMapName, Namespace: releaseNS,
-	}, cm); err != nil {
-		return fmt.Errorf("reading NodeClass ConfigMap %q in namespace %q: %w",
-			nodeClassConfigMapName, releaseNS, err)
-	}
-
-	// Create each NodeClass and derive DefaultName from labels.
-	for key, raw := range cm.Data {
-		obj := &unstructured.Unstructured{}
-		if err := sigsyaml.Unmarshal([]byte(raw), &obj.Object); err != nil {
-			return fmt.Errorf("decoding NodeClass %q from ConfigMap: %w", key, err)
-		}
-
-		name := obj.GetName()
-		labels := obj.GetLabels()
-
-		// Track the default NodeClass entry.
-		if labels["karpenter.kaito.sh/default"] == "true" {
+	// Reconcile each configured NodeClass and derive DefaultName.
+	for _, nc := range p.nodeClassConfig.NodeClasses {
+		if nc.Default {
 			if p.nodeClassConfig.DefaultName != "" {
-				return fmt.Errorf("multiple NodeClass entries have karpenter.kaito.sh/default=true: %q and %q",
-					p.nodeClassConfig.DefaultName, name)
+				return fmt.Errorf("multiple NodeClass entries are marked default: %q and %q",
+					p.nodeClassConfig.DefaultName, nc.Name)
 			}
-			p.nodeClassConfig.DefaultName = name
+			p.nodeClassConfig.DefaultName = nc.Name
 		}
 
-		klog.InfoS("Creating NodeClass", "name", name, "kind", obj.GetKind())
-		if err := p.client.Create(ctx, obj); err != nil {
-			if !apierrors.IsAlreadyExists(err) {
-				return fmt.Errorf("creating NodeClass %q: %w", key, err)
-			}
-			klog.InfoS("NodeClass already exists", "name", name)
+		if err := p.reconcileNodeClass(ctx, nc); err != nil {
+			return fmt.Errorf("reconciling NodeClass %q: %w", nc.Name, err)
 		}
 	}
 
 	if p.nodeClassConfig.DefaultName == "" {
-		return fmt.Errorf("no NodeClass entry has label karpenter.kaito.sh/default=true")
+		return fmt.Errorf("no NodeClass entry is marked default")
 	}
+	// The allowlist a Workspace may select from via the node-class-name annotation.
+	// Held here because the admission webhook cannot import this package.
+	consts.SetAllowedNodeClassNames(p.nodeClassConfig.NodeClassNames)
 
 	// Wait for the default NodeClass to be ready.
 	if err := p.waitForNodeClassReady(ctx, p.nodeClassConfig.DefaultName); err != nil {
 		return fmt.Errorf("default NodeClass %q not ready: %w", p.nodeClassConfig.DefaultName, err)
 	}
-	klog.InfoS("NodeClass resources created",
-		"count", len(cm.Data),
+	klog.InfoS("NodeClass resources reconciled",
+		"count", len(p.nodeClassConfig.NodeClasses),
 		"default", p.nodeClassConfig.DefaultName)
 	return nil
+}
+
+func (p *KarpenterProvisioner) reconcileNodeClass(ctx context.Context, nc NodeClassSpec) error {
+	desired := p.newNodeClassObject(nc)
+	// Normalize JSON numbers from the CLI to the integer types used by the API.
+	data, err := desired.MarshalJSON()
+	if err != nil {
+		return fmt.Errorf("encoding desired NodeClass: %w", err)
+	}
+	if err := desired.UnmarshalJSON(data); err != nil {
+		return fmt.Errorf("decoding desired NodeClass: %w", err)
+	}
+
+	return retry.OnError(retry.DefaultRetry, func(err error) bool {
+		return apierrors.IsConflict(err) || apierrors.IsAlreadyExists(err)
+	}, func() error {
+		current := &unstructured.Unstructured{}
+		current.SetGroupVersionKind(desired.GroupVersionKind())
+		if err := p.client.Get(ctx, client.ObjectKeyFromObject(desired), current); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
+			if err := p.client.Create(ctx, desired.DeepCopy()); err != nil {
+				return err
+			}
+			klog.InfoS("Created NodeClass", "name", nc.Name, "kind", desired.GetKind())
+			return nil
+		}
+		if current.GetLabels()["karpenter.kaito.sh/managed-by"] != "kaito" {
+			return fmt.Errorf("existing NodeClass must have label karpenter.kaito.sh/managed-by=kaito; refusing to overwrite an externally managed resource")
+		}
+
+		previous := current.DeepCopy()
+		if spec, ok := desired.Object["spec"]; ok {
+			current.Object["spec"] = spec
+		} else {
+			delete(current.Object, "spec")
+		}
+		labels := current.GetLabels()
+		if nc.Default {
+			labels["karpenter.kaito.sh/default"] = "true"
+		} else {
+			delete(labels, "karpenter.kaito.sh/default")
+		}
+		current.SetLabels(labels)
+		if equality.Semantic.DeepEqual(previous.Object, current.Object) {
+			return nil
+		}
+		if err := p.client.Update(ctx, current); err != nil {
+			return err
+		}
+		klog.InfoS("Updated NodeClass", "name", nc.Name, "kind", desired.GetKind())
+		return nil
+	})
+}
+
+// newNodeClassObject renders one flag entry into an unstructured NodeClass.
+func (p *KarpenterProvisioner) newNodeClassObject(nc NodeClassSpec) *unstructured.Unstructured {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   p.nodeClassConfig.Group,
+		Version: p.nodeClassConfig.Version,
+		Kind:    p.nodeClassConfig.Kind,
+	})
+	obj.SetName(nc.Name)
+
+	labels := map[string]string{"karpenter.kaito.sh/managed-by": "kaito"}
+	if nc.Default {
+		labels["karpenter.kaito.sh/default"] = "true"
+	}
+	obj.SetLabels(labels)
+
+	if nc.Spec != nil {
+		obj.Object["spec"] = nc.Spec
+	}
+	return obj
+}
+
+// NodeClassNotReadyError reports a missing or not Ready NodeClass with its own Ready reason and message.
+type NodeClassNotReadyError struct {
+	Name string
+	// Status is the NodeClass's Ready status, or empty when the NodeClass does not exist.
+	Status  metav1.ConditionStatus
+	Reason  string
+	Message string
+}
+
+func (e *NodeClassNotReadyError) Error() string {
+	if e.Message == "" {
+		return fmt.Sprintf("NodeClass %q is not ready (%s)", e.Name, e.Reason)
+	}
+	return fmt.Sprintf("NodeClass %q is not ready (%s): %s", e.Name, e.Reason, e.Message)
+}
+
+// Failed reports whether the NodeClass is missing or Ready=False rather than not reconciled yet.
+func (e *NodeClassNotReadyError) Failed() bool {
+	return e.Status == "" || e.Status == metav1.ConditionFalse
 }
 
 // checkNodeClassReady performs a single point-in-time check that the named
 // NodeClass exists and has a Ready=True condition. Unlike waitForNodeClassReady,
 // it does not poll — it returns an error immediately if the resource is missing
-// or not ready.
+// or not ready, as a *NodeClassNotReadyError unless the API call fails.
 func (p *KarpenterProvisioner) checkNodeClassReady(ctx context.Context, name string) error {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(schema.GroupVersionKind{
@@ -171,6 +266,9 @@ func (p *KarpenterProvisioner) checkNodeClassReady(ctx context.Context, name str
 		Kind:    p.nodeClassConfig.Kind,
 	})
 	if err := p.client.Get(ctx, types.NamespacedName{Name: name}, obj); err != nil {
+		if apierrors.IsNotFound(err) {
+			return &NodeClassNotReadyError{Name: name, Reason: "NotFound", Message: "NodeClass does not exist"}
+		}
 		return fmt.Errorf("getting NodeClass %q: %w", name, err)
 	}
 
@@ -179,18 +277,54 @@ func (p *KarpenterProvisioner) checkNodeClassReady(ctx context.Context, name str
 		return fmt.Errorf("reading conditions for NodeClass %q: %w", name, err)
 	}
 	if !found {
-		return fmt.Errorf("NodeClass %q has no status conditions", name)
+		return &NodeClassNotReadyError{Name: name, Status: metav1.ConditionUnknown, Reason: "NotReady", Message: "NodeClass has no status conditions"}
 	}
 	for _, c := range conditions {
 		cond, ok := c.(map[string]interface{})
-		if !ok {
+		if !ok || cond["type"] != "Ready" {
 			continue
 		}
-		if cond["type"] == "Ready" && cond["status"] == "True" {
+		if cond["status"] == "True" {
 			return nil
 		}
+		status := metav1.ConditionUnknown
+		if cond["status"] == "False" {
+			status = metav1.ConditionFalse
+		}
+		reason, _ := cond["reason"].(string)
+		message, _ := cond["message"].(string)
+		if reason == "" {
+			reason = "NotReady"
+		}
+		if status == metav1.ConditionFalse {
+			if dependents := failedDependentConditions(conditions); dependents != "" {
+				message = dependents
+			}
+		}
+		return &NodeClassNotReadyError{Name: name, Status: status, Reason: reason, Message: nodeclaim.FormatProvisioningMessage(message)}
 	}
-	return fmt.Errorf("NodeClass %q exists but is not Ready", name)
+	return &NodeClassNotReadyError{Name: name, Status: metav1.ConditionUnknown, Reason: "NotReady", Message: "NodeClass has no Ready condition"}
+}
+
+// failedDependentConditions describes the False conditions a Ready=False NodeClass depends on, as its Ready condition
+// only names them (e.g. "SubnetsReady=False") while the cause is in their own reason and message.
+func failedDependentConditions(conditions []interface{}) string {
+	failed := make([]string, 0, len(conditions))
+	for _, c := range conditions {
+		cond, ok := c.(map[string]interface{})
+		if !ok || cond["type"] == "Ready" || cond["status"] != "False" {
+			continue
+		}
+		text := fmt.Sprintf("%v=False", cond["type"])
+		if reason, _ := cond["reason"].(string); reason != "" {
+			text += fmt.Sprintf(" (%s)", reason)
+		}
+		if message, _ := cond["message"].(string); message != "" {
+			text += ": " + message
+		}
+		failed = append(failed, text)
+	}
+	return strings.Join(failed, "; ")
 }
 
 // waitForNodeClassReady polls until the NodeClass has a Ready=True condition.
@@ -237,13 +371,18 @@ func (p *KarpenterProvisioner) waitForNodeClassReady(ctx context.Context, name s
 //     because karpenter will either self-heal them or delete them after a timeout,
 //     at which point a reconcile is triggered via the NodeClaim watch)
 //   - readyWithInstanceType: total ready nodes (BYO + legacy + karpenter) with correct instance type.
-func countCoveredNodes(ctx context.Context, c client.Client, ws *kaitov1beta1.Workspace) (coveredByNonKarpenter int, readyWithInstanceType int, err error) {
+//
+// Nodes provisioned for a different Workspace that happens to share this
+// Workspace's user-supplied label selector (e.g. a sibling replica of the same
+// InferenceSet) are excluded by comparing the ownership labels, so they do not
+// inflate either count. BYO nodes (which carry no ownership label) remain in scope.
+func (p *KarpenterProvisioner) countCoveredNodes(ctx context.Context, ws *kaitov1beta1.Workspace) (coveredByNonKarpenter int, readyWithInstanceType int, err error) {
 	if ws.Resource.LabelSelector == nil {
 		return 0, 0, nil
 	}
 
 	// Count ready nodes (all types).
-	nodeList, err := nodes.ListNodes(ctx, c, kaitov1beta1.SanitizedMatchLabels(ws.Resource.LabelSelector))
+	nodeList, err := nodes.ListNodes(ctx, p.client, kaitov1beta1.SanitizedMatchLabels(ws.Resource.LabelSelector))
 	if err != nil {
 		return 0, 0, fmt.Errorf("listing nodes: %w", err)
 	}
@@ -254,6 +393,15 @@ func countCoveredNodes(ctx context.Context, c client.Client, ws *kaitov1beta1.Wo
 			continue
 		}
 		if node.Labels[corev1.LabelInstanceTypeStable] != ws.Resource.InstanceType {
+			continue
+		}
+		// Skip nodes provisioned for a different workspace that shares this
+		// workspace's label selector (e.g. an InferenceSet sibling replica).
+		// BYO nodes carry neither ownership label and remain in scope.
+		if name, ok := node.Labels[consts.KarpenterWorkspaceNameKey]; ok && name != ws.Name {
+			continue
+		}
+		if name, ok := node.Labels[kaitov1beta1.LabelWorkspaceName]; ok && name != ws.Name {
 			continue
 		}
 		readyWithInstanceType++
@@ -269,7 +417,7 @@ func countCoveredNodes(ctx context.Context, c client.Client, ws *kaitov1beta1.Wo
 	// These are covered because karpenter engine will self-heal the node or
 	// delete the NodeClaim after a timeout (triggering a reconcile).
 	legacyNodeClaimList := &karpenterv1.NodeClaimList{}
-	if err := c.List(ctx, legacyNodeClaimList,
+	if err := p.client.List(ctx, legacyNodeClaimList,
 		client.MatchingLabels{
 			kaitov1beta1.LabelWorkspaceName:      ws.Name,
 			kaitov1beta1.LabelWorkspaceNamespace: ws.Namespace,
@@ -295,13 +443,16 @@ func countCoveredNodes(ctx context.Context, c client.Client, ws *kaitov1beta1.Wo
 // If a NodePool exists, replicas are only increased (never decreased) to avoid
 // disrupting running karpenter nodes when BYO nodes appear.
 func (p *KarpenterProvisioner) ProvisionNodes(ctx context.Context, ws *kaitov1beta1.Workspace) error {
-	nodeClassName := resolveNodeClassName(ws, p.nodeClassConfig)
+	nodeClassName, err := resolveNodeClassName(ws, p.nodeClassConfig)
+	if err != nil {
+		return err
+	}
 	if err := p.checkNodeClassReady(ctx, nodeClassName); err != nil {
-		return fmt.Errorf("NodeClass %q is not ready: %w", nodeClassName, err)
+		return err
 	}
 
 	// Count non-karpenter ready nodes to compute delta.
-	coveredCount, _, err := countCoveredNodes(ctx, p.client, ws)
+	coveredCount, _, err := p.countCoveredNodes(ctx, ws)
 	if err != nil {
 		return fmt.Errorf("counting non-karpenter nodes: %w", err)
 	}
@@ -318,7 +469,11 @@ func (p *KarpenterProvisioner) ProvisionNodes(ctx context.Context, ws *kaitov1be
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("getting NodePool %q: %w", nodePoolName, err)
 		}
-		np := generateNodePool(ws, p.nodeClassConfig)
+		capacityType, err := resolveCapacityType(ws)
+		if err != nil {
+			return err
+		}
+		np := generateNodePool(ws, p.nodeClassConfig, nodeClassName, capacityType)
 		np.Spec.Replicas = lo.ToPtr(desiredReplicas)
 		if err := p.client.Create(ctx, np); err != nil {
 			if apierrors.IsAlreadyExists(err) {
@@ -389,6 +544,9 @@ type nodeReadinessSnapshot struct {
 	// readyNodeClaims is the subset of karpenter-managed NodeClaims that are Ready and not deleting.
 	// Used for GPU plugin readiness checks.
 	readyNodeClaims []*karpenterv1.NodeClaim
+	// allNodeClaims is every karpenter-managed NodeClaim for the workspace (ready or not).
+	// Used to surface the underlying cloud-provider provisioning error in status.
+	allNodeClaims []*karpenterv1.NodeClaim
 }
 
 // buildNodeReadinessSnapshot lists karpenter NodeClaims and all workspace nodes,
@@ -411,8 +569,13 @@ func (p *KarpenterProvisioner) buildNodeReadinessSnapshot(ctx context.Context, w
 		}
 	}
 
+	allNodeClaims := make([]*karpenterv1.NodeClaim, 0, len(nodeClaimList.Items))
+	for i := range nodeClaimList.Items {
+		allNodeClaims = append(allNodeClaims, &nodeClaimList.Items[i])
+	}
+
 	// Count all ready nodes matching workspace labels (BYO + legacy + karpenter).
-	coveredByNonKarpenterCount, readyWithInstanceTypeCount, err := countCoveredNodes(ctx, p.client, ws)
+	coveredByNonKarpenterCount, readyWithInstanceTypeCount, err := p.countCoveredNodes(ctx, ws)
 	if err != nil {
 		return nil, fmt.Errorf("counting ready nodes: %w", err)
 	}
@@ -424,6 +587,7 @@ func (p *KarpenterProvisioner) buildNodeReadinessSnapshot(ctx context.Context, w
 		coveredByNonKarpenterCount: coveredByNonKarpenterCount,
 		targetNodeClaimCount:       targetNodeClaimCount,
 		readyNodeClaims:            readyNodeClaims,
+		allNodeClaims:              allNodeClaims,
 	}, nil
 }
 
@@ -516,19 +680,19 @@ func (p *KarpenterProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *ka
 	nodeClaimCond := metav1.Condition{
 		Type:    string(kaitov1beta1.ConditionTypeNodeClaimStatus),
 		Status:  metav1.ConditionFalse,
-		Reason:  "NodeClaimNotReady",
+		Reason:  consts.ReasonNodeClaimNotReady,
 		Message: "Ready NodeClaims are not enough",
 	}
 	nodeCond := metav1.Condition{
 		Type:    string(kaitov1beta1.ConditionTypeNodeStatus),
 		Status:  metav1.ConditionFalse,
-		Reason:  "NodeNotReady",
+		Reason:  consts.ReasonNodeNotReady,
 		Message: "Not enough Nodes are ready",
 	}
 	resourceCond := metav1.Condition{
 		Type:    string(kaitov1beta1.ConditionTypeResourceStatus),
 		Status:  metav1.ConditionFalse,
-		Reason:  "workspaceResourceStatusNotReady",
+		Reason:  consts.ReasonResourceNotReady,
 		Message: "node claim or node status condition not ready",
 	}
 
@@ -548,6 +712,9 @@ func (p *KarpenterProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *ka
 		nodeClaimCond.Status = metav1.ConditionTrue
 		nodeClaimCond.Reason = "NodeClaimsReady"
 		nodeClaimCond.Message = "Enough NodeClaims are ready"
+	} else if reason, message, ok := p.nodeClaimNotReadyCause(ctx, ws, snap); ok {
+		nodeClaimCond.Reason = reason
+		nodeClaimCond.Message = message
 	}
 
 	// Node condition: are enough nodes ready with GPU resources?
@@ -564,7 +731,7 @@ func (p *KarpenterProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *ka
 				nodeCond.Reason = "NodesReady"
 				nodeCond.Message = "Enough Nodes are ready with GPU resources"
 			} else {
-				nodeCond.Reason = "NodePluginsNotReady"
+				nodeCond.Reason = consts.ReasonNodePluginsNotReady
 				nodeCond.Message = "waiting all node plugins to be ready"
 			}
 		} else {
@@ -589,4 +756,166 @@ func (p *KarpenterProvisioner) CollectNodeStatusInfo(ctx context.Context, ws *ka
 	}
 
 	return []metav1.Condition{nodeCond, nodeClaimCond, resourceCond}, nil
+}
+
+// nodeClaimNotReadyCause reports why the NodeClaims are not ready. It reads the cause already reported on the
+// Workspace, then checks the current evidence in order of precedence, each step saying whether it replaces the
+// reported cause. A failure that needs the user to act is reported under its KAITO reason.
+func (p *KarpenterProvisioner) nodeClaimNotReadyCause(ctx context.Context, ws *kaitov1beta1.Workspace, snap *nodeReadinessSnapshot) (reason, message string, found bool) {
+	now := p.now()
+	reported, hasReported := reportedCause(ws, snap.allNodeClaims, now)
+
+	// 1. An invalid NodePool or a failed NodeClass blocks every launch, and is read directly on every reconcile:
+	// always replaces the reported cause. Its reason already names the NodePool or NodeClass, so the message is
+	// reported as is.
+	nodePool := p.getNodePool(ctx, NodePoolName(ws.Namespace, ws.Name))
+	if c := nodePoolCondition(nodePool, karpenterv1.ConditionTypeValidationSucceeded); c != nil && c.Status == metav1.ConditionFalse {
+		message = c.Message
+		if message == "" {
+			message = c.Reason
+		}
+		return consts.ReasonNodePoolInvalid, nodeclaim.FormatProvisioningMessage(message), true
+	}
+	nodeClassNotReady := p.nodeClassNotReady(ctx, ws)
+	if nodeClassNotReady != nil && nodeClassNotReady.Failed() {
+		// Carries the ProvisionNodes reconcile error, so it is not appended twice.
+		return consts.ReasonNodeClassInvalid, nodeclaim.FormatProvisioningMessage(nodeClassNotReady.Error()), true
+	}
+
+	// 2. A failure on a NodeClaim, or in a recent Event other than no offering, is newer evidence: always replaces
+	// the reported cause.
+	if reason, message, found := nodeclaim.RawNodeClaimProvisioningFailure(snap.allNodeClaims); found {
+		reason, message = provisioningCause(reason, message)
+		return reason, message, true
+	}
+	event, hasEvent := p.recentFailureEvent(ctx, nodePool, now)
+	if hasEvent && !isNoOfferingAvailable(event.reason, event.message) {
+		reason, message = provisioningCause(event.reason, event.message)
+		return reason, message, true
+	}
+
+	// 3. A no-offering Event does not say why: replaces only a reported no-offering cause, to refresh its message.
+	if hasEvent {
+		if hasReported && !reported.noOffering {
+			return reported.reason, reported.message, true
+		}
+		reason, message = provisioningCause(event.reason, event.message)
+		return reason, message, true
+	}
+
+	// 4. Below is only progress, or failed registrations, which need a launched NodeClaim and so never come with a
+	// reported cause.
+	if hasReported {
+		return reported.reason, reported.message, true
+	}
+
+	// 5. The NodePool's failed registrations, while a launched NodeClaim is not registering either.
+	if c := nodePoolCondition(nodePool, karpenterv1.ConditionTypeNodeRegistrationHealthy); c != nil && c.Status == metav1.ConditionFalse &&
+		hasUnregisteredLaunch(snap.allNodeClaims, now, stuckRegistrationThreshold) {
+		reason, message = provisioningCause(c.Reason, c.Message)
+		return reason, message, true
+	}
+
+	// 6. Progress: a NodeClass that is not reconciled yet, then the NodeClaims.
+	if nodeClassNotReady != nil {
+		return nodeclaim.NodeClaimNotReadyReason, nodeClassNotReady.Error(), true
+	}
+	if message, found := nodeclaim.NodeClaimProvisioningProgress(snap.allNodeClaims); found {
+		return nodeclaim.NodeClaimNotReadyReason, message, true
+	}
+	return "", "", false
+}
+
+// nodeClassNotReady returns why the Workspace's NodeClass is not ready, or nil if it is ready or cannot be checked.
+func (p *KarpenterProvisioner) nodeClassNotReady(ctx context.Context, ws *kaitov1beta1.Workspace) *NodeClassNotReadyError {
+	if nodeClassName, err := resolveNodeClassName(ws, p.nodeClassConfig); err == nil {
+		var notReady *NodeClassNotReadyError
+		if err := p.checkNodeClassReady(ctx, nodeClassName); errors.As(err, &notReady) {
+			return notReady
+		} else if err != nil {
+			klog.ErrorS(err, "failed to check NodeClass readiness", "nodeClass", nodeClassName, "workspace", klog.KObj(ws))
+		}
+	}
+	return nil
+}
+
+// recentFailureEvent returns the provisioning failure Event of the NodePool's NodeClaims within nodeClaimEventWindow
+// and after the NodePool was created.
+func (p *KarpenterProvisioner) recentFailureEvent(ctx context.Context, nodePool *karpenterv1.NodePool, now time.Time) (nodeClaimEvent, bool) {
+	if nodePool == nil {
+		return nodeClaimEvent{}, false
+	}
+	since := now.Add(-nodeClaimEventWindow)
+	if nodePool.CreationTimestamp.After(since) {
+		since = nodePool.CreationTimestamp.Time
+	}
+	return nodePoolFailureEvent(p.nodeClaimEvents.recent(ctx, p.client, now), nodePool.Name, since)
+}
+
+// stuckRegistrationThreshold is how long a launched NodeClaim waits for its node before its NodePool's failed
+// registrations are reported, below Karpenter's 15 minute registration timeout. Karpenter only sets
+// NodeRegistrationHealthy back to True after several registrations, so it is only reported while the current attempt
+// also fails to register.
+const stuckRegistrationThreshold = 10 * time.Minute
+
+// hasUnregisteredLaunch reports whether a live NodeClaim launched at least minAge ago and its node has not registered.
+func hasUnregisteredLaunch(nodeClaims []*karpenterv1.NodeClaim, now time.Time, minAge time.Duration) bool {
+	for _, nc := range nodeClaims {
+		if nc == nil || !nc.DeletionTimestamp.IsZero() {
+			continue
+		}
+		launched := findCondition(nc.Status.Conditions, karpenterv1.ConditionTypeLaunched)
+		if launched == nil || launched.Status != metav1.ConditionTrue || nodeclaim.IsConditionTrue(nc, karpenterv1.ConditionTypeRegistered) {
+			continue
+		}
+		if now.Sub(launched.LastTransitionTime.Time) >= minAge {
+			return true
+		}
+	}
+	return false
+}
+
+// getNodePool returns the NodePool, or nil when it does not exist or cannot be read.
+func (p *KarpenterProvisioner) getNodePool(ctx context.Context, name string) *karpenterv1.NodePool {
+	nodePool := &karpenterv1.NodePool{}
+	if err := p.client.Get(ctx, types.NamespacedName{Name: name}, nodePool); err != nil {
+		if !apierrors.IsNotFound(err) {
+			klog.ErrorS(err, "failed to get NodePool", "nodePool", name)
+		}
+		return nil
+	}
+	return nodePool
+}
+
+func nodePoolCondition(nodePool *karpenterv1.NodePool, conditionType string) *status.Condition {
+	if nodePool == nil {
+		return nil
+	}
+	return findCondition(nodePool.Status.Conditions, conditionType)
+}
+
+func findCondition(conditions []status.Condition, conditionType string) *status.Condition {
+	for i := range conditions {
+		if conditions[i].Type == conditionType {
+			return &conditions[i]
+		}
+	}
+	return nil
+}
+
+// BuildNodeSelector returns requirements that pin pods to nodes provisioned
+// for this workspace. The labels are stamped on NodeClaims by Karpenter.
+func (p *KarpenterProvisioner) BuildNodeSelector(ctx context.Context, ws *kaitov1beta1.Workspace) []corev1.NodeSelectorRequirement {
+	return []corev1.NodeSelectorRequirement{
+		{
+			Key:      consts.KarpenterWorkspaceNameKey,
+			Operator: corev1.NodeSelectorOpIn,
+			Values:   []string{ws.Name},
+		},
+		{
+			Key:      consts.KarpenterWorkspaceNamespaceKey,
+			Operator: corev1.NodeSelectorOpIn,
+			Values:   []string{ws.Namespace},
+		},
+	}
 }

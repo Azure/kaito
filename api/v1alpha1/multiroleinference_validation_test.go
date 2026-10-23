@@ -15,12 +15,17 @@ package v1alpha1
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"knative.dev/pkg/apis"
+
+	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
+	"github.com/kaito-project/kaito/pkg/featuregates"
+	"github.com/kaito-project/kaito/pkg/utils/consts"
 )
 
 func int32Ptr(v int32) *int32 { return &v }
@@ -79,6 +84,11 @@ func TestMultiRoleInference_SetDefaults(t *testing.T) {
 }
 
 func TestMultiRoleInference_Validate(t *testing.T) {
+	// Existing tests assume the default (required) behavior for instanceType,
+	// which corresponds to auto-provisioning (Karpenter/AzureGPU).
+	orig := consts.ActiveNodeProvisioner
+	consts.ActiveNodeProvisioner = consts.NodeProvisionerKarpenter
+	defer func() { consts.ActiveNodeProvisioner = orig }()
 	validMRI := func() *MultiRoleInference {
 		return &MultiRoleInference{
 			ObjectMeta: metav1.ObjectMeta{
@@ -113,6 +123,24 @@ func TestMultiRoleInference_Validate(t *testing.T) {
 			mri: func() *MultiRoleInference {
 				m := validMRI()
 				m.Name = "Invalid-Name"
+				return m
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "name at the maximum length",
+			mri: func() *MultiRoleInference {
+				m := validMRI()
+				m.Name = strings.Repeat("a", 55)
+				return m
+			}(),
+			wantErr: false,
+		},
+		{
+			name: "name too long for child InferenceSet names",
+			mri: func() *MultiRoleInference {
+				m := validMRI()
+				m.Name = strings.Repeat("a", 56)
 				return m
 			}(),
 			wantErr: true,
@@ -195,6 +223,11 @@ func TestMultiRoleInference_Validate(t *testing.T) {
 }
 
 func TestMultiRoleInference_validateUpdate(t *testing.T) {
+	// Existing tests assume the default (required) behavior for instanceType,
+	// which corresponds to auto-provisioning (Karpenter/AzureGPU).
+	orig := consts.ActiveNodeProvisioner
+	consts.ActiveNodeProvisioner = consts.NodeProvisionerKarpenter
+	defer func() { consts.ActiveNodeProvisioner = orig }()
 	validMRI := func() *MultiRoleInference {
 		return &MultiRoleInference{
 			ObjectMeta: metav1.ObjectMeta{
@@ -259,4 +292,87 @@ func TestMultiRoleInference_validateUpdate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMultiRoleInferenceCapacityTypeAnnotation(t *testing.T) {
+	originalProvisioner := consts.ActiveNodeProvisioner
+	consts.ActiveNodeProvisioner = consts.NodeProvisionerKarpenter
+	t.Cleanup(func() { consts.ActiveNodeProvisioner = originalProvisioner })
+
+	makeMRI := func(value string) *MultiRoleInference {
+		return &MultiRoleInference{ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{kaitov1beta1.AnnotationCapacityType: value},
+		}}
+	}
+
+	assert.Nil(t, makeMRI(consts.KarpenterCapacityTypeSpot).validateCapacityTypeAnnotation())
+	assert.NotNil(t, makeMRI("reserved").validateCapacityTypeAnnotation())
+	assert.NotNil(t, makeMRI(consts.KarpenterCapacityTypeSpot).
+		validateCapacityTypeAnnotationUpdate(makeMRI(consts.KarpenterCapacityTypeOnDemand)))
+	assert.Nil(t, makeMRI(consts.KarpenterCapacityTypeOnDemand).
+		validateCapacityTypeAnnotationUpdate(makeMRI("reserved")))
+}
+
+func TestMultiRoleInferenceValidateSpeculativeDecoding(t *testing.T) {
+	newMRI := func(annotations map[string]string, modelName string) *MultiRoleInference {
+		return &MultiRoleInference{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "mri",
+				Namespace:   "default",
+				Annotations: annotations,
+			},
+			Spec: MultiRoleInferenceSpec{
+				Model: MultiRoleInferenceModelSpec{Name: modelName},
+			},
+		}
+	}
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		modelName   string
+		wantErr     bool
+	}{
+		{"no annotation - pass", nil, "deepseek-r1-0528", false},
+		{"false - pass", map[string]string{AnnotationEnableSpeculativeDecoding: "false"}, "deepseek-r1-0528", false},
+		{"invalid value - rejected", map[string]string{AnnotationEnableSpeculativeDecoding: "yes"}, "deepseek-r1-0528", true},
+		{"true supported preset - pass", map[string]string{AnnotationEnableSpeculativeDecoding: "true"}, "deepseek-r1-0528", false},
+		{"true second supported preset - pass", map[string]string{AnnotationEnableSpeculativeDecoding: "true"}, "deepseek-v3-0324", false},
+		{"true unsupported preset - accepted (ngram fallback)", map[string]string{AnnotationEnableSpeculativeDecoding: "true"}, "llama-3.1-8b-instruct", false},
+		{"true empty model - rejected", map[string]string{AnnotationEnableSpeculativeDecoding: "true"}, "", true},
+		{
+			name: "true with non-vllm runtime - rejected",
+			annotations: map[string]string{
+				AnnotationEnableSpeculativeDecoding: "true",
+				AnnotationWorkspaceRuntime:          "transformers",
+			},
+			modelName: "deepseek-r1-0528",
+			wantErr:   true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newMRI(tc.annotations, tc.modelName)
+			errs := m.validateSpeculativeDecoding()
+			if (errs != nil) != tc.wantErr {
+				t.Errorf("validateSpeculativeDecoding() err=%v wantErr=%v", errs, tc.wantErr)
+			}
+		})
+	}
+
+	// Feature-gate-off case: with the vLLM feature gate disabled,
+	// EffectiveInferenceRuntime resolves to HuggingFace regardless of the
+	// annotation, so the MRI-level spec-decoding opt-in must be rejected.
+	t.Run("vllm feature gate disabled - rejected", func(t *testing.T) {
+		orig := featuregates.FeatureGates[consts.FeatureFlagVLLM]
+		featuregates.FeatureGates[consts.FeatureFlagVLLM] = false
+		defer func() { featuregates.FeatureGates[consts.FeatureFlagVLLM] = orig }()
+
+		m := newMRI(
+			map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			"deepseek-r1-0528",
+		)
+		if errs := m.validateSpeculativeDecoding(); errs == nil {
+			t.Fatalf("expected rejection when vLLM feature gate is disabled")
+		}
+	})
 }

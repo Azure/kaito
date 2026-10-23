@@ -33,6 +33,40 @@ import (
 	"github.com/kaito-project/kaito/pkg/utils/test"
 )
 
+func TestConfigStorageVolumeMountPath(t *testing.T) {
+	tests := []struct {
+		name         string
+		mountPath    string
+		expectedPath string
+	}{
+		{
+			name:         "default mount path",
+			expectedPath: v1beta1.RAGStorageMountDefault,
+		},
+		{
+			name:         "custom mount path is normalized",
+			mountPath:    "/mnt/vector-db/customer/indexes/",
+			expectedPath: "/mnt/vector-db/customer/indexes",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			storage := &v1beta1.StorageSpec{
+				PersistentVolume: &v1beta1.PersistentVolumeConfig{
+					PersistentVolumeClaim: "vector-data",
+					MountPath:             tt.mountPath,
+				},
+			}
+
+			_, volumeMount := configStorageVolume(storage)
+			if volumeMount.MountPath != tt.expectedPath {
+				t.Errorf("MountPath = %q, want %q", volumeMount.MountPath, tt.expectedPath)
+			}
+		})
+	}
+}
+
 func TestCreatePresetRAG(t *testing.T) {
 	test.RegisterTestModel()
 
@@ -180,8 +214,8 @@ func TestGPUConfigLogic(t *testing.T) {
 				c.On("Create", mock.IsType(context.TODO()), mock.IsType(&appsv1.Deployment{}), mock.Anything).Return(nil)
 			},
 			ragEngine:        test.MockRAGEngineWithPreset,
-			expectedGPUReq:   int64(1), // Standard_NC4as_T4_v3 has 1 GPU
-			expectedLimitReq: int64(1), // Standard_NC4as_T4_v3 has 1 GPU
+			expectedGPUReq:   int64(1), // Standard_NV36ads_A10_v5 has 1 GPU
+			expectedLimitReq: int64(1), // Standard_NV36ads_A10_v5 has 1 GPU
 		},
 		"test-rag-preferred-nodes": {
 			callMocks: func(c *test.MockClient) {

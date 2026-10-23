@@ -27,8 +27,10 @@ import (
 )
 
 // BuildDownloadJob constructs the Job that downloads model files to the PVC.
-// resources sets the CPU/memory request==limit on the downloader container.
-func BuildDownloadJob(cr *kaitov1alpha1.ModelMirror, resources mmconsts.DownloadJobResources) *batchv1.Job {
+// resources sets the CPU/memory requests and limits on the downloader container.
+// podLabels are applied to the Job pod template when a ServiceAccount is set (e.g. the
+// cloud workload-identity label); pass nil to add none.
+func BuildDownloadJob(cr *kaitov1alpha1.ModelMirror, resources mmconsts.DownloadJobResources, podLabels map[string]string) *batchv1.Job {
 	modelID := cr.Spec.Source.ModelID
 
 	// Build --exclude flags from DownloadExcludePatterns
@@ -41,11 +43,15 @@ func BuildDownloadJob(cr *kaitov1alpha1.ModelMirror, resources mmconsts.Download
 	// blob objects on Azure Blob NFS. RunAI model streamer iterates all objects in
 	// the container and crashes on directories (IsADirectoryError). We remove all
 	// subdirectories as a safety net.
+	//
+	// The cleanup must stay after `hf download` returns. It deletes
+	// /models/<id>/.cache, which is where huggingface_hub keeps its *.incomplete
+	// files — the signal sampler.py uses to decide whether a download is still in
+	// flight.
 	script := fmt.Sprintf(`set -e
-export HF_HUB_ENABLE_HF_TRANSFER=1
 export HF_HUB_DOWNLOAD_TIMEOUT=300
 
-pip install -q "huggingface-hub==%s" hf_transfer
+pip install -q "huggingface-hub==%s"
 
 hf download "${MODEL_ID}" \
   --max-workers 4 \%s
@@ -65,12 +71,12 @@ find "/models/${MODEL_ID}/" -mindepth 1 -type d -exec rm -rf {} + 2>/dev/null ||
 
 	// Always declare HF_TOKEN — optional:true means Kubernetes silently skips it
 	// if the secret doesn't exist.
-	if cr.Spec.Source.AccessSecret != nil {
+	if cr.Spec.Source.AccessSecretName != "" {
 		envVars = append(envVars, corev1.EnvVar{
 			Name: "HF_TOKEN",
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{Name: cr.Spec.Source.AccessSecret.Name},
+					LocalObjectReference: corev1.LocalObjectReference{Name: cr.Spec.Source.AccessSecretName},
 					Key:                  "HF_TOKEN",
 					Optional:             ptr.To(true),
 				},
@@ -90,8 +96,8 @@ find "/models/${MODEL_ID}/" -mindepth 1 -type d -exec rm -rf {} + 2>/dev/null ||
 				corev1.ResourceMemory: resource.MustParse(resources.Memory),
 			},
 			Limits: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse(resources.CPU),
-				corev1.ResourceMemory: resource.MustParse(resources.Memory),
+				corev1.ResourceCPU:    resource.MustParse(resources.CPULimit),
+				corev1.ResourceMemory: resource.MustParse(resources.MemoryLimit),
 			},
 		},
 		VolumeMounts: []corev1.VolumeMount{
@@ -102,7 +108,7 @@ find "/models/${MODEL_ID}/" -mindepth 1 -type d -exec rm -rf {} + 2>/dev/null ||
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: cr.Name + "-download-",
-			Namespace:    cr.Spec.JobNamespace,
+			Namespace:    cr.Namespace,
 			Labels: map[string]string{
 				mmconsts.LabelModelMirrorName: cr.Name,
 			},
@@ -112,8 +118,9 @@ find "/models/${MODEL_ID}/" -mindepth 1 -type d -exec rm -rf {} + 2>/dev/null ||
 			TTLSecondsAfterFinished: ptr.To(int32(3600)), // 1 hour — keeps failed pods for debugging
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
-					RestartPolicy: corev1.RestartPolicyNever,
-					Containers:    []corev1.Container{container},
+					RestartPolicy:  corev1.RestartPolicyNever,
+					Containers:     []corev1.Container{container},
+					InitContainers: []corev1.Container{buildSamplerContainer(envVars)},
 					Volumes: []corev1.Volume{
 						{
 							Name: "model-storage",
@@ -127,6 +134,19 @@ find "/models/${MODEL_ID}/" -mindepth 1 -type d -exec rm -rf {} + 2>/dev/null ||
 				},
 			},
 		},
+	}
+
+	// When a ServiceAccount is set, run the Job under it and apply the provider-supplied pod
+	// labels (e.g. the cloud workload-identity label). Empty leaves the pod on the namespace
+	// default ServiceAccount with no extra labels.
+	if cr.Spec.ServiceAccountName != "" {
+		job.Spec.Template.Spec.ServiceAccountName = cr.Spec.ServiceAccountName
+		for k, v := range podLabels {
+			if job.Spec.Template.Labels == nil {
+				job.Spec.Template.Labels = map[string]string{}
+			}
+			job.Spec.Template.Labels[k] = v
+		}
 	}
 	return job
 }

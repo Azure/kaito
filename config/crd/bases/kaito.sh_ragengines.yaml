@@ -356,12 +356,13 @@ spec:
                   instanceType:
                     description: |-
                       InstanceType specifies the GPU node SKU.
-                      This field is required when node auto-provisioning is enabled.
-                      This field must be empty when node auto-provisioning is disabled (BYO scenario).
+                      Required when node auto-provisioning is enabled. Optional for BYO nodes, where it
+                      restricts the GPU nodes to those labeled node.kubernetes.io/instance-type=<instanceType>.
                     type: string
                   labelSelector:
-                    description: LabelSelector specifies the required labels for the
-                      GPU nodes.
+                    description: |-
+                      LabelSelector specifies the required labels for the GPU nodes. Leave it unset or empty ({}),
+                      together with instanceType, to let BYO mode auto-select the GPU SKU.
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector
@@ -406,6 +407,40 @@ spec:
                         type: object
                     type: object
                     x-kubernetes-map-type: atomic
+                  partition:
+                    description: |-
+                      Partition specifies GPU partitioning for the workload. When set, the workload
+                      is scheduled on a GPU partition (slice) instead of a full GPU.
+                      Requires the enableMIG feature gate and BYO nodes.
+                    properties:
+                      count:
+                        description: |-
+                          Count is the number of whole GPUs to allocate to the workload. Required and
+                          used only when Mode is "accelerator"; must be >= 1. Not valid for "mig".
+                        minimum: 1
+                        type: integer
+                      mode:
+                        allOf:
+                        - enum:
+                          - mig
+                          - accelerator
+                        - enum:
+                          - mig
+                          - accelerator
+                        description: |-
+                          Mode selects the GPU partitioning technology: "mig" (NVIDIA Multi-Instance
+                          GPU) or "accelerator" (multiple whole GPUs).
+                        type: string
+                      profile:
+                        description: |-
+                          Profile is the partition profile, interpreted according to Mode. For MIG this
+                          is a profile name like "1g.10gb", "2g.20gb", "3g.40gb". Each workload is
+                          scheduled on exactly one partition; tensor parallelism across partitions is
+                          not supported. Use multiple Workspaces or an InferenceSet to run replicas.
+                        type: string
+                    required:
+                    - mode
+                    type: object
                   preferredNodes:
                     description: |-
                       Deprecated: PreferredNodes is deprecated in v1beta1 and will be removed in a future version.
@@ -414,8 +449,6 @@ spec:
                     items:
                       type: string
                     type: array
-                required:
-                - labelSelector
                 type: object
               embedding:
                 description: |-
@@ -528,7 +561,7 @@ spec:
                       mountPath:
                         description: |-
                           MountPath specifies where the volume should be mounted in the container.
-                          Defaults to /mnt/data if not specified.
+                          Defaults to /mnt/data if not specified. Custom paths must be beneath /mnt.
                         type: string
                       persistentVolumeClaim:
                         description: PersistentVolumeClaim specifies the PVC to use

@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import time
+from pathlib import Path
 from urllib.parse import unquote
 
 import nest_asyncio
@@ -89,6 +90,10 @@ from ragengine.metrics.prometheus_metrics import (  # noqa: E402
     rag_persist_latency,
     rag_persist_requests_total,
 )
+from ragengine.streaming.guardrails import (  # noqa: E402
+    apply_streaming_guardrails,
+    raise_if_streaming_guardrails_unsupported,
+)
 
 # Import Prometheus client for metrics collection
 
@@ -97,6 +102,44 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="KAITO RAG Engine",
 )
+
+
+def resolve_storage_root() -> Path:
+    configured_root = Path(DEFAULT_VECTOR_DB_PERSIST_DIR)
+    resolved_root = configured_root.resolve()
+
+    if DEFAULT_VECTOR_DB_PERSIST_DIR == "storage":
+        expected_root = Path.cwd() / "storage"
+        if resolved_root == expected_root:
+            return resolved_root
+    elif configured_root.is_absolute() and ".." not in configured_root.parts:
+        resolved_mount_root = Path("/mnt").resolve()
+        try:
+            relative_path = resolved_root.relative_to(resolved_mount_root)
+            if relative_path.parts:
+                return resolved_root
+        except ValueError:
+            pass
+
+    raise HTTPException(
+        status_code=500,
+        detail="Configured persistence directory must be storage or a directory beneath /mnt.",
+    )
+
+
+def resolve_storage_path(path: str) -> str:
+    storage_root = resolve_storage_root()
+    resolved_path = Path(path).resolve()
+
+    try:
+        resolved_path.relative_to(storage_root)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Path must be within the configured persistence directory.",
+        )
+
+    return str(resolved_path)
 
 
 @app.middleware("http")
@@ -353,13 +396,26 @@ async def chat_completions(request: dict):
             )
 
         guardrails = guardrails_reloader.get_current()
+        if request.get("tools") or request.get("functions"):
+            raise HTTPException(
+                status_code=400,
+                detail="tools and functions are not supported.",
+            )
+        if request.get("n", 1) > 1:
+            raise HTTPException(
+                status_code=400,
+                detail="n > 1 is not supported.",
+            )
         if request.get("stream") is True:
             if guardrails.enabled:
-                raise HTTPException(
-                    status_code=400,
-                    detail="stream=true is not supported when output guardrails are enabled.",
-                )
+                raise_if_streaming_guardrails_unsupported(guardrails)
             response = await rag_ops.chat_completion(request)
+            if guardrails.enabled:
+                response = apply_streaming_guardrails(
+                    response,
+                    guardrails,
+                    request,
+                )
             status = STATUS_SUCCESS
             return StreamingResponse(
                 response,
@@ -640,15 +696,16 @@ async def delete_documents_in_index(
 
     ## Request Example:
     ```
-    POST /persist/example_index?path=./custom_path
+    POST /persist/example_index?path=storage/custom_path/example_index
     ```
 
     If no path is provided, the index will be persisted in the default directory.
+    Custom paths must be within the configured persistence directory.
 
     ## Response Example:
     ```json
     {
-      "message": "Successfully persisted index example_index to ./custom_path/example_index."
+            "message": "Successfully persisted index example_index to /app/ragengine/storage/custom_path/example_index."
     }
     ```
     """,
@@ -670,6 +727,7 @@ async def persist_index(
             if path == DEFAULT_VECTOR_DB_PERSIST_DIR
             else path
         )
+        path = resolve_storage_path(path)
         await rag_ops.persist(index_name, path)
         status = STATUS_SUCCESS
         return {"message": f"Successfully persisted index {index_name} to {path}."}
@@ -696,15 +754,16 @@ async def persist_index(
 
     ## Request Example:
     ```
-    POST /load/example_index?path=./custom_path/example_index
+    POST /load/example_index?path=storage/custom_path/example_index
     ```
 
     If no path is provided, will attempt to load from the default directory.
+    Custom paths must be within the configured persistence directory.
 
     ## Response Example:
     ```json
     {
-      "message": "Successfully loaded index example_index from ./custom_path/example_index."
+            "message": "Successfully loaded index example_index from /app/ragengine/storage/custom_path/example_index."
     }
     ```
     """,
@@ -724,6 +783,7 @@ async def load_index(
     status = STATUS_FAILURE  # Default status
 
     try:
+        path = resolve_storage_path(path)
         await rag_ops.load(index_name, path, overwrite)
         status = STATUS_SUCCESS
         return {"message": f"Successfully loaded index {index_name} from {path}."}

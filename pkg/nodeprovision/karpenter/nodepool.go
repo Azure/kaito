@@ -16,6 +16,8 @@ package karpenter
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"slices"
 
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
@@ -27,7 +29,11 @@ import (
 )
 
 const (
-	maxNodePoolNameLen = 253
+	// Keeps the Azure VM name of each node, "aks-" + NodeClaim name, within
+	// the 63-character hostname label limit: Karpenter names NodeClaims
+	// "<nodepool>-" + 5 random characters, so 4 + 53 + 1 + 5 = 63. This also
+	// fits the karpenter.sh/nodepool label on NodeClaims and Nodes.
+	maxNodePoolNameLen = 53
 	hashSuffixLen      = 9
 )
 
@@ -43,22 +49,25 @@ func truncatedName(workspaceNamespace, workspaceName string, maxLen int) string 
 	return full[:truncLen] + "-" + hex.EncodeToString(h[:])[:hashSuffixLen]
 }
 
-// NodePoolName returns a deterministic, DNS-safe name for the NodePool
-// derived from the workspace namespace and name.
-// If the result exceeds 253 characters, it is truncated and a 9-char
-// SHA-256 hex suffix is appended for uniqueness.
+// NodePoolName returns a deterministic, label-safe name for the NodePool
+// derived from the workspace namespace and name, with a hash suffix appended
+// when truncation is needed.
 func NodePoolName(workspaceNamespace, workspaceName string) string {
 	return truncatedName(workspaceNamespace, workspaceName, maxNodePoolNameLen)
 }
 
 // resolveNodeClassName determines the NodeClass resource name for a Workspace.
-// It checks for the node-class-name annotation on the workspace, then falls
-// back to the configured default.
-func resolveNodeClassName(ws *kaitov1beta1.Workspace, cfg NodeClassConfig) string {
-	if name, ok := ws.Annotations[kaitov1beta1.AnnotationNodeClassName]; ok && name != "" {
-		return name
+func resolveNodeClassName(ws *kaitov1beta1.Workspace, cfg NodeClassConfig) (string, error) {
+	name, ok := ws.Annotations[kaitov1beta1.AnnotationNodeClassName]
+	if !ok || name == "" {
+		return cfg.DefaultName, nil
 	}
-	return cfg.DefaultName
+	allowed := consts.AllowedNodeClassNames()
+	if !slices.Contains(allowed, name) {
+		return "", fmt.Errorf("annotation %s=%q is not permitted: choose one of the KAITO-managed NodeClasses %v",
+			kaitov1beta1.AnnotationNodeClassName, name, allowed)
+	}
+	return name, nil
 }
 
 // isInferenceSetWorkspace returns true if the Workspace was created by an InferenceSet.
@@ -67,16 +76,38 @@ func isInferenceSetWorkspace(ws *kaitov1beta1.Workspace) bool {
 	return ok
 }
 
+func resolveCapacityType(ws *kaitov1beta1.Workspace) (string, error) {
+	capacityType := ws.Annotations[kaitov1beta1.AnnotationCapacityType]
+	if capacityType == "" {
+		return consts.KarpenterCapacityTypeOnDemand, nil
+	}
+	switch capacityType {
+	case consts.KarpenterCapacityTypeOnDemand, consts.KarpenterCapacityTypeSpot:
+		return capacityType, nil
+	default:
+		return "", fmt.Errorf("annotation %s=%q is invalid: supported values are %q and %q",
+			kaitov1beta1.AnnotationCapacityType,
+			capacityType,
+			consts.KarpenterCapacityTypeOnDemand,
+			consts.KarpenterCapacityTypeSpot)
+	}
+}
+
 // nodePoolRequirements builds the NodePool requirements list.
-// The instance-type requirement is always included. Provider-specific
+// The instance-type and capacity-type requirements are always included. Provider-specific
 // requirements (e.g. Azure placement scope) are added based on the
 // NodeClassConfig group.
-func nodePoolRequirements(ws *kaitov1beta1.Workspace, cfg NodeClassConfig) []karpenterv1.NodeSelectorRequirementWithMinValues {
+func nodePoolRequirements(ws *kaitov1beta1.Workspace, cfg NodeClassConfig, capacityType string) []karpenterv1.NodeSelectorRequirementWithMinValues {
 	reqs := []karpenterv1.NodeSelectorRequirementWithMinValues{
 		{
 			Key:      corev1.LabelInstanceTypeStable,
 			Operator: corev1.NodeSelectorOpIn,
 			Values:   []string{ws.Resource.InstanceType},
+		},
+		{
+			Key:      consts.KarpenterCapacityTypeLabel,
+			Operator: corev1.NodeSelectorOpIn,
+			Values:   []string{capacityType},
 		},
 	}
 	// Azure Karpenter requires regional placement scope.
@@ -91,9 +122,8 @@ func nodePoolRequirements(ws *kaitov1beta1.Workspace, cfg NodeClassConfig) []kar
 }
 
 // generateNodePool builds a karpenter NodePool manifest for the given Workspace.
-func generateNodePool(ws *kaitov1beta1.Workspace, cfg NodeClassConfig) *karpenterv1.NodePool {
+func generateNodePool(ws *kaitov1beta1.Workspace, cfg NodeClassConfig, nodeClassName, capacityType string) *karpenterv1.NodePool {
 	nodePoolName := NodePoolName(ws.Namespace, ws.Name)
-	nodeClassName := resolveNodeClassName(ws, cfg)
 
 	// Drift budget: InferenceSet workspaces start with "0" (blocked),
 	// standalone workspaces use "1" (karpenter handles autonomously).
@@ -150,7 +180,7 @@ func generateNodePool(ws *kaitov1beta1.Workspace, cfg NodeClassConfig) *karpente
 						Kind:  cfg.Kind,
 						Name:  nodeClassName,
 					},
-					Requirements: nodePoolRequirements(ws, cfg),
+					Requirements: nodePoolRequirements(ws, cfg, capacityType),
 					Taints: []corev1.Taint{
 						{
 							Key:    consts.SKUString,

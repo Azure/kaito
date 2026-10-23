@@ -40,7 +40,6 @@ var ValidStrength string = "0.5"
 var InvalidStrength1 string = "invalid"
 var InvalidStrength2 string = "1.5"
 
-var gpuCountRequirement string
 var totalSafeTensorFileSize string
 var perGPUMemoryRequirement string
 
@@ -57,7 +56,6 @@ type testModel struct{}
 
 func (*testModel) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
-		GPUCountRequirement:     gpuCountRequirement,
 		TotalSafeTensorFileSize: totalSafeTensorFileSize,
 		ModelTokenLimit:         4096, // Add ModelTokenLimit for validation testing
 		RuntimeParam: model.RuntimeParam{
@@ -69,7 +67,6 @@ func (*testModel) GetInferenceParameters() *model.PresetParam {
 }
 func (*testModel) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
-		GPUCountRequirement:     gpuCountRequirement,
 		TotalSafeTensorFileSize: totalSafeTensorFileSize,
 	}
 }
@@ -84,13 +81,11 @@ type testModelStatic struct{}
 
 func (*testModelStatic) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
-		GPUCountRequirement:     "1",
 		TotalSafeTensorFileSize: "16Gi",
 	}
 }
 func (*testModelStatic) GetTuningParameters() *model.PresetParam {
 	return &model.PresetParam{
-		GPUCountRequirement:     "1",
 		TotalSafeTensorFileSize: "16Gi",
 	}
 }
@@ -107,10 +102,8 @@ func (*testModelDownload) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
 		Metadata: model.Metadata{
 			Version:              "https://huggingface.co/test-repo/test-model/commit/test-revision",
-			DownloadAtRuntime:    true,
 			DownloadAuthRequired: true,
 		},
-		GPUCountRequirement:     "2",
 		TotalSafeTensorFileSize: "32Gi",
 	}
 }
@@ -129,7 +122,6 @@ type testModelLarge struct{}
 
 func (*testModelLarge) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
-		GPUCountRequirement:     "8",     // Requires 8 GPUs
 		TotalSafeTensorFileSize: "131Gi", // Approximately 131GB total memory requirement
 	}
 }
@@ -148,7 +140,6 @@ type testModelSmallA10 struct{}
 
 func (*testModelSmallA10) GetInferenceParameters() *model.PresetParam {
 	return &model.PresetParam{
-		GPUCountRequirement:     "1",   // Requires 1 GPU
 		TotalSafeTensorFileSize: "7Gi", // Small model that fits on A10
 	}
 }
@@ -306,7 +297,6 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 	tests := []struct {
 		name                    string
 		resourceSpec            *ResourceSpec
-		modelGPUCount           string
 		modelPerGPUMemory       string
 		totalSafeTensorFileSize string
 		preset                  bool
@@ -324,7 +314,6 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				InstanceType: "Standard_ND96asr_v4",
 				Count:        pointerToInt(1),
 			},
-			modelGPUCount:           "8",
 			modelPerGPUMemory:       "19Gi",
 			totalSafeTensorFileSize: "152Gi",
 			preset:                  true,
@@ -336,10 +325,9 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Valid Resource - SKU Capacity == Model Requirement",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3",
+				InstanceType: "Standard_NV36ads_A10_v5",
 				Count:        pointerToInt(1),
 			},
-			modelGPUCount:           "1",
 			modelPerGPUMemory:       "16Gi",
 			totalSafeTensorFileSize: "16Gi",
 			preset:                  true,
@@ -362,7 +350,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Only Template set",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NV12s_v3",
+				InstanceType: "Standard_NV36ads_A10_v5",
 				Count:        pointerToInt(1),
 			},
 			preset:         false,
@@ -397,7 +385,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Tuning validation with single node",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3",
+				InstanceType: "Standard_NV36ads_A10_v5",
 				Count:        pointerToInt(1),
 			},
 			runtime:        model.RuntimeNameVLLM,
@@ -408,7 +396,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Tuning validation with multinode",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3",
+				InstanceType: "Standard_NV36ads_A10_v5",
 				Count:        pointerToInt(2),
 			},
 			runtime:        model.RuntimeNameVLLM,
@@ -419,7 +407,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Invalid Preset Name",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3",
+				InstanceType: "Standard_NV36ads_A10_v5",
 				Count:        pointerToInt(2),
 			},
 			errContent:         "",
@@ -431,7 +419,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "vLLM + Distributed Inference",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3",
+				InstanceType: "Standard_NV36ads_A10_v5",
 				Count:        pointerToInt(4),
 			},
 			preset:             true,
@@ -545,7 +533,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			presetNameOverride: "test-validation-static",
 			runtime:            model.RuntimeNameVLLM,
 			expectErrs:         true,
-			errContent:         "Failed to get GPU config from nvidia labels",
+			errContent:         "Failed to get GPU config from known instance type or nvidia labels",
 			testNodes: []v1.Node{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -576,7 +564,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			presetNameOverride: "test-validation-static",
 			runtime:            model.RuntimeNameVLLM,
 			expectErrs:         true,
-			errContent:         "Failed to get GPU config from nvidia labels",
+			errContent:         "Failed to get GPU config from known instance type or nvidia labels",
 			testNodes: []v1.Node{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -607,7 +595,7 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			presetNameOverride: "test-validation-static",
 			runtime:            model.RuntimeNameVLLM,
 			expectErrs:         true,
-			errContent:         "Failed to get GPU config from nvidia labels",
+			errContent:         "Failed to get GPU config from known instance type or nvidia labels",
 			testNodes: []v1.Node{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -654,6 +642,45 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "node-a100",
+						Labels: map[string]string{
+							"workload":               "gpu",
+							"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-80GB",
+							"nvidia.com/gpu.count":   "1",
+							"nvidia.com/gpu.memory":  "81920", // 80GB * 1024 = 81920 MiB
+						},
+					},
+				},
+			},
+			useFeatureGate: true,
+		},
+		{
+			name: "Valid - known SKU and GFD labels describe the same GPU product",
+			resourceSpec: &ResourceSpec{
+				InstanceType: "", // Empty instanceType indicates BYO mode
+				Count:        pointerToInt(2),
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"workload": "gpu",
+					},
+				},
+			},
+			preset:             true,
+			presetNameOverride: "test-validation-static",
+			runtime:            model.RuntimeNameVLLM,
+			expectErrs:         false,
+			testNodes: []v1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "node-known-a100",
+						Labels: map[string]string{
+							"workload":                 "gpu",
+							v1.LabelInstanceTypeStable: "Standard_NC24ads_A100_v4",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "node-gfd-a100",
 						Labels: map[string]string{
 							"workload":               "gpu",
 							"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-80GB",
@@ -738,19 +765,18 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			useFeatureGate: true,
 		},
 		{
-			name: "Invalid - missing labelSelector for BYO mode",
+			name: "Valid - empty labelSelector auto-selects SKU in BYO mode",
 			resourceSpec: &ResourceSpec{
 				InstanceType: "", // Empty instanceType indicates BYO mode
 				Count:        pointerToInt(1),
 				LabelSelector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{}, // Empty match labels instead of nil
+					MatchLabels: map[string]string{}, // Empty match labels are treated like nil
 				},
 			},
 			preset:             true,
 			presetNameOverride: "test-validation-static",
 			runtime:            model.RuntimeNameVLLM,
-			expectErrs:         true,
-			errContent:         "No nodes found matching the specified label selector",
+			expectErrs:         false,
 			testNodes:          []v1.Node{},
 			useFeatureGate:     true,
 		},
@@ -775,24 +801,11 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 			useFeatureGate:     true,
 		},
 		{
-			name: "Deprecated Model",
-			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3",
-				Count:        pointerToInt(1),
-			},
-			preset:             true,
-			presetNameOverride: "phi-2",
-			runtime:            model.RuntimeNameVLLM,
-			expectErrs:         true,
-			errContent:         "Model phi-2 is deprecated and no longer supported",
-		},
-		{
 			name: "Empty TotalSafeTensorFileSize skips GPU memory validation",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3",
+				InstanceType: "Standard_NV36ads_A10_v5",
 				Count:        pointerToInt(1),
 			},
-			modelGPUCount:           "1",
 			modelPerGPUMemory:       "0",
 			totalSafeTensorFileSize: "",
 			preset:                  true,
@@ -804,10 +817,9 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Malformed TotalSafeTensorFileSize returns validation error",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3",
+				InstanceType: "Standard_NV36ads_A10_v5",
 				Count:        pointerToInt(1),
 			},
-			modelGPUCount:           "1",
 			modelPerGPUMemory:       "0",
 			totalSafeTensorFileSize: "not-a-quantity",
 			preset:                  true,
@@ -819,10 +831,9 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 		{
 			name: "Valid TotalSafeTensorFileSize with sufficient memory passes",
 			resourceSpec: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3",
+				InstanceType: "Standard_NV36ads_A10_v5",
 				Count:        pointerToInt(1),
 			},
-			modelGPUCount:           "1",
 			modelPerGPUMemory:       "16Gi",
 			totalSafeTensorFileSize: "1Gi",
 			preset:                  true,
@@ -899,7 +910,6 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 					}
 				}
 
-				gpuCountRequirement = tc.modelGPUCount
 				totalSafeTensorFileSize = tc.totalSafeTensorFileSize
 				perGPUMemoryRequirement = tc.modelPerGPUMemory
 
@@ -916,6 +926,147 @@ func TestResourceSpecValidateCreate(t *testing.T) {
 						t.Errorf("validateCreate() error message = %v, expected to contain = %v", errMsg, tc.errContent)
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestValidateMIGModelFit(t *testing.T) {
+	RegisterValidationTestModels()
+	t.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
+
+	origMIG := featuregates.FeatureGates[consts.FeatureFlagEnableMIG]
+	origNAP := featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning]
+	featuregates.FeatureGates[consts.FeatureFlagEnableMIG] = true
+	featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = true
+	defer func() {
+		featuregates.FeatureGates[consts.FeatureFlagEnableMIG] = origMIG
+		featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = origNAP
+	}()
+
+	scheme := runtime.NewScheme()
+	_ = v1.AddToScheme(scheme)
+	k8sclient.SetGlobalClient(fake.NewClientBuilder().WithScheme(scheme).Build())
+
+	tests := []struct {
+		name                    string
+		presetName              string
+		profile                 string
+		totalSafeTensorFileSize string // only used by the "test-validation" preset
+		bypass                  bool
+		expectErrs              bool
+		errContent              string
+	}{
+		{
+			name:                    "model fits within the MIG slice",
+			presetName:              "test-validation",
+			profile:                 "2g.24gb",
+			totalSafeTensorFileSize: "8Gi",
+			expectErrs:              false,
+		},
+		{
+			name:       "model exceeds the MIG slice",
+			presetName: "test-large-model", // 131Gi weights
+			profile:    "1g.10gb",
+			expectErrs: true,
+			errContent: "exceeds the 1g.10gb MIG slice",
+		},
+		{
+			name:       "bypass annotation allows an oversized model",
+			presetName: "test-large-model",
+			profile:    "1g.10gb",
+			bypass:     true,
+			expectErrs: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			totalSafeTensorFileSize = tc.totalSafeTensorFileSize
+
+			resourceSpec := &ResourceSpec{
+				InstanceType: "", // BYO
+				Count:        pointerToInt(1),
+				Partition:    &PartitionSpec{Mode: PartitionModeMIG, Profile: tc.profile},
+			}
+			spec := &InferenceSpec{
+				Preset: &PresetSpec{PresetMeta: PresetMeta{Name: ModelName(tc.presetName)}},
+			}
+
+			errs := resourceSpec.validateCreateWithInference(context.TODO(), spec, tc.bypass, model.RuntimeNameVLLM, "")
+			hasErrs := errs != nil
+			if hasErrs != tc.expectErrs {
+				t.Errorf("validateCreateWithInference() errors = %v, expectErrs %v", errs, tc.expectErrs)
+			}
+			if hasErrs && tc.errContent != "" && !strings.Contains(errs.Error(), tc.errContent) {
+				t.Errorf("validateCreateWithInference() error = %v, expected to contain %q", errs, tc.errContent)
+			}
+		})
+	}
+}
+
+func TestValidatePartition(t *testing.T) {
+	origMIG := featuregates.FeatureGates[consts.FeatureFlagEnableMIG]
+	origAccel := featuregates.FeatureGates[consts.FeatureFlagEnableAccelerator]
+	featuregates.FeatureGates[consts.FeatureFlagEnableMIG] = true
+	featuregates.FeatureGates[consts.FeatureFlagEnableAccelerator] = true
+	defer func() {
+		featuregates.FeatureGates[consts.FeatureFlagEnableMIG] = origMIG
+		featuregates.FeatureGates[consts.FeatureFlagEnableAccelerator] = origAccel
+	}()
+
+	tests := []struct {
+		name       string
+		partition  *PartitionSpec
+		expectErrs bool
+		errContent string
+	}{
+		{
+			name:       "accelerator with valid count",
+			partition:  &PartitionSpec{Mode: PartitionModeAccelerator, Count: pointerToInt(2)},
+			expectErrs: false,
+		},
+		{
+			name:       "accelerator missing count",
+			partition:  &PartitionSpec{Mode: PartitionModeAccelerator},
+			expectErrs: true,
+			errContent: "partition.count",
+		},
+		{
+			name:       "accelerator with profile set",
+			partition:  &PartitionSpec{Mode: PartitionModeAccelerator, Count: pointerToInt(2), Profile: "1g.10gb"},
+			expectErrs: true,
+			errContent: "profile is not valid for accelerator mode",
+		},
+		{
+			name:       "mig with valid profile",
+			partition:  &PartitionSpec{Mode: PartitionModeMIG, Profile: "1g.10gb"},
+			expectErrs: false,
+		},
+		{
+			name:       "mig with count set",
+			partition:  &PartitionSpec{Mode: PartitionModeMIG, Profile: "1g.10gb", Count: pointerToInt(2)},
+			expectErrs: true,
+			errContent: "count is only valid for accelerator mode",
+		},
+		{
+			name:       "unsupported mode",
+			partition:  &PartitionSpec{Mode: PartitionMode("bogus")},
+			expectErrs: true,
+			errContent: "unsupported partition mode",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &ResourceSpec{Partition: tc.partition}
+			errs := r.validatePartition()
+			hasErrs := errs != nil
+			if hasErrs != tc.expectErrs {
+				t.Errorf("validatePartition() errors = %v, expectErrs %v", errs, tc.expectErrs)
+			}
+			if hasErrs && tc.errContent != "" && !strings.Contains(errs.Error(), tc.errContent) {
+				t.Errorf("validatePartition() error = %v, expected to contain %q", errs, tc.errContent)
 			}
 		})
 	}
@@ -964,7 +1115,7 @@ func TestResourceSpecValidateUpdate(t *testing.T) {
 				Count:        pointerToInt(1),
 			},
 			oldResource: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3",
+				InstanceType: "Standard_NV36ads_A10_v5",
 				Count:        pointerToInt(1),
 			},
 			disableNAP: false, // NAP enabled
@@ -974,7 +1125,7 @@ func TestResourceSpecValidateUpdate(t *testing.T) {
 		{
 			name: "NAP enabled - set instanceType initially (valid)",
 			newResource: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3", // Setting for first time
+				InstanceType: "Standard_NV36ads_A10_v5", // Setting for first time
 				Count:        pointerToInt(1),
 			},
 			oldResource: &ResourceSpec{
@@ -1010,7 +1161,7 @@ func TestResourceSpecValidateUpdate(t *testing.T) {
 				},
 			},
 			oldResource: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3", // Had instanceType from v0.7
+				InstanceType: "Standard_NV36ads_A10_v5", // Had instanceType from v0.7
 				Count:        pointerToInt(1),
 				LabelSelector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{"gpu": "v100"}, // Same labelSelector
@@ -1023,27 +1174,27 @@ func TestResourceSpecValidateUpdate(t *testing.T) {
 		{
 			name: "NAP disabled - keep instanceType set (backward compatibility)",
 			newResource: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3", // Still has instanceType
+				InstanceType: "Standard_NV36ads_A10_v5", // Still has instanceType
 				Count:        pointerToInt(1),
 			},
 			oldResource: &ResourceSpec{
-				InstanceType: "Standard_NC4as_T4_v3", // Had instanceType from v0.7
+				InstanceType: "Standard_NV36ads_A10_v5", // Had instanceType from v0.7
 				Count:        pointerToInt(1),
 			},
 			disableNAP: true, // NAP disabled (BYO mode)
 			expectErrs: false,
 		},
 		{
-			name: "NAP disabled - change to different instanceType (invalid)",
+			name: "NAP disabled - change to different instanceType (invalid, immutable once set)",
 			newResource: &ResourceSpec{
-				InstanceType: "new_type", // Changing instanceType
+				InstanceType: "new_type",
 				Count:        pointerToInt(1),
 			},
 			oldResource: &ResourceSpec{
 				InstanceType: "old_type",
 				Count:        pointerToInt(1),
 			},
-			disableNAP: true, // NAP disabled (BYO mode)
+			disableNAP: true,
 			errContent: "instanceType cannot be changed once set",
 			expectErrs: true,
 		},
@@ -1064,6 +1215,20 @@ func TestResourceSpecValidateUpdate(t *testing.T) {
 				},
 			},
 			disableNAP: true, // NAP disabled (BYO mode)
+			errContent: "",
+			expectErrs: false,
+		},
+		{
+			name: "NAP disabled - add instanceType on update (valid, immutable-once-set allows adding)",
+			newResource: &ResourceSpec{
+				InstanceType: "Standard_NV36ads_A10_v5",
+				Count:        pointerToInt(1),
+			},
+			oldResource: &ResourceSpec{
+				InstanceType: "",
+				Count:        pointerToInt(1),
+			},
+			disableNAP: true,
 			errContent: "",
 			expectErrs: false,
 		},
@@ -1175,6 +1340,18 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 				},
 			},
 			errContent: "Unsupported inference preset name",
+			expectErrs: true,
+		},
+		{
+			name: "Reserved custom- Preset Name",
+			inferenceSpec: &InferenceSpec{
+				Preset: &PresetSpec{
+					PresetMeta: PresetMeta{
+						Name: ModelName("custom-deadbeef"),
+					},
+				},
+			},
+			errContent: "is reserved",
 			expectErrs: true,
 		},
 		{
@@ -1396,7 +1573,7 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 			expectErrs: true,
 		},
 		{
-			name: "Preset with model weights packaged but with access secret",
+			name: "public preset with optional access secret",
 			inferenceSpec: &InferenceSpec{
 				Preset: &PresetSpec{
 					PresetMeta: PresetMeta{
@@ -1407,8 +1584,6 @@ func TestInferenceSpecValidateCreate(t *testing.T) {
 					},
 				},
 			},
-			errContent: "This preset does not require a modelAccessSecret with HF_TOKEN key under presetOptions",
-			expectErrs: true,
 		},
 	}
 
@@ -1701,7 +1876,7 @@ func TestWorkspaceValidateCreate(t *testing.T) {
 			name: "Neither Inference nor Tuning specified",
 			workspace: &Workspace{
 				Resource: ResourceSpec{
-					InstanceType: "Standard_NC4as_T4_v3",
+					InstanceType: "Standard_NV36ads_A10_v5",
 					Count:        pointerToInt(1),
 				},
 			},
@@ -1714,7 +1889,7 @@ func TestWorkspaceValidateCreate(t *testing.T) {
 				Inference: &InferenceSpec{},
 				Tuning:    &TuningSpec{},
 				Resource: ResourceSpec{
-					InstanceType: "Standard_NC4as_T4_v3",
+					InstanceType: "Standard_NV36ads_A10_v5",
 					Count:        pointerToInt(1),
 				},
 			},
@@ -1726,7 +1901,7 @@ func TestWorkspaceValidateCreate(t *testing.T) {
 			workspace: &Workspace{
 				Inference: &InferenceSpec{},
 				Resource: ResourceSpec{
-					InstanceType: "Standard_NC4as_T4_v3",
+					InstanceType: "Standard_NV36ads_A10_v5",
 					Count:        pointerToInt(1),
 				},
 			},
@@ -1738,7 +1913,7 @@ func TestWorkspaceValidateCreate(t *testing.T) {
 			workspace: &Workspace{
 				Tuning: &TuningSpec{Input: &DataSource{}},
 				Resource: ResourceSpec{
-					InstanceType: "Standard_NC4as_T4_v3",
+					InstanceType: "Standard_NV36ads_A10_v5",
 					Count:        pointerToInt(1),
 				},
 			},
@@ -1755,7 +1930,7 @@ func TestWorkspaceValidateCreate(t *testing.T) {
 				},
 				Inference: &InferenceSpec{},
 				Resource: ResourceSpec{
-					InstanceType: "Standard_NC4as_T4_v3",
+					InstanceType: "Standard_NV36ads_A10_v5",
 					Count:        pointerToInt(1),
 				},
 			},
@@ -1798,7 +1973,7 @@ func TestWorkspaceValidateName(t *testing.T) {
 			Namespace: "kaito",
 		},
 		Resource: ResourceSpec{
-			InstanceType: "Standard_NC4as_T4_v3",
+			InstanceType: "Standard_NV36ads_A10_v5",
 			Count:        pointerToInt(1),
 		},
 		Inference: &InferenceSpec{
@@ -1815,6 +1990,8 @@ func TestWorkspaceValidateName(t *testing.T) {
 		workspaceName string
 		wantErr       bool
 		errField      string
+		// update validates the Workspace as an update of itself.
+		update bool
 	}{
 		{
 			name:          "Valid name",
@@ -1833,13 +2010,34 @@ func TestWorkspaceValidateName(t *testing.T) {
 			wantErr:       true,
 			errField:      "name",
 		},
+		{
+			name:          "Name at the maximum length",
+			workspaceName: strings.Repeat("a", 52),
+			wantErr:       false,
+		},
+		{
+			name:          "Name over the maximum length on create",
+			workspaceName: strings.Repeat("a", 53),
+			wantErr:       true,
+			errField:      "name",
+		},
+		{
+			name:          "Existing name over the maximum length can still be updated",
+			workspaceName: strings.Repeat("a", 63),
+			wantErr:       false,
+			update:        true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			workspace := testWorkspace.DeepCopy()
 			workspace.Name = tt.workspaceName
-			errs := workspace.Validate(context.Background())
+			ctx := context.Background()
+			if tt.update {
+				ctx = apis.WithinUpdate(ctx, workspace.DeepCopy())
+			}
+			errs := workspace.Validate(ctx)
 			if (errs != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", errs, tt.wantErr)
 			}
@@ -1869,7 +2067,7 @@ func TestWorkspaceValidatePerformanceModeAnnotation(t *testing.T) {
 			Namespace: "kaito",
 		},
 		Resource: ResourceSpec{
-			InstanceType: "Standard_NC4as_T4_v3",
+			InstanceType: "Standard_NV36ads_A10_v5",
 			Count:        pointerToInt(1),
 		},
 		Inference: &InferenceSpec{
@@ -1911,6 +2109,21 @@ func TestWorkspaceValidatePerformanceModeAnnotation(t *testing.T) {
 			annotations: map[string]string{AnnotationPerformanceMode: "fast"},
 			wantErr:     true,
 		},
+		{
+			name:        "use local weights true is valid",
+			annotations: map[string]string{AnnotationUseLocalWeights: "true"},
+			wantErr:     false,
+		},
+		{
+			name:        "use local weights false is valid",
+			annotations: map[string]string{AnnotationUseLocalWeights: "false"},
+			wantErr:     false,
+		},
+		{
+			name:        "use local weights non-boolean is invalid",
+			annotations: map[string]string{AnnotationUseLocalWeights: "yes"},
+			wantErr:     true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1923,6 +2136,171 @@ func TestWorkspaceValidatePerformanceModeAnnotation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWorkspaceValidateNodeClassNameAnnotation(t *testing.T) {
+	RegisterValidationTestModels()
+
+	t.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
+	t.Setenv(consts.DefaultReleaseNamespaceEnvVar, DefaultReleaseNamespace)
+
+	scheme := runtime.NewScheme()
+	_ = v1.AddToScheme(scheme)
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(
+		defaultInferenceConfigMapManifest(),
+	).Build()
+	k8sclient.SetGlobalClient(client)
+
+	oldProvisioner := consts.ActiveNodeProvisioner
+	oldAllowed := consts.AllowedNodeClassNames()
+	consts.ActiveNodeProvisioner = consts.NodeProvisionerKarpenter
+	consts.SetAllowedNodeClassNames([]string{consts.AKSNodeClassAzureLinuxName, consts.AKSNodeClassUbuntuName})
+	t.Cleanup(func() {
+		consts.ActiveNodeProvisioner = oldProvisioner
+		consts.SetAllowedNodeClassNames(oldAllowed)
+	})
+
+	baseWorkspace := &Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-workspace",
+			Namespace: "kaito",
+		},
+		Resource: ResourceSpec{
+			InstanceType: "Standard_NV36ads_A10_v5",
+			Count:        pointerToInt(1),
+		},
+		Inference: &InferenceSpec{
+			Preset: &PresetSpec{
+				PresetMeta: PresetMeta{
+					Name: ModelName("test-validation-static"),
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		wantErr     bool
+	}{
+		{
+			name:        "no annotation is valid",
+			annotations: nil,
+			wantErr:     false,
+		},
+		{
+			name:        "empty annotation falls back to the default",
+			annotations: map[string]string{AnnotationNodeClassName: ""},
+			wantErr:     false,
+		},
+		{
+			name:        "KAITO-managed NodeClass is valid",
+			annotations: map[string]string{AnnotationNodeClassName: consts.AKSNodeClassAzureLinuxName},
+			wantErr:     false,
+		},
+		{
+			name:        "NodeClass outside the managed set is rejected",
+			annotations: map[string]string{AnnotationNodeClassName: "someone-elses-nodeclass"},
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := baseWorkspace.DeepCopy()
+			ws.Annotations = tt.annotations
+			errs := ws.Validate(context.Background())
+			if (errs != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", errs, tt.wantErr)
+			}
+		})
+	}
+
+	// The annotation is inert unless karpenter is provisioning nodes, so it must not
+	// block Workspaces on other provisioners.
+	t.Run("annotation is ignored when the provisioner is not karpenter", func(t *testing.T) {
+		consts.ActiveNodeProvisioner = consts.NodeProvisionerBYO
+		defer func() { consts.ActiveNodeProvisioner = consts.NodeProvisionerKarpenter }()
+
+		ws := baseWorkspace.DeepCopy()
+		ws.Annotations = map[string]string{AnnotationNodeClassName: "someone-elses-nodeclass"}
+		if errs := ws.Validate(context.Background()); errs != nil {
+			t.Errorf("Validate() unexpected error for non-karpenter provisioner: %v", errs)
+		}
+	})
+
+	// A Workspace that predates this validation must stay updatable — otherwise its
+	// finalizer can never be removed and it becomes undeletable.
+	t.Run("unchanged pre-existing annotation is allowed on update", func(t *testing.T) {
+		old := baseWorkspace.DeepCopy()
+		old.Annotations = map[string]string{AnnotationNodeClassName: "legacy-nodeclass"}
+		ws := old.DeepCopy()
+		errs := ws.Validate(apis.WithinUpdate(context.Background(), old))
+		if errs != nil {
+			t.Errorf("Validate() unexpected error for unchanged annotation: %v", errs)
+		}
+	})
+
+	t.Run("changing to a disallowed annotation is rejected on update", func(t *testing.T) {
+		old := baseWorkspace.DeepCopy()
+		ws := old.DeepCopy()
+		ws.Annotations = map[string]string{AnnotationNodeClassName: "someone-elses-nodeclass"}
+		errs := ws.Validate(apis.WithinUpdate(context.Background(), old))
+		if errs == nil || !strings.Contains(errs.Error(), AnnotationNodeClassName) {
+			t.Errorf("Validate() expected a %s error when the annotation changes to a disallowed value, got %v",
+				AnnotationNodeClassName, errs)
+		}
+	})
+}
+
+func TestWorkspaceCapacityTypeAnnotation(t *testing.T) {
+	originalProvisioner := consts.ActiveNodeProvisioner
+	consts.ActiveNodeProvisioner = consts.NodeProvisionerKarpenter
+	t.Cleanup(func() { consts.ActiveNodeProvisioner = originalProvisioner })
+
+	for _, value := range []string{"", consts.KarpenterCapacityTypeOnDemand, consts.KarpenterCapacityTypeSpot} {
+		ws := &Workspace{ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{AnnotationCapacityType: value},
+		}}
+		if errs := ws.validateCapacityTypeAnnotation(); errs != nil {
+			t.Errorf("validateCapacityTypeAnnotation() rejected %q: %v", value, errs)
+		}
+	}
+
+	invalid := &Workspace{ObjectMeta: metav1.ObjectMeta{
+		Annotations: map[string]string{AnnotationCapacityType: "reserved"},
+	}}
+	if errs := invalid.validateCapacityTypeAnnotation(); errs == nil {
+		t.Fatal("validateCapacityTypeAnnotation() accepted an unsupported value")
+	}
+
+	t.Run("valid value is immutable", func(t *testing.T) {
+		old := &Workspace{ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{AnnotationCapacityType: consts.KarpenterCapacityTypeOnDemand},
+		}}
+		updated := old.DeepCopy()
+		updated.Annotations[AnnotationCapacityType] = consts.KarpenterCapacityTypeSpot
+		if errs := updated.validateCapacityTypeAnnotationUpdate(old); errs == nil {
+			t.Fatal("validateCapacityTypeAnnotationUpdate() allowed a valid capacity type to change")
+		}
+	})
+
+	t.Run("invalid legacy value can be repaired", func(t *testing.T) {
+		old := invalid.DeepCopy()
+		updated := old.DeepCopy()
+		updated.Annotations[AnnotationCapacityType] = consts.KarpenterCapacityTypeOnDemand
+		if errs := updated.validateCapacityTypeAnnotationUpdate(old); errs != nil {
+			t.Errorf("validateCapacityTypeAnnotationUpdate() rejected legacy repair: %v", errs)
+		}
+	})
+
+	t.Run("annotation is inert outside karpenter", func(t *testing.T) {
+		consts.ActiveNodeProvisioner = consts.NodeProvisionerBYO
+		defer func() { consts.ActiveNodeProvisioner = consts.NodeProvisionerKarpenter }()
+		if errs := invalid.validateCapacityTypeAnnotation(); errs != nil {
+			t.Errorf("validateCapacityTypeAnnotation() rejected inert annotation: %v", errs)
+		}
+	})
 }
 
 func TestWorkspaceValidateNAPFeatureGate(t *testing.T) {
@@ -1978,7 +2356,7 @@ func TestWorkspaceValidateNAPFeatureGate(t *testing.T) {
 					Namespace: "kaito",
 				},
 				Resource: ResourceSpec{
-					InstanceType: "Standard_NC4as_T4_v3", // Valid instanceType when NAP enabled
+					InstanceType: "Standard_NV36ads_A10_v5", // Valid instanceType when NAP enabled
 					Count:        pointerToInt(1),
 				},
 				Inference: &InferenceSpec{
@@ -1994,14 +2372,14 @@ func TestWorkspaceValidateNAPFeatureGate(t *testing.T) {
 			errContains: "",
 		},
 		{
-			name: "NAP disabled - instanceType must be empty",
+			name: "NAP disabled - instanceType allowed as BYO preference",
 			workspace: &Workspace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-workspace-nap-disabled",
 					Namespace: "kaito",
 				},
 				Resource: ResourceSpec{
-					InstanceType: "Standard_NC4as_T4_v3", // Invalid: instanceType provided when NAP disabled
+					InstanceType: "Standard_NV36ads_A10_v5",
 					Count:        pointerToInt(1),
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
@@ -2017,9 +2395,9 @@ func TestWorkspaceValidateNAPFeatureGate(t *testing.T) {
 					},
 				},
 			},
-			disableNAP:  true, // NAP disabled (BYO mode)
-			expectErrs:  true,
-			errContains: "instanceType must be empty when node auto-provisioning is disabled (BYO scenario)",
+			disableNAP:  true,
+			expectErrs:  false,
+			errContains: "",
 		},
 		{
 			name: "NAP disabled - instanceType empty (valid)",
@@ -2103,6 +2481,25 @@ func TestWorkspaceValidateNAPFeatureGate(t *testing.T) {
 	}
 }
 
+func TestWorkspaceValidateDeletingSkipsValidation(t *testing.T) {
+	old := &Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test-workspace",
+			Namespace:   "default",
+			Annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "invalid"},
+			Finalizers:  []string{"workspace.kaito.sh/finalizer"},
+		},
+	}
+	deleting := old.DeepCopy()
+	now := metav1.Now()
+	deleting.DeletionTimestamp = &now
+	deleting.Finalizers = nil
+
+	if errs := deleting.Validate(apis.WithinUpdate(context.Background(), old)); errs != nil {
+		t.Fatalf("Validate() should allow finalizer removal during deletion, got %v", errs)
+	}
+}
+
 func TestWorkspaceValidateUpdate(t *testing.T) {
 	RegisterValidationTestModels()
 
@@ -2171,7 +2568,7 @@ func TestWorkspaceValidateUpdate(t *testing.T) {
 				},
 				Tuning: &TuningSpec{Input: &DataSource{}, Output: &DataDestination{Image: "test-image:latest", ImagePushSecret: "secret"}},
 				Resource: ResourceSpec{
-					InstanceType: "Standard_NC4as_T4_v3",
+					InstanceType: "Standard_NV36ads_A10_v5",
 					Count:        pointerToInt(1),
 				},
 			},
@@ -2182,7 +2579,7 @@ func TestWorkspaceValidateUpdate(t *testing.T) {
 				},
 				Tuning: &TuningSpec{Input: &DataSource{}, Output: &DataDestination{Image: "test-image:latest", ImagePushSecret: "secret"}},
 				Resource: ResourceSpec{
-					InstanceType: "Standard_NC4as_T4_v3",
+					InstanceType: "Standard_NV36ads_A10_v5",
 					Count:        pointerToInt(1),
 				},
 			},
@@ -2196,7 +2593,7 @@ func TestWorkspaceValidateUpdate(t *testing.T) {
 					Namespace: "kaito",
 				},
 				Resource: ResourceSpec{
-					InstanceType: "Standard_NC4as_T4_v3", // Created in v0.7 with instanceType
+					InstanceType: "Standard_NV36ads_A10_v5", // Created in v0.7 with instanceType
 					Count:        pointerToInt(1),
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
@@ -2490,6 +2887,54 @@ func TestDataSourceValidateCreate(t *testing.T) {
 				URLs: []string{"http://example.com/data"},
 			},
 			wantErr: false,
+		},
+		{
+			name: "Unsupported URL scheme",
+			dataSource: &DataSource{
+				URLs: []string{"ftp://example.com/data"},
+			},
+			wantErr:  true,
+			errField: "must use HTTP or HTTPS",
+		},
+		{
+			name: "Loopback URL",
+			dataSource: &DataSource{
+				URLs: []string{"http://127.0.0.1/data"},
+			},
+			wantErr:  true,
+			errField: "loopback, private, or link-local",
+		},
+		{
+			name: "Private URL",
+			dataSource: &DataSource{
+				URLs: []string{"http://10.0.0.1/data"},
+			},
+			wantErr:  true,
+			errField: "loopback, private, or link-local",
+		},
+		{
+			name: "Link-local URL",
+			dataSource: &DataSource{
+				URLs: []string{"http://169.254.169.254/latest/meta-data"},
+			},
+			wantErr:  true,
+			errField: "loopback, private, or link-local",
+		},
+		{
+			name: "IPv6 loopback URL",
+			dataSource: &DataSource{
+				URLs: []string{"http://[::1]/data"},
+			},
+			wantErr:  true,
+			errField: "loopback, private, or link-local",
+		},
+		{
+			name: "Metadata hostname URL",
+			dataSource: &DataSource{
+				URLs: []string{"http://metadata.google.internal/computeMetadata/v1"},
+			},
+			wantErr:  true,
+			errField: "local or metadata endpoint",
 		},
 		{
 			name: "Volume specified only",
@@ -2838,7 +3283,7 @@ vllm:
 					Config: "valid-config-with-max-model-len",
 				},
 				Resource: ResourceSpec{
-					InstanceType: "Standard_NV24s_v3", // 2 GPUs with 8GB each (16GB total)
+					InstanceType: "Standard_NV72ads_A10_v5", // 2 GPUs with 24GB each (48GB total)
 					Count:        pointerToInt(1),
 				},
 			},
@@ -2860,7 +3305,7 @@ vllm:
 					Config: "invalid-config-exceeds-token-limit",
 				},
 				Resource: ResourceSpec{
-					InstanceType: "Standard_NV24s_v3", // 2 GPUs with 8GB each (16GB total)
+					InstanceType: "Standard_NV72ads_A10_v5", // 2 GPUs with 24GB each (48GB total)
 					Count:        pointerToInt(1),
 				},
 			},
@@ -2937,5 +3382,129 @@ func TestWorkspaceValidateStreamingCSIDriver(t *testing.T) {
 				t.Errorf("validateStreamingCSIDriver() err=%v wantErr=%v", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestWorkspaceValidateSpeculativeDecoding(t *testing.T) {
+	intPtr := func(i int) *int { return &i }
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		inference   *InferenceSpec
+		count       *int
+		wantErr     bool
+	}{
+		{
+			name:        "no annotation - pass",
+			annotations: map[string]string{},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "false annotation - pass",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "false"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "invalid annotation value",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "yes"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			wantErr:     true,
+		},
+		{
+			name:        "true with supported preset - pass",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "true with second supported preset - pass",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-v3-0324"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "true with unsupported preset - accepted (falls back to ngram)",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "llama-3.1-8b-instruct"}}},
+			wantErr:     false,
+		},
+		{
+			name:        "true with no preset",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   nil,
+			wantErr:     true,
+		},
+		{
+			name:        "true with tuning only (no inference)",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   nil,
+			wantErr:     true,
+		},
+		{
+			name:        "true with resource.count>1 + mtp preset allowed (PP-compatible)",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			count:       intPtr(2),
+			wantErr:     false,
+		},
+		{
+			name:        "true with resource.count>1 + ngram fallback allowed (PP-compatible)",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "llama-3.1-8b-instruct"}}},
+			count:       intPtr(2),
+			wantErr:     false,
+		},
+		{
+			name:        "true with resource.count=1 pass",
+			annotations: map[string]string{AnnotationEnableSpeculativeDecoding: "true"},
+			inference:   &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+			count:       intPtr(1),
+			wantErr:     false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := &Workspace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "ws",
+					Namespace:   "default",
+					Annotations: tc.annotations,
+				},
+				Inference: tc.inference,
+			}
+			if tc.count != nil {
+				//nolint:staticcheck //SA1019: deprecate Resource.Count field
+				w.Resource.Count = tc.count
+			}
+			errs := w.validateSpeculativeDecoding(context.Background())
+			if (errs != nil) != tc.wantErr {
+				t.Errorf("validateSpeculativeDecoding() err=%v wantErr=%v", errs, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateCreate_InvalidSpeculativeDecodingValueReportedOnce(t *testing.T) {
+	w := &Workspace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws",
+			Namespace: "default",
+			Annotations: map[string]string{
+				AnnotationEnableSpeculativeDecoding: "yes",
+			},
+		},
+		Resource:  ResourceSpec{InstanceType: "Standard_NC24ads_A100_v4"},
+		Inference: &InferenceSpec{Preset: &PresetSpec{PresetMeta: PresetMeta{Name: "deepseek-r1-0528"}}},
+	}
+
+	errs := w.ValidateCreate(context.Background())
+	if errs == nil {
+		t.Fatal("ValidateCreate() expected error, got nil")
+	}
+	fieldRef := fmt.Sprintf("metadata.annotations[%s]", AnnotationEnableSpeculativeDecoding)
+	if got := strings.Count(errs.Error(), fieldRef); got != 1 {
+		t.Fatalf("expected exactly one validation error for %s, got %d: %v", fieldRef, got, errs)
 	}
 }

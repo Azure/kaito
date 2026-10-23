@@ -31,22 +31,31 @@ import (
 )
 
 const (
-	// defaultReadinessTimeout is the startup probe timeout for typical preset models.
+	// defaultReadinessTimeout is the floor startup-probe timeout, used for small
+	// models and when the model weight size is unknown.
 	defaultReadinessTimeout = 30 * time.Minute
 
-	// largeModelReadinessTimeout is the startup probe timeout for large preset models
-	// whose runtime weight download and load exceed the default window.
-	largeModelReadinessTimeout = 60 * time.Minute
+	// maxReadinessTimeout caps the startup-probe timeout so a genuinely stuck pod is
+	// still detected within a bounded window, even for very large models.
+	maxReadinessTimeout = 180 * time.Minute
 
-	// largeModelSizeThreshold is the model weight size above which
-	// largeModelReadinessTimeout is used instead of defaultReadinessTimeout.
-	largeModelSizeThreshold = "300Gi"
+	// readinessTimeoutBase is the fixed startup overhead independent of weight size
+	// (CUDA init, graph capture, warmup, and the optional post-load benchmark).
+	readinessTimeoutBase = 15 * time.Minute
+
+	// readinessTimeoutPerGiB scales the timeout with model weight size. It is sized
+	// for the worst case of downloading weights from HuggingFace at runtime over a
+	// ~60 MB/s link; loading from local or baked weights is far faster, so this is a
+	// safe upper bound. With the 15m base this gives a 150Gi model ~60 minutes.
+	readinessTimeoutPerGiB = 18 * time.Second
 )
 
-// readinessTimeoutForModelSize returns the startup probe timeout for a preset model
-// based on its weight size (from model_catalog.yaml). Models larger than
-// largeModelSizeThreshold get a longer timeout to accommodate the extended
-// download/load time; all others use the default.
+// readinessTimeoutForModelSize returns the startup-probe timeout for a preset
+// model, scaled by its weight size (from model_catalog.yaml). The timeout grows
+// linearly with size to cover longer download/load times for larger models —
+// readinessTimeoutBase + size × readinessTimeoutPerGiB — clamped to
+// [defaultReadinessTimeout, maxReadinessTimeout]. When the size is unknown or
+// unparsable it falls back to the floor.
 func readinessTimeoutForModelSize(modelFileSize string) time.Duration {
 	if modelFileSize == "" {
 		return defaultReadinessTimeout
@@ -55,11 +64,15 @@ func readinessTimeoutForModelSize(modelFileSize string) time.Duration {
 	if err != nil {
 		return defaultReadinessTimeout
 	}
-	threshold := resource.MustParse(largeModelSizeThreshold)
-	if size.Cmp(threshold) > 0 {
-		return largeModelReadinessTimeout
+	sizeGiB := float64(size.Value()) / float64(1<<30)
+	timeout := readinessTimeoutBase + time.Duration(sizeGiB*float64(readinessTimeoutPerGiB))
+	if timeout < defaultReadinessTimeout {
+		return defaultReadinessTimeout
 	}
-	return defaultReadinessTimeout
+	if timeout > maxReadinessTimeout {
+		return maxReadinessTimeout
+	}
+	return timeout
 }
 
 var (
@@ -76,8 +89,9 @@ func registerModel(hfModelCardID string, param *model.PresetParam) model.Model {
 	}
 
 	model := &vLLMCompatibleModel{
-		model:              param.Metadata,
-		generatedRunParams: param.VLLM.ModelRunParams,
+		model:               param.Metadata,
+		generatedRunParams:  param.VLLM.ModelRunParams,
+		speculativeDecoding: param.SpeculativeDecoding,
 	}
 	r := &plugin.Registration{
 		Name:     hfModelCardID,
@@ -94,11 +108,7 @@ func registerModel(hfModelCardID string, param *model.PresetParam) model.Model {
 // Pass an empty string for token when working with public models that require no authentication.
 func GetModelByNameWithToken(ctx context.Context, modelName, token string) (model.Model, error) {
 	modelName = strings.ToLower(modelName)
-	// Redirect legacy preset names (e.g. "phi-4") to their full HuggingFace
-	// model ID (e.g. "microsoft/phi-4").
-	if hfName, ok := plugin.LegacyBuiltinToCatalog[modelName]; ok {
-		modelName = hfName
-	}
+	modelName = plugin.ResolveHFModelID(modelName)
 	if m := plugin.KaitoModelRegister.MustGet(modelName); m != nil {
 		return m, nil
 	}
@@ -109,17 +119,25 @@ func GetModelByNameWithToken(ctx context.Context, modelName, token string) (mode
 }
 
 // GetModelByName returns a vLLM-compatible model for the given modelName.
+// The reserved name "custom" selects a bring-your-own model, resolved from the
+// configuration in the ConfigMap named by configMapName in secretNamespace.
 // If the modelName contains a "/", it fetches an access token from the
 // Kubernetes Secret identified by secretName and secretNamespace,
 // then generates a preset for the corresponding HuggingFace model.
 // Prefer GetModelByNameWithToken when the token has already been resolved by the caller.
-func GetModelByName(ctx context.Context, modelName, secretName, secretNamespace string, kubeClient client.Client) (model.Model, error) {
-	modelName = strings.ToLower(modelName)
-	// Redirect legacy preset names (e.g. "phi-4") to their full HuggingFace
-	// model ID (e.g. "microsoft/phi-4").
-	if hfName, ok := plugin.LegacyBuiltinToCatalog[modelName]; ok {
-		modelName = hfName
+func GetModelByName(ctx context.Context, modelName, configMapName, secretName, secretNamespace string, kubeClient client.Client) (model.Model, error) {
+	if plugin.IsCustomPreset(modelName) {
+		resolved, err := ResolveCustomModel(ctx, kubeClient, configMapName, secretNamespace)
+		if err != nil {
+			return nil, err
+		}
+		return resolved.Model, nil
 	}
+	if plugin.IsReservedCustomModelName(modelName) {
+		return nil, fmt.Errorf("model name %q is reserved: select preset %q and supply the model configuration through 'inference.config'", modelName, plugin.PresetNameCustom)
+	}
+	modelName = strings.ToLower(modelName)
+	modelName = plugin.ResolveHFModelID(modelName)
 	if m := plugin.KaitoModelRegister.MustGet(modelName); m != nil {
 		return m, nil
 	}
@@ -158,22 +176,24 @@ func generateHuggingFaceModel(modelName, token string) (model.Model, error) {
 }
 
 type vLLMCompatibleModel struct {
-	model              model.Metadata
-	generatedRunParams map[string]string // vLLM run params produced by the generator
+	model               model.Metadata
+	generatedRunParams  map[string]string // vLLM run params produced by the generator
+	speculativeDecoding *model.SpeculativeDecodingConfig
 }
 
 func (m *vLLMCompatibleModel) GetInferenceParameters() *model.PresetParam {
 	metaData := &model.Metadata{
-		Name:                 m.model.Name,
-		ModelType:            "text-generation",
-		Version:              m.model.Version,
-		Runtime:              "tfs",
-		DownloadAtRuntime:    true,
-		DownloadAuthRequired: m.model.DownloadAuthRequired,
-		Architectures:        m.model.Architectures,
-		QuantMethod:          m.model.QuantMethod,
-		QuantBits:            m.model.QuantBits,
-		AttnType:             m.model.AttnType,
+		Name:                    m.model.Name,
+		Version:                 m.model.Version,
+		DownloadAuthRequired:    m.model.DownloadAuthRequired,
+		Architectures:           m.model.Architectures,
+		QuantMethod:             m.model.QuantMethod,
+		QuantBits:               m.model.QuantBits,
+		AttnType:                m.model.AttnType,
+		MambaStateBytesPerSeq:   m.model.MambaStateBytesPerSeq,
+		MambaStateBytesPerLayer: m.model.MambaStateBytesPerLayer,
+		NumFullAttnLayers:       m.model.NumFullAttnLayers,
+		NumLinearLayers:         m.model.NumLinearLayers,
 	}
 
 	runParamsVLLM := make(map[string]string)
@@ -232,7 +252,8 @@ func (m *vLLMCompatibleModel) GetInferenceParameters() *model.PresetParam {
 			Transformers: tfsParam,
 			VLLM:         vllmParam,
 		},
-		ReadinessTimeout: readinessTimeoutForModelSize(m.model.ModelFileSize),
+		SpeculativeDecoding: m.speculativeDecoding,
+		ReadinessTimeout:    readinessTimeoutForModelSize(m.model.ModelFileSize),
 	}
 
 	return presetParam
@@ -243,17 +264,18 @@ func (m *vLLMCompatibleModel) GetTuningParameters() *model.PresetParam {
 	if !ok {
 		return nil
 	}
+	transformers := tc.Transformers.DeepCopy()
+	transformers.Tag = defaultTuningModelArtifactTag
 	return &model.PresetParam{
-		Metadata:                      MustGet(m.model.Name),
+		Metadata:                      m.model,
 		DiskStorageRequirement:        tc.DiskStorageRequirement,
-		GPUCountRequirement:           tc.GPUCountRequirement,
 		TotalSafeTensorFileSize:       tc.TotalSafeTensorFileSize,
 		ModelTokenLimit:               tc.ModelTokenLimit,
 		BytesPerToken:                 tc.BytesPerToken,
 		TuningPerGPUMemoryRequirement: tc.TuningPerGPUMemoryRequirement,
 		ReadinessTimeout:              tc.ReadinessTimeout,
 		RuntimeParam: model.RuntimeParam{
-			Transformers: tc.Transformers,
+			Transformers: transformers,
 		},
 	}
 }

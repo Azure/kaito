@@ -17,22 +17,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"knative.dev/pkg/apis"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
+	"github.com/kaito-project/kaito/pkg/featuregates"
+	"github.com/kaito-project/kaito/pkg/k8sclient"
+	mmconsts "github.com/kaito-project/kaito/pkg/modelmirror/consts"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
+	"github.com/kaito-project/kaito/pkg/utils/plugin"
 	"github.com/kaito-project/kaito/pkg/utils/test"
 )
 
@@ -49,10 +56,11 @@ func TestUpdateStatusConditionIfNotMatch(t *testing.T) {
 			Status: kaitov1beta1.InferenceSetStatus{
 				Conditions: []metav1.Condition{
 					{
-						Type:    string(kaitov1beta1.ConditionTypeResourceStatus),
-						Status:  metav1.ConditionTrue,
-						Reason:  "ResourcesReady",
-						Message: "All resources are ready",
+						Type:               string(kaitov1beta1.ConditionTypeResourceStatus),
+						Status:             metav1.ConditionTrue,
+						Reason:             "ResourcesReady",
+						Message:            "All resources are ready",
+						ObservedGeneration: 1,
 					},
 				},
 			},
@@ -65,6 +73,55 @@ func TestUpdateStatusConditionIfNotMatch(t *testing.T) {
 		assert.NoError(t, err)
 		// No client calls should be made since condition matches
 		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("Should update when observedGeneration differs", func(t *testing.T) {
+		mockClient := test.NewClient()
+
+		inferenceset := &kaitov1beta1.InferenceSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       "test-inferenceset",
+				Namespace:  "default",
+				Generation: 2,
+			},
+			Status: kaitov1beta1.InferenceSetStatus{
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(kaitov1beta1.ConditionTypeResourceStatus),
+						Status:             metav1.ConditionTrue,
+						Reason:             "ResourcesReady",
+						Message:            "All resources are ready",
+						ObservedGeneration: 1,
+					},
+				},
+			},
+		}
+
+		mockClient.On("Get", mock.IsType(context.Background()),
+			client.ObjectKey{Name: "test-inferenceset", Namespace: "default"},
+			mock.IsType(&kaitov1beta1.InferenceSet{}), mock.Anything).Run(func(args mock.Arguments) {
+			ws := args.Get(2).(*kaitov1beta1.InferenceSet)
+			*ws = *inferenceset
+		}).Return(nil)
+
+		mockClient.StatusMock.On("Update", mock.IsType(context.Background()),
+			mock.IsType(&kaitov1beta1.InferenceSet{}), mock.Anything).Run(func(args mock.Arguments) {
+			ws := args.Get(1).(*kaitov1beta1.InferenceSet)
+			condition := meta.FindStatusCondition(ws.Status.Conditions, string(kaitov1beta1.ConditionTypeResourceStatus))
+			assert.NotNil(t, condition)
+			assert.Equal(t, int64(2), condition.ObservedGeneration)
+			assert.Equal(t, metav1.ConditionTrue, condition.Status)
+			assert.Equal(t, "ResourcesReady", condition.Reason)
+			assert.Equal(t, "All resources are ready", condition.Message)
+		}).Return(nil)
+
+		ctx := context.Background()
+		err := UpdateStatusConditionIfNotMatch(ctx, mockClient, inferenceset,
+			kaitov1beta1.ConditionTypeResourceStatus, metav1.ConditionTrue, "ResourcesReady", "All resources are ready")
+
+		assert.NoError(t, err)
+		mockClient.AssertExpectations(t)
+		mockClient.StatusMock.AssertExpectations(t)
 	})
 
 	t.Run("Should update when condition status differs", func(t *testing.T) {
@@ -958,4 +1015,490 @@ func TestListWorkspaces(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewWorkspaceForInferenceSetPropagatesCapacityType(t *testing.T) {
+	is := &kaitov1beta1.InferenceSet{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"},
+		Spec: kaitov1beta1.InferenceSetSpec{
+			Template: kaitov1beta1.InferenceSetTemplate{
+				ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+					kaitov1beta1.AnnotationCapacityType: consts.KarpenterCapacityTypeSpot,
+				}},
+			},
+		},
+	}
+
+	ws := NewWorkspaceForInferenceSet(is)
+	assert.Equal(t, consts.KarpenterCapacityTypeSpot, ws.Annotations[kaitov1beta1.AnnotationCapacityType])
+}
+
+// The API server appends 5 random characters to GenerateName, so the prefix
+// must leave the generated Workspace name within MaxWorkspaceNameLength.
+func TestNewWorkspaceForInferenceSetGenerateName(t *testing.T) {
+	tests := []struct {
+		name             string
+		inferenceSetName string
+		want             string
+	}{
+		{name: "short name is kept", inferenceSetName: "phi-4-mini", want: "phi-4-mini-"},
+		{name: "longest name kept as is", inferenceSetName: strings.Repeat("a", 46), want: strings.Repeat("a", 46) + "-"},
+		{name: "long name is truncated", inferenceSetName: strings.Repeat("b", 63), want: strings.Repeat("b", 46) + "-"},
+		{
+			name:             "trailing dashes left by truncation are trimmed",
+			inferenceSetName: strings.Repeat("c", 44) + "--" + strings.Repeat("d", 17),
+			want:             strings.Repeat("c", 44) + "-",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := &kaitov1beta1.InferenceSet{ObjectMeta: metav1.ObjectMeta{Name: tt.inferenceSetName, Namespace: "default"}}
+			ws := NewWorkspaceForInferenceSet(is)
+			assert.Equal(t, tt.want, ws.GenerateName)
+			assert.LessOrEqual(t, len(ws.GenerateName)+5, kaitov1beta1.MaxWorkspaceNameLength)
+			assert.Equal(t, tt.inferenceSetName, ws.Labels[consts.WorkspaceCreatedByInferenceSetLabel])
+		})
+	}
+}
+
+func TestNewWorkspaceForInferenceSetSelectors(t *testing.T) {
+	orig := featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning]
+	t.Cleanup(func() { featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = orig })
+
+	specSelector := &metav1.LabelSelector{MatchLabels: map[string]string{"app": "llm"}}
+	nodeSelector := &metav1.LabelSelector{MatchLabels: map[string]string{"pool": "gpu"}}
+
+	tests := []struct {
+		name             string
+		byo              bool
+		resourceSelector *metav1.LabelSelector
+		want             *metav1.LabelSelector
+	}{
+		{name: "NAP inherits spec.labelSelector when unset", want: specSelector},
+		{name: "NAP inherits spec.labelSelector when empty", resourceSelector: &metav1.LabelSelector{}, want: specSelector},
+		{name: "NAP uses template.resource.labelSelector when set", resourceSelector: nodeSelector, want: nodeSelector},
+		{name: "BYO does not inherit spec.labelSelector", byo: true, want: nil},
+		{name: "BYO uses template.resource.labelSelector when set", byo: true, resourceSelector: nodeSelector, want: nodeSelector},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = tt.byo
+			is := &kaitov1beta1.InferenceSet{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"},
+				Spec: kaitov1beta1.InferenceSetSpec{
+					Selector: specSelector,
+					Template: kaitov1beta1.InferenceSetTemplate{
+						ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"team": "ml"}},
+						Resource:   kaitov1beta1.InferenceSetResourceSpec{LabelSelector: tt.resourceSelector},
+					},
+				},
+			}
+
+			ws := NewWorkspaceForInferenceSet(is)
+			assert.Equal(t, tt.want, ws.Resource.LabelSelector)
+			assert.Equal(t, map[string]string{
+				"app":  "llm",
+				"team": "ml",
+				consts.WorkspaceCreatedByInferenceSetLabel: "test-is",
+			}, ws.Labels)
+		})
+	}
+}
+
+func TestValidateWorkspaceForInferenceSet(t *testing.T) {
+	// BYO mode so an empty instanceType is valid and node-listing is skipped.
+	orig := featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning]
+	featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = true
+	t.Cleanup(func() {
+		featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = orig
+	})
+
+	newIS := func(inf kaitov1beta1.InferenceSpec) *kaitov1beta1.InferenceSet {
+		return &kaitov1beta1.InferenceSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"},
+			Spec: kaitov1beta1.InferenceSetSpec{
+				Template: kaitov1beta1.InferenceSetTemplate{Inference: inf},
+			},
+		}
+	}
+
+	tests := []struct {
+		name       string
+		inference  kaitov1beta1.InferenceSpec
+		wantErr    bool
+		errContent string
+	}{
+		{
+			name: "invalid preset name is rejected",
+			inference: kaitov1beta1.InferenceSpec{
+				Preset: &kaitov1beta1.PresetSpec{PresetMeta: kaitov1beta1.PresetMeta{Name: "invalid-preset"}},
+			},
+			wantErr:    true,
+			errContent: "Unsupported inference preset name invalid-preset",
+		},
+		{
+			name:       "neither preset nor template is rejected",
+			inference:  kaitov1beta1.InferenceSpec{},
+			wantErr:    true,
+			errContent: "Preset or Template must be specified",
+		},
+		{
+			name: "both preset and template is rejected",
+			inference: kaitov1beta1.InferenceSpec{
+				Preset:   &kaitov1beta1.PresetSpec{PresetMeta: kaitov1beta1.PresetMeta{Name: "invalid-preset"}},
+				Template: &corev1.PodTemplateSpec{},
+			},
+			wantErr:    true,
+			errContent: "Preset and Template cannot be set at the same time",
+		},
+		{
+			name:      "custom template on BYO nodes is accepted",
+			inference: kaitov1beta1.InferenceSpec{Template: &corev1.PodTemplateSpec{}},
+			wantErr:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateWorkspaceForInferenceSet(context.Background(), newIS(tt.inference))
+			if tt.wantErr {
+				assert.NotNil(t, err)
+				assert.Contains(t, err.Error(), tt.errContent)
+			} else {
+				assert.Nil(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateWorkspaceForInferenceSet_InstanceTypeProjectedOnBYO verifies
+// that a template-level instanceType is projected onto the child Workspace in
+// BYO mode, where Workspace accepts it to filter BYO nodes by SKU.
+func TestValidateWorkspaceForInferenceSet_InstanceTypeProjectedOnBYO(t *testing.T) {
+	orig := featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning]
+	origProvisioner := consts.ActiveNodeProvisioner
+	featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = true
+	consts.ActiveNodeProvisioner = consts.NodeProvisionerBYO
+	t.Cleanup(func() {
+		featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = orig
+		consts.ActiveNodeProvisioner = origProvisioner
+	})
+
+	is := &kaitov1beta1.InferenceSet{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"},
+		Spec: kaitov1beta1.InferenceSetSpec{
+			Template: kaitov1beta1.InferenceSetTemplate{
+				Resource:  kaitov1beta1.InferenceSetResourceSpec{InstanceType: "Standard_NC6s_v3"},
+				Inference: kaitov1beta1.InferenceSpec{Template: &corev1.PodTemplateSpec{}},
+			},
+		},
+	}
+
+	assert.Equal(t, "Standard_NC6s_v3", NewWorkspaceForInferenceSet(is).Resource.InstanceType)
+	assert.Nil(t, ValidateWorkspaceForInferenceSet(context.Background(), is))
+}
+
+// useFakeGlobalClient installs an empty fake client for the BYO create-time
+// checks of preset inference, which list nodes and read ConfigMaps.
+func useFakeGlobalClient(t *testing.T) {
+	orig := k8sclient.GetGlobalClient()
+	k8sclient.SetGlobalClient(fake.NewClientBuilder().Build())
+	t.Cleanup(func() { k8sclient.SetGlobalClient(orig) })
+}
+
+func TestValidateWorkspaceForInferenceSet_Update(t *testing.T) {
+	origNAP := featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning]
+	origStreaming := featuregates.FeatureGates[consts.FeatureFlagModelStreaming]
+	origProvisioner := consts.ActiveNodeProvisioner
+	useFakeGlobalClient(t)
+	t.Cleanup(func() {
+		featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = origNAP
+		featuregates.FeatureGates[consts.FeatureFlagModelStreaming] = origStreaming
+		consts.ActiveNodeProvisioner = origProvisioner
+	})
+
+	base := func() *kaitov1beta1.InferenceSet {
+		return &kaitov1beta1.InferenceSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"},
+			Spec: kaitov1beta1.InferenceSetSpec{
+				Replicas: lo.ToPtr(int32(1)),
+				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "llm"}},
+				Template: kaitov1beta1.InferenceSetTemplate{
+					ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+						kaitov1beta1.AnnotationCapacityType: consts.KarpenterCapacityTypeOnDemand,
+					}},
+					Resource:  kaitov1beta1.InferenceSetResourceSpec{InstanceType: "Standard_NC6s_v3"},
+					Inference: kaitov1beta1.InferenceSpec{Template: &corev1.PodTemplateSpec{}},
+				},
+			},
+		}
+	}
+	withPreset := func(name string) func(*kaitov1beta1.InferenceSet) {
+		return func(is *kaitov1beta1.InferenceSet) {
+			is.Spec.Template.Inference = kaitov1beta1.InferenceSpec{
+				Preset: &kaitov1beta1.PresetSpec{PresetMeta: kaitov1beta1.PresetMeta{Name: kaitov1beta1.ModelName(name)}},
+			}
+		}
+	}
+	withCustomConfig := func(config string) func(*kaitov1beta1.InferenceSet) {
+		return func(is *kaitov1beta1.InferenceSet) {
+			withPreset(plugin.PresetNameCustom)(is)
+			is.Spec.Template.Inference.Config = config
+		}
+	}
+	setAnnotation := func(key, value string) func(*kaitov1beta1.InferenceSet) {
+		return func(is *kaitov1beta1.InferenceSet) { is.Spec.Template.Annotations[key] = value }
+	}
+
+	tests := []struct {
+		name        string
+		provisioner string
+		streaming   bool
+		mutateOld   func(*kaitov1beta1.InferenceSet)
+		mutateNew   func(*kaitov1beta1.InferenceSet)
+		wantErr     string
+		wantErrOnce string
+	}{
+		{
+			name:        "instanceType change is rejected with node auto-provisioning",
+			provisioner: consts.NodeProvisionerKarpenter,
+			mutateNew:   func(is *kaitov1beta1.InferenceSet) { is.Spec.Template.Resource.InstanceType = "Standard_NC12s_v3" },
+			wantErr:     "instanceType cannot be changed once set",
+		},
+		{
+			name:        "instanceType change is rejected on BYO nodes",
+			provisioner: consts.NodeProvisionerBYO,
+			mutateNew:   func(is *kaitov1beta1.InferenceSet) { is.Spec.Template.Resource.InstanceType = "Standard_NC12s_v3" },
+			wantErr:     "instanceType cannot be changed once set",
+		},
+		{
+			name:        "partition change is rejected",
+			provisioner: consts.NodeProvisionerBYO,
+			mutateNew: func(is *kaitov1beta1.InferenceSet) {
+				is.Spec.Template.Resource.Partition = &kaitov1beta1.PartitionSpec{Mode: kaitov1beta1.PartitionModeAccelerator, Count: lo.ToPtr(2)}
+			},
+			wantErr: "field is immutable: spec.template.resource.partition",
+		},
+		{
+			name:        "labelSelector change is rejected at spec.labelSelector",
+			provisioner: consts.NodeProvisionerBYO,
+			mutateNew:   func(is *kaitov1beta1.InferenceSet) { is.Spec.Selector.MatchLabels["app"] = "other" },
+			wantErrOnce: "field is immutable: spec.labelSelector",
+		},
+		{
+			name:        "template.resource.labelSelector change is rejected",
+			provisioner: consts.NodeProvisionerBYO,
+			mutateNew: func(is *kaitov1beta1.InferenceSet) {
+				is.Spec.Template.Resource.LabelSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"pool": "gpu"}}
+			},
+			wantErr: "field is immutable: spec.template.resource.labelSelector",
+		},
+		{
+			name:        "inherited labelSelector change is reported only at spec.labelSelector",
+			provisioner: consts.NodeProvisionerKarpenter,
+			mutateNew:   func(is *kaitov1beta1.InferenceSet) { is.Spec.Selector.MatchLabels["app"] = "other" },
+			wantErrOnce: "labelSelector",
+		},
+		{
+			name:        "preset change is rejected",
+			provisioner: consts.NodeProvisionerBYO,
+			mutateOld:   withPreset("old-preset"),
+			mutateNew:   withPreset("new-preset"),
+			wantErr:     "field is immutable: spec.template.inference.preset\n",
+		},
+		{
+			name:        "custom preset config change is rejected",
+			provisioner: consts.NodeProvisionerBYO,
+			mutateOld:   withCustomConfig("model-a"),
+			mutateNew:   withCustomConfig("model-b"),
+			wantErr:     "field is immutable for preset \"custom\"",
+		},
+		{
+			name:        "setting inference.template is rejected",
+			provisioner: consts.NodeProvisionerBYO,
+			mutateOld:   withPreset("some-preset"),
+			mutateNew:   func(is *kaitov1beta1.InferenceSet) { is.Spec.Template.Inference.Template = &corev1.PodTemplateSpec{} },
+			wantErr:     "field cannot be unset/set if it was set/unset: spec.template.inference.template",
+		},
+		{
+			name:        "unsetting inference.template is rejected",
+			provisioner: consts.NodeProvisionerBYO,
+			mutateNew:   withPreset("some-preset"),
+			wantErr:     "field cannot be unset/set if it was set/unset: spec.template.inference.template",
+		},
+		{
+			name:        "capacity type change is rejected",
+			provisioner: consts.NodeProvisionerKarpenter,
+			mutateNew:   setAnnotation(kaitov1beta1.AnnotationCapacityType, consts.KarpenterCapacityTypeSpot),
+			wantErr:     "annotation kaito.sh/capacity-type is immutable after creation",
+		},
+		{
+			name:        "model-streaming annotation change is rejected when ModelStreaming is enabled",
+			provisioner: consts.NodeProvisionerBYO,
+			streaming:   true,
+			mutateNew:   setAnnotation(mmconsts.AnnotationModelStreaming, "true"),
+			wantErr:     "annotation kaito.sh/model-streaming is immutable after creation",
+		},
+		{
+			name:        "invalid speculative-decoding value on template change is reported once",
+			provisioner: consts.NodeProvisionerBYO,
+			mutateNew:   setAnnotation(kaitov1beta1.AnnotationEnableSpeculativeDecoding, "yes"),
+			wantErrOnce: "spec.template.metadata.annotations[kaito.sh/enable-speculative-decoding]",
+		},
+		{
+			name:        "replicas-only change skips create-time checks",
+			provisioner: consts.NodeProvisionerBYO,
+			mutateOld:   withPreset("removed-preset"),
+			mutateNew: func(is *kaitov1beta1.InferenceSet) {
+				withPreset("removed-preset")(is)
+				is.Spec.Replicas = lo.ToPtr(int32(3))
+			},
+		},
+		{
+			name:        "template change re-runs create-time checks",
+			provisioner: consts.NodeProvisionerBYO,
+			mutateOld:   withPreset("removed-preset"),
+			mutateNew: func(is *kaitov1beta1.InferenceSet) {
+				withPreset("removed-preset")(is)
+				setAnnotation(kaitov1beta1.AnnotationPerformanceMode, kaitov1beta1.PerformanceModeThroughput)(is)
+			},
+			wantErr: "Unsupported inference preset name removed-preset",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			consts.ActiveNodeProvisioner = tt.provisioner
+			featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = tt.provisioner == consts.NodeProvisionerBYO
+			featuregates.FeatureGates[consts.FeatureFlagModelStreaming] = tt.streaming
+
+			old, updated := base(), base()
+			if tt.mutateOld != nil {
+				tt.mutateOld(old)
+			}
+			if tt.mutateNew != nil {
+				tt.mutateNew(updated)
+			}
+
+			err := ValidateWorkspaceForInferenceSet(apis.WithinUpdate(context.Background(), old), updated)
+			switch {
+			case tt.wantErr != "":
+				assert.NotNil(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			case tt.wantErrOnce != "":
+				assert.NotNil(t, err)
+				assert.Equal(t, 1, strings.Count(err.Error(), tt.wantErrOnce), err.Error())
+			default:
+				assert.Nil(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateWorkspaceForInferenceSet_CreateAnnotations(t *testing.T) {
+	origNAP := featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning]
+	origVLLM := featuregates.FeatureGates[consts.FeatureFlagVLLM]
+	origProvisioner := consts.ActiveNodeProvisioner
+	useFakeGlobalClient(t)
+	t.Cleanup(func() {
+		featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = origNAP
+		featuregates.FeatureGates[consts.FeatureFlagVLLM] = origVLLM
+		consts.ActiveNodeProvisioner = origProvisioner
+	})
+
+	newIS := func(annotations map[string]string, inference kaitov1beta1.InferenceSpec) *kaitov1beta1.InferenceSet {
+		return &kaitov1beta1.InferenceSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"},
+			Spec: kaitov1beta1.InferenceSetSpec{
+				Template: kaitov1beta1.InferenceSetTemplate{
+					ObjectMeta: metav1.ObjectMeta{Annotations: annotations},
+					Inference:  inference,
+				},
+			},
+		}
+	}
+	podTemplate := kaitov1beta1.InferenceSpec{Template: &corev1.PodTemplateSpec{}}
+	specDecodingField := "spec.template.metadata.annotations[kaito.sh/enable-speculative-decoding]"
+
+	tests := []struct {
+		name        string
+		provisioner string
+		vllm        bool
+		is          *kaitov1beta1.InferenceSet
+		wantErr     string
+	}{
+		{
+			name:        "unsupported capacity type is rejected with Karpenter",
+			provisioner: consts.NodeProvisionerKarpenter,
+			vllm:        true,
+			is:          newIS(map[string]string{kaitov1beta1.AnnotationCapacityType: "reserved"}, podTemplate),
+			wantErr:     "\"reserved\" is not a supported capacity type",
+		},
+		{
+			name:        "invalid speculative-decoding value is rejected",
+			provisioner: consts.NodeProvisionerBYO,
+			vllm:        true,
+			is:          newIS(map[string]string{kaitov1beta1.AnnotationEnableSpeculativeDecoding: "yes"}, podTemplate),
+			wantErr:     specDecodingField,
+		},
+		{
+			name:        "speculative decoding without a preset is rejected",
+			provisioner: consts.NodeProvisionerBYO,
+			vllm:        true,
+			is:          newIS(map[string]string{kaitov1beta1.AnnotationEnableSpeculativeDecoding: "true"}, podTemplate),
+			wantErr:     "requires a preset inference",
+		},
+		{
+			name:        "speculative decoding with the vLLM feature gate disabled is rejected",
+			provisioner: consts.NodeProvisionerBYO,
+			vllm:        false,
+			is: newIS(map[string]string{kaitov1beta1.AnnotationEnableSpeculativeDecoding: "true"}, kaitov1beta1.InferenceSpec{
+				Preset: &kaitov1beta1.PresetSpec{PresetMeta: kaitov1beta1.PresetMeta{Name: "deepseek-r1-0528"}},
+			}),
+			wantErr: "requires the vLLM runtime",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			consts.ActiveNodeProvisioner = tt.provisioner
+			featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = tt.provisioner == consts.NodeProvisionerBYO
+			featuregates.FeatureGates[consts.FeatureFlagVLLM] = tt.vllm
+
+			err := ValidateWorkspaceForInferenceSet(context.Background(), tt.is)
+			assert.NotNil(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+// TestValidateWorkspaceForInferenceSet_NAPDoesNotPanicOnNilCount reproduces the
+// regression where the projected Workspace had no Resource.Count: the NAP code
+// path in validateCreateWithInference dereferenced r.Count, which panicked the
+// InferenceSet admission webhook. Validation now guards the nil deref.
+func TestValidateWorkspaceForInferenceSet_NAPDoesNotPanicOnNilCount(t *testing.T) {
+	t.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
+	origNAP := featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning]
+	origProvisioner := consts.ActiveNodeProvisioner
+	featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = false
+	consts.ActiveNodeProvisioner = consts.NodeProvisionerAzureGPU
+	t.Cleanup(func() {
+		featuregates.FeatureGates[consts.FeatureFlagDisableNodeAutoProvisioning] = origNAP
+		consts.ActiveNodeProvisioner = origProvisioner
+	})
+
+	is := &kaitov1beta1.InferenceSet{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-is", Namespace: "default"},
+		Spec: kaitov1beta1.InferenceSetSpec{
+			Template: kaitov1beta1.InferenceSetTemplate{
+				Resource:  kaitov1beta1.InferenceSetResourceSpec{InstanceType: "Standard_NC6s_v3"},
+				Inference: kaitov1beta1.InferenceSpec{Template: &corev1.PodTemplateSpec{}},
+			},
+		},
+	}
+
+	assert.NotPanics(t, func() {
+		_ = ValidateWorkspaceForInferenceSet(context.Background(), is)
+	})
 }

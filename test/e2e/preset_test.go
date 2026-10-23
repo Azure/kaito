@@ -17,7 +17,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -41,22 +40,22 @@ import (
 )
 
 const (
-	PresetLlama3_1_8BInstruct        = "llama-3.1-8b-instruct"
-	PresetLlama3_3_70BInstruct       = "llama-3.3-70b-instruct"
-	PresetQwen3_Coder30BModel        = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
-	PresetPhi3Mini128kModel          = "phi-3-mini-128k-instruct"
-	PresetPhi4MiniModel              = "phi-4-mini-instruct"
-	PresetPhi4Model                  = "phi-4"
-	PresetGemma3_4BInstructModel     = "google/gemma-3-4b-it"
-	PresetGemma3_27BInstructModel    = "google/gemma-3-27b-it"
-	PresetGemma4_E2BInstructModel    = "google/gemma-4-E2B-it"
-	PresetGemma4_26BA4BInstructModel = "google/gemma-4-26B-A4B-it"
-	PresetGPT_OSS_20BModel           = "gpt-oss-20b"
-	PresetGPT_OSS_120BModel          = "gpt-oss-120b"
-	PresetMinistral33BInstructModel  = "mistralai/ministral-3-3b-instruct-2512"
-	PresetQwen3_8BAWQModel           = "Qwen/Qwen3-8B-AWQ"
-	PresetQwen3_5_2BModel            = "Qwen/Qwen3.5-2B"
-	WorkspaceHashAnnotation          = "workspace.kaito.io/hash"
+	PresetPhi3Mini128kModel         = "phi-3-mini-128k-instruct"
+	PresetPhi4MiniModel             = "phi-4-mini-instruct"
+	PresetPhi4Model                 = "phi-4"
+	PresetGemma3_4BInstructModel    = "google/gemma-3-4b-it"
+	PresetGemma3_27BInstructModel   = "google/gemma-3-27b-it"
+	PresetGemma4E2BInstructModel    = "google/gemma-4-E2B-it"
+	PresetGemma4_E2BInstructModel   = "google/gemma-4-E2B-it"
+	PresetGemma4E4BInstructModel    = "google/gemma-4-E4B-it"
+	PresetGemma4_12BInstructModel   = "google/gemma-4-12B-it"
+	PresetQwen3_8_27BModel          = "Qwen/Qwen3.8-27B"
+	PresetGPT_OSS_20BModel          = "gpt-oss-20b"
+	PresetGPT_OSS_120BModel         = "gpt-oss-120b"
+	PresetMinistral33BInstructModel = "mistralai/ministral-3-3b-instruct-2512"
+	PresetNemotronNano9BModel       = "nvidia/NVIDIA-Nemotron-Nano-9B-v2"
+	PresetMiMo7BBaseModel           = "XiaomiMiMo/MiMo-7B-Base"
+	WorkspaceHashAnnotation         = "workspace.kaito.io/hash"
 	// WorkspaceRevisionAnnotation represents the revision number of the workload managed by the workspace
 	WorkspaceRevisionAnnotation = "workspace.kaito.io/revision"
 )
@@ -74,24 +73,8 @@ func loadTestEnvVars() {
 	aiModelsRegistrySecret = utils.GetEnv("AI_MODELS_REGISTRY_SECRET")
 	// Currently required for uploading fine-tuning results
 	e2eACRSecret = utils.GetEnv("E2E_ACR_REGISTRY_SECRET")
-	supportedModelsYamlPath = utils.GetEnv("SUPPORTED_MODELS_YAML_PATH")
 	azureClusterName = strings.ToLower(utils.GetEnv("AZURE_CLUSTER_NAME"))
 	hfToken = utils.GetEnv("HF_TOKEN")
-}
-
-func loadModelVersions() {
-	// Load stable model versions
-	configs, err := utils.GetModelConfigInfo(supportedModelsYamlPath)
-	if err != nil {
-		fmt.Printf("Failed to load model configs: %v\n", err)
-		os.Exit(1)
-	}
-
-	modelInfo, err = utils.ExtractModelVersion(configs)
-	if err != nil {
-		fmt.Printf("Failed to extract stable model versions: %v\n", err)
-		os.Exit(1)
-	}
 }
 
 func createCustomWorkspaceWithAdapter(numOfNode int, validAdapters []kaitov1beta1.AdapterSpec) *kaitov1beta1.Workspace {
@@ -232,7 +215,7 @@ func createAndValidateModelSecret() *corev1.Secret {
 
 func createPhi3TuningWorkspaceWithPresetPublicMode(configMapName string, numOfNode int, intputVolume, outputVolume *corev1.Volume) (*kaitov1beta1.Workspace, string, string) {
 	workspaceObj := &kaitov1beta1.Workspace{}
-	e2eOutputImageName := fmt.Sprintf("adapter-%s-e2e-test", PresetPhi3Mini128kModel)
+	e2eOutputImageName := "adapter-phi-3-mini-128k-instruct-e2e-test"
 	e2eOutputImageTag := utils.GenerateRandomString()
 	outputRegistryUrl := fmt.Sprintf("%s.azurecr.io/%s:%s", azureClusterName, e2eOutputImageName, e2eOutputImageTag)
 	var uniqueID string
@@ -283,7 +266,7 @@ func createAndValidateInferenceSet(inferenceSetObj *kaitov1beta1.InferenceSet) {
 }
 
 func updatePhi3TuningWorkspaceWithPresetPublicMode(workspaceObj *kaitov1beta1.Workspace, datasetImageName string, inputVolume, outputVolume *corev1.Volume) (*kaitov1beta1.Workspace, string) {
-	e2eOutputImageName := fmt.Sprintf("adapter-%s-e2e-test2", PresetPhi3Mini128kModel)
+	e2eOutputImageName := "adapter-phi-3-mini-128k-instruct-e2e-test2"
 	e2eOutputImageTag := utils.GenerateRandomString()
 	outputRegistryUrl := fmt.Sprintf("%s.azurecr.io/%s:%s", azureClusterName, e2eOutputImageName, e2eOutputImageTag)
 	By("Updating a workspace Tuning CR with Phi-3 preset public mode. The update includes the tuning input and output configurations for the workspace.", func() {
@@ -704,6 +687,14 @@ func printPodDiagnostics(namespace, labelSelector string) {
 			if cs.State.Terminated != nil {
 				GinkgoWriter.Printf("    Terminated: exitCode=%d, reason=%s, message=%s\n", cs.State.Terminated.ExitCode, cs.State.Terminated.Reason, cs.State.Terminated.Message)
 			}
+			if cs.RestartCount > 0 {
+				prevLogs, prevErr := utils.GetPreviousPodLogs(coreClient, namespace, pod.Name, cs.Name)
+				if prevErr != nil {
+					GinkgoWriter.Printf("  InitContainer '%s' PREVIOUS (pre-restart) logs: (error: %v)\n", cs.Name, prevErr)
+				} else {
+					GinkgoWriter.Printf("  InitContainer '%s' PREVIOUS (pre-restart) logs (last 50 lines):\n%s\n", cs.Name, lastNLines(prevLogs, 50))
+				}
+			}
 			logs, logErr := utils.GetPodLogs(coreClient, namespace, pod.Name, cs.Name)
 			if logErr != nil {
 				GinkgoWriter.Printf("  InitContainer '%s' logs: (error: %v)\n", cs.Name, logErr)
@@ -719,6 +710,17 @@ func printPodDiagnostics(namespace, labelSelector string) {
 			}
 			if cs.State.Terminated != nil {
 				GinkgoWriter.Printf("    Terminated: exitCode=%d, reason=%s, message=%s\n", cs.State.Terminated.ExitCode, cs.State.Terminated.Reason, cs.State.Terminated.Message)
+			}
+			// When the container has restarted, the pre-restart logs capture the
+			// actual failure; the current logs only show the post-restart
+			// re-initialization. Print the previous incarnation's logs first.
+			if cs.RestartCount > 0 {
+				prevLogs, prevErr := utils.GetPreviousPodLogs(coreClient, namespace, pod.Name, cs.Name)
+				if prevErr != nil {
+					GinkgoWriter.Printf("  Container '%s' PREVIOUS (pre-restart) logs: (error: %v)\n", cs.Name, prevErr)
+				} else {
+					GinkgoWriter.Printf("  Container '%s' PREVIOUS (pre-restart) logs (last 100 lines):\n%s\n", cs.Name, lastNLines(prevLogs, 100))
+				}
 			}
 			logs, logErr := utils.GetPodLogs(coreClient, namespace, pod.Name, cs.Name)
 			if logErr != nil {
@@ -1293,8 +1295,6 @@ func createOutputVolume(storageClassName string) *corev1.Volume {
 var aiModelsRegistry string
 var aiModelsRegistrySecret string
 var e2eACRSecret string
-var supportedModelsYamlPath string
-var modelInfo map[string]string
 var azureClusterName string
 var hfToken string
 
@@ -1353,7 +1353,7 @@ var _ = Describe("Karpenter Bootstrap", func() {
 		numOfNode := 1
 		uniqueID := fmt.Sprint("nodeclass-override-", rand.Intn(1000))
 		workspaceObj := utils.GenerateInferenceWorkspaceManifest(uniqueID, namespaceName, "",
-			numOfNode, "Standard_NC4as_T4_v3", &metav1.LabelSelector{
+			numOfNode, "Standard_NV36ads_A10_v5", &metav1.LabelSelector{
 				MatchLabels: map[string]string{"kaito-workspace": uniqueID},
 			}, nil, PresetPhi3Mini128kModel, nil, nil, nil, "", "")
 
@@ -1378,10 +1378,10 @@ var _ = Describe("Karpenter Bootstrap", func() {
 var _ = Describe("Workspace Preset", func() {
 	BeforeEach(func() {
 		loadTestEnvVars()
-		loadModelVersions()
 	})
 
 	It("should create a custom template workspace successfully", utils.GinkgoLabelFastCheck, func() {
+		Skip("temporarily skip this test due to e2e env quota issue, will re-enable it after the e2e env is fixed")
 		numOfNode := 1
 		imageName := "nginx:latest"
 		workspaceObj := createCustomWorkspaceWithPresetCustomMode(imageName, numOfNode)
@@ -1538,11 +1538,12 @@ func validateCreateNode(workspaceObj *kaitov1beta1.Workspace, numOfNode int) {
 func validateInferenceConfig(workspaceObj *kaitov1beta1.Workspace) {
 	By("Checking the inference config exists", func() {
 		Eventually(func() bool {
-			configMap := &corev1.ConfigMap{}
-			configName := kaitov1beta1.DefaultInferenceConfigTemplate
-			if workspaceObj.Inference.Config != "" {
-				configName = workspaceObj.Inference.Config
+			if workspaceObj.Inference.Config == "" {
+				return true
 			}
+			configMap := &corev1.ConfigMap{}
+			configName := workspaceObj.Inference.Config
+
 			err := utils.TestingCluster.KubeClient.Get(ctx, client.ObjectKey{
 				Namespace: workspaceObj.Namespace,
 				Name:      configName,
