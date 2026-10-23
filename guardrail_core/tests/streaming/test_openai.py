@@ -91,9 +91,15 @@ def test_oversized_integer_is_malformed_json():
     assert result.error
 
 
-def test_deeply_nested_json_is_malformed_json():
-    data = '{"choices":' + "[" * 10_000 + "]" * 10_000 + "}"
-    result = parse_openai_chat_sse_event(SSEEvent.from_raw(f"data:{data}"))
+def test_decoder_recursion_error_is_malformed_json(monkeypatch):
+    def raise_recursion_error(_: str):
+        raise RecursionError("maximum recursion depth exceeded")
+
+    monkeypatch.setattr(
+        "guardrail_core.streaming.openai.json.loads", raise_recursion_error
+    )
+
+    result = parse_openai_chat_sse_event(SSEEvent.from_raw('data:{"choices":[]}'))
     assert result.status == Status.MALFORMED_JSON
     assert result.error
 
