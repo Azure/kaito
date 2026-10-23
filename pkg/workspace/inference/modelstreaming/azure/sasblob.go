@@ -40,7 +40,7 @@ var fetchSASScript string
 const (
 	// sasInitImage is the minimal Python image the SAS-fetch init container runs on. It carries
 	// no cloud SDKs; azure-identity is pip-installed at container start (see initShellCommand).
-	sasInitImage = "python:3.12-slim"
+	sasInitImage = "python:3.13-slim"
 	// azureIdentityVersion is the azure-identity version pip-installed at runtime by the init
 	// container. Kept in sync with the pin previously in the base image requirements.txt.
 	azureIdentityVersion = "1.19.0"

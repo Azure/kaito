@@ -83,7 +83,7 @@ func TestSASBlobProvider_GetStreamingConfig(t *testing.T) {
 
 	ic := cfg.InitContainers[0]
 	assert.Equal(t, "fetch-sas", ic.Name)
-	assert.Equal(t, "python:3.12-slim", ic.Image)
+	assert.Equal(t, "python:3.13-slim", ic.Image)
 	assert.Equal(t, []string{"/bin/sh", "-c", initShellCommand}, ic.Command)
 	// init container mounts both the shared volume and the script ConfigMap.
 	assert.Len(t, ic.VolumeMounts, 2)

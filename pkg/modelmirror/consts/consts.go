@@ -50,7 +50,7 @@ const (
 	LabelModelMirrorName = "kaito.sh/model-mirror-name"
 
 	// Downloader image
-	DownloaderImage = "mcr.microsoft.com/mirror/docker/library/python:3.11-slim"
+	DownloaderImage = "python:3.13-slim"
 
 	// huggingface-hub version
 	HuggingFaceHubVersion = "1.18.0"
