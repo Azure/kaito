@@ -129,6 +129,46 @@ def _emitted_text(chunks):
     return text
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scan_stage", ["feed", "done", "finish", "eof"])
+async def test_scanner_exception_refuses_without_releasing_pending_text(
+    monkeypatch, caplog, scan_stage
+):
+    closed = False
+
+    def failing_scan(scanners, prompt, output, fail_fast):
+        raise RuntimeError("scanner failed")
+
+    monkeypatch.setattr("ragengine.streaming.guardrails.scan_output", failing_scan)
+
+    async def upstream():
+        nonlocal closed
+        try:
+            content = "un" * 200 if scan_stage == "feed" else "un"
+            payload = {"choices": [{"index": 0, "delta": {"content": content}}]}
+            yield f"data: {json.dumps(payload)}\n\n"
+            if scan_stage == "finish":
+                yield 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
+            elif scan_stage != "eof":
+                yield "data: [DONE]\n\n"
+        finally:
+            closed = True
+
+    chunks = [
+        chunk
+        async for chunk in apply_streaming_guardrails(
+            upstream(), _streaming_guardrails(_ban_substrings_scanner()), {}
+        )
+    ]
+
+    assert _emitted_text(chunks) == "blocked-by-policy"
+    assert len(chunks) == 3
+    assert "content_filter" in chunks[-2]
+    assert chunks[-1] == "data: [DONE]\n\n"
+    assert "streaming_guardrails_scan_failed" in caplog.text
+    assert closed
+
+
 def test_validate_streaming_guardrails_accepts_block_ban_substrings_policy():
     support = validate_streaming_guardrails(
         OutputGuardrails(
