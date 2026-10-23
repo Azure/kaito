@@ -224,8 +224,9 @@ func TestMutationEntryPoints_InvalidOpportunisticAttachmentSkip(t *testing.T) {
 			},
 		},
 	}
-	if err := SetCacheMutations()(generatorContext, ss); err != nil {
-		t.Fatalf("SetCacheMutations() error = %v", err)
+	if err := ApplyPresetCacheMutations(generatorContext.Ctx, generatorContext.Workspace,
+		generatorContext.KubeClient, generatorContext.Model, ss); err != nil {
+		t.Fatalf("ApplyPresetCacheMutations() error = %v", err)
 	}
 	if len(ss.Spec.Template.Spec.Containers[0].Env) != 0 || len(ss.Spec.Template.Spec.Volumes) != 0 {
 		t.Fatal("invalid Opportunistic attachment must not mutate the pod spec")
@@ -497,7 +498,7 @@ func TestCollectMutations_WithBothConcernsMergesLabelsAndEnvVars(t *testing.T) {
 	}
 }
 
-func TestSetCacheMutations_AppliesLabels(t *testing.T) {
+func TestApplyPresetCacheMutations_AppliesLabels(t *testing.T) {
 	isolateProviderRegistry(t)
 	featuregates.FeatureGates[consts.FeatureFlagDistributedCache] = true
 	defer func() { featuregates.FeatureGates[consts.FeatureFlagDistributedCache] = false }()
@@ -537,7 +538,7 @@ func TestSetCacheMutations_AppliesLabels(t *testing.T) {
 		},
 	}
 
-	if err := SetCacheMutations()(ctx, ss); err != nil {
+	if err := ApplyPresetCacheMutations(ctx.Ctx, ctx.Workspace, ctx.KubeClient, ctx.Model, ss); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if ss.Spec.Template.Labels["model-label"] != "enabled" {

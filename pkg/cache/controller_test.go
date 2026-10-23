@@ -78,12 +78,12 @@ func TestControllerReconcileDiscoversProviders(t *testing.T) {
 		t.Fatalf("expected requeue after %s, got %s", ReadinessCheckInterval, result.RequeueAfter)
 	}
 
-	noopStatus := controller.GetProviderStatus("noop-test")
+	noopStatus := controller.getStatus("noop-test")
 	if noopStatus == nil || !noopStatus.Available || !noopStatus.Ready {
 		t.Fatalf("expected noop provider status to be ready, got %#v", noopStatus)
 	}
 
-	mockStatus := controller.GetProviderStatus("stateful-test")
+	mockStatus := controller.getStatus("stateful-test")
 	if mockStatus == nil {
 		t.Fatal("expected stateful provider status to be recorded")
 	}
@@ -103,7 +103,7 @@ func TestControllerReconcileProviderStateTransition(t *testing.T) {
 		t.Fatalf("unexpected error on first reconcile: %v", err)
 	}
 
-	status := controller.GetProviderStatus("stateful-test")
+	status := controller.getStatus("stateful-test")
 	if status == nil || status.Available || status.Ready {
 		t.Fatalf("expected unavailable provider status, got %#v", status)
 	}
@@ -116,7 +116,7 @@ func TestControllerReconcileProviderStateTransition(t *testing.T) {
 		t.Fatalf("unexpected error on second reconcile: %v", err)
 	}
 
-	status = controller.GetProviderStatus("stateful-test")
+	status = controller.getStatus("stateful-test")
 	if status == nil {
 		t.Fatal("expected provider status after transition")
 	}

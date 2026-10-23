@@ -143,11 +143,6 @@ func (c *Controller) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	return reconcile.Result{RequeueAfter: ReadinessCheckInterval}, nil
 }
 
-// GetProviderStatus returns the cached status for a provider.
-func (c *Controller) GetProviderStatus(name ProviderName) *ProviderStatus {
-	return c.getStatus(name)
-}
-
 // SetupWithManager registers periodic provider readiness monitoring.
 func (c *Controller) SetupWithManager(mgr ctrl.Manager) error {
 	return mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {

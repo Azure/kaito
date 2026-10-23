@@ -11,24 +11,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cache
+package cachetest
 
 import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/kaito-project/kaito/pkg/cache"
 )
 
-// This file holds the provider-agnostic assertion helpers used by both the
-// unit-level conformance suite (against raw PodMutations) and the e2e conformance
-// suite (against a deployed pod spec). Keeping the assertions here — rather than in
-// a _test.go file — lets the e2e (ginkgo) suite reuse exactly the same contract
-// checks the unit tests use, so a provider is verified identically offline and online.
-
-// AssertMutations validates a raw PodMutations result against a MutationExpectation.
-// It returns a slice of errors describing every unmet expectation (empty when the
-// mutations conform).
-func AssertMutations(m *PodMutations, exp MutationExpectation) []error {
+// AssertMutations validates raw pod mutations against an expectation.
+func AssertMutations(m *cache.PodMutations, exp MutationExpectation) []error {
 	var errs []error
 
 	if m == nil {
@@ -54,7 +48,6 @@ func AssertMutations(m *PodMutations, exp MutationExpectation) []error {
 		return errs
 	}
 
-	// Required labels.
 	for k, v := range exp.RequiredLabels {
 		got, ok := m.Labels[k]
 		if !ok {
@@ -66,7 +59,6 @@ func AssertMutations(m *PodMutations, exp MutationExpectation) []error {
 		}
 	}
 
-	// Required env vars.
 	envNames := make(map[string]struct{}, len(m.EnvVars))
 	for _, e := range m.EnvVars {
 		envNames[e.Name] = struct{}{}
@@ -77,21 +69,19 @@ func AssertMutations(m *PodMutations, exp MutationExpectation) []error {
 		}
 	}
 
-	// Required volumes.
-	volNames := make(map[string]struct{}, len(m.Volumes))
-	for _, v := range m.Volumes {
-		volNames[v.Name] = struct{}{}
+	volumeNames := make(map[string]struct{}, len(m.Volumes))
+	for _, volume := range m.Volumes {
+		volumeNames[volume.Name] = struct{}{}
 	}
 	for _, name := range exp.RequiredVolumes {
-		if _, ok := volNames[name]; !ok {
+		if _, ok := volumeNames[name]; !ok {
 			errs = append(errs, fmt.Errorf("missing required volume %q", name))
 		}
 	}
 
-	// Required volume mounts.
 	mountNames := make(map[string]struct{}, len(m.VolumeMounts))
-	for _, vm := range m.VolumeMounts {
-		mountNames[vm.Name] = struct{}{}
+	for _, mount := range m.VolumeMounts {
+		mountNames[mount.Name] = struct{}{}
 	}
 	for _, name := range exp.RequiredVolumeMounts {
 		if _, ok := mountNames[name]; !ok {
@@ -99,7 +89,6 @@ func AssertMutations(m *PodMutations, exp MutationExpectation) []error {
 		}
 	}
 
-	// Provider-specific deep validation.
 	if exp.Validate != nil {
 		errs = append(errs, exp.Validate(m)...)
 	}
@@ -107,12 +96,7 @@ func AssertMutations(m *PodMutations, exp MutationExpectation) []error {
 	return errs
 }
 
-// AssertPodSpec validates a deployed pod (template labels + pod spec) against a
-// MutationExpectation. Env vars and volume mounts are checked on the first (model)
-// container. This is used by the e2e conformance suite against a StatefulSet.
-//
-// ExpectEmpty is not enforced here because a deployed pod legitimately contains
-// unrelated labels/env/volumes; emptiness is asserted on raw PodMutations instead.
+// AssertPodSpec validates deployed pod mutations against an expectation.
 func AssertPodSpec(templateLabels map[string]string, spec *corev1.PodSpec, exp MutationExpectation) []error {
 	var errs []error
 
@@ -144,19 +128,19 @@ func AssertPodSpec(templateLabels map[string]string, spec *corev1.PodSpec, exp M
 		}
 	}
 
-	volNames := make(map[string]struct{}, len(spec.Volumes))
-	for _, v := range spec.Volumes {
-		volNames[v.Name] = struct{}{}
+	volumeNames := make(map[string]struct{}, len(spec.Volumes))
+	for _, volume := range spec.Volumes {
+		volumeNames[volume.Name] = struct{}{}
 	}
 	for _, name := range exp.RequiredVolumes {
-		if _, ok := volNames[name]; !ok {
+		if _, ok := volumeNames[name]; !ok {
 			errs = append(errs, fmt.Errorf("pod spec missing required volume %q", name))
 		}
 	}
 
 	mountNames := make(map[string]struct{}, len(spec.Containers[0].VolumeMounts))
-	for _, vm := range spec.Containers[0].VolumeMounts {
-		mountNames[vm.Name] = struct{}{}
+	for _, mount := range spec.Containers[0].VolumeMounts {
+		mountNames[mount.Name] = struct{}{}
 	}
 	for _, name := range exp.RequiredVolumeMounts {
 		if _, ok := mountNames[name]; !ok {
@@ -165,15 +149,4 @@ func AssertPodSpec(templateLabels map[string]string, spec *corev1.PodSpec, exp M
 	}
 
 	return errs
-}
-
-// EnvValue returns the value of the named env var in the mutations, and whether
-// it was present. Useful for provider Validate functions.
-func (m *PodMutations) EnvValue(name string) (string, bool) {
-	for _, e := range m.EnvVars {
-		if e.Name == name {
-			return e.Value, true
-		}
-	}
-	return "", false
 }

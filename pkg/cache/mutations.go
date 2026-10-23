@@ -32,7 +32,6 @@ import (
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
 	pkgmodel "github.com/kaito-project/kaito/pkg/model"
 	"github.com/kaito-project/kaito/pkg/utils"
-	"github.com/kaito-project/kaito/pkg/utils/generator"
 )
 
 const (
@@ -118,16 +117,6 @@ func providerAppliesTo(p Provider, concern CacheConcern, ws *kaitov1beta1.Worksp
 		return true
 	}
 	return checker.AppliesTo(concern, ws, ss)
-}
-
-// SetCacheMutations returns a StatefulSet modifier that evaluates provider
-// applicability against the rendered workload and applies all cache mutations.
-// Returns nil (no modifier) when cache is not configured. Callers are expected
-// to gate on the distributed-cache feature flag before wiring this modifier in.
-func SetCacheMutations() generator.TypedManifestModifier[generator.WorkspaceGeneratorContext, appsv1.StatefulSet] {
-	return func(ctx *generator.WorkspaceGeneratorContext, ss *appsv1.StatefulSet) error {
-		return ApplyPresetCacheMutations(ctx.Ctx, ctx.Workspace, ctx.KubeClient, ctx.Model, ss)
-	}
 }
 
 // ApplyPresetCacheMutations evaluates provider applicability against a rendered

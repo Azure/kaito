@@ -13,7 +13,7 @@
 
 package cache_test
 
-// The blank import of pkg/cache/noop below self-registers the provider's
+// The blank import of internal/cachetest/noop below self-registers the fixture's
 // conformance Expectations via init(). Adding a new provider package to the
 // import list is all that is required for the registry-driven suite to discover it.
 import (
@@ -26,8 +26,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
+	"github.com/kaito-project/kaito/internal/cachetest"
+	_ "github.com/kaito-project/kaito/internal/cachetest/noop"
 	"github.com/kaito-project/kaito/pkg/cache"
-	_ "github.com/kaito-project/kaito/pkg/cache/noop"
 )
 
 // TestProviderConformance_AutoDiscovered iterates every registered provider's
@@ -36,7 +37,7 @@ import (
 // registry, any newly added provider is automatically included — and a provider that
 // registers without a usable conformance factory fails the suite closed.
 func TestProviderConformance_AutoDiscovered(t *testing.T) {
-	exps := cache.ListExpectations()
+	exps := cachetest.ListExpectations()
 	if len(exps) == 0 {
 		t.Fatal("no cache provider expectations registered; expected at least noop")
 	}
@@ -79,38 +80,12 @@ func TestProviderConformance_AutoDiscovered(t *testing.T) {
 					if m == nil {
 						t.Fatalf("PodMutations(%s) returned nil mutations", concern)
 					}
-					for _, assertErr := range cache.AssertMutations(m, exp) {
+					for _, assertErr := range cachetest.AssertMutations(m, exp) {
 						t.Errorf("[%s/%s] %v", e.Provider, concern, assertErr)
 					}
 				})
 			}
 		})
-	}
-}
-
-// TestProviderConformance_ShippedProviders asserts that every provider shipped and
-// wired into cmd/workspace/main.go declares conformance Expectations and produces a
-// runnable instance whose name matches. This guards against adding a real provider
-// without also registering it with the conformance suite.
-//
-// It intentionally checks the expectations registry rather than cache.List(), because
-// the global provider registry is shared across the test binary and is deliberately
-// polluted with fake providers by other unit tests in this package.
-func TestProviderConformance_ShippedProviders(t *testing.T) {
-	shipped := []cache.ProviderName{"noop"}
-	for _, name := range shipped {
-		e, ok := cache.GetExpectations(name)
-		if !ok {
-			t.Errorf("shipped provider %q declares no conformance Expectations", name)
-			continue
-		}
-		if e.NewForConformance == nil {
-			t.Errorf("shipped provider %q has no NewForConformance factory", name)
-			continue
-		}
-		if got := cache.ProviderName(e.NewForConformance().Name()); got != name {
-			t.Errorf("provider %q factory produced instance named %q", name, got)
-		}
 	}
 }
 
@@ -122,8 +97,9 @@ func TestProviderConformance_ShippedProviders(t *testing.T) {
 //
 // To satisfy this test, a new provider must:
 //  1. Create a package under pkg/cache/<provider-name>/
-//  2. Call cache.RegisterExpectations(...) in its init()
-//  3. Be blank-imported in this test file
+//  2. Add test support under internal/cachetest/<provider-name>/ that calls
+//     cachetest.RegisterExpectations(...) in its init()
+//  3. Blank-import that test-support package in this file
 func TestAllProviderDirectoriesRegisterExpectations(t *testing.T) {
 	// Go test runs from the package directory, so subdirs are direct children.
 	entries, err := os.ReadDir(".")
@@ -144,10 +120,10 @@ func TestAllProviderDirectoriesRegisterExpectations(t *testing.T) {
 		}
 
 		provider := cache.ProviderName(dir)
-		exp, ok := cache.GetExpectations(provider)
+		exp, ok := cachetest.GetExpectations(provider)
 		if !ok {
 			t.Errorf("provider directory %q exists under pkg/cache/ but did not register "+
-				"Expectations via cache.RegisterExpectations(). Every provider must declare "+
+				"Expectations via cachetest.RegisterExpectations(). Every provider must declare "+
 				"its conformance contract so the common E2E scenarios are exercised.", dir)
 			continue
 		}
@@ -164,7 +140,7 @@ func TestAllProviderDirectoriesRegisterExpectations(t *testing.T) {
 // pins its contract — required labels, env vars, volumes, and volume mounts are
 // detected on the first (model) container, and violations are reported.
 func TestAssertPodSpec(t *testing.T) {
-	exp := cache.MutationExpectation{
+	exp := cachetest.MutationExpectation{
 		Supported:            true,
 		RequiredLabels:       map[string]string{"cache": "on"},
 		RequiredEnvVars:      []string{"CACHE_ENV"},
@@ -181,14 +157,14 @@ func TestAssertPodSpec(t *testing.T) {
 		Volumes: []corev1.Volume{{Name: "cache-vol"}},
 	}
 
-	if errs := cache.AssertPodSpec(map[string]string{"cache": "on"}, compliant, exp); len(errs) != 0 {
+	if errs := cachetest.AssertPodSpec(map[string]string{"cache": "on"}, compliant, exp); len(errs) != 0 {
 		t.Fatalf("expected compliant pod spec to pass, got errors: %v", errs)
 	}
 
 	// A pod missing every requirement must surface one error per missing item
 	// (label, env var, volume, volume mount).
 	empty := &corev1.PodSpec{Containers: []corev1.Container{{Name: "model"}}}
-	errs := cache.AssertPodSpec(map[string]string{}, empty, exp)
+	errs := cachetest.AssertPodSpec(map[string]string{}, empty, exp)
 	if len(errs) != 4 {
 		t.Fatalf("expected 4 violations for empty pod spec, got %d: %v", len(errs), errs)
 	}

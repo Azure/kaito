@@ -11,7 +11,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package noop provides a no-op cache provider for testing.
 package noop
 
 import (
@@ -20,13 +19,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
+	"github.com/kaito-project/kaito/internal/cachetest"
 	"github.com/kaito-project/kaito/pkg/cache"
 )
 
 const ProviderName = "noop"
 
-// Provider is a no-op cache provider that always reports available and ready
-// but performs no actual caching.
 type Provider struct{}
 
 var _ cache.Provider = (*Provider)(nil)
@@ -50,7 +48,21 @@ func (p *Provider) EventObject() runtime.Object {
 	return nil
 }
 
-// NewProvider returns a new noop cache provider instance.
 func NewProvider() *Provider {
 	return &Provider{}
+}
+
+func init() {
+	cachetest.RegisterExpectations(cachetest.Expectations{
+		Provider:          cache.ProviderName(ProviderName),
+		NewForConformance: func() cache.Provider { return NewProvider() },
+		ModelWeights: cachetest.MutationExpectation{
+			Supported:   true,
+			ExpectEmpty: true,
+		},
+		KVCache: cachetest.MutationExpectation{
+			Supported:   true,
+			ExpectEmpty: true,
+		},
+	})
 }

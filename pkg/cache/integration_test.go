@@ -197,10 +197,9 @@ func TestSetCacheMutations_FullPipeline(t *testing.T) {
 				},
 			}
 
-			modifier := SetCacheMutations()
-			err := modifier(ctx, ss)
+			err := ApplyPresetCacheMutations(ctx.Ctx, ctx.Workspace, ctx.KubeClient, ctx.Model, ss)
 			if err != nil {
-				t.Fatalf("SetCacheMutations returned error: %v", err)
+				t.Fatalf("ApplyPresetCacheMutations returned error: %v", err)
 			}
 			spec = &ss.Spec.Template.Spec
 
@@ -236,9 +235,9 @@ func TestSetCacheMutations_FullPipeline(t *testing.T) {
 	}
 }
 
-// TestSetCacheMutations_RunAIStreamerEnvVars verifies that RunAI streamer
+// TestApplyPresetCacheMutations_RunAIStreamerEnvVars verifies that RunAI streamer
 // env vars are correctly injected for model weight caching.
-func TestSetCacheMutations_RunAIStreamerEnvVars(t *testing.T) {
+func TestApplyPresetCacheMutations_RunAIStreamerEnvVars(t *testing.T) {
 	setupCacheProvider()
 	featuregates.FeatureGates[consts.FeatureFlagDistributedCache] = true
 	defer func() { featuregates.FeatureGates[consts.FeatureFlagDistributedCache] = false }()
@@ -265,8 +264,7 @@ func TestSetCacheMutations_RunAIStreamerEnvVars(t *testing.T) {
 		},
 	}
 
-	modifier := SetCacheMutations()
-	err := modifier(ctx, ss)
+	err := ApplyPresetCacheMutations(ctx.Ctx, ctx.Workspace, ctx.KubeClient, ctx.Model, ss)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -284,9 +282,9 @@ func TestSetCacheMutations_RunAIStreamerEnvVars(t *testing.T) {
 	}
 }
 
-// TestSetCacheMutations_PreservesExistingPodSpec verifies that cache mutations
+// TestApplyPresetCacheMutations_PreservesExistingPodSpec verifies that cache mutations
 // don't interfere with existing pod spec elements.
-func TestSetCacheMutations_PreservesExistingPodSpec(t *testing.T) {
+func TestApplyPresetCacheMutations_PreservesExistingPodSpec(t *testing.T) {
 	setupCacheProvider()
 	featuregates.FeatureGates[consts.FeatureFlagDistributedCache] = true
 	defer func() { featuregates.FeatureGates[consts.FeatureFlagDistributedCache] = false }()
@@ -333,8 +331,7 @@ func TestSetCacheMutations_PreservesExistingPodSpec(t *testing.T) {
 		},
 	}
 
-	modifier := SetCacheMutations()
-	err := modifier(ctx, ss)
+	err := ApplyPresetCacheMutations(ctx.Ctx, ctx.Workspace, ctx.KubeClient, ctx.Model, ss)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -374,9 +371,9 @@ func TestSetCacheMutations_PreservesExistingPodSpec(t *testing.T) {
 	}
 }
 
-// TestSetCacheMutations_AppliesPodTemplateLabels verifies that the StatefulSet
+// TestApplyPresetCacheMutations_AppliesPodTemplateLabels verifies that the StatefulSet
 // modifier applies provider labels to the pod template.
-func TestSetCacheMutations_AppliesPodTemplateLabels(t *testing.T) {
+func TestApplyPresetCacheMutations_AppliesPodTemplateLabels(t *testing.T) {
 	setupCacheProvider()
 	featuregates.FeatureGates[consts.FeatureFlagDistributedCache] = true
 	defer func() { featuregates.FeatureGates[consts.FeatureFlagDistributedCache] = false }()
@@ -428,7 +425,7 @@ func TestSetCacheMutations_AppliesPodTemplateLabels(t *testing.T) {
 					},
 				},
 			}
-			if err := SetCacheMutations()(ctx, ss); err != nil {
+			if err := ApplyPresetCacheMutations(ctx.Ctx, ctx.Workspace, ctx.KubeClient, ctx.Model, ss); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
