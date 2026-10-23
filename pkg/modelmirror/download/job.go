@@ -53,7 +53,12 @@ func BuildDownloadJob(cr *kaitov1alpha1.ModelMirror, resources mmconsts.Download
 export HF_HUB_DOWNLOAD_TIMEOUT=300
 
 %s
-pip install -q "huggingface-hub==%s"
+pip install -q "huggingface-hub==%s" "certifi==%s"
+
+# The native Xet client needs a complete, current CA bundle for the CAS endpoint.
+# Resolve it separately from export so set -e catches a failed certifi lookup.
+SSL_CERT_FILE="$(python3 -m certifi)"
+export SSL_CERT_FILE
 
 hf download "${MODEL_ID}" \
   --max-workers 4 \%s
@@ -65,14 +70,13 @@ rm -rf "/models/${MODEL_ID}/.cache" 2>/dev/null || true
 find "/models/${MODEL_ID}/" -mindepth 1 -type d -exec rm -rf {} + 2>/dev/null || true`,
 		kaitoconsts.PipBootstrapCommand,
 		mmconsts.HuggingFaceHubVersion,
+		mmconsts.CertifiVersion,
 		excludeFlags,
 	)
 
 	envVars := []corev1.EnvVar{
 		{Name: "MODEL_ID", Value: modelID},
-		// Use HTTP downloads: the helper image's system CA bundle does not
-		// include the roots required by the native Xet client's CAS endpoint.
-		{Name: "HF_HUB_DISABLE_XET", Value: "1"},
+		{Name: "HF_HUB_DISABLE_XET", Value: "0"},
 	}
 
 	// Always declare HF_TOKEN — optional:true means Kubernetes silently skips it

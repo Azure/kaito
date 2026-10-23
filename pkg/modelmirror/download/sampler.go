@@ -49,8 +49,10 @@ func buildSamplerContainer(envVars []corev1.EnvVar) corev1.Container {
 	shell := fmt.Sprintf(`set -e
 trap 'exit 0' TERM
 %s
-pip install -q "huggingface-hub==%s" "prometheus-client==%s"
-exec python3 -c "$SAMPLER_SCRIPT"`, kaitoconsts.PipBootstrapCommand, mmconsts.HuggingFaceHubVersion, mmconsts.PrometheusClientVersion)
+pip install -q "huggingface-hub==%s" "prometheus-client==%s" "certifi==%s"
+SSL_CERT_FILE="$(python3 -m certifi)"
+export SSL_CERT_FILE
+exec python3 -c "$SAMPLER_SCRIPT"`, kaitoconsts.PipBootstrapCommand, mmconsts.HuggingFaceHubVersion, mmconsts.PrometheusClientVersion, mmconsts.CertifiVersion)
 
 	env := append([]corev1.EnvVar{}, envVars...)
 	env = append(env,
