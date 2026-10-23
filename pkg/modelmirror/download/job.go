@@ -24,6 +24,7 @@ import (
 
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	mmconsts "github.com/kaito-project/kaito/pkg/modelmirror/consts"
+	kaitoconsts "github.com/kaito-project/kaito/pkg/utils/consts"
 )
 
 // BuildDownloadJob constructs the Job that downloads model files to the PVC.
@@ -51,6 +52,7 @@ func BuildDownloadJob(cr *kaitov1alpha1.ModelMirror, resources mmconsts.Download
 	script := fmt.Sprintf(`set -e
 export HF_HUB_DOWNLOAD_TIMEOUT=300
 
+%s
 pip install -q "huggingface-hub==%s"
 
 hf download "${MODEL_ID}" \
@@ -61,6 +63,7 @@ hf download "${MODEL_ID}" \
 # zero-byte objects that cause RunAI model streamer to fail with FileExistsError.
 rm -rf "/models/${MODEL_ID}/.cache" 2>/dev/null || true
 find "/models/${MODEL_ID}/" -mindepth 1 -type d -exec rm -rf {} + 2>/dev/null || true`,
+		kaitoconsts.PipBootstrapCommand,
 		mmconsts.HuggingFaceHubVersion,
 		excludeFlags,
 	)

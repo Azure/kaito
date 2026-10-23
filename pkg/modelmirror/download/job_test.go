@@ -25,6 +25,7 @@ import (
 
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	mmconsts "github.com/kaito-project/kaito/pkg/modelmirror/consts"
+	kaitoconsts "github.com/kaito-project/kaito/pkg/utils/consts"
 )
 
 func newTestModelMirror() *kaitov1alpha1.ModelMirror {
@@ -118,6 +119,11 @@ func TestBuildDownloadJobScript(t *testing.T) {
 		assert.Contains(t, script, `hf download "${MODEL_ID}"`)
 		assert.Contains(t, script, "--exclude")
 		assert.Contains(t, script, "-mindepth 1 -type d")
+	})
+
+	t.Run("pins pip before installing dependencies", func(t *testing.T) {
+		assert.True(t, strings.Index(script, kaitoconsts.PipBootstrapCommand) >= 0 &&
+			strings.Index(script, kaitoconsts.PipBootstrapCommand) < strings.Index(script, `pip install -q "huggingface-hub==`))
 	})
 
 	t.Run("cache cleanup runs after the download", func(t *testing.T) {
