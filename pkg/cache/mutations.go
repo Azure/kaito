@@ -19,6 +19,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"regexp"
 	"strings"
@@ -29,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
+	pkgmodel "github.com/kaito-project/kaito/pkg/model"
 	"github.com/kaito-project/kaito/pkg/utils"
 	"github.com/kaito-project/kaito/pkg/utils/generator"
 )
@@ -124,68 +126,72 @@ func providerAppliesTo(p Provider, concern CacheConcern, ws *kaitov1beta1.Worksp
 // to gate on the distributed-cache feature flag before wiring this modifier in.
 func SetCacheMutations() generator.TypedManifestModifier[generator.WorkspaceGeneratorContext, appsv1.StatefulSet] {
 	return func(ctx *generator.WorkspaceGeneratorContext, ss *appsv1.StatefulSet) error {
-		ws := ctx.Workspace
-		if !HasAttachment(ws) {
-			return nil
-		}
-		attachment, err := ResolveEffectiveAttachment(ctx.Ctx, ctx.KubeClient, ws)
-		if err != nil {
-			return fmt.Errorf("resolving cache attachment: %w", err)
-		}
-		if attachment == nil {
-			return nil
-		}
-
-		// Extract model name and revision from the model's metadata.
-		var modelName, modelRevision string
-		if ctx.Model != nil {
-			params := ctx.Model.GetInferenceParameters()
-			if params != nil {
-				modelName = params.Name
-				if params.Version != "" {
-					_, revision, err := utils.ParseHuggingFaceModelVersion(params.Version)
-					if err == nil {
-						modelRevision = revision
-					}
-				}
-				// If model name from params is empty, try preset name.
-				if modelName == "" && ws.Inference != nil && ws.Inference.Preset != nil {
-					modelName = string(ws.Inference.Preset.Name)
-				}
-			}
-		}
-
-		mutations, err := collectMutations(ctx.Ctx, ws, attachment, modelName, modelRevision, ss)
-		if err != nil {
-			return fmt.Errorf("collecting cache mutations: %w", err)
-		}
-
-		// Retain the exact identity used to compute provider mutations so
-		// readiness verification can reproduce the render-time result.
-		setCacheModelIdentity(ss, modelName, modelRevision)
-
-		klog.InfoS("Cache mutations collected",
-			"workspace", ws.Name,
-			"labels", mutations.Labels,
-			"envVars", len(mutations.EnvVars),
-			"volumes", len(mutations.Volumes),
-			"volumeMounts", len(mutations.VolumeMounts))
-		for _, env := range mutations.EnvVars {
-			klog.V(4).InfoS("  cache env var", "name", env.Name, "value", env.Value)
-		}
-
-		if len(mutations.Labels) > 0 {
-			if ss.Spec.Template.Labels == nil {
-				ss.Spec.Template.Labels = make(map[string]string)
-			}
-			for k, v := range mutations.Labels {
-				ss.Spec.Template.Labels[k] = v
-			}
-		}
-
-		applyMutations(&ss.Spec.Template.Spec, mutations)
-		return setMutationHash(ss, attachment, mutations)
+		return ApplyPresetCacheMutations(ctx.Ctx, ctx.Workspace, ctx.KubeClient, ctx.Model, ss)
 	}
+}
+
+// ApplyPresetCacheMutations evaluates provider applicability against a rendered
+// preset workload and applies all cache mutations. Callers must invoke this only
+// when the distributed-cache feature gate is enabled.
+func ApplyPresetCacheMutations(ctx context.Context, ws *kaitov1beta1.Workspace, kubeClient client.Client,
+	model pkgmodel.Model, ss *appsv1.StatefulSet) error {
+	if !HasAttachment(ws) {
+		return nil
+	}
+	attachment, err := ResolveEffectiveAttachment(ctx, kubeClient, ws)
+	if err != nil {
+		return fmt.Errorf("resolving cache attachment: %w", err)
+	}
+	if attachment == nil {
+		return nil
+	}
+
+	var modelName, modelRevision string
+	if model != nil {
+		params := model.GetInferenceParameters()
+		if params != nil {
+			modelName = params.Name
+			if params.Version != "" {
+				_, revision, err := utils.ParseHuggingFaceModelVersion(params.Version)
+				if err == nil {
+					modelRevision = revision
+				}
+			}
+			if modelName == "" && ws.Inference != nil && ws.Inference.Preset != nil {
+				modelName = string(ws.Inference.Preset.Name)
+			}
+		}
+	}
+
+	mutations, err := collectMutations(ctx, ws, attachment, modelName, modelRevision, ss)
+	if err != nil {
+		return fmt.Errorf("collecting cache mutations: %w", err)
+	}
+
+	setCacheModelIdentity(ss, modelName, modelRevision)
+
+	klog.InfoS("Cache mutations collected",
+		"workspace", ws.Name,
+		"labels", mutations.Labels,
+		"envVars", len(mutations.EnvVars),
+		"volumes", len(mutations.Volumes),
+		"volumeMounts", len(mutations.VolumeMounts))
+	for _, env := range mutations.EnvVars {
+		klog.V(4).InfoS("  cache env var", "name", env.Name, "value", env.Value)
+	}
+
+	if len(mutations.Labels) > 0 {
+		ss.Spec.Template.Labels = maps.Clone(ss.Spec.Template.Labels)
+		if ss.Spec.Template.Labels == nil {
+			ss.Spec.Template.Labels = make(map[string]string, len(mutations.Labels))
+		}
+		for k, v := range mutations.Labels {
+			ss.Spec.Template.Labels[k] = v
+		}
+	}
+
+	applyMutations(&ss.Spec.Template.Spec, mutations)
+	return setMutationHash(ss, attachment, mutations)
 }
 
 // collectMutations gathers PodMutations from all configured cache providers,

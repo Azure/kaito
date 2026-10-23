@@ -36,7 +36,6 @@ import (
 
 	kaitov1alpha1 "github.com/kaito-project/kaito/api/v1alpha1"
 	"github.com/kaito-project/kaito/api/v1beta1"
-	"github.com/kaito-project/kaito/pkg/cache"
 	"github.com/kaito-project/kaito/pkg/featuregates"
 	pkgmodel "github.com/kaito-project/kaito/pkg/model"
 	"github.com/kaito-project/kaito/pkg/nodeprovision"
@@ -276,14 +275,6 @@ func GeneratePresetInference(ctx context.Context, workspaceObj *v1beta1.Workspac
 		podOpts = append(podOpts, SetBenchmarkConfig(distributed))
 	}
 
-	// Cache injection is attempted whenever the distributed-cache feature gate is
-	// on and a cache is configured. Whether a given provider actually engages with
-	// this workload is the provider's decision (via cache.PodApplicabilityChecker)
-	// — e.g. a streaming provider only applies when the model is loaded via the
-	// run:ai streamer, while a mount-based provider may apply unconditionally. The
-	// framework does not hardcode any such condition here.
-	cacheApplicable := featuregates.FeatureGates[consts.FeatureFlagDistributedCache] && cache.HasAttachment(workspaceObj)
-
 	ssOpts := []generator.TypedManifestModifier[generator.WorkspaceGeneratorContext, appsv1.StatefulSet]{
 		manifests.GenerateStatefulSetManifest(revisionNum, numNodes),
 	}
@@ -319,12 +310,6 @@ func GeneratePresetInference(ctx context.Context, workspaceObj *v1beta1.Workspac
 	}
 
 	ssOpts = append(ssOpts, manifests.SetStatefulSetPodSpec(podSpec))
-
-	// Evaluate provider applicability and apply all cache mutations after the
-	// complete pod spec has been attached to the StatefulSet.
-	if cacheApplicable {
-		ssOpts = append(ssOpts, cache.SetCacheMutations())
-	}
 
 	workload, err := generator.GenerateManifest(gctx, ssOpts...)
 	result := &PresetInferenceResult{Workload: workload}

@@ -35,6 +35,11 @@ type ReconcileResult struct {
 	RequeueNeeded bool
 }
 
+var managedConditionTypes = []kaitov1beta1.ConditionType{
+	kaitov1beta1.WorkspaceConditionTypeModelCacheReady,
+	kaitov1beta1.WorkspaceConditionTypeKVCacheReady,
+}
+
 // ReconcileCache checks cache provider infrastructure readiness and sets workspace conditions.
 // When a kubeClient is supplied it also verifies the cache was actually injected
 // into the rendered inference StatefulSet, downgrading *CacheReady to False when
@@ -42,18 +47,25 @@ type ReconcileResult struct {
 // Returns whether the workspace deployment should be blocked (Required mode + not ready).
 // This should be called early in the reconcile loop, after nodes are ready.
 func ReconcileCache(ctx context.Context, kubeClient client.Client, ws *kaitov1beta1.Workspace, status *kaitov1beta1.WorkspaceStatus) ReconcileResult {
-	if !HasAttachment(ws) {
-		return ReconcileResult{}
-	}
-
 	// Compute cache conditions separately and merge only their final states into
 	// the Workspace status, avoiding False -> True -> False transition churn.
 	cacheStatus := &kaitov1beta1.WorkspaceStatus{}
 	defer func() {
+		returnedTypes := make(map[string]struct{}, len(cacheStatus.Conditions))
 		for _, condition := range cacheStatus.Conditions {
 			meta.SetStatusCondition(&status.Conditions, condition)
+			returnedTypes[condition.Type] = struct{}{}
+		}
+		for _, conditionType := range managedConditionTypes {
+			if _, returned := returnedTypes[string(conditionType)]; !returned {
+				meta.RemoveStatusCondition(&status.Conditions, string(conditionType))
+			}
 		}
 	}()
+
+	if !HasAttachment(ws) {
+		return ReconcileResult{}
+	}
 
 	result := ReconcileResult{}
 	attachment, err := ResolveEffectiveAttachment(ctx, kubeClient, ws)
@@ -96,10 +108,9 @@ func ReconcileCache(ctx context.Context, kubeClient client.Client, ws *kaitov1be
 	// condition reflects the inference pod rather than just backend
 	// infrastructure readiness. This needs the workload, so it is skipped when
 	// no client is available (unit tests) and treats a missing StatefulSet as
-	// not-yet-injected. It is also skipped while we are blocking deployment,
-	// since the workload is not being created and the conditions already carry
-	// the more informative infrastructure-not-ready reason.
-	if kubeClient != nil && !result.BlockDeployment {
+	// not-yet-injected. Infrastructure failures remain False and retain their
+	// more specific reasons.
+	if kubeClient != nil {
 		var ss *appsv1.StatefulSet
 		fetched := &appsv1.StatefulSet{}
 		switch err := kubeClient.Get(ctx, client.ObjectKey{Name: ws.Name, Namespace: ws.Namespace}, fetched); {
@@ -110,6 +121,9 @@ func ReconcileCache(ctx context.Context, kubeClient client.Client, ws *kaitov1be
 		default:
 			klog.V(2).InfoS("Failed to fetch StatefulSet for cache injection verification",
 				"workspace", ws.Name, "error", err)
+			markCacheVerificationFailed(cacheStatus, ws.GetGeneration(),
+				fmt.Sprintf("failed to verify cache injection: %v", err))
+			result.RequeueNeeded = true
 			return result
 		}
 		verifyCacheInjection(ctx, ws, attachment, ss, cacheStatus)
@@ -163,6 +177,16 @@ func conditionIsTrue(status *kaitov1beta1.WorkspaceStatus, condType kaitov1beta1
 	return c != nil && c.Status == metav1.ConditionTrue
 }
 
+// markCacheVerificationFailed downgrades only infrastructure-ready concerns.
+// Conditions already False retain their more specific provider failure reason.
+func markCacheVerificationFailed(status *kaitov1beta1.WorkspaceStatus, generation int64, message string) {
+	for _, conditionType := range managedConditionTypes {
+		if conditionIsTrue(status, conditionType) {
+			setCacheCondition(status, generation, conditionType, false, message)
+		}
+	}
+}
+
 // concernInjected reports whether the provider's mutations for a concern are
 // actually present on the rendered pod template. It reuses the model identity
 // recorded during rendering and confirms the expected labels, env vars, volumes,
@@ -191,7 +215,8 @@ func concernInjected(ctx context.Context, ws *kaitov1beta1.Workspace,
 	}
 
 	for k, v := range m.Labels {
-		if ss.Spec.Template.Labels[k] != v {
+		actual, present := ss.Spec.Template.Labels[k]
+		if !present || actual != v {
 			return false, fmt.Sprintf("expected cache label %q not present on inference pod", k)
 		}
 	}

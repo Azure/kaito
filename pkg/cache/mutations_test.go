@@ -443,6 +443,20 @@ func (p *labelScopedProvider) PodMutations(ctx context.Context, concern CacheCon
 	return p.concernTestProvider.PodMutations(ctx, concern, ws, modelName, modelRevision, parameters)
 }
 
+type imageScopedProvider struct {
+	concernTestProvider
+	expectedImage string
+	observedImage string
+}
+
+func (p *imageScopedProvider) AppliesTo(_ CacheConcern, _ *kaitov1beta1.Workspace, ss *appsv1.StatefulSet) bool {
+	if ss == nil || len(ss.Spec.Template.Spec.Containers) == 0 {
+		return false
+	}
+	p.observedImage = ss.Spec.Template.Spec.Containers[0].Image
+	return p.observedImage == p.expectedImage
+}
+
 func TestCollectMutations_WithBothConcernsMergesLabelsAndEnvVars(t *testing.T) {
 	isolateProviderRegistry(t)
 
@@ -506,11 +520,15 @@ func TestSetCacheMutations_AppliesLabels(t *testing.T) {
 			version: "https://huggingface.co/microsoft/phi-4/commit/revision-a",
 		},
 	}
+	baseLabels := map[string]string{"workload-label": "enabled"}
 	ss := &appsv1.StatefulSet{
 		Spec: appsv1.StatefulSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: baseLabels,
+			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{"workload-label": "enabled"},
+					Labels: baseLabels,
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{Name: "model", Image: "kaito-base:latest"}},
@@ -525,6 +543,9 @@ func TestSetCacheMutations_AppliesLabels(t *testing.T) {
 	if ss.Spec.Template.Labels["model-label"] != "enabled" {
 		t.Fatalf("expected pod template label to be applied, got %v", ss.Spec.Template.Labels)
 	}
+	if _, exists := ss.Spec.Selector.MatchLabels["model-label"]; exists {
+		t.Fatalf("cache label leaked into immutable selector: %v", ss.Spec.Selector.MatchLabels)
+	}
 	if len(ss.Spec.Template.Spec.Containers[0].Env) != 1 ||
 		ss.Spec.Template.Spec.Containers[0].Env[0].Name != "MODEL_ENV" {
 		t.Fatalf("expected cache env var to be applied, got %v", ss.Spec.Template.Spec.Containers[0].Env)
@@ -538,6 +559,42 @@ func TestSetCacheMutations_AppliesLabels(t *testing.T) {
 	}
 	if got := ss.Spec.Template.Annotations[cacheModelRevisionAnnotation]; got != "revision-a" {
 		t.Fatalf("model revision annotation: got %q, want %q", got, "revision-a")
+	}
+}
+
+func TestApplyPresetCacheMutations_UsesRenderedImageForApplicability(t *testing.T) {
+	isolateProviderRegistry(t)
+
+	provider := &imageScopedProvider{
+		concernTestProvider: concernTestProvider{name: "image-scoped-test"},
+		expectedImage:       "kaito-base:v1",
+	}
+	Register(provider)
+
+	ws := &kaitov1beta1.Workspace{}
+	kubeClient := attachTestConfig(t, ws, &Attachment{
+		ModelWeights: &ConcernConfig{Provider: ProviderName(provider.name), Mode: ModeRequired},
+	})
+	ss := &appsv1.StatefulSet{
+		Spec: appsv1.StatefulSetSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{Name: "model", Image: "kaito-base:v1"}},
+				},
+			},
+		},
+	}
+
+	if err := ApplyPresetCacheMutations(context.Background(), ws, kubeClient,
+		&mockModel{name: "microsoft/phi-4"}, ss); err != nil {
+		t.Fatalf("ApplyPresetCacheMutations returned error: %v", err)
+	}
+
+	if provider.observedImage != provider.expectedImage {
+		t.Fatalf("provider observed image %q, want %q", provider.observedImage, provider.expectedImage)
+	}
+	if ss.Spec.Template.Labels["model-label"] != "enabled" {
+		t.Fatalf("expected image-applicable cache mutations, got labels %v", ss.Spec.Template.Labels)
 	}
 }
 

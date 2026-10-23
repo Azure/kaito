@@ -516,7 +516,7 @@ func (p *guardCacheProvider) PodMutations(_ context.Context, _ cache.CacheConcer
 // applicability decision. This runs in the standard unit-test suite, unlike a
 // provider e2e which only runs when the relevant cache env vars are set on a GPU
 // cluster.
-func TestGeneratePresetInference_CacheGatedOnStreaming(t *testing.T) {
+func TestApplyPresetCacheMutations_CacheGatedOnStreaming(t *testing.T) {
 	test.RegisterTestModel()
 	t.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
 	t.Setenv("PRESET_REGISTRY_NAME", "test-registry")
@@ -582,6 +582,9 @@ func TestGeneratePresetInference_CacheGatedOnStreaming(t *testing.T) {
 		t.Fatalf("GeneratePresetInference returned error: %v", err)
 	}
 	ss := createdObject.Workload.(*appsv1.StatefulSet)
+	if err := cache.ApplyPresetCacheMutations(context.TODO(), workspace, mockClient, model, ss); err != nil {
+		t.Fatalf("ApplyPresetCacheMutations returned error: %v", err)
+	}
 
 	// The model loads via --load_format=auto (no runai_streamer), so no cache
 	// mutations should have been wired: no sentinel label, no sentinel env var.
@@ -627,7 +630,7 @@ func (p *gateTestProvider) PodMutations(_ context.Context, _ cache.CacheConcern,
 // rather than inside the pkg/cache library: with the gate enabled an
 // unconditionally-applicable provider injects its sentinel; with the gate
 // disabled the same provider must be skipped entirely.
-func TestGeneratePresetInference_CacheFeatureGate(t *testing.T) {
+func TestApplyPresetCacheMutations_CacheFeatureGate(t *testing.T) {
 	test.RegisterTestModel()
 	t.Setenv("CLOUD_PROVIDER", consts.AzureCloudName)
 	t.Setenv("PRESET_REGISTRY_NAME", "test-registry")
@@ -694,6 +697,11 @@ func TestGeneratePresetInference_CacheFeatureGate(t *testing.T) {
 				t.Fatalf("GeneratePresetInference returned error: %v", err)
 			}
 			ss := createdObject.Workload.(*appsv1.StatefulSet)
+			if tc.gateEnabled {
+				if err := cache.ApplyPresetCacheMutations(context.TODO(), workspace, mockClient, model, ss); err != nil {
+					t.Fatalf("ApplyPresetCacheMutations returned error: %v", err)
+				}
+			}
 
 			_, gotLabel := ss.Spec.Template.Labels[gateCacheLabelKey]
 			if gotLabel != tc.expectLabel {

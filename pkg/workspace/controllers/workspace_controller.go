@@ -475,6 +475,7 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 	// Check cache readiness when configured. In Required mode, block deployment
 	// until the cache is ready. Gated on the distributed-cache feature flag so
 	// the cache library itself stays feature-gate agnostic.
+	cacheRequeueNeeded := false
 	if featuregates.FeatureGates[consts.FeatureFlagDistributedCache] {
 		cacheResult := cache.ReconcileCache(ctx, c.Client, wObj, &wObj.Status)
 		if cacheResult.BlockDeployment {
@@ -484,6 +485,7 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 			}
 			return reconcile.Result{}, nil
 		}
+		cacheRequeueNeeded = cacheResult.RequeueNeeded
 	}
 
 	if wObj.Tuning != nil {
@@ -497,6 +499,10 @@ func (c *WorkspaceReconciler) addOrUpdateWorkspace(ctx context.Context, wObj *ka
 		if err := c.applyInference(ctx, wObj); err != nil {
 			return reconcile.Result{}, err
 		}
+	}
+
+	if cacheRequeueNeeded {
+		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
 	return reconcile.Result{}, nil
@@ -747,11 +753,27 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1b
 	}
 
 	existingObj := &appsv1.StatefulSet{}
-	if err := resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj); err != nil {
-		if apierrors.IsNotFound(err) {
-			return resources.CreateResource(ctx, result.Workload, c.Client)
+	existingErr := resources.GetResource(ctx, wObj.Name, wObj.Namespace, c.Client, existingObj)
+	if existingErr != nil && !apierrors.IsNotFound(existingErr) {
+		return existingErr
+	}
+
+	baseImageUpgrade := false
+	if existingErr == nil {
+		baseImageUpgrade = shouldUpgradeBaseImage(wObj, existingObj, desiredStatefulSet)
+		if !baseImageUpgrade {
+			preserveDeployedImages(existingObj, desiredStatefulSet)
 		}
-		return err
+	}
+
+	if featuregates.FeatureGates[consts.FeatureFlagDistributedCache] && cache.HasAttachment(wObj) {
+		if err := cache.ApplyPresetCacheMutations(ctx, wObj, c.Client, model, desiredStatefulSet); err != nil {
+			return err
+		}
+	}
+
+	if apierrors.IsNotFound(existingErr) {
+		return resources.CreateResource(ctx, desiredStatefulSet, c.Client)
 	}
 
 	klog.InfoS("An inference workload already exists for workspace", "workspace", klog.KObj(wObj))
@@ -761,7 +783,6 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1b
 	}
 
 	currentRevisionStr, ok := annotations[kaitov1beta1.WorkspaceRevisionAnnotation]
-	baseImageUpgrade := shouldUpgradeBaseImage(wObj, existingObj, desiredStatefulSet)
 	replacePodTemplate := baseImageUpgrade || cache.MutationHashChanged(existingObj, desiredStatefulSet)
 
 	// If the current workload revision matches the one in Workspace and no upgrade is pending,
@@ -803,6 +824,23 @@ func (c *WorkspaceReconciler) applyInference(ctx context.Context, wObj *kaitov1b
 		}
 	}
 	return nil
+}
+
+func preserveDeployedImages(existing, desired *appsv1.StatefulSet) {
+	preserveContainerImages(existing.Spec.Template.Spec.Containers, desired.Spec.Template.Spec.Containers)
+	preserveContainerImages(existing.Spec.Template.Spec.InitContainers, desired.Spec.Template.Spec.InitContainers)
+}
+
+func preserveContainerImages(existing, desired []corev1.Container) {
+	imagesByName := make(map[string]string, len(existing))
+	for _, container := range existing {
+		imagesByName[container.Name] = container.Image
+	}
+	for i := range desired {
+		if image, found := imagesByName[desired[i].Name]; found {
+			desired[i].Image = image
+		}
+	}
 }
 
 func syncInferenceMutablePodSpec(existingSpec, desiredSpec *corev1.PodSpec) {

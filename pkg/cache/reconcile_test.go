@@ -15,6 +15,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -23,11 +24,25 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kaitov1beta1 "github.com/kaito-project/kaito/api/v1beta1"
 	"github.com/kaito-project/kaito/pkg/featuregates"
 	"github.com/kaito-project/kaito/pkg/utils/consts"
 )
+
+type statefulSetGetErrorClient struct {
+	client.Client
+	err error
+}
+
+func (c *statefulSetGetErrorClient) Get(ctx context.Context, key client.ObjectKey,
+	obj client.Object, opts ...client.GetOption) error {
+	if _, isStatefulSet := obj.(*appsv1.StatefulSet); isStatefulSet {
+		return c.err
+	}
+	return c.Client.Get(ctx, key, obj, opts...)
+}
 
 func TestReconcileCache_NilCache(t *testing.T) {
 	featuregates.FeatureGates[consts.FeatureFlagDistributedCache] = true
@@ -39,6 +54,89 @@ func TestReconcileCache_NilCache(t *testing.T) {
 	result := ReconcileCache(context.Background(), nil, ws, status)
 	if result.BlockDeployment {
 		t.Error("should not block when cache is nil")
+	}
+}
+
+func TestReconcileCache_StatefulSetReadFailureDowngradesAndRequeues(t *testing.T) {
+	isolateProviderRegistry(t)
+	Register(&concernTestProvider{name: "inject-test"})
+
+	ws := modelCacheWorkspace()
+	kubeClient := &statefulSetGetErrorClient{
+		Client: attachTestConfig(t, ws, modelCacheAttachment("inject-test")),
+		err:    errors.New("API server unavailable"),
+	}
+	status := &kaitov1beta1.WorkspaceStatus{}
+
+	result := ReconcileCache(context.Background(), kubeClient, ws, status)
+
+	if result.BlockDeployment {
+		t.Fatal("Opportunistic cache verification failure must not block deployment")
+	}
+	if !result.RequeueNeeded {
+		t.Fatal("expected retry after StatefulSet read failure")
+	}
+
+	condition := meta.FindStatusCondition(status.Conditions,
+		string(kaitov1beta1.WorkspaceConditionTypeModelCacheReady))
+	if condition == nil || condition.Status != metav1.ConditionFalse {
+		t.Fatalf("expected unverified cache readiness to be False, got %#v", condition)
+	}
+	if !strings.Contains(condition.Message, "API server unavailable") {
+		t.Fatalf("expected verification error in condition, got %q", condition.Message)
+	}
+}
+
+func TestReconcileCache_NoAttachmentRemovesStaleCacheConditions(t *testing.T) {
+	ws := &kaitov1beta1.Workspace{}
+	status := &kaitov1beta1.WorkspaceStatus{
+		Conditions: []metav1.Condition{
+			{Type: string(kaitov1beta1.WorkspaceConditionTypeModelCacheReady), Status: metav1.ConditionTrue},
+			{Type: string(kaitov1beta1.WorkspaceConditionTypeKVCacheReady), Status: metav1.ConditionTrue},
+			{Type: string(kaitov1beta1.ConditionTypeResourceStatus), Status: metav1.ConditionTrue},
+		},
+	}
+
+	ReconcileCache(context.Background(), nil, ws, status)
+
+	if condition := meta.FindStatusCondition(status.Conditions,
+		string(kaitov1beta1.WorkspaceConditionTypeModelCacheReady)); condition != nil {
+		t.Fatalf("expected stale model cache condition to be removed, got %#v", condition)
+	}
+	if condition := meta.FindStatusCondition(status.Conditions,
+		string(kaitov1beta1.WorkspaceConditionTypeKVCacheReady)); condition != nil {
+		t.Fatalf("expected stale KV cache condition to be removed, got %#v", condition)
+	}
+	if condition := meta.FindStatusCondition(status.Conditions,
+		string(kaitov1beta1.ConditionTypeResourceStatus)); condition == nil {
+		t.Fatal("expected unrelated condition to be preserved")
+	}
+}
+
+func TestReconcileCache_RemovesConditionForAbsentConcern(t *testing.T) {
+	isolateProviderRegistry(t)
+	Register(&noopTestProvider{})
+
+	ws := &kaitov1beta1.Workspace{}
+	kubeClient := attachTestConfig(t, ws, &Attachment{
+		KVCache: &ConcernConfig{Provider: "noop-test", Mode: ModeOpportunistic},
+	})
+	status := &kaitov1beta1.WorkspaceStatus{
+		Conditions: []metav1.Condition{{
+			Type:   string(kaitov1beta1.WorkspaceConditionTypeModelCacheReady),
+			Status: metav1.ConditionTrue,
+		}},
+	}
+
+	ReconcileCache(context.Background(), kubeClient, ws, status)
+
+	if condition := meta.FindStatusCondition(status.Conditions,
+		string(kaitov1beta1.WorkspaceConditionTypeModelCacheReady)); condition != nil {
+		t.Fatalf("expected removed concern's condition to be removed, got %#v", condition)
+	}
+	if condition := meta.FindStatusCondition(status.Conditions,
+		string(kaitov1beta1.WorkspaceConditionTypeKVCacheReady)); condition == nil {
+		t.Fatal("expected configured KV cache condition to be retained")
 	}
 }
 
@@ -55,6 +153,9 @@ func TestReconcileCache_NoopProvider_Opportunistic(t *testing.T) {
 	kubeClient := attachTestConfig(t, ws, &Attachment{ModelWeights: &ConcernConfig{
 		Provider: "noop-test", Mode: ModeOpportunistic,
 	}})
+	if err := appsv1.AddToScheme(kubeClient.Scheme()); err != nil {
+		t.Fatalf("add apps API to test scheme: %v", err)
+	}
 	status := &kaitov1beta1.WorkspaceStatus{}
 
 	result := ReconcileCache(context.Background(), kubeClient, ws, status)
@@ -67,8 +168,8 @@ func TestReconcileCache_NoopProvider_Opportunistic(t *testing.T) {
 	if cond == nil {
 		t.Fatal("expected ModelWeightsCacheReady condition to be set")
 	}
-	if cond.Status != metav1.ConditionTrue {
-		t.Errorf("expected condition True, got %s", cond.Status)
+	if cond.Status != metav1.ConditionFalse {
+		t.Errorf("expected condition False while workload is absent, got %s", cond.Status)
 	}
 }
 
@@ -225,6 +326,9 @@ func TestReconcileCache_BothConcernsOneFailsStillBlocks(t *testing.T) {
 		ModelWeights: &ConcernConfig{Provider: "noop-test", Mode: ModeRequired},
 		KVCache:      &ConcernConfig{Provider: "missing-kv-provider", Mode: ModeRequired},
 	})
+	if err := appsv1.AddToScheme(kubeClient.Scheme()); err != nil {
+		t.Fatalf("add apps API to test scheme: %v", err)
+	}
 	status := &kaitov1beta1.WorkspaceStatus{}
 
 	result := ReconcileCache(context.Background(), kubeClient, ws, status)
@@ -233,8 +337,8 @@ func TestReconcileCache_BothConcernsOneFailsStillBlocks(t *testing.T) {
 	}
 
 	modelCond := meta.FindStatusCondition(status.Conditions, string(kaitov1beta1.WorkspaceConditionTypeModelCacheReady))
-	if modelCond == nil || modelCond.Status != metav1.ConditionTrue {
-		t.Fatalf("expected model cache to be ready, got %#v", modelCond)
+	if modelCond == nil || modelCond.Status != metav1.ConditionFalse {
+		t.Fatalf("expected model cache to be not injected while deployment is blocked, got %#v", modelCond)
 	}
 
 	kvCond := meta.FindStatusCondition(status.Conditions, string(kaitov1beta1.WorkspaceConditionTypeKVCacheReady))
@@ -422,6 +526,31 @@ func TestVerifyCacheInjection_LabelMissing_Downgrades(t *testing.T) {
 	}
 	if !strings.Contains(cond.Message, "expected cache label") {
 		t.Errorf("expected missing-label reason, got %q", cond.Message)
+	}
+}
+
+func TestVerifyCacheInjection_EmptyLabelMissing_Downgrades(t *testing.T) {
+	isolateProviderRegistry(t)
+	Register(&fixedMutationProvider{
+		name: "empty-label-test",
+		mutations: &PodMutations{
+			Labels: map[string]string{"cache.example.com/inject": ""},
+		},
+	})
+
+	ws := modelCacheWorkspace()
+	attachment := modelCacheAttachment("empty-label-test")
+	ss := stsWithPodLabels("ws", "default", map[string]string{"other": "x"})
+	status := &kaitov1beta1.WorkspaceStatus{}
+	setCacheCondition(status, ws.GetGeneration(),
+		kaitov1beta1.WorkspaceConditionTypeModelCacheReady, true, "infra ready")
+
+	verifyCacheInjection(context.Background(), ws, attachment, ss, status)
+
+	condition := meta.FindStatusCondition(status.Conditions,
+		string(kaitov1beta1.WorkspaceConditionTypeModelCacheReady))
+	if condition == nil || condition.Status != metav1.ConditionFalse {
+		t.Fatalf("expected missing empty-valued label to downgrade readiness, got %#v", condition)
 	}
 }
 
