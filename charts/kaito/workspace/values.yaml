@@ -20,7 +20,7 @@ deploymentStrategy:
 image:
   repository: mcr.microsoft.com/aks/kaito/workspace
   pullPolicy: IfNotPresent
-  tag: 0.13.0-rc.3
+  tag: 0.13.0-rc.4
 imagePullSecrets: []
 podAnnotations: {}
 podSecurityContext:
