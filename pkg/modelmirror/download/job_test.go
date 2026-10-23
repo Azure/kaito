@@ -122,8 +122,9 @@ func TestBuildDownloadJobScript(t *testing.T) {
 	})
 
 	t.Run("pins pip before installing dependencies", func(t *testing.T) {
-		assert.True(t, strings.Index(script, kaitoconsts.PipBootstrapCommand) >= 0 &&
-			strings.Index(script, kaitoconsts.PipBootstrapCommand) < strings.Index(script, `pip install -q "huggingface-hub==`))
+		pinIdx := strings.Index(script, kaitoconsts.PipBootstrapCommand)
+		require.NotEqual(t, -1, pinIdx)
+		assert.Less(t, pinIdx, strings.Index(script, `pip install -q "huggingface-hub==`))
 	})
 
 	t.Run("cache cleanup runs after the download", func(t *testing.T) {
