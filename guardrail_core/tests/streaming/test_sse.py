@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import pytest
-
 from guardrail_core.streaming.sse import (
     SSEDecodeError,
     SSEEvent,

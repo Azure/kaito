@@ -51,6 +51,6 @@ jobs:
           guardrail-core-venv/bin/python -m pip install pytest==8.4.2
           guardrail-core-venv/bin/python -m pip install --no-index --no-deps guardrail-core-dist/*.whl
           mkdir streaming-tests
-          cp "$GITHUB_WORKSPACE/guardrail_core/guardrail_core/streaming"/test_*.py streaming-tests
+          cp "$GITHUB_WORKSPACE/guardrail_core/tests/streaming"/test_*.py streaming-tests
           guardrail-core-venv/bin/python -I -c 'import guardrail_core.streaming; print(guardrail_core.streaming.__file__)'
           guardrail-core-venv/bin/python -I -m pytest streaming-tests -q

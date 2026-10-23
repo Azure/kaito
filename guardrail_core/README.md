@@ -11,7 +11,7 @@ holdback policy.
 python -m pip install ./guardrail_core
 python -m pip install build==1.2.2.post1 pytest==8.4.2
 python -m build --wheel ./guardrail_core
-python -m pytest guardrail_core/guardrail_core/streaming
+python -m pytest guardrail_core/tests/streaming
 ```
 
 The streaming tests import the installed package, not a `sys.path`-injected source

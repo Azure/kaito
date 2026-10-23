@@ -16,7 +16,6 @@ import json
 import sys
 
 import pytest
-
 from guardrail_core.streaming.openai import (
     OpenAIChatChunkParseStatus as Status,
 )
