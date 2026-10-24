@@ -51,8 +51,8 @@ For `stream=true`, output guardrails support `ban_substrings`, `invisible_text`,
 `secrets` redaction requires `redact_mode=all`. Unsupported streaming policies
 are rejected before opening the upstream stream.
 
-RAGEngine uses the shared `kaito-streaming` package to frame upstream SSE bytes
-and parse OpenAI chunks. The compatibility adapter also accepts text chunks,
+RAGEngine uses `guardrail_core.streaming` to frame upstream SSE bytes and parse
+OpenAI chunks. The compatibility adapter also accepts text chunks,
 encoding them as UTF-8. The HTTP upstream preserves bytes so invalid UTF-8
 cannot be silently replaced before validation.
 
