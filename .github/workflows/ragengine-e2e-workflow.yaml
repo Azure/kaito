@@ -186,12 +186,14 @@ jobs:
                 continue
               fi
 
+              # The e2e subscription only allows NVadsA10 v5 sizes in polandcentral; NV12ads isn't in
+              # KAITO's GPU SKU table, so the preferred-node RAGEngine uses it as a CPU-only node.
               set +e
               output=$(az aks nodepool add \
                 --resource-group "${RG}" \
                 --cluster-name "${CLUSTER}" \
                 --name ragpool \
-                -s Standard_D8_v3 \
+                -s Standard_NV12ads_A10_v5 \
                 -c 1 \
                 --labels apps=phi-3 2>&1)
               status=$?

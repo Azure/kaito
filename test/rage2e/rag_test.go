@@ -239,8 +239,11 @@ var _ = Describe("RAGEngine", func() {
 		preferredNode, err := getRagPoolNode()
 		Expect(err).NotTo(HaveOccurred(), "Failed to get ragpool node")
 
-		// Get the preferred node from ragpool
-		ragengineObj := createLocalPreferredNodesRAGEngine(clusterIP, preferredNode)
+		// A preferred node only qualifies when its instance type matches the RAGEngine's,
+		// so follow whatever VM size the e2e workflow used for the ragpool.
+		instanceType := preferredNode.Labels[v1.LabelInstanceTypeStable]
+		Expect(instanceType).NotTo(BeEmpty(), "ragpool node %s has no instance-type label", preferredNode.Name)
+		ragengineObj := createLocalPreferredNodesRAGEngine(clusterIP, preferredNode.Name, instanceType)
 
 		defer cleanupResources(workspaceObj, ragengineObj)
 
@@ -722,12 +725,12 @@ func createLocalEmbeddingKaitoVLLMRAGEngineWithQdrant(baseURL, llmPath string) *
 	return ragEngineObj
 }
 
-func createLocalPreferredNodesRAGEngine(baseURL, preferredNode string) *kaitov1beta1.RAGEngine {
+func createLocalPreferredNodesRAGEngine(baseURL, preferredNode, instanceType string) *kaitov1beta1.RAGEngine {
 	ragEngineObj := &kaitov1beta1.RAGEngine{}
 	serviceURL := fmt.Sprintf("http://%s/v1/completions", baseURL)
 	By("Creating RAG with localembedding and kaito vllm inference", func() {
 		uniqueID := fmt.Sprint("rag-", rand.Intn(1000))
-		ragEngineObj = GenerateLocalEmbeddingRAGEngineManifestWithPreferredNodes(uniqueID, namespaceName, "Standard_D8_v3", preferredNode, "BAAI/bge-small-en-v1.5",
+		ragEngineObj = GenerateLocalEmbeddingRAGEngineManifestWithPreferredNodes(uniqueID, namespaceName, instanceType, preferredNode, "BAAI/bge-small-en-v1.5",
 			&metav1.LabelSelector{
 				MatchLabels: map[string]string{"apps": "phi-3"},
 			},
@@ -1704,18 +1707,18 @@ func createAndValidateSecret() {
 	})
 }
 
-func getRagPoolNode() (string, error) {
+func getRagPoolNode() (*v1.Node, error) {
 	nodeList := &v1.NodeList{}
 	err := utils.TestingCluster.KubeClient.List(ctx, nodeList)
 	if err != nil {
-		return "", fmt.Errorf("failed to list nodes: %v", err)
+		return nil, fmt.Errorf("failed to list nodes: %v", err)
 	}
 
-	for _, node := range nodeList.Items {
-		if strings.Contains(node.Name, "ragpool") {
-			return node.Name, nil
+	for i := range nodeList.Items {
+		if strings.Contains(nodeList.Items[i].Name, "ragpool") {
+			return &nodeList.Items[i], nil
 		}
 	}
 
-	return "", fmt.Errorf("no node containing 'ragpool' found")
+	return nil, fmt.Errorf("no node containing 'ragpool' found")
 }
