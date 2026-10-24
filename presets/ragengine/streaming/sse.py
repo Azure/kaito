@@ -13,9 +13,9 @@
 
 from collections.abc import AsyncIterable, AsyncIterator
 
-from kaito_streaming.sse import DEFAULT_MAX_EVENT_BYTES
-from kaito_streaming.sse import SSEEvent as SSEEvent
-from kaito_streaming.sse import SSEFramer as ByteSSEFramer
+from guardrail_core.streaming.sse import DEFAULT_MAX_EVENT_BYTES
+from guardrail_core.streaming.sse import SSEEvent as SSEEvent
+from guardrail_core.streaming.sse import SSEFramer as ByteSSEFramer
 
 
 class SSEFramer:

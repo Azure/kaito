@@ -15,8 +15,8 @@ import os
 import sys
 
 import pytest
-from kaito_streaming import openai as shared_openai
-from kaito_streaming import sse as shared_sse
+from guardrail_core.streaming import openai as shared_openai
+from guardrail_core.streaming import sse as shared_sse
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 

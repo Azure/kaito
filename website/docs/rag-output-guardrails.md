@@ -76,7 +76,7 @@ cancellation; cancellation propagates rather than becoming a refusal.
 The existing redaction-before-block order, holdback sizing, and Secrets
 post-redaction verification remain unchanged.
 
-For local development, run `pip install -e ./streaming_core` from the repository
+For local development, run `pip install -e ./guardrail_core` from the repository
 root before installing `presets/ragengine/requirements-test.txt`, or use
 `make rag-service-test`, which installs the local package automatically.
 The service Dockerfile installs the same package before resolving requirements

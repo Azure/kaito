@@ -17,7 +17,7 @@ import os
 import sys
 
 import pytest
-from kaito_streaming.sse import DEFAULT_MAX_EVENT_BYTES
+from guardrail_core.streaming.sse import DEFAULT_MAX_EVENT_BYTES
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 

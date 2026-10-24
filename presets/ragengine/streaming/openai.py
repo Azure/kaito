@@ -13,7 +13,7 @@
 
 """Compatibility exports for the shared OpenAI streaming implementation."""
 
-from kaito_streaming.openai import (
+from guardrail_core.streaming.openai import (
     OpenAIChatChunkParseResult,
     OpenAIChatChunkParseStatus,
     ParsedOpenAIChoice,

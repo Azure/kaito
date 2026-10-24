@@ -147,7 +147,6 @@ unit-test: ## Run unit tests.
 .PHONY: rag-service-test
 rag-service-test: ## Run RAG Engine service tests with pytest.
 	pip install -e ./guardrail_core
-	pip install -e ./streaming_core
 	pip install -r presets/ragengine/requirements-test.txt
 	pip install pytest-cov
 	pytest --cov -o log_cli=true -o log_cli_level=INFO presets/ragengine/tests
