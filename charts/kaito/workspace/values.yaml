@@ -89,7 +89,7 @@ karpenterProviders:
 nvidiaDevicePlugin:
   enabled: true
   daemonsetName: "nvidia-device-plugin-daemonset"
-  image: "mcr.microsoft.com/oss/v2/nvidia/k8s-device-plugin:v0.18.2-12"
+  image: "mcr.microsoft.com/oss/v2/nvidia/k8s-device-plugin:v0.20.1-5"
   imagePullPolicy: "IfNotPresent"
 
 # Spot instance support for Azure GPU node pools.
@@ -143,12 +143,18 @@ flux2:
   policies:
     create: false
 gpu-feature-discovery:
+  image:
+    repository: mcr.microsoft.com/oss/v2/nvidia/k8s-device-plugin
+    tag: v0.20.1-5
   affinity:
     nodeAffinity: {}
   nfd:
     # Set to false if Node Feature Discovery is already installed on the cluster
     # (e.g., via the NVIDIA GPU Operator). This avoids CRD and resource conflicts.
     enabled: true
+    image:
+      repository: mcr.microsoft.com/oss/v2/kubernetes-sigs/node-feature-discovery
+      tag: v0.19.0-14
     master:
       tolerations:
       - key: CriticalAddonsOnly
