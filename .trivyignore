@@ -25,3 +25,14 @@ GHSA-xf7x-x43h-rpqh
 CVE-2026-4372
 CVE-2026-5241
 CVE-2026-9856
+
+# Temporary release exceptions for Pillow 12.3.0 in the RAG service.
+# Source: https://github.com/kaito-project/kaito/actions/runs/39758477667/job/119757309524
+# Remove these entries after upgrading Pillow to >=13.0.0.
+CVE-2026-112403
+CVE-2026-112397
+CVE-2026-112400
+CVE-2026-112404
+CVE-2026-112895
+CVE-2026-112896
+CVE-2026-112897

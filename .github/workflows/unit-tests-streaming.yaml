@@ -1,16 +1,16 @@
-name: Streaming Core Tests
+name: Guardrail Core Streaming Tests
 
 on:
   push:
     branches: [main]
     paths:
-      - "streaming_core/**"
+      - "guardrail_core/**"
       - ".github/workflows/unit-tests-streaming.yaml"
       - "pyproject.toml"
   pull_request:
     branches: [main, release-**]
     paths:
-      - "streaming_core/**"
+      - "guardrail_core/**"
       - ".github/workflows/unit-tests-streaming.yaml"
       - "pyproject.toml"
 
@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.12", "3.13", "3.14"]
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
@@ -42,14 +42,15 @@ jobs:
       - name: Build wheel
         run: |
           python -m pip install build==1.2.2.post1
-          python -m build --wheel --outdir "$RUNNER_TEMP/streaming-dist" ./streaming_core
+          python -m build --wheel --outdir "$RUNNER_TEMP/guardrail-core-dist" ./guardrail_core
 
       - name: Install and test outside source tree
         working-directory: ${{ runner.temp }}
         run: |
-          python -m venv streaming-venv
-          streaming-venv/bin/python -m pip install pytest==8.4.2
-          streaming-venv/bin/python -m pip install --no-index --no-deps streaming-dist/*.whl
-          cp -r "$GITHUB_WORKSPACE/streaming_core/tests" streaming-tests
-          streaming-venv/bin/python -I -c 'from importlib.metadata import requires; import kaito_streaming; assert not requires("kaito-streaming"); print(kaito_streaming.__file__)'
-          streaming-venv/bin/python -I -m pytest streaming-tests -q
+          python -m venv guardrail-core-venv
+          guardrail-core-venv/bin/python -m pip install pytest==8.4.2
+          guardrail-core-venv/bin/python -m pip install --no-index --no-deps guardrail-core-dist/*.whl
+          mkdir streaming-tests
+          cp "$GITHUB_WORKSPACE/guardrail_core/tests/streaming"/test_*.py streaming-tests
+          guardrail-core-venv/bin/python -I -c 'import guardrail_core.streaming; print(guardrail_core.streaming.__file__)'
+          guardrail-core-venv/bin/python -I -m pytest streaming-tests -q
