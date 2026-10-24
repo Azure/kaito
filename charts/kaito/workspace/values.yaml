@@ -124,6 +124,8 @@ clusterName: "kaito"
 flux2:
   helmController:
     create: true
+    image: mcr.microsoft.com/oss/v2/fluxcd/helm-controller
+    tag: v1.6.5-8
     container:
       # helm-controller >= v1.5 defaults to Helm v4 behaviors (server-side apply and
       # kstatus health checks), which keep KAITO-managed InferencePool HelmReleases
@@ -132,6 +134,8 @@ flux2:
         - --feature-gates=UseHelm3Defaults=true
   sourceController:
     create: true
+    image: mcr.microsoft.com/oss/v2/fluxcd/source-controller
+    tag: v1.9.6-7
   imageAutomationController:
     create: false
   imageReflectionController:
